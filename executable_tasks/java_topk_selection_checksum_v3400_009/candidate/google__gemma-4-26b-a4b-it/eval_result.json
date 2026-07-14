@@ -1,0 +1,72 @@
+{
+  "task_id": "java_topk_selection_checksum_v3400_009",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/java_topk_selection_checksum_v3400_009/candidate/google__gemma-4-26b-a4b-it/Solution.java",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "import java.util.*;\n\npublic class Solution {\n  /**\n   * Optimized implementation using primitive long arrays to avoid object allocation.\n   * We pack the score and index into a single long to allow efficient sorting/partitioning.\n   * Since we need descending score and ascending index:\n   * We transform the score to be 'comparable' in a single long: \n   * We use (long)score << 32 | (MAX_INT - index) to allow a single descending sort,\n   * OR more simply: pack as (long)score << 32 | (index & 0xFFFFFFFFL) and use a custom comparator.\n   * To avoid object overhead, we use a primitive long array and a Quickselect algorithm.\n   */\n  public static long run(int[] scores, int k, int iters) {\n    int n = scores.length;\n    long[] packed = new long[n];\n    long h = 0;\n\n    for (int iter = 0; iter < iters; iter++) {\n      for (int i = 0; i < n; i++) {\n        // Pack score in high 32 bits and index in low 32 bits.\n        // To handle the requirement: descending score, then ascending index.\n        // We can transform the index: index_transformed = (0x7FFFFFFF - index).\n        // Then a standard descending sort on (score << 32 | index_transformed) works.\n        // However, it's easier to just use a custom Quickselect logic on the packed longs.\n        // Let's pack: score (high 32) and (0x7FFFFFFF - index) (low 32).\n        // This way, higher score is 'larger', and for same score, smaller index is 'larger'.\n        long scorePart = (long) scores[i] << 32;\n        long indexPart = (0x7FFFFFFFL - (long) i) & 0xFFFFFFFFL;\n        packed[i] = scorePart | indexPart;\n      }\n\n      // Quickselect to find the top k elements\n      quickSelect(packed, 0, n - 1, k);\n\n      // The top k elements are now in packed[0...k-1].\n      // They are not necessarily sorted among themselves, so we must sort them.\n      // We need them in the specific order: descending score, then ascending index.\n      Arrays.sort(packed, 0, k);\n      // Note: Arrays.sort on primitives is ascending. \n      // Our packing (score << 32 | (MAX-index)) means higher score is larger, \n      // and for same score, smaller index is larger. \n      // So the 'largest' elements are the ones we want. \n      // After ascending sort, the top k are at the end of the range [0, k-1]? No.\n      // Let's re-evaluate: \n      // If we want top k, we want the k largest values in the packed array.\n      // Quickselect(k) puts the k-th largest at index k-1, and everything > k-1 is to the left.\n      // Wait, standard Quickselect puts the k-th element at its sorted position.\n      // Let's use a simpler approach: pack as (score << 32 | (index_inverted)).\n      // Then the k largest elements are the winners.\n      \n      // Re-sorting the top k to get them in descending order of 'packed' value.\n      // Since we want descending score, then ascending index, and our packing \n      // makes (score, -index) a single comparable value, we sort descending.\n      // Actually, the requirement is: descending score, then ascending index.\n      // Let's use: packed[i] = ((long)scores[i] << 32) | (0x7FFFFFFFL - (long)i);\n      // The largest values in this scheme are exactly the ones we want.\n      // After quickselect, the k largest are in packed[0...k-1].\n      // We sort them descending to match the original logic's order.\n      \n      // To avoid complexity, let's just sort the top k elements descending.\n      // Since we used (score << 32 | (MAX-index)), the largest values are the winners.\n      // We need to sort them descending to iterate from 0 to k-1.\n      sortDescending(packed, 0, k - 1);\n\n      h = 1469598103934665603L;\n      for (int i = 0; i < k; i++) {\n        long val = packed[i];\n        int s = (int) (val >>> 32);\n        int idx = (int) (0x7FFFFFFFL - (val & 0xFFFFFFFFL));\n        h ^= (((long) s) << 32) ^ (idx & 0xffffffffL);\n        h *= 1099511628211L;\n      }\n    }\n    return h;\n  }\n\n  private static void quickSelect(long[] arr, int left, int right, int k) {\n    int target = k - 1;\n    while (left < right) {\n      int pivotIndex = partition(arr, left, right);\n      if (pivotIndex == target) return;\n      if (pivotIndex < target) left = pivotIndex + 1;\n      else right = pivotIndex - 1;\n    }\n  }\n\n  private static int partition(long[] arr, int left, int right) {\n    long pivot = arr[right];\n    int i = left;\n    for (int j = left; j < right; j++) {\n      if (arr[j] > pivot) {\n        long temp = arr[i];\n        arr[i] = arr[j];\n        arr[j] = temp;\n        i++;\n      }\n    }\n    long temp = arr[i];\n    arr[i] = arr[right];\n    arr[right] = temp;\n    return i;\n  }\n\n  private static void sortDescending(long[] arr, int left, int right) {\n    // Simple insertion sort for the small k range\n    for (int i = left + 1; i <= right; i++) {\n      long key = arr[i];\n      int j = i - 1;\n      while (j >= left && arr[j] < key) {\n        arr[j + 1] = arr[j];\n        j--;\n      }\n      arr[j + 1] = key;\n    }\n  }\n}",
+  "baseline": {
+    "task_id": "java_topk_selection_checksum_v3400_009",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 791037516,
+    "min_elapsed_ns": 771976181,
+    "max_elapsed_ns": 835612424,
+    "all_elapsed_ns": [
+      835612424,
+      791037516,
+      771976181
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 835612424,
+      "expected_checksum": -157625415545386436,
+      "actual_checksum": -157625415545386436
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "java_topk_selection_checksum_v3400_009",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 52701826,
+    "min_elapsed_ns": 51483712,
+    "max_elapsed_ns": 61846058,
+    "all_elapsed_ns": [
+      61846058,
+      52701826,
+      51483712
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 61846058,
+      "expected_checksum": -157625415545386436,
+      "actual_checksum": -157625415545386436
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "java_topk_selection_checksum_v3400_009",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 33565969,
+    "min_elapsed_ns": 30494995,
+    "max_elapsed_ns": 35680710,
+    "all_elapsed_ns": [
+      33565969,
+      35680710,
+      30494995
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 33565969,
+      "expected_checksum": -157625415545386436,
+      "actual_checksum": -157625415545386436
+    },
+    "status": "ok"
+  }
+}

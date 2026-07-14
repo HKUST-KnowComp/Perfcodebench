@@ -1,0 +1,59 @@
+{
+  "task_id": "zstd_block_decompress_v1000_i",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/zstd_block_decompress_v1000_i/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"zstd.h\"\n#include <cstddef>\n#include <cstdint>\n#include <string>\n\nextern \"C\" {\n\n/*\n * Streaming hash state used by ZSTD\u2019s checksum callback.\n */\ntypedef struct {\n    uint64_t h;\n} FusedHashState;\n\n/*\n * ZSTD will call this for every decoded byte.\n * We update the running FNV-1a hash inline.\n */\nstatic void ZBDC_hashByte(void* opaque, void* dst, const void* src, size_t len) {\n    (void)dst;                 /* we write directly, no extra copy */\n    const uint8_t* in = static_cast<const uint8_t*>(src);\n    FusedHashState* st = static_cast<FusedHashState*>(opaque);\n    uint64_t h = st->h;\n    const uint64_t prime = 1099511628211ULL;\n    for (size_t i = 0; i < len; ++i) {\n        h ^= static_cast<uint64_t>(in[i]);\n        h *= prime;\n    }\n    st->h = h;\n}\n\n} // extern \"C\"\n\nuint64_t decompress_checksum(const std::string& compressed, std::size_t decompressed_size) {\n    /* Re-usable buffer held across calls (thread-local for safety). */\n    static thread_local std::string outbuf;\n    if (outbuf.size() < decompressed_size) {\n        outbuf.resize(decompressed_size);\n    }\n\n    FusedHashState state = { 1469598103934665603ULL };\n\n    ZSTD_DCtx* dctx = ZSTD_createDCtx();\n    if (!dctx) return 0;\n\n    /* Register our callback so hashing happens while ZSTD writes. */\n    ZSTD_registerExternalFunctions(dctx, &state, nullptr, nullptr, ZBDC_hashByte);\n\n    size_t const rc = ZSTD_decompressDCtx(dctx,\n                                          outbuf.data(), decompressed_size,\n                                          compressed.data(), compressed.size());\n    ZSTD_freeDCtx(dctx);\n\n    if (ZSTD_isError(rc) || rc != decompressed_size)\n        return 0;\n\n    return state.h;\n}",
+  "baseline": {
+    "task_id": "zstd_block_decompress_v1000_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6364056,
+    "min_elapsed_ns": 6220550,
+    "max_elapsed_ns": 6466934,
+    "all_elapsed_ns": [
+      6466934,
+      6220550,
+      6364056
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6466934,
+      "expected_checksum": 13613506433683203979,
+      "actual_checksum": 13613506433683203979
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "zstd_block_decompress_v1000_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5822611,
+    "min_elapsed_ns": 5778917,
+    "max_elapsed_ns": 8122837,
+    "all_elapsed_ns": [
+      8122837,
+      5778917,
+      5822611
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8122837,
+      "expected_checksum": 13613506433683203979,
+      "actual_checksum": 13613506433683203979
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "zstd_block_decompress_v1000_i",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-DZSTD_DISABLE_ASM=1', '-Iexecutable_tasks/zstd_block_decompress_v1000_i/harness', '-Iexternal/zstd/lib', 'executable_tasks/zstd_block_decompress_v1000_i/harness/benchmark_main.cpp', 'executable_tasks/zstd_block_decompress_v1000_i/candidate/moonshotai__kimi-k2-0905/solution.cpp', 'external/zstd/lib/common/debug.c', 'external/zstd/lib/common/entropy_common.c', 'external/zstd/lib/common/error_private.c', 'external/zstd/lib/common/fse_decompress.c', 'external/zstd/lib/common/pool.c', 'external/zstd/lib/common/threading.c', 'external/zstd/lib/common/xxhash.c', 'external/zstd/lib/common/zstd_common.c', 'external/zstd/lib/compress/fse_compress.c', 'external/zstd/lib/compress/hist.c', 'external/zstd/lib/compress/huf_compress.c', 'external/zstd/lib/compress/zstd_compress.c', 'external/zstd/lib/compress/zstd_compress_literals.c', 'external/zstd/lib/compress/zstd_compress_sequences.c', 'external/zstd/lib/compress/zstd_compress_superblock.c', 'external/zstd/lib/compress/zstd_double_fast.c', 'external/zstd/lib/compress/zstd_fast.c', 'external/zstd/lib/compress/zstd_lazy.c', 'external/zstd/lib/compress/zstd_ldm.c', 'external/zstd/lib/compress/zstd_opt.c', 'external/zstd/lib/compress/zstd_preSplit.c', 'external/zstd/lib/compress/zstdmt_compress.c', 'external/zstd/lib/decompress/huf_decompress.c', 'external/zstd/lib/decompress/zstd_ddict.c', 'external/zstd/lib/decompress/zstd_decompress.c', 'external/zstd/lib/decompress/zstd_decompress_block.c', '-o', 'build/zstd_block_decompress_v1000_i/candidate/bench']' returned non-zero exit status 1."
+  }
+}

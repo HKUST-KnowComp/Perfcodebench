@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v29",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v29/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void histogram_shared_kernel(const unsigned char* __restrict__ input,\n                                        unsigned int* __restrict__ output,\n                                        int n)\n{\n    __shared__ unsigned int smem[256];\n\n    // One thread per bin to initialize shared memory\n    int tid = threadIdx.x;\n    if (tid < 256)\n        smem[tid] = 0;\n    __syncthreads();\n\n    // Grid-stride loop over input\n    for (int idx = blockIdx.x * blockDim.x + tid; idx < n; idx += blockDim.x * gridDim.x) {\n        unsigned char val = input[idx];\n        atomicAdd(&smem[val], 1U);\n    }\n    __syncthreads();\n\n    // Warp-level reduction to global memory\n    if (tid < 256) {\n        // Each warp handles one bin; here only one warp is used (tid < 32)\n        unsigned int sum = smem[tid];\n        for (int offset = warpSize / 2; offset > 0; offset >>= 1) {\n            sum += __shfl_down_sync(0xFFFFFFFF, sum, offset);\n        }\n        if (tid % warpSize == 0) {\n            atomicAdd(output + tid, sum);\n        }\n    }\n}\n\n}  // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters) {\n    constexpr int kBlock = 256;\n    const int kGrid = 1024;\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, 256 * sizeof(unsigned int));\n        histogram_shared_kernel<<<kGrid, kBlock>>>(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v29",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 129311264,
+    "min_elapsed_ns": 129305023,
+    "max_elapsed_ns": 129323425,
+    "all_elapsed_ns": [
+      129323425,
+      129305023,
+      129311264
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 129323425,
+      "checksum": 1077936128
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v29",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 933471,
+    "min_elapsed_ns": 916032,
+    "max_elapsed_ns": 939455,
+    "all_elapsed_ns": [
+      916032,
+      933471,
+      939455
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 916032,
+      "checksum": 1077936128
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v29",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_histogram256_shared_u8_v29/candidate/bench']' returned non-zero exit status 2."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "sparse_accumulator_checksum_v500_d",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sparse_accumulator_checksum_v500_d/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n#include <map>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n// Precompute the effect of applying mix(h, 0) N times.\n// mix(h, 0) = (h ^ 0) * C = h * C\n// Applying it N times: h * (C^N)\n// However, the original code is: hash = mix(hash, it == accum.end() ? 0ULL : it->second);\n// Let's trace: \n// h_next = (h_prev ^ 0) * C = h_prev * C\n// So N zeros in a row: h_final = h_initial * (C^N)\n\n} // namespace\n\nuint64_t sparse_accumulator_hash(\n    const std::vector<uint32_t>& indices,\n    const std::vector<uint32_t>& values,\n    uint32_t domain,\n    int iters) {\n    \n    if (indices.empty()) {\n        uint64_t hash = 1469598103934665603ULL;\n        for (int iter = 0; iter < iters; ++iter) {\n            for (uint32_t k = 0; k < domain; ++k) {\n                hash = mix(hash, 0);\n            }\n        }\n        return hash;\n    }\n\n    // Precompute C^N for the zero-gap jumps if needed, \n    // but since we need to handle it per iteration, let's optimize the inner loop.\n    // The original code resets 'hash' to the seed at the start of EVERY iteration.\n    // Wait, looking at the baseline: 'hash = 1469598103934665603ULL;' is INSIDE the 'iters' loop.\n    // This means the 'iters' loop actually just repeats the same calculation 'iters' times.\n    // The final 'hash' returned is just the result of the LAST iteration.\n    \n    // Let's re-read: \n    // for (int iter = 0; iter < iters; ++iter) {\n    //    accum.clear();\n    //    ... accumulate ...\n    //    hash = seed;\n    //    for (uint32_t key = 0; key < domain; ++key) { hash = mix(hash, val); }\n    // }\n    // return hash;\n    // Yes, the 'iters' loop is redundant if 'indices' and 'values' don't change.\n    // The result is simply the result of one iteration.\n\n    // 1. Accumulate\n    std::vector<std::pair<uint32_t, uint64_t>> sorted_accum;\n    // Using a simple sort-based accumulation to avoid unordered_map overhead\n    std::vector<std::pair<uint32_t, uint32_t>> pairs(indices.size());\n    for(size_t i=0; i<indices.size(); ++i) pairs[i] = {indices[i], values[i]};\n    std::sort(pairs.begin(), pairs.end());\n\n    if (pairs.empty()) {\n        uint64_t h = 1469598103934665603ULL;\n        for(uint32_t i=0; i<domain; ++i) h = mix(h, 0);\n        return h;\n    }\n\n    std::vector<std::pair<uint32_t, uint64_t>> unique_vals;\n    for (const auto& p : pairs) {\n        if (!unique_vals.empty() && unique_vals.back().first == p.first) {\n            unique_vals.back().second += p.second;\n        } else {\n            unique_vals.push_back({p.first, static_cast<uint64_t>(p.second)});\n        }\n    }\n\n    // 2. Compute Hash\n    uint64_t hash = 1469598103934665603ULL;\n    uint32_t current_idx = 0;\n\n    // Precompute powers of C for zero-gaps\n    // Since we can't easily precompute all, and domain can be large, \n    // we use the property: mix(h, 0) = h * 1099511628211ULL\n    const uint64_t C = 1099511628211ULL;\n\n    auto apply_zeros = [&](uint32_t count) {\n        for(uint32_t i=0; i<count; ++i) hash *= C;\n    };\n    \n    // To make apply_zeros O(log N), use binary exponentiation\n    auto fast_apply_zeros = [&](uint32_t count) {\n        uint64_t multiplier = 1;\n        uint64_t base = C;\n        while (count > 0) {\n            if (count % 2 == 1) multiplier *= base;\n            base *= base;\n            count /= 2;\n        }\n        hash *= multiplier;\n    };\n\n    for (const auto& kv : unique_vals) {\n        uint32_t target_idx = kv.first;\n        if (target_idx > current_idx) {\n            fast_apply_zeros(target_idx - current_idx);\n        }\n        hash = mix(hash, kv.second);\n        current_idx = target_idx + 1;\n    }\n\n    if (current_idx < domain) {\n        fast_apply_zeros(domain - current_idx);\n    }\n\n    return hash;\n}",
+  "baseline": {
+    "task_id": "sparse_accumulator_checksum_v500_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 851291612,
+    "min_elapsed_ns": 835372633,
+    "max_elapsed_ns": 856711054,
+    "all_elapsed_ns": [
+      851291612,
+      856711054,
+      835372633
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 851291612,
+      "expected_checksum": 16502923419748412723,
+      "actual_checksum": 16502923419748412723
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sparse_accumulator_checksum_v500_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 117312201,
+    "min_elapsed_ns": 104611025,
+    "max_elapsed_ns": 120815989,
+    "all_elapsed_ns": [
+      120815989,
+      117312201,
+      104611025
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 120815989,
+      "expected_checksum": 16502923419748412723,
+      "actual_checksum": 16502923419748412723
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sparse_accumulator_checksum_v500_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 562749657,
+    "min_elapsed_ns": 558561622,
+    "max_elapsed_ns": 567490896,
+    "all_elapsed_ns": [
+      558561622,
+      567490896,
+      562749657
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 558561622,
+      "expected_checksum": 16502923419748412723,
+      "actual_checksum": 16502923419748412723
+    },
+    "status": "ok"
+  }
+}

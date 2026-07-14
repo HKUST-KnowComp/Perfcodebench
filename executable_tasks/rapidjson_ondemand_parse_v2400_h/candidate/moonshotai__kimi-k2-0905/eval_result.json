@@ -1,0 +1,59 @@
+{
+  "task_id": "rapidjson_ondemand_parse_v2400_h",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/rapidjson_ondemand_parse_v2400_h/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <rapidjson/reader.h>\n#include <rapidjson/stream.h>\n#include <cstdint>\n#include <string>\n\nusing namespace rapidjson;\n\nstruct Handler : public BaseReaderHandler<UTF8<>, Handler> {\n    uint64_t sum = 0;\n    enum class State { Start, InArray, InObject, GotId, InNested, GotA, GotB };\n    State st = State::Start;\n    uint64_t id = 0, a = 0, b = 0;\n    bool expectKey = false;\n    std::string key;\n\n    bool Key(const char* str, SizeType len, bool) {\n        key.assign(str, len);\n        expectKey = false;\n        return true;\n    }\n\n    bool Uint64(uint64_t u) {\n        if (expectKey) return true;\n        switch (st) {\n          case State::InObject:\n            if (key == \"id\") { id = u; st = State::GotId; }\n            break;\n          case State::InNested:\n            if (key == \"a\") { a = u; st = State::GotA; }\n            else if (key == \"b\") { b = u; st = State::GotB; }\n            break;\n          default: break;\n        }\n        return true;\n    }\n\n    bool StartObject() {\n        if (st == State::InArray) { st = State::InObject; expectKey = true; }\n        else if (st == State::GotId) { st = State::InNested; expectKey = true; }\n        return true;\n    }\n\n    bool EndObject(SizeType) {\n        if (st == State::GotA || st == State::GotB) {\n            sum += id + a + b;\n            st = State::InArray;\n            id = a = b = 0;\n        } else if (st == State::InObject) {\n            st = State::InArray;\n        }\n        return true;\n    }\n\n    bool StartArray()  { if (st == State::Start) st = State::InArray; return true; }\n    bool EndArray(SizeType)  { return true; }\n};\n\nuint64_t compute_checksum(const std::string& json_input) {\n    Handler h;\n    StringStream ss(json_input.c_str());\n    Reader reader;\n    reader.Parse(ss, h);\n    return h.sum;\n}",
+  "baseline": {
+    "task_id": "rapidjson_ondemand_parse_v2400_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 948696,
+    "min_elapsed_ns": 887490,
+    "max_elapsed_ns": 958533,
+    "all_elapsed_ns": [
+      958533,
+      887490,
+      948696
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 958533,
+      "expected_checksum": 919296,
+      "actual_checksum": 919296
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "rapidjson_ondemand_parse_v2400_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 169519,
+    "min_elapsed_ns": 161616,
+    "max_elapsed_ns": 238126,
+    "all_elapsed_ns": [
+      238126,
+      169519,
+      161616
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 238126,
+      "expected_checksum": 919296,
+      "actual_checksum": 919296
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "rapidjson_ondemand_parse_v2400_h",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/rapidjson_ondemand_parse_v2400_h/candidate/bench']' returned non-zero exit status 1."
+  }
+}

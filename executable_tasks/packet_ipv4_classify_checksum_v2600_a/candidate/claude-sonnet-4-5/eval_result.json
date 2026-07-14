@@ -1,0 +1,72 @@
+{
+  "task_id": "packet_ipv4_classify_checksum_v2600_a",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/packet_ipv4_classify_checksum_v2600_a/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstddef>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nconstexpr std::size_t kPacketSize = 64;\n\n// Precomputed lookup table for private IP first octet\nstatic const bool private_ip_first_octet[256] = {\n    false, false, false, false, false, false, false, false, false, false,\n    true,  false, false, false, false, false, false, false, false, false,\n    false, false, false, false, false, false, false, false, false, false,\n    false, false, false, false, false, false, false, false, false, false,\n    false, false, false, false, false, false, false, false, false, false,\n    false, false, false, false, false, false, false, false, false, false,\n    false, false, false, false, false, false, false, false, false, false,\n    false, false, false, false, false, false, false, false, false, false,\n    false, false, false, false, false, false, false, false, false, false,\n    false, false, false, false, false, false, false, false, false, false,\n    false, false, false, false, false, false, false, false, false, false,\n    false, false, false, false, false, false, false, false, false, false,\n    false, false, false, false, false, false, false, false, false, false,\n    false, false, false, false, false, false, false, false, false, false,\n    false, false, false, false, false, false, false, false, false, false,\n    false, false, false, false, false, false, false, false, false, false,\n    false, false, false, false, false, false, false, false, false, false,\n    false, true,  false, false, false, false, false, false, false, false,\n    false, false, false, false, false, false, false, false, false, false,\n    false, false, true,  false, false, false, false, false, false, false,\n    false, false, false, false, false, false, false, false, false, false,\n    false, false, false, false, false, false, false, false, false, false,\n    false, false, false, false, false, false, false, false, false, false,\n    false, false, false, false, false, false, false, false, false, false,\n    false, false, false, false, false, false, false, false, false, false,\n    false, false, false, false, false, false\n};\n\ninline bool is_private_ip(const uint8_t* ip) {\n  const uint8_t first = ip[0];\n  if (!private_ip_first_octet[first]) return false;\n  \n  if (first == 10u) return true;\n  if (first == 172u) return ip[1] >= 16u && ip[1] < 32u;\n  return ip[1] == 168u; // first == 192\n}\n\n}  // namespace\n\nuint64_t classify_packets_checksum(\n    const std::vector<uint8_t>& packets,\n    std::size_t packet_count,\n    int iters) {\n  uint64_t hash = 0;\n  const uint8_t* data = packets.data();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    \n    for (std::size_t i = 0; i < packet_count; ++i) {\n      const uint8_t* pkt = data + i * kPacketSize;\n      \n      const uint8_t ttl = pkt[8];\n      const uint8_t protocol = pkt[9];\n      const uint8_t* src = pkt + 12;\n      \n      const uint32_t ttl_bucket = static_cast<uint32_t>(ttl >> 6);\n      \n      uint32_t port_bucket;\n      if (protocol == 6u || protocol == 17u) {\n        const uint16_t dst_port = static_cast<uint16_t>((static_cast<uint16_t>(pkt[22]) << 8) | pkt[23]);\n        port_bucket = (dst_port < 1024u) ? 0u : ((dst_port < 8192u) ? 1u : 2u);\n      } else {\n        port_bucket = 3u;\n      }\n      \n      const uint32_t src_class = is_private_ip(src) ? 5u : 11u;\n      \n      const uint32_t key = static_cast<uint32_t>(protocol) * 131u + \n                           ttl_bucket * 17u + \n                           src_class + \n                           port_bucket * 23u;\n      \n      hash ^= static_cast<uint64_t>(key);\n      hash *= 1099511628211ULL;\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 982304,
+    "min_elapsed_ns": 927544,
+    "max_elapsed_ns": 1340314,
+    "all_elapsed_ns": [
+      1340314,
+      927544,
+      982304
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1340314,
+      "expected_checksum": 7659490708124657445,
+      "actual_checksum": 7659490708124657445
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 835478,
+    "min_elapsed_ns": 722241,
+    "max_elapsed_ns": 851940,
+    "all_elapsed_ns": [
+      835478,
+      722241,
+      851940
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 835478,
+      "expected_checksum": 7659490708124657445,
+      "actual_checksum": 7659490708124657445
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 936711,
+    "min_elapsed_ns": 896988,
+    "max_elapsed_ns": 980284,
+    "all_elapsed_ns": [
+      896988,
+      936711,
+      980284
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 896988,
+      "expected_checksum": 7659490708124657445,
+      "actual_checksum": 7659490708124657445
+    },
+    "status": "ok"
+  }
+}

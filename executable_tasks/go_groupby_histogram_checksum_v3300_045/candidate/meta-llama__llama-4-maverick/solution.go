@@ -1,0 +1,21 @@
+package main
+
+func run(keys, vals []uint32, buckets uint32, iters int) uint64 {
+    hist := make([]uint64, buckets)
+    var h uint64 = 1469598103934665603
+    for iter := 0; iter < iters; iter++ {
+        for i := range hist {
+            hist[i] = 0
+        }
+        for i := range keys {
+            hist[keys[i]] += uint64(vals[i])
+        }
+        var checksum uint64 = 0
+        for _, v := range hist {
+            checksum ^= v + 1
+            checksum *= 1099511628211
+        }
+        h ^= checksum
+    }
+    return h
+}

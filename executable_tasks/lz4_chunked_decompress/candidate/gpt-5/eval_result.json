@@ -1,0 +1,72 @@
+{
+  "task_id": "lz4_chunked_decompress",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/lz4_chunked_decompress/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include \"lz4.h\"\n\n#include <algorithm>\n#include <vector>\n\nuint64_t decompress_checksum(const std::vector<std::string>& chunks, const std::vector<int>& sizes) {\n  const std::size_t n = chunks.size();\n  if (sizes.size() != n) return 0;\n  if (n == 0) return 0;\n\n  // Determine maximum output size to allocate once and reuse\n  int max_out = 0;\n  for (std::size_t i = 0; i < n; ++i) {\n    if (sizes[i] < 0) return 0;\n    if (sizes[i] > max_out) max_out = sizes[i];\n  }\n  if (max_out <= 0) return 0;\n\n  std::vector<char> out(static_cast<std::size_t>(max_out));\n\n  uint64_t sum = 0;\n  for (std::size_t i = 0; i < n; ++i) {\n    const std::string& in = chunks[i];\n    const int out_len = sizes[i];\n\n    const int decoded = LZ4_decompress_safe(\n        in.data(), out.data(), static_cast<int>(in.size()), out_len);\n    if (decoded != out_len) {\n      return 0;\n    }\n\n    const unsigned char* p = reinterpret_cast<const unsigned char*>(out.data());\n    const unsigned char* end = p + static_cast<std::size_t>(decoded);\n\n    // Unrolled accumulation for better throughput\n    while (p + 8 <= end) {\n      sum += static_cast<uint64_t>(p[0])\n           + static_cast<uint64_t>(p[1])\n           + static_cast<uint64_t>(p[2])\n           + static_cast<uint64_t>(p[3])\n           + static_cast<uint64_t>(p[4])\n           + static_cast<uint64_t>(p[5])\n           + static_cast<uint64_t>(p[6])\n           + static_cast<uint64_t>(p[7]);\n      p += 8;\n    }\n    while (p < end) {\n      sum += static_cast<uint64_t>(*p++);\n    }\n  }\n\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "lz4_chunked_decompress",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1733103,
+    "min_elapsed_ns": 1644776,
+    "max_elapsed_ns": 1816796,
+    "all_elapsed_ns": [
+      1733103,
+      1644776,
+      1816796
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1733103,
+      "expected_checksum": 438315734,
+      "actual_checksum": 438315734
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "lz4_chunked_decompress",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1427941,
+    "min_elapsed_ns": 1393204,
+    "max_elapsed_ns": 1515606,
+    "all_elapsed_ns": [
+      1427941,
+      1393204,
+      1515606
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1427941,
+      "expected_checksum": 438315734,
+      "actual_checksum": 438315734
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "lz4_chunked_decompress",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1240864,
+    "min_elapsed_ns": 1202624,
+    "max_elapsed_ns": 1381127,
+    "all_elapsed_ns": [
+      1240864,
+      1381127,
+      1202624
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1240864,
+      "expected_checksum": 438315734,
+      "actual_checksum": 438315734
+    },
+    "status": "ok"
+  }
+}

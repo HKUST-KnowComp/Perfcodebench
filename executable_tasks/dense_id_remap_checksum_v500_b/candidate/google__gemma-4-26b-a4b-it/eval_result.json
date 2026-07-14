@@ -1,0 +1,59 @@
+{
+  "task_id": "dense_id_remap_checksum_v500_b",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_id_remap_checksum_v500_b/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 14,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <cstdint>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n} // namespace\n\nuint64_t remap_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& probes,\n    int iters) {\n    \n    if (keys.empty()) return 0;\n\n    // Find the range of keys to build a direct lookup table.\n    // Since keys are sorted and dense, we find the max key to size our table.\n    uint32_t max_key = keys.back();\n    \n    // Create a lookup table where lookup[key] = values[index_of_key]\n    // We initialize with a value that won't be used or handle bounds.\n    // However, the original code used std::lower_bound which returns the first element \n    // NOT LESS than probe. If probe > max_key, it returns keys.end().\n    // To preserve exact correctness of std::lower_bound behavior:\n    // 1. If probe <= max_key, it finds the index.\n    // 2. If probe > max_key, it points to keys.end().\n    \n    // To handle the 'lower_bound' logic exactly: \n    // We need to map every possible probe value to the correct value[idx].\n    // Since probes can be any uint32_t, we can't make a table of size 2^32.\n    // But we only care about probes that actually appear or the behavior of lower_bound.\n    \n    // Optimization: If the number of keys is small or probes are within a reasonable range,\n    // we use a lookup table. If not, we use the fact that we can pre-calculate the \n    // mapping for all unique probes if the number of probes is small, or just use \n    // the fact that we are doing the same search 'iters' times.\n    \n    // Let's pre-calculate the remapped values for all probes once.\n    std::vector<uint32_t> remapped_probes;\n    remapped_probes.reserve(probes.size());\n\n    // To make this O(1) per probe, we use a hybrid approach.\n    // If max_key is reasonably small, use a direct map. \n    // Otherwise, since we repeat 'iters' times, the bottleneck is the search.\n    // We can pre-calculate the result of the search for each probe.\n    \n    for (uint32_t probe : probes) {\n        // We still need to find the index. But we only do it once per probe.\n        // Using std::lower_bound once per probe instead of iters * probes times.\n        auto it = std::lower_bound(keys.begin(), keys.end(), probe);\n        size_t idx = std::distance(keys.begin(), it);\n        // Note: The original code assumes idx is always valid (within values bounds).\n        // std::lower_bound can return keys.end(). If it does, idx == keys.size().\n        // The original code: values[idx] would be UB if idx == keys.size().\n        // We must preserve this exact behavior (even if it's UB) or assume idx < values.size().\n        // Given the task, we assume idx is valid for the provided test cases.\n        remapped_probes.push_back(values[idx]);\n    }\n\n    uint64_t hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        hash = 1469598103934665603ULL;\n        for (uint32_t val : remapped_probes) {\n            hash = mix(hash, val);\n        }\n    }\n\n    return hash;\n}",
+  "baseline": {
+    "task_id": "dense_id_remap_checksum_v500_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 7569008737,
+    "min_elapsed_ns": 7501429121,
+    "max_elapsed_ns": 7681008261,
+    "all_elapsed_ns": [
+      7501429121,
+      7569008737,
+      7681008261
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7501429121,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_id_remap_checksum_v500_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 70672429,
+    "min_elapsed_ns": 69913256,
+    "max_elapsed_ns": 71051446,
+    "all_elapsed_ns": [
+      70672429,
+      71051446,
+      69913256
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 70672429,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_id_remap_checksum_v500_b",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/dense_id_remap_checksum_v500_b/harness', 'executable_tasks/dense_id_remap_checksum_v500_b/harness/benchmark_main.cpp', 'executable_tasks/dense_id_remap_checksum_v500_b/candidate/google__gemma-4-26b-a4b-it/solution.cpp', '-o', 'build/dense_id_remap_checksum_v500_b/candidate/bench']' returned non-zero exit status 1."
+  }
+}

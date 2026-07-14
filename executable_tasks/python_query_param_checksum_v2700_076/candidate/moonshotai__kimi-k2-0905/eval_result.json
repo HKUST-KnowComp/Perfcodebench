@@ -1,0 +1,59 @@
+{
+  "task_id": "python_query_param_checksum_v2700_076",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/python_query_param_checksum_v2700_076/candidate/moonshotai__kimi-k2-0905/solution.py",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "from typing import List\n\n# 2048-byte perfect hash for fast char-classification\n_CHAR_MAP = bytearray(256)\nfor _i in range(256):\n    _CHAR_MAP[_i] = 0\n_CHAR_MAP[ord('=')] = 1\n_CHAR_MAP[ord('&')] = 2\n\n# bit-masks for quick equality tests\n_EQ  = 1\n_AMP = 2\n\ndef run(rows: List[str]) -> int:\n    h = 1469598103934665603\n    rows_length = len(rows)\n    i = 0\n    # four-way unroll to hide interpreter overhead\n    while i + 3 < rows_length:\n        h = _proc_row(rows[i], h)\n        h = _proc_row(rows[i+1], h)\n        h = _proc_row(rows[i+2], h)\n        h = _proc_row(rows[i+3], h)\n        i += 4\n    # tail\n    while i < rows_length:\n        h = _proc_row(rows[i], h)\n        i += 1\n    return h\n\n# ---- internal hot helper ----\ndef _proc_row(row: str, h: int) -> int:\n    # scan once, pick out u, score, flag manually\n    u = 0\n    score = 0\n    flag  = 0\n    state = 0  # 0=seekName, 1=u, 2=score, 3=flag, 4=value\n    val = 0\n    for ch in row:\n        m = _CHAR_MAP[ord(ch)]\n        if m & _EQ:           # found '='\n            state = val\n            val = 0\n            continue\n        if m & _AMP:          # found '&'\n            if state == 1: u = val\n            elif state == 2: score = val\n            elif state == 3: flag = val\n            state = 0\n            val = 0\n            continue\n        # digit accumulation\n        chint = ord(ch)\n        if 48 <= chint <= 57:\n            val = val*10 + (chint - 48)\n        else:\n            # handle name matching: bump state on exact match start\n            if ch == 'u' and state == 0:\n                state = 1\n                continue\n            if ch == 's':     # either 'score' or 's' prefix\n                if state == 0 and row[val:val+5] == 'score':\n                    state = 2\n                    val += 4\n                    continue\n            if ch == 'f':     # either 'flag' or 'f' prefix\n                if state == 0 and row[val:val+4] == 'flag':\n                    state = 3\n                    val += 3\n                    continue\n            state = 0\n    # final value flush\n    if state == 1: u = val\n    elif state == 2: score = val\n    elif state == 3: flag = val\n\n    # original formula\n    v = (u & 2047) + score + flag * 19\n    h ^= v + 1\n    h *= 1099511628211\n    return h & ((1 << 64) - 1)",
+  "baseline": {
+    "task_id": "python_query_param_checksum_v2700_076",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1360745941,
+    "min_elapsed_ns": 1342244615,
+    "max_elapsed_ns": 1780568498,
+    "all_elapsed_ns": [
+      1360745941,
+      1342244615,
+      1780568498
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1360745941,
+      "expected_checksum": 8139271972052411490,
+      "actual_checksum": 8139271972052411490
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "python_query_param_checksum_v2700_076",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 692403892,
+    "min_elapsed_ns": 626908641,
+    "max_elapsed_ns": 867099351,
+    "all_elapsed_ns": [
+      692403892,
+      867099351,
+      626908641
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 692403892,
+      "expected_checksum": 8139271972052411490,
+      "actual_checksum": 8139271972052411490
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "python_query_param_checksum_v2700_076",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['env', 'PERFCODEBENCH_SOLUTION=executable_tasks/python_query_param_checksum_v2700_076/candidate/moonshotai__kimi-k2-0905/solution.py', 'python3', 'executable_tasks/python_query_param_checksum_v2700_076/harness/benchmark_main.py']' returned non-zero exit status 1."
+  }
+}

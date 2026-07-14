@@ -1,0 +1,59 @@
+{
+  "task_id": "paged_kv_cache_gather_v2200_a",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/paged_kv_cache_gather_v2200_a/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t paged_kv_checksum(\n    const std::vector<uint32_t>& cache,\n    const std::vector<uint32_t>& page_ids,\n    const std::vector<uint32_t>& slot_offsets,\n    int num_pages,\n    int page_size,\n    int iters) {\n  \n  // The baseline was copying the entire cache into a 2D vector every iteration.\n  // This is unnecessary as the cache is already a contiguous array.\n  // We can access cache[p][s] as cache[p * page_size + s].\n  \n  uint64_t hash = 0;\n  const uint32_t* cache_ptr = cache.data();\n  const uint32_t* page_ids_ptr = page_ids.data();\n  const uint32_t* slot_offsets_ptr = slot_offsets.data();\n  const size_t gather_size = page_ids.size();\n  const size_t p_size = static_cast<size_t>(page_size);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    for (size_t i = 0; i < gather_size; ++i) {\n      // Direct indexing into the flat cache array\n      uint32_t val = cache_ptr[static_cast<size_t>(page_ids_ptr[i]) * p_size + slot_offsets_ptr[i]];\n      hash = mix(hash, val);\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "paged_kv_cache_gather_v2200_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 46540871,
+    "min_elapsed_ns": 44010097,
+    "max_elapsed_ns": 66330929,
+    "all_elapsed_ns": [
+      44010097,
+      66330929,
+      46540871
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 44010097,
+      "expected_checksum": 5374401203677234051,
+      "actual_checksum": 5374401203677234051
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "paged_kv_cache_gather_v2200_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 37663400,
+    "min_elapsed_ns": 29630286,
+    "max_elapsed_ns": 61235764,
+    "all_elapsed_ns": [
+      61235764,
+      37663400,
+      29630286
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 61235764,
+      "expected_checksum": 5374401203677234051,
+      "actual_checksum": 5374401203677234051
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "paged_kv_cache_gather_v2200_a",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/paged_kv_cache_gather_v2200_a/harness', 'executable_tasks/paged_kv_cache_gather_v2200_a/harness/benchmark_main.cpp', 'executable_tasks/paged_kv_cache_gather_v2200_a/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/paged_kv_cache_gather_v2200_a/candidate/bench']' returned non-zero exit status 1."
+  }
+}

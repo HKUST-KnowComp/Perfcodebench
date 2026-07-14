@@ -1,0 +1,72 @@
+{
+  "task_id": "prefix_cache_block_lookup",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <vector>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t hash_space,\n    int iters) {\n  (void)hash_space;\n  \n  const uint32_t* keys_ptr = sorted_cache_keys.data();\n  const size_t keys_size = sorted_cache_keys.size();\n  const uint32_t* blocks_ptr = request_blocks.data();\n  const int* offsets_ptr = request_offsets.data();\n  const size_t num_requests = request_offsets.size() - 1;\n\n  uint64_t final_hash = 0;\n\n  // The logic is independent of 'iters' except for the checksum accumulation.\n  // However, the problem asks for the checksum of the per-request lengths.\n  // The baseline resets the hash inside the iters loop, meaning it calculates\n  // the same checksum 'iters' times. We can compute it once and then\n  // handle the 'iters' loop if the checksum is meant to be cumulative or\n  // if the baseline's behavior of resetting the hash is the intended logic.\n  // Looking at the baseline: it resets 'hash' to a constant every iteration.\n  // This means the result of the function is simply the result of one iteration.\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t current_hash = 1469598103934665603ULL;\n    for (size_t r = 0; r < num_requests; ++r) {\n      int start = offsets_ptr[r];\n      int end = offsets_ptr[r + 1];\n      uint64_t prefix = 0;\n      \n      for (int i = start; i < end; ++i) {\n        uint32_t val = blocks_ptr[i];\n        // Fast binary search\n        if (!std::binary_search(sorted_cache_keys.begin(), sorted_cache_keys.end(), val)) {\n          break;\n        }\n        ++prefix;\n      }\n      current_hash = mix(current_hash, prefix);\n    }\n    final_hash = current_hash;\n  }\n\n  return final_hash;\n}\n",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 574528792,
+    "min_elapsed_ns": 572731038,
+    "max_elapsed_ns": 604828753,
+    "all_elapsed_ns": [
+      604828753,
+      574528792,
+      572731038
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 604828753,
+      "expected_checksum": 18144095901284983055,
+      "actual_checksum": 18144095901284983055
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 6548828,
+    "min_elapsed_ns": 5402405,
+    "max_elapsed_ns": 6606754,
+    "all_elapsed_ns": [
+      6606754,
+      6548828,
+      5402405
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6606754,
+      "expected_checksum": 18144095901284983055,
+      "actual_checksum": 18144095901284983055
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 58429969,
+    "min_elapsed_ns": 55462902,
+    "max_elapsed_ns": 583061337,
+    "all_elapsed_ns": [
+      583061337,
+      58429969,
+      55462902
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 583061337,
+      "expected_checksum": 18144095901284983055,
+      "actual_checksum": 18144095901284983055
+    },
+    "status": "ok"
+  }
+}

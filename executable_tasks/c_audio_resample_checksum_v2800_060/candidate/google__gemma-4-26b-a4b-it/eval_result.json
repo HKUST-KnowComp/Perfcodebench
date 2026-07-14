@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_060",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_060/candidate/google__gemma-4-26b-a4b-it/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\nstatic uint64_t checksum_i16(const int16_t* data, size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (size_t i = 0; i < n; ++i) {\n    hash ^= (uint16_t)data[i];\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n  if (output_len <= 0) return 0;\n  \n  int16_t* out = (int16_t*)malloc((size_t)output_len * sizeof(int16_t));\n  if (!out) return 0;\n\n  uint64_t hash = 0;\n  \n  // Pre-calculate fixed-point constants to avoid double math in the loop\n  // We use a large scale to maintain precision equivalent to the original double math\n  // The original formula: pos = i * (input_len - 1) / (output_len - 1)\n  // We use 64-bit fixed point math to simulate the double precision interpolation.\n  \n  if (output_len == 1) {\n    // Edge case: output_len 1 would cause division by zero in original logic\n    // but the loop logic handles it via the ratio. \n    // However, the original code uses (output_len - 1) in denominator.\n    // If output_len is 1, the original code's behavior is technically undefined/NaN.\n    // We follow the loop structure.\n  } else {\n    const uint64_t scale = 1ULL << 48;\n    const uint64_t step = ((uint64_t)(input_len - 1) << 48) / (output_len - 1);\n\n    for (int iter = 0; iter < iters; ++iter) {\n      uint64_t current_pos_fp = 0;\n      for (int i = 0; i < output_len; ++i) {\n        int left = (int)(current_pos_fp >> 48);\n        int right = left + 1;\n        if (right >= input_len) right = input_len - 1;\n\n        // frac = (current_pos_fp % scale) / scale\n        // sample = src[left] * (1 - frac) + src[right] * frac\n        // sample = src[left] + frac * (src[right] - src[left])\n        \n        int64_t s_left = src[left];\n        int64_t s_right = src[right];\n        int64_t diff = s_right - s_left;\n        \n        // Fixed point interpolation: s_left + (diff * frac)\n        // frac is (current_pos_fp & mask) / scale\n        int64_t interpolated = s_left + ((diff * (int64_t)(current_pos_fp & (scale - 1))) >> 48);\n        \n        // The original code uses double precision and adds/subtracts 0.5 for rounding.\n        // To match (int16_t)(sample + 0.5) for positive and (int16_t)(sample - 0.5) for negative:\n        // This is equivalent to rounding to nearest integer away from zero.\n        // We need to handle the fractional part of the interpolation for the rounding.\n        \n        // Re-calculating with higher precision to ensure exact match with double-based rounding\n        // The original code: double sample = (double)src[left] * (1.0 - frac) + (double)src[right] * frac;\n        // Let's use a slightly more robust fixed point approach to ensure correctness.\n        \n        // Re-evaluating the rounding: \n        // If sample is 5.2, sample + 0.5 = 5.7 -> (int)5\n        // If sample is 5.7, sample + 0.5 = 6.2 -> (int)6\n        // If sample is -5.2, sample - 0.5 = -5.7 -> (int)-5\n        // If sample is -5.7, sample - 0.5 = -6.2 -> (int)-6\n        // This is standard rounding to nearest, with ties rounding away from zero.\n        \n        // To match the exact double behavior, we use the fractional part of the fixed point.\n        // current_pos_fp is (i * (input_len-1) / (output_len-1)) * 2^48\n        // We need the fractional part of the 'sample' calculation.\n        \n        // Let's use a more direct approach for the rounding logic to ensure exactness.\n        // sample = src[left] + (frac * (src[right] - src[left]))\n        // We need to add 0.5 to the fractional part of the result.\n        \n        // Using 64-bit math to simulate the double precision rounding:\n        // We'll use a scale of 2^32 for the fractional part to be safe.\n        // But since we need to match the original exactly, let's use the 48-bit scale.\n        \n        // The fractional part of 'sample' is (diff * (current_pos_fp & mask)) / scale\n        // We need to check if this fractional part is >= 0.5\n        \n        int64_t frac_num = diff * (int64_t)(current_pos_fp & (scale - 1));\n        // The fractional part of the sample is frac_num / scale.\n        // We want to round: if frac_num/scale >= 0.5, add 1 to the integer part.\n        // This is equivalent to: if abs(frac_num) >= scale/2, add sign(frac_num) to integer part.\n        \n        int64_t integer_part = s_left + (frac_num >> 48);\n        int64_t remainder = frac_num & (scale - 1);\n        \n        if (diff >= 0) {\n            if (remainder >= (scale >> 1)) integer_part++;\n        } else {\n            if (remainder >= (scale >> 1)) integer_part--;\n        }\n        \n        // Wait, the original code: if (sample >= 0.0) out[i] = (int16_t)(sample + 0.5); else out[i] = (int16_t)(sample - 0.5);\n        // Let's re-verify: \n        // sample = 5.5 -> 5.5 + 0.5 = 6.0 -> 6\n        // sample = 5.4 -> 5.4 + 0.5 = 5.9 -> 5\n        // sample = -5.5 -> -5.5 - 0.5 = -6.0 -> -6\n        // sample = -5.4 -> -5.4 - 0.5 = -5.9 -> -5\n        // This is indeed rounding to nearest, ties away from zero.\n        \n        // Correcting the integer_part logic for the 'remainder' which can be negative if diff < 0\n        // Actually, if diff < 0, frac_num is negative. \n        // Let's use a simpler way: \n        // sample_scaled = (src[left] << 48) + (diff * (current_pos_fp & mask))\n        // sample_scaled is sample * 2^48\n        // We want to round sample_scaled / 2^48 to nearest integer.\n        \n        // Let's use the 48-bit scale for the whole sample to avoid precision loss.\n        // sample_fp = (src[left] << 48) + (diff * (current_pos_fp & (scale - 1)))\n        // To round sample_fp / scale:\n        // if sample_fp >= 0: (sample_fp + scale/2) / scale\n        // if sample_fp < 0: (sample_fp - scale/2) / scale\n        \n        int64_t sample_fp = (s_left << 48) + frac_num;\n        int64_t rounded_sample;\n        if (sample_fp >= 0) {\n            rounded_sample = (sample_fp + (scale >> 1)) >> 48;\n        } else {\n            rounded_sample = (sample_fp - (scale >> 1)) >> 48;\n        }\n        \n        out[i] = (int16_t)rounded_sample;\n        \n        current_pos_fp += step;\n      }\n      hash = checksum_i16(out, (size_t)output_len);\n    }\n  } else {\n    // output_len == 1 case\n    for (int iter = 0; iter < iters; ++iter) {\n        out[0] = src[0]; // pos = 0 * (in-1)/(1-1) is NaN, but let's assume 0\n        hash = checksum_i16(out, 1);\n    }\n  }\n\n  free(out);\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_060",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 9168000,
+    "min_elapsed_ns": 8354000,
+    "max_elapsed_ns": 9781000,
+    "all_elapsed_ns": [
+      8354000,
+      9168000,
+      9781000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8354000,
+      "expected_checksum": 2247157654259726880,
+      "actual_checksum": 2247157654259726880
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_060",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8512000,
+    "min_elapsed_ns": 8388000,
+    "max_elapsed_ns": 9280000,
+    "all_elapsed_ns": [
+      8388000,
+      8512000,
+      9280000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8388000,
+      "expected_checksum": 2247157654259726880,
+      "actual_checksum": 2247157654259726880
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_060",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 7265000,
+    "min_elapsed_ns": 7252000,
+    "max_elapsed_ns": 8310000,
+    "all_elapsed_ns": [
+      8310000,
+      7252000,
+      7265000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8310000,
+      "expected_checksum": 2247157654259726880,
+      "actual_checksum": 2247157654259726880
+    },
+    "status": "ok"
+  }
+}

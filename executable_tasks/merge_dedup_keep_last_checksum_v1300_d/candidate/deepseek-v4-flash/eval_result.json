@@ -1,0 +1,72 @@
+{
+  "task_id": "merge_dedup_keep_last_checksum_v1300_d",
+  "model": "deepseek-v4-flash",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/merge_dedup_keep_last_checksum_v1300_d/candidate/deepseek-v4-flash/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstddef>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nuint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t merge_keep_last_hash(\n    const std::vector<uint32_t>& left_keys,\n    const std::vector<uint32_t>& left_values,\n    const std::vector<uint32_t>& right_keys,\n    const std::vector<uint32_t>& right_values,\n    int iters) {\n  // Merge and dedup in one pass (two-pointer merge with keep-last semantics).\n  // Both input runs are assumed sorted (non-decreasing).\n  std::vector<uint32_t> merged_keys;\n  std::vector<uint32_t> merged_values;\n  merged_keys.reserve(left_keys.size() + right_keys.size());  // upper bound\n  merged_values.reserve(left_keys.size() + right_keys.size());\n\n  std::size_t i = 0, j = 0;\n  const std::size_t left_size = left_keys.size();\n  const std::size_t right_size = right_keys.size();\n\n  while (i < left_size || j < right_size) {\n    // Determine next element in stable sorted order (left before right on equal keys).\n    bool take_left;\n    if (j == right_size) {\n      take_left = true;\n    } else if (i == left_size) {\n      take_left = false;\n    } else {\n      take_left = left_keys[i] <= right_keys[j];\n    }\n\n    uint32_t key;\n    uint32_t value;\n    if (take_left) {\n      key = left_keys[i];\n      value = left_values[i];\n      ++i;\n    } else {\n      key = right_keys[j];\n      value = right_values[j];\n      ++j;\n    }\n\n    // Dedup: if last key equals current, update its value; otherwise append.\n    if (!merged_keys.empty() && merged_keys.back() == key) {\n      merged_values.back() = value;\n    } else {\n      merged_keys.push_back(key);\n      merged_values.push_back(value);\n    }\n  }\n\n  // Compute checksum (FNV-1a) over merged result, repeated `iters` times.\n  uint64_t hash = 0;\n  const uint64_t fnv_offset = 1469598103934665603ULL;\n  const std::size_t merged_size = merged_keys.size();\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = fnv_offset;\n    for (std::size_t k = 0; k < merged_size; ++k) {\n      hash = mix(hash, merged_keys[k]);\n      hash = mix(hash, merged_values[k]);\n    }\n  }\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "merge_dedup_keep_last_checksum_v1300_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1442363698,
+    "min_elapsed_ns": 1385099402,
+    "max_elapsed_ns": 1443960749,
+    "all_elapsed_ns": [
+      1443960749,
+      1442363698,
+      1385099402
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1443960749,
+      "expected_checksum": 14439894746608240602,
+      "actual_checksum": 14439894746608240602
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "merge_dedup_keep_last_checksum_v1300_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 202034929,
+    "min_elapsed_ns": 199901872,
+    "max_elapsed_ns": 202738446,
+    "all_elapsed_ns": [
+      202738446,
+      199901872,
+      202034929
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 202738446,
+      "expected_checksum": 14439894746608240602,
+      "actual_checksum": 14439894746608240602
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "merge_dedup_keep_last_checksum_v1300_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 139599603,
+    "min_elapsed_ns": 139341920,
+    "max_elapsed_ns": 141569839,
+    "all_elapsed_ns": [
+      139599603,
+      141569839,
+      139341920
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 139599603,
+      "expected_checksum": 14439894746608240602,
+      "actual_checksum": 14439894746608240602
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "task_id": "cuda_thrust_sort_i32_v04",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_thrust_sort_i32_v04/candidate/gpt-5/solution.cu",
+  "benchmark_timeout_sec": 120,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <algorithm>\n#include <cstdlib>\n\nvoid sort_vec_i32(const int* input, int* output, int n, int iters) {\n  if (n <= 0 || iters <= 0) return;\n\n  size_t bytes = static_cast<size_t>(n) * sizeof(int);\n\n  // Fast path for trivial sizes: just copy device-to-device per iteration.\n  if (n <= 1) {\n    for (int iter = 0; iter < iters; ++iter) {\n      if (n == 1) {\n        cudaMemcpy(output, input, bytes, cudaMemcpyDeviceToDevice);\n      }\n      // n == 0: nothing to do\n    }\n    return;\n  }\n\n  // Allocate pinned host memory for faster D2H/H2D copies; fallback to malloc if it fails.\n  int* hbuf = nullptr;\n  cudaError_t err = cudaMallocHost(reinterpret_cast<void**>(&hbuf), bytes);\n  bool pinned = (err == cudaSuccess && hbuf != nullptr);\n  if (!pinned) {\n    hbuf = static_cast<int*>(std::malloc(bytes));\n    if (!hbuf) {\n      // Allocation failed; nothing we can do safely.\n      return;\n    }\n  }\n\n  for (int iter = 0; iter < iters; ++iter) {\n    // Copy input from device to host\n    cudaMemcpy(hbuf, input, bytes, cudaMemcpyDeviceToHost);\n\n    // Sort on CPU (ascending)\n    std::sort(hbuf, hbuf + n);\n\n    // Copy sorted data back to device output\n    cudaMemcpy(output, hbuf, bytes, cudaMemcpyHostToDevice);\n  }\n\n  if (pinned) {\n    cudaFreeHost(hbuf);\n  } else {\n    std::free(hbuf);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_thrust_sort_i32_v04",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1423308750000,
+    "min_elapsed_ns": 1423305250000,
+    "max_elapsed_ns": 1423310875000,
+    "all_elapsed_ns": [
+      1423305250000,
+      1423310875000,
+      1423308750000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1423305250000
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_thrust_sort_i32_v04",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2016927,
+    "min_elapsed_ns": 2013632,
+    "max_elapsed_ns": 2252640,
+    "all_elapsed_ns": [
+      2013632,
+      2252640,
+      2016927
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2013632
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_thrust_sort_i32_v04",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_thrust_sort_i32_v04/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "dictionary_distinct_count_v500_j",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dictionary_distinct_count_v500_j/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstring>\n#include <vector>\n\nuint64_t dictionary_distinct(\n    const std::vector<std::string>& dictionary,\n    const std::vector<uint16_t>& codes,\n    int iters) {\n  \n  const size_t dict_size = dictionary.size();\n  const size_t codes_size = codes.size();\n  const uint16_t* codes_ptr = codes.data();\n  \n  uint64_t count = 0;\n  \n  // Use a bitset to track which dictionary indices are used\n  // Max uint16_t is 65535, so we need 65536 bits = 1024 uint64_t words\n  constexpr size_t NUM_WORDS = 1024;\n  uint64_t seen[NUM_WORDS];\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    std::memset(seen, 0, sizeof(seen));\n    \n    // Mark all codes that appear\n    size_t i = 0;\n    \n    // Process 4 codes at a time for better ILP\n    const size_t unroll_limit = codes_size & ~size_t(3);\n    for (; i < unroll_limit; i += 4) {\n      uint16_t c0 = codes_ptr[i];\n      uint16_t c1 = codes_ptr[i + 1];\n      uint16_t c2 = codes_ptr[i + 2];\n      uint16_t c3 = codes_ptr[i + 3];\n      \n      seen[c0 >> 6] |= uint64_t(1) << (c0 & 63);\n      seen[c1 >> 6] |= uint64_t(1) << (c1 & 63);\n      seen[c2 >> 6] |= uint64_t(1) << (c2 & 63);\n      seen[c3 >> 6] |= uint64_t(1) << (c3 & 63);\n    }\n    \n    // Handle remaining codes\n    for (; i < codes_size; ++i) {\n      uint16_t c = codes_ptr[i];\n      seen[c >> 6] |= uint64_t(1) << (c & 63);\n    }\n    \n    // Count set bits only in the range [0, dict_size)\n    // We need to count bits for indices < dict_size\n    const size_t full_words = dict_size >> 6;\n    const size_t remaining_bits = dict_size & 63;\n    \n    count = 0;\n    for (size_t w = 0; w < full_words; ++w) {\n      count += __builtin_popcountll(seen[w]);\n    }\n    \n    // Handle partial last word if dict_size is not a multiple of 64\n    if (remaining_bits > 0) {\n      uint64_t mask = (uint64_t(1) << remaining_bits) - 1;\n      count += __builtin_popcountll(seen[full_words] & mask);\n    }\n  }\n  \n  return count;\n}",
+  "baseline": {
+    "task_id": "dictionary_distinct_count_v500_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 833605850,
+    "min_elapsed_ns": 829679280,
+    "max_elapsed_ns": 835134577,
+    "all_elapsed_ns": [
+      829679280,
+      835134577,
+      833605850
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 829679280,
+      "expected_count": 4096,
+      "actual_count": 4096
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dictionary_distinct_count_v500_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 23526008,
+    "min_elapsed_ns": 20347780,
+    "max_elapsed_ns": 25117949,
+    "all_elapsed_ns": [
+      23526008,
+      25117949,
+      20347780
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 23526008,
+      "expected_count": 4096,
+      "actual_count": 4096
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dictionary_distinct_count_v500_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 18284951,
+    "min_elapsed_ns": 17675044,
+    "max_elapsed_ns": 19058140,
+    "all_elapsed_ns": [
+      17675044,
+      18284951,
+      19058140
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 17675044,
+      "expected_count": 4096,
+      "actual_count": 4096
+    },
+    "status": "ok"
+  }
+}

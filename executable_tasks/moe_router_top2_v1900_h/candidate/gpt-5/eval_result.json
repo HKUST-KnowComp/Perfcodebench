@@ -1,0 +1,72 @@
+{
+  "task_id": "moe_router_top2_v1900_h",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/moe_router_top2_v1900_h/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nstatic inline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t moe_router_checksum(const std::vector<int32_t>& logits, int tokens, int experts, int iters) {\n  uint64_t hash = 0;\n  const int32_t* data = logits.data();\n  const std::size_t stride = static_cast<std::size_t>(experts);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;  // FNV-1a 64-bit offset basis\n    for (int t = 0; t < tokens; ++t) {\n      const int32_t* row = data + static_cast<std::size_t>(t) * stride;\n\n      // Initialize best and second-best from the first two experts\n      int best_i = 0;\n      int32_t best_v = row[0];\n      int second_i = 1;\n      int32_t second_v = row[1];\n\n      // Ensure (best) is the better of the first two using the same tie-breaking\n      if (!(best_v > second_v || (best_v == second_v && best_i < second_i))) {\n        // swap best and second\n        int tmp_i = best_i; best_i = second_i; second_i = tmp_i;\n        int32_t tmp_v = best_v; best_v = second_v; second_v = tmp_v;\n      }\n\n      for (int e = 2; e < experts; ++e) {\n        int32_t v = row[e];\n        // if candidate better than best\n        if (v > best_v || (v == best_v && e < best_i)) {\n          // demote best to second\n          second_v = best_v;\n          second_i = best_i;\n          best_v = v;\n          best_i = e;\n        } else if (v > second_v || (v == second_v && e < second_i)) {\n          // candidate better than current second (but not better than best)\n          second_v = v;\n          second_i = e;\n        }\n      }\n\n      hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(best_v)));\n      hash = mix(hash, static_cast<uint64_t>(best_i));\n      hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(second_v)));\n      hash = mix(hash, static_cast<uint64_t>(second_i));\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "moe_router_top2_v1900_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1064840290,
+    "min_elapsed_ns": 1040887032,
+    "max_elapsed_ns": 1099491812,
+    "all_elapsed_ns": [
+      1099491812,
+      1064840290,
+      1040887032
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1099491812,
+      "expected_checksum": 12919154643857970313,
+      "actual_checksum": 12919154643857970313
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "moe_router_top2_v1900_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 53935039,
+    "min_elapsed_ns": 52197344,
+    "max_elapsed_ns": 58849934,
+    "all_elapsed_ns": [
+      53935039,
+      52197344,
+      58849934
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 53935039,
+      "expected_checksum": 12919154643857970313,
+      "actual_checksum": 12919154643857970313
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "moe_router_top2_v1900_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 43707790,
+    "min_elapsed_ns": 42765086,
+    "max_elapsed_ns": 49157309,
+    "all_elapsed_ns": [
+      43707790,
+      49157309,
+      42765086
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 43707790,
+      "expected_checksum": 12919154643857970313,
+      "actual_checksum": 12919154643857970313
+    },
+    "status": "ok"
+  }
+}

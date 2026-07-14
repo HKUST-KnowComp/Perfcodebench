@@ -1,0 +1,59 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_039",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_039/candidate/gpt-5.4/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\nstatic uint64_t checksum_i16(const int16_t* data, size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (size_t i = 0; i < n; ++i) {\n    hash ^= (uint16_t)data[i];\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n  if (src == NULL || input_len <= 0 || output_len <= 0 || iters <= 0) {\n    return 0;\n  }\n\n  int16_t* out = (int16_t*)malloc((size_t)output_len * sizeof(int16_t));\n  if (!out) return 0;\n\n  if (output_len == 1 || input_len == 1) {\n    const int16_t v = src[0];\n    for (int i = 0; i < output_len; ++i) out[i] = v;\n  } else {\n    const int in_last = input_len - 1;\n    const int out_last = output_len - 1;\n\n    int left = 0;\n    int64_t acc = 0;\n    const int64_t step = ((int64_t)in_last << 32) / (int64_t)out_last;\n\n    for (int i = 0; i < output_len; ++i) {\n      if (i == output_len - 1) {\n        out[i] = src[in_last];\n        break;\n      }\n\n      const int64_t next_acc = acc + step;\n      const int next_left = (int)(next_acc >> 32);\n      const uint32_t frac = (uint32_t)acc;\n\n      const int16_t s0 = src[left];\n      const int16_t s1 = src[left + 1];\n      const int32_t diff = (int32_t)s1 - (int32_t)s0;\n\n      int64_t interp = ((int64_t)diff * (int64_t)frac + (1LL << 31)) >> 32;\n      int32_t sample = (int32_t)s0 + (int32_t)interp;\n      out[i] = (int16_t)sample;\n\n      acc = next_acc;\n      left = next_left;\n    }\n  }\n\n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = checksum_i16(out, (size_t)output_len);\n  }\n\n  free(out);\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_039",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6192000,
+    "min_elapsed_ns": 6186000,
+    "max_elapsed_ns": 6562000,
+    "all_elapsed_ns": [
+      6562000,
+      6192000,
+      6186000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6562000,
+      "expected_checksum": 11317365290659187483,
+      "actual_checksum": 11317365290659187483
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_039",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 6309000,
+    "min_elapsed_ns": 6150000,
+    "max_elapsed_ns": 6792000,
+    "all_elapsed_ns": [
+      6792000,
+      6309000,
+      6150000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6792000,
+      "expected_checksum": 11317365290659187483,
+      "actual_checksum": 11317365290659187483
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_039",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/c_audio_resample_checksum_v2800_039/candidate/bench']' returned non-zero exit status 1."
+  }
+}

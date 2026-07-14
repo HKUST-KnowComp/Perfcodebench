@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_thrust_reduce_f32_v14",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_thrust_reduce_f32_v14/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 6,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nstatic __global__ void reduceBlock1(const float * __restrict__ d_in,\n                                    float *d_out,\n                                    int n)\n{\n    extern __shared__ float sh[];\n    int tid = threadIdx.x;\n    int i  = blockIdx.x * blockDim.x * 2 + tid;\n    float v = 0.f;\n    if (i < n)                  v = d_in[i];\n    if (i + blockDim.x < n)      v += d_in[i+blockDim.x];\n    sh[tid] = v;\n    __syncthreads();\n\n    // block reduction in shared memory\n    for (int s = blockDim.x >> 1; s > 32; s >>= 1) {\n        if (tid < s) sh[tid] += sh[tid + s];\n        __syncthreads();\n    }\n    // warp reduction without __syncthreads\n    if (tid < 32) {\n        volatile float *s = sh;\n        s[tid] += s[tid + 32];\n        s[tid] += s[tid + 16];\n        s[tid] += s[tid +  8];\n        s[tid] += s[tid +  4];\n        s[tid] += s[tid +  2];\n        s[tid] += s[tid +  1];\n        if (tid == 0) d_out[blockIdx.x] = s[0];\n    }\n}\n\nfloat reduce_f32(const float* input, int n, int iters)\n{\n    static float *d_out = nullptr;      // keeps buffer across calls\n    if (!d_out) { float *tmp; cudaMalloc(&tmp, sizeof(float)); d_out = tmp; }\n\n    const int BS = 512;\n    const int blocks = (n + BS*2 - 1) / (BS*2);\n    size_t  shmem = BS * sizeof(float);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        reduceBlock1<<<blocks, BS, shmem>>>(input, d_out, n);\n        if (iter == iters-1) break;                        // avoid sync overhead for inner iters\n        cudaDeviceSynchronize();\n    }\n    cudaDeviceSynchronize();\n    float h;\n    cudaMemcpy(&h, d_out, sizeof(float), cudaMemcpyDeviceToHost);\n    return h;\n}",
+  "baseline": {
+    "task_id": "cuda_thrust_reduce_f32_v14",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1602805053,
+    "min_elapsed_ns": 1601229858,
+    "max_elapsed_ns": 1610271606,
+    "all_elapsed_ns": [
+      1601229858,
+      1610271606,
+      1602805053
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1601229858,
+      "expected_sum": 100663000.0,
+      "actual_sum": 99668500.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_thrust_reduce_f32_v14",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 755360,
+    "min_elapsed_ns": 504159,
+    "max_elapsed_ns": 4720672,
+    "all_elapsed_ns": [
+      504159,
+      755360,
+      4720672
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 504159,
+      "expected_sum": 100663000.0,
+      "actual_sum": 100663000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_thrust_reduce_f32_v14",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_thrust_reduce_f32_v14/candidate/bench']' timed out after 6 seconds"
+  }
+}

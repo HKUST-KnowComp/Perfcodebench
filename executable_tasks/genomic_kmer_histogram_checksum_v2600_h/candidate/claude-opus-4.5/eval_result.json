@@ -1,0 +1,59 @@
+{
+  "task_id": "genomic_kmer_histogram_checksum_v2600_h",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/genomic_kmer_histogram_checksum_v2600_h/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstring>\n#include <string>\n#include <vector>\n\nnamespace {\n\ninline uint32_t base_to_bits(char c) {\n    // A=0, C=1, G=2, T=3\n    // Using arithmetic: (c >> 1) & 3 gives: A(65)->0, C(67)->1, G(71)->3, T(84)->2\n    // We need a lookup or formula that works correctly\n    // A=65=0b1000001, C=67=0b1000011, G=71=0b1000111, T=84=0b1010100\n    // Simple lookup table approach embedded in code:\n    static const uint32_t table[256] = {\n        ['A'] = 0, ['C'] = 1, ['G'] = 2, ['T'] = 3\n    };\n    return table[static_cast<unsigned char>(c)];\n}\n\nuint64_t checksum_counts(const uint32_t* counts, std::size_t bins) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (std::size_t i = 0; i < bins; ++i) {\n        hash ^= static_cast<uint64_t>(counts[i]);\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\n}  // namespace\n\nuint64_t kmer_histogram_checksum(const std::string& dna, int k, int iters) {\n    const std::size_t n = dna.size();\n    const std::size_t bins = static_cast<std::size_t>(1) << (2 * k);\n    const uint32_t mask = static_cast<uint32_t>(bins - 1);\n    \n    if (static_cast<std::size_t>(k) > n) {\n        // No k-mers possible\n        std::vector<uint32_t> dense(bins, 0u);\n        return checksum_counts(dense.data(), bins);\n    }\n    \n    std::vector<uint32_t> dense(bins);\n    const char* data = dna.data();\n    const std::size_t num_kmers = n - static_cast<std::size_t>(k) + 1;\n    \n    uint64_t hash = 0;\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        std::memset(dense.data(), 0, bins * sizeof(uint32_t));\n        \n        // Encode first k-mer\n        uint32_t code = 0;\n        for (int i = 0; i < k; ++i) {\n            code = (code << 2) | base_to_bits(data[i]);\n        }\n        ++dense[code];\n        \n        // Rolling hash for remaining k-mers\n        for (std::size_t i = 1; i < num_kmers; ++i) {\n            // Shift out oldest base, shift in newest base\n            code = ((code << 2) | base_to_bits(data[i + k - 1])) & mask;\n            ++dense[code];\n        }\n        \n        hash = checksum_counts(dense.data(), bins);\n    }\n    \n    return hash;\n}",
+  "baseline": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 327326037,
+    "min_elapsed_ns": 306327997,
+    "max_elapsed_ns": 352419702,
+    "all_elapsed_ns": [
+      306327997,
+      352419702,
+      327326037
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 306327997,
+      "expected_checksum": 5814237120368028560,
+      "actual_checksum": 5814237120368028560
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 15167755,
+    "min_elapsed_ns": 14812765,
+    "max_elapsed_ns": 15662896,
+    "all_elapsed_ns": [
+      14812765,
+      15167755,
+      15662896
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 14812765,
+      "expected_checksum": 5814237120368028560,
+      "actual_checksum": 5814237120368028560
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_h",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/genomic_kmer_histogram_checksum_v2600_h/harness', 'executable_tasks/genomic_kmer_histogram_checksum_v2600_h/harness/benchmark_main.cpp', 'executable_tasks/genomic_kmer_histogram_checksum_v2600_h/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/genomic_kmer_histogram_checksum_v2600_h/candidate/bench']' returned non-zero exit status 1."
+  }
+}

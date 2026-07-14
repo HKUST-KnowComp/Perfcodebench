@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v04",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v04/candidate/gpt-5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n// Warp-level reduction using shuffle operations\n__inline__ __device__ int warp_reduce_sum(int val) {\n  unsigned mask = 0xffffffffu;\n  val += __shfl_down_sync(mask, val, 16);\n  val += __shfl_down_sync(mask, val, 8);\n  val += __shfl_down_sync(mask, val, 4);\n  val += __shfl_down_sync(mask, val, 2);\n  val += __shfl_down_sync(mask, val, 1);\n  return val;\n}\n\ntemplate<int UNROLL>\n__global__ void reduce_kernel(const int* __restrict__ input, int* output, int n) {\n  int tid = threadIdx.x;\n  int lane = tid & 31;\n  int warp_id = tid >> 5;\n  const int total_threads = blockDim.x * gridDim.x;\n\n  int local = 0;\n  // Grid-stride loop with unrolling\n  for (int base = blockIdx.x * blockDim.x + tid; base < n; base += total_threads * UNROLL) {\n    int idx = base;\n    #pragma unroll\n    for (int k = 0; k < UNROLL; ++k) {\n      if (idx < n) {\n        local += input[idx];\n      }\n      idx += total_threads;\n    }\n  }\n\n  // Intra-warp reduction\n  local = warp_reduce_sum(local);\n\n  __shared__ int warp_sums[32]; // supports up to 1024 threads per block\n  if (lane == 0) {\n    warp_sums[warp_id] = local;\n  }\n  __syncthreads();\n\n  // First warp reduces the per-warp sums\n  int block_sum = 0;\n  if (warp_id == 0) {\n    int num_warps = (blockDim.x + 31) >> 5;\n    block_sum = (lane < num_warps) ? warp_sums[lane] : 0;\n    block_sum = warp_reduce_sum(block_sum);\n    if (lane == 0) {\n      atomicAdd(output, block_sum);\n    }\n  }\n}\n\n} // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n  // Choose launch parameters\n  const int block_dim = 256;\n  int device = 0;\n  cudaDeviceProp prop;\n  if (cudaGetDevice(&device) == cudaSuccess) {\n    cudaGetDeviceProperties(&prop, device);\n  } else {\n    // Fallback in unlikely case\n    prop.multiProcessorCount = 80;\n  }\n\n  // Each thread processes UNROLL elements per outer stride\n  constexpr int UNROLL = 8;\n\n  // Estimate grid size: bound by SM count to limit atomics and maximize residency\n  int max_blocks = prop.multiProcessorCount * 8;\n  if (max_blocks < 1) max_blocks = 1;\n  long long elems_per_block_iter = static_cast<long long>(block_dim) * UNROLL;\n  int suggested = static_cast<int>((n + elems_per_block_iter - 1) / elems_per_block_iter);\n  if (suggested < 1) suggested = 1;\n  int grid_dim = suggested < max_blocks ? suggested : max_blocks;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    cudaMemset(output, 0, sizeof(int));\n    reduce_kernel<UNROLL><<<grid_dim, block_dim>>>(input, output, n);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v04",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 23932704,
+    "min_elapsed_ns": 23906175,
+    "max_elapsed_ns": 23957696,
+    "all_elapsed_ns": [
+      23957696,
+      23906175,
+      23932704
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 23957696,
+      "expected_sum": 62914560,
+      "actual_sum": 62914560
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v04",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1302783,
+    "min_elapsed_ns": 1302047,
+    "max_elapsed_ns": 1304512,
+    "all_elapsed_ns": [
+      1304512,
+      1302047,
+      1302783
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1304512,
+      "expected_sum": 62914560,
+      "actual_sum": 62914560
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v04",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v04/candidate/bench']' timed out after 5 seconds"
+  }
+}

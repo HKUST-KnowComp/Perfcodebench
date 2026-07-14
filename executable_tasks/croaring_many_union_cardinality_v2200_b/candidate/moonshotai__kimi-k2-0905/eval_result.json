@@ -1,0 +1,59 @@
+{
+  "task_id": "croaring_many_union_cardinality_v2200_b",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/croaring_many_union_cardinality_v2200_b/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"roaring.h\"\n#include <algorithm>\n#include <cstddef>\n#include <cstdint>\n#include <vector>\n\nuint64_t many_union_cardinality(\n    const std::vector<uint32_t>& offsets,\n    const std::vector<uint32_t>& values) {\n  const size_t n_shards = offsets.size() - 1;\n  if (n_shards == 0) return 0;\n\n  // Build one small bitmap per shard in parallel\n  std::vector<roaring_bitmap_t*> shards;\n  shards.reserve(n_shards);\n\n  #pragma omp parallel for schedule(dynamic, 1)\n  for (size_t s = 0; s < n_shards; ++s) {\n    const uint32_t begin = offsets[s];\n    const uint32_t end   = offsets[s + 1];\n    roaring_bitmap_t* r  = roaring_bitmap_create();\n    roaring_bitmap_add_range(r, begin, end);\n    for (uint32_t i = begin; i < end; ++i) {\n      roaring_bitmap_add(r, values[i]);\n    }\n    #pragma omp critical\n    shards.push_back(r);\n  }\n\n  // Fast many-way union via Roaring's heap algorithm\n  roaring_bitmap_t* uni = roaring_bitmap_or_many_heap(shards.size(), shards.data());\n  const uint64_t card   = roaring_bitmap_get_cardinality(uni);\n\n  // Cleanup\n  roaring_bitmap_free(uni);\n  for (auto* r : shards) roaring_bitmap_free(r);\n\n  return card;\n}",
+  "baseline": {
+    "task_id": "croaring_many_union_cardinality_v2200_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 259938248,
+    "min_elapsed_ns": 188055730,
+    "max_elapsed_ns": 265602628,
+    "all_elapsed_ns": [
+      188055730,
+      259938248,
+      265602628
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 188055730,
+      "expected_cardinality": 881304,
+      "actual_cardinality": 881304
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "croaring_many_union_cardinality_v2200_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 12262958,
+    "min_elapsed_ns": 11894995,
+    "max_elapsed_ns": 12806605,
+    "all_elapsed_ns": [
+      12262958,
+      12806605,
+      11894995
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12262958,
+      "expected_cardinality": 881304,
+      "actual_cardinality": 881304
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "croaring_many_union_cardinality_v2200_b",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/croaring_many_union_cardinality_v2200_b/harness', '-Iexternal/croaring_amalg', 'executable_tasks/croaring_many_union_cardinality_v2200_b/harness/benchmark_main.cpp', 'executable_tasks/croaring_many_union_cardinality_v2200_b/candidate/moonshotai__kimi-k2-0905/solution.cpp', 'external/croaring_amalg/roaring.c', '-o', 'build/croaring_many_union_cardinality_v2200_b/candidate/bench']' returned non-zero exit status 1."
+  }
+}

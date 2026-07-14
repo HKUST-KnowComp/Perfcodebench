@@ -1,0 +1,59 @@
+{
+  "task_id": "python_image_blend_checksum_v3100_072",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/python_image_blend_checksum_v3100_072/candidate/moonshotai__kimi-k2-0905/solution.py",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "import struct\n\ndef blend_byte(s: int, d: int, a: int) -> int:\n    return ((s * a) + (d * (255 - a)) + 127) // 255\n\n\ndef checksum_bytes(data: bytes) -> int:\n    h = 1469598103934665603\n    for b in data:\n        h ^= b\n        h = (h * 1099511628211) & ((1 << 64) - 1)\n    return h\n\n\ndef run(src: bytearray, dst: bytearray, width: int, height: int, iters: int) -> int:\n    pixels = width * height\n    out = bytearray(pixels * 4)\n\n    # Pre-build lookup tables for (s*a + d*(255-a) + 127)//255\n    # We treat a as the outer dimension (256 entries) and (s,d) as 256\u00d7256 inner tables.\n    blend_tbl = [[0]*65536 for _ in range(256)]\n    for a in range(256):\n        inv_a = 255 - a\n        row = blend_tbl[a]\n        for s in range(256):\n            for d in range(256):\n                row[(s << 8) | d] = ((s * a) + (d * inv_a) + 127) // 255\n\n    # Build 8-bit -> 32-bit (LE) lookup for fast memcpy-style assignment\n    dst32 = memoryview(out).cast('I')\n    src16 = memoryview(src).cast('H')\n    dst16 = memoryview(dst).cast('H')\n    stride = width * height\n\n    for _ in range(iters):\n        for k in range(stride):\n            s0, s1 = src16[k*2], src16[k*2+1]\n            d0, d1 = dst16[k*2], dst16[k*2+1]\n            a = (s1 >> 8) & 0xFF\n            r = blend_tbl[a][((s0 >> 8) & 0xFF) << 8 | ((d0 >> 8) & 0xFF)]\n            g = blend_tbl[a][((s0) & 0xFF) << 8 | ((d0) & 0xFF)]\n            b = blend_tbl[a][((s1 >> 8) & 0xFF) << 8 | ((d1 >> 8) & 0xFF)]\n            dst32[k] = 0xFF000000 | (b << 16) | (g << 8) | r\n\n    return checksum_bytes(out)",
+  "baseline": {
+    "task_id": "python_image_blend_checksum_v3100_072",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 486855204,
+    "min_elapsed_ns": 433347066,
+    "max_elapsed_ns": 611245014,
+    "all_elapsed_ns": [
+      486855204,
+      433347066,
+      611245014
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 486855204,
+      "expected_checksum": 18345076164433697865,
+      "actual_checksum": 18345076164433697865
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "python_image_blend_checksum_v3100_072",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 409701351,
+    "min_elapsed_ns": 402883498,
+    "max_elapsed_ns": 423877692,
+    "all_elapsed_ns": [
+      409701351,
+      402883498,
+      423877692
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 409701351,
+      "expected_checksum": 18345076164433697865,
+      "actual_checksum": 18345076164433697865
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "python_image_blend_checksum_v3100_072",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['env', 'PERFCODEBENCH_SOLUTION=executable_tasks/python_image_blend_checksum_v3100_072/candidate/moonshotai__kimi-k2-0905/solution.py', 'python3', 'executable_tasks/python_image_blend_checksum_v3100_072/harness/benchmark_main.py']' returned non-zero exit status 1."
+  }
+}

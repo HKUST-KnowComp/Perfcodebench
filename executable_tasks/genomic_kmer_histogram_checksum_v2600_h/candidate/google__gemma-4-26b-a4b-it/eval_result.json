@@ -1,0 +1,72 @@
+{
+  "task_id": "genomic_kmer_histogram_checksum_v2600_h",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/genomic_kmer_histogram_checksum_v2600_h/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <string>\n#include <vector>\n#include <algorithm>\n\nnamespace {\n\n// Fast encoding of DNA characters to 2-bit representation\n// A=0, C=1, G=2, T=3\ninline uint32_t char_to_bits(char c) {\n    if (c == 'C') return 1u;\n    if (c == 'G') return 2u;\n    if (c == 'T') return 3u;\n    return 0u; // 'A' or other\n}\n\nuint64_t checksum_counts(const std::vector<uint32_t>& counts) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (uint32_t count : counts) {\n        hash ^= static_cast<uint64_t>(count);\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\n} // namespace\n\nuint64_t kmer_histogram_checksum(const std::string& dna, int k, int iters) {\n    const std::size_t num_bins = 1u << (2 * k);\n    const std::size_t n = dna.size();\n    const std::size_t k_size = static_cast<std::size_t>(k);\n    \n    if (n < k_size) {\n        // If DNA is shorter than k, the histogram is all zeros\n        std::vector<uint32_t> dense(num_bins, 0u);\n        uint64_t hash = 0;\n        for (int iter = 0; iter < iters; ++iter) {\n            hash = checksum_counts(dense);\n        }\n        return hash;\n    }\n\n    std::vector<uint32_t> dense(num_bins);\n    uint64_t final_hash = 0;\n    const uint32_t mask = (k < 16) ? (1u << (2 * k)) - 1 : 0xFFFFFFFFu; \n    // Note: k is limited by the fact that 2*k must fit in uint32_t for the index\n    // The problem implies k is small enough for 2*k to fit in uint32_t (max k=15 or 16 depending on bit width)\n    // Given the return type and logic, k is likely <= 15.\n\n    for (int iter = 0; iter < iters; ++iter) {\n        std::fill(dense.begin(), dense.end(), 0u);\n        \n        uint32_t current_kmer = 0u;\n        // Initialize first k-1 characters\n        for (std::size_t i = 0; i < k_size - 1; ++i) {\n            current_kmer = (current_kmer << 2) | char_to_bits(dna[i]);\n        }\n\n        // Sliding window\n        const uint32_t bit_mask = (1u << (2 * k)) - 1;\n        for (std::size_t i = k_size - 1; i < n; ++i) {\n            current_kmer = ((current_kmer << 2) | char_to_bits(dna[i])) & bit_mask;\n            dense[current_kmer]++;\n        }\n\n        final_hash = checksum_counts(dense);\n    }\n\n    return final_hash;\n}\n",
+  "baseline": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 327326037,
+    "min_elapsed_ns": 306327997,
+    "max_elapsed_ns": 352419702,
+    "all_elapsed_ns": [
+      306327997,
+      352419702,
+      327326037
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 306327997,
+      "expected_checksum": 5814237120368028560,
+      "actual_checksum": 5814237120368028560
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 15167755,
+    "min_elapsed_ns": 14812765,
+    "max_elapsed_ns": 15662896,
+    "all_elapsed_ns": [
+      14812765,
+      15167755,
+      15662896
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 14812765,
+      "expected_checksum": 5814237120368028560,
+      "actual_checksum": 5814237120368028560
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 24911526,
+    "min_elapsed_ns": 24828649,
+    "max_elapsed_ns": 25739996,
+    "all_elapsed_ns": [
+      24828649,
+      25739996,
+      24911526
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 24828649,
+      "expected_checksum": 5814237120368028560,
+      "actual_checksum": 5814237120368028560
+    },
+    "status": "ok"
+  }
+}

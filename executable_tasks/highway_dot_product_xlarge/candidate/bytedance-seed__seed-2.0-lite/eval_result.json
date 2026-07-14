@@ -1,0 +1,59 @@
+{
+  "task_id": "highway_dot_product_xlarge",
+  "model": "bytedance-seed/seed-2.0-lite",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_dot_product_xlarge/candidate/bytedance-seed__seed-2.0-lite/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"hwy/highway.h\"\n\nHWY_BEFORE_NAMESPACE();\nnamespace hwy {\nnamespace HWY_NAMESPACE {\n}\n} // namespace hwy\nHWY_AFTER_NAMESPACE();\n\nusing namespace hwy;\n\nfloat dot_product(const float* a, const float* b, std::size_t n) {\n  if (n == 0) return 0.0f;\n  const ScalableTag<float> tag;\n  const size_t simd_lanes = Lanes(tag);\n  const size_t block_size = 4 * simd_lanes;\n  \n  auto sum0 = Zero(tag);\n  auto sum1 = Zero(tag);\n  auto sum2 = Zero(tag);\n  auto sum3 = Zero(tag);\n  size_t i = 0;\n\n  // Process large unrolled blocks to hide accumulation latency\n  for (; i + block_size <= n; i += block_size) {\n    auto va = Load(tag, a + i);\n    auto vb = Load(tag, b + i);\n    sum0 = MulAdd(va, vb, sum0);\n\n    va = Load(tag, a + i + simd_lanes);\n    vb = Load(tag, b + i + simd_lanes);\n    sum1 = MulAdd(va, vb, sum1);\n\n    va = Load(tag, a + i + 2*simd_lanes);\n    vb = Load(tag, b + i + 2*simd_lanes);\n    sum2 = MulAdd(va, vb, sum2);\n\n    va = Load(tag, a + i + 3*simd_lanes);\n    vb = Load(tag, b + i + 3*simd_lanes);\n    sum3 = MulAdd(va, vb, sum3);\n  }\n\n  // Combine primary accumulators\n  auto total = Add(Add(sum0, sum1), Add(sum2, sum3));\n\n  // Process remaining full SIMD blocks\n  for (; i + simd_lanes <= n; i += simd_lanes) {\n    auto va = Load(tag, a + i);\n    auto vb = Load(tag, b + i);\n    total = MulAdd(va, vb, total);\n  }\n\n  // Process any final partial SIMD block\n  if (i < n) {\n    const auto mask = MaskFirstN(tag, n - i);\n    auto va = LoadMask(tag, mask, a + i);\n    auto vb = LoadMask(tag, mask, b + i);\n    total = MulAdd(va, vb, total);\n  }\n\n  // Sum all SIMD lanes to get final scalar result\n  return ReduceSum(tag, total);\n}",
+  "baseline": {
+    "task_id": "highway_dot_product_xlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3168156,
+    "min_elapsed_ns": 3055580,
+    "max_elapsed_ns": 3657801,
+    "all_elapsed_ns": [
+      3657801,
+      3168156,
+      3055580
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3657801,
+      "expected_dot": 1884630.0,
+      "actual_dot": 1884700.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_dot_product_xlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2401109,
+    "min_elapsed_ns": 2336993,
+    "max_elapsed_ns": 2468568,
+    "all_elapsed_ns": [
+      2401109,
+      2468568,
+      2336993
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2401109,
+      "expected_dot": 1884630.0,
+      "actual_dot": 1884660.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_dot_product_xlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/highway_dot_product_xlarge/harness', '-Iexternal/highway', 'executable_tasks/highway_dot_product_xlarge/harness/benchmark_main.cpp', 'executable_tasks/highway_dot_product_xlarge/candidate/bytedance-seed__seed-2.0-lite/solution.cpp', 'external/highway/hwy/abort.cc', 'external/highway/hwy/targets.cc', 'external/highway/hwy/aligned_allocator.cc', 'external/highway/hwy/per_target.cc', '-o', 'build/highway_dot_product_xlarge/candidate/bench']' returned non-zero exit status 1."
+  }
+}

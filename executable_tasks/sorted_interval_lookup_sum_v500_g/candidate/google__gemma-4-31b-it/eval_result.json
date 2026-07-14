@@ -1,0 +1,59 @@
+{
+  "task_id": "sorted_interval_lookup_sum_v500_g",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sorted_interval_lookup_sum_v500_g/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\nuint64_t interval_lookup_sum(\n    const std::vector<uint32_t>& starts,\n    const std::vector<uint32_t>& ends,\n    const std::vector<uint32_t>& payloads,\n    const std::vector<uint32_t>& probes,\n    const std::vector<uint32_t>& weights,\n    int iters) {\n    (void)ends;\n    \n    const size_t num_starts = starts.size();\n    const size_t num_probes = probes.size();\n    \n    if (num_starts == 0 || num_probes == 0) return 0;\n\n    const uint32_t* p_starts = starts.data();\n    const uint32_t* p_payloads = payloads.data();\n    const uint32_t* p_probes = probes.data();\n    const uint32_t* p_weights = weights.data();\n\n    uint64_t final_sum = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t current_sum = 0;\n        size_t start_idx = 0;\n\n        for (size_t i = 0; i < num_probes; ++i) {\n            uint32_t probe = p_probes[i];\n            \n            // Since probes are sorted, we only need to move the pointer forward\n            // to find the largest start[idx] <= probe.\n            while (start_idx + 1 < num_starts && p_starts[start_idx + 1] <= probe) {\n                start_idx++;\n            }\n            \n            // The baseline used upper_bound - 1, which is equivalent to the \n            // largest index where starts[idx] <= probe.\n            // If probe < starts[0], the baseline's idx would be (0 - 1) = size_t wrap.\n            // However, the problem implies valid lookups or specific behavior.\n            // To match baseline exactly: if probe < starts[0], idx is size_t max.\n            // But usually, starts[0] is 0 or the probes are guaranteed to be >= starts[0].\n            // Let's handle the wrap-around case to be safe, though in most test cases \n            // probes[0] >= starts[0].\n            if (probe < p_starts[0]) {\n                // This mimics the (std::upper_bound(...) - starts.begin() - 1) behavior\n                // when the iterator is starts.begin().\n                // In a real scenario, this would likely crash or access out of bounds.\n                // We use a check to avoid UB while maintaining the logic.\n                current_sum += static_cast<uint64_t>(p_payloads[static_cast<size_t>(-1)]) * p_weights[i];\n            } else {\n                current_sum += static_cast<uint64_t>(p_payloads[start_idx]) * p_weights[i];\n            }\n        }\n        final_sum = current_sum;\n    }\n\n    return final_sum;\n}",
+  "baseline": {
+    "task_id": "sorted_interval_lookup_sum_v500_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 844860454,
+    "min_elapsed_ns": 808630068,
+    "max_elapsed_ns": 1031149134,
+    "all_elapsed_ns": [
+      1031149134,
+      844860454,
+      808630068
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1031149134,
+      "expected_sum": 85831957664,
+      "actual_sum": 85831957664
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sorted_interval_lookup_sum_v500_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 106244455,
+    "min_elapsed_ns": 100291062,
+    "max_elapsed_ns": 136656108,
+    "all_elapsed_ns": [
+      106244455,
+      100291062,
+      136656108
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 106244455,
+      "expected_sum": 85831957664,
+      "actual_sum": 85831957664
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sorted_interval_lookup_sum_v500_g",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/sorted_interval_lookup_sum_v500_g/harness', 'executable_tasks/sorted_interval_lookup_sum_v500_g/harness/benchmark_main.cpp', 'executable_tasks/sorted_interval_lookup_sum_v500_g/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/sorted_interval_lookup_sum_v500_g/candidate/bench']' returned non-zero exit status 1."
+  }
+}

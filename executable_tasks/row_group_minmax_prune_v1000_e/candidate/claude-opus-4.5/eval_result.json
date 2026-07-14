@@ -1,0 +1,59 @@
+{
+  "task_id": "row_group_minmax_prune_v1000_e",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/row_group_minmax_prune_v1000_e/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <immintrin.h>\n\nuint64_t row_group_range_sum(\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& mins,\n    const std::vector<uint32_t>& maxs,\n    uint32_t low,\n    uint32_t high,\n    uint32_t block_size,\n    int iters) {\n\n    const size_t n = values.size();\n    const size_t num_blocks = mins.size();\n    const uint32_t* __restrict vptr = values.data();\n    const uint32_t* __restrict minptr = mins.data();\n    const uint32_t* __restrict maxptr = maxs.data();\n\n    uint64_t sum = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        sum = 0;\n\n        for (size_t b = 0; b < num_blocks; ++b) {\n            uint32_t block_min = minptr[b];\n            uint32_t block_max = maxptr[b];\n\n            // Prune: block entirely outside [low, high]\n            if (block_max < low || block_min > high) {\n                continue;\n            }\n\n            size_t start = b * block_size;\n            size_t end = start + block_size;\n            if (end > n) end = n;\n            size_t count = end - start;\n\n            const uint32_t* block_ptr = vptr + start;\n\n            // Full include: block entirely inside [low, high]\n            if (block_min >= low && block_max <= high) {\n                size_t i = 0;\n                __m256i acc0 = _mm256_setzero_si256();\n                __m256i acc1 = _mm256_setzero_si256();\n\n                // Process 16 elements per iteration (2x8)\n                for (; i + 15 < count; i += 16) {\n                    __m256i v0 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(block_ptr + i));\n                    __m256i v1 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(block_ptr + i + 8));\n\n                    // Unpack to 64-bit and accumulate\n                    __m256i lo0 = _mm256_unpacklo_epi32(v0, _mm256_setzero_si256());\n                    __m256i hi0 = _mm256_unpackhi_epi32(v0, _mm256_setzero_si256());\n                    __m256i lo1 = _mm256_unpacklo_epi32(v1, _mm256_setzero_si256());\n                    __m256i hi1 = _mm256_unpackhi_epi32(v1, _mm256_setzero_si256());\n\n                    acc0 = _mm256_add_epi64(acc0, lo0);\n                    acc0 = _mm256_add_epi64(acc0, hi0);\n                    acc1 = _mm256_add_epi64(acc1, lo1);\n                    acc1 = _mm256_add_epi64(acc1, hi1);\n                }\n\n                // Process remaining 8 elements\n                for (; i + 7 < count; i += 8) {\n                    __m256i v0 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(block_ptr + i));\n                    __m256i lo0 = _mm256_unpacklo_epi32(v0, _mm256_setzero_si256());\n                    __m256i hi0 = _mm256_unpackhi_epi32(v0, _mm256_setzero_si256());\n                    acc0 = _mm256_add_epi64(acc0, lo0);\n                    acc0 = _mm256_add_epi64(acc0, hi0);\n                }\n\n                // Horizontal sum\n                acc0 = _mm256_add_epi64(acc0, acc1);\n                __m128i lo128 = _mm256_castsi256_si128(acc0);\n                __m128i hi128 = _mm256_extracti128_si256(acc0, 1);\n                __m128i sum128 = _mm_add_epi64(lo128, hi128);\n                uint64_t arr[2];\n                _mm_storeu_si128(reinterpret_cast<__m128i*>(arr), sum128);\n                sum += arr[0] + arr[1];\n\n                // Scalar tail\n                for (; i < count; ++i) {\n                    sum += block_ptr[i];\n                }\n            } else {\n                // Partial overlap: must filter each element\n                size_t i = 0;\n                __m256i vlow = _mm256_set1_epi32(static_cast<int32_t>(low));\n                __m256i vhigh = _mm256_set1_epi32(static_cast<int32_t>(high));\n                __m256i acc0 = _mm256_setzero_si256();\n                __m256i acc1 = _mm256_setzero_si256();\n\n                for (; i + 15 < count; i += 16) {\n                    __m256i v0 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(block_ptr + i));\n                    __m256i v1 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(block_ptr + i + 8));\n\n                    // Unsigned comparison: v >= low  <=>  max(v, low) == v\n                    // v <= high <=> min(v, high) == v\n                    __m256i ge_low0 = _mm256_cmpeq_epi32(_mm256_max_epu32(v0, vlow), v0);\n                    __m256i le_high0 = _mm256_cmpeq_epi32(_mm256_min_epu32(v0, vhigh), v0);\n                    __m256i mask0 = _mm256_and_si256(ge_low0, le_high0);\n\n                    __m256i ge_low1 = _mm256_cmpeq_epi32(_mm256_max_epu32(v1, vlow), v1);\n                    __m256i le_high1 = _mm256_cmpeq_epi32(_mm256_min_epu32(v1, vhigh), v1);\n                    __m256i mask1 = _mm256_and_si256(ge_low1, le_high1);\n\n                    __m256i masked0 = _mm256_and_si256(v0, mask0);\n                    __m256i masked1 = _mm256_and_si256(v1, mask1);\n\n                    __m256i lo0 = _mm256_unpacklo_epi32(masked0, _mm256_setzero_si256());\n                    __m256i hi0 = _mm256_unpackhi_epi32(masked0, _mm256_setzero_si256());\n                    __m256i lo1 = _mm256_unpacklo_epi32(masked1, _mm256_setzero_si256());\n                    __m256i hi1 = _mm256_unpackhi_epi32(masked1, _mm256_setzero_si256());\n\n                    acc0 = _mm256_add_epi64(acc0, lo0);\n                    acc0 = _mm256_add_epi64(acc0, hi0);\n                    acc1 = _mm256_add_epi64(acc1, lo1);\n                    acc1 = _mm256_add_epi64(acc1, hi1);\n                }\n\n                for (; i + 7 < count; i += 8) {\n                    __m256i v0 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(block_ptr + i));\n                    __m256i ge_low0 = _mm256_cmpeq_epi32(_mm256_max_epu32(v0, vlow), v0);\n                    __m256i le_high0 = _mm256_cmpeq_epi32(_mm256_min_epu32(v0, vhigh), v0);\n                    __m256i mask0 = _mm256_and_si256(ge_low0, le_high0);\n                    __m256i masked0 = _mm256_and_si256(v0, mask0);\n                    __m256i lo0 = _mm256_unpacklo_epi32(masked0, _mm256_setzero_si256());\n                    __m256i hi0 = _mm256_unpackhi_epi32(masked0, _mm256_setzero_si256());\n                    acc0 = _mm256_add_epi64(acc0, lo0);\n                    acc0 = _mm256_add_epi64(acc0, hi0);\n                }\n\n                acc0 = _mm256_add_epi64(acc0, acc1);\n                __m128i lo128 = _mm256_castsi256_si128(acc0);\n                __m128i hi128 = _mm256_extracti128_si256(acc0, 1);\n                __m128i sum128 = _mm_add_epi64(lo128, hi128);\n                uint64_t arr[2];\n                _mm_storeu_si128(reinterpret_cast<__m128i*>(arr), sum128);\n                sum += arr[0] + arr[1];\n\n                // Scalar tail\n                for (; i < count; ++i) {\n                    uint32_t v = block_ptr[i];\n                    if (v >= low && v <= high) {\n                        sum += v;\n                    }\n                }\n            }\n        }\n    }\n\n    return sum;\n}\n",
+  "baseline": {
+    "task_id": "row_group_minmax_prune_v1000_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 54699163,
+    "min_elapsed_ns": 54470266,
+    "max_elapsed_ns": 54730995,
+    "all_elapsed_ns": [
+      54730995,
+      54699163,
+      54470266
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 54730995,
+      "expected_sum": 12964916,
+      "actual_sum": 12964916
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "row_group_minmax_prune_v1000_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1315623,
+    "min_elapsed_ns": 1289031,
+    "max_elapsed_ns": 1335066,
+    "all_elapsed_ns": [
+      1315623,
+      1335066,
+      1289031
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1315623,
+      "expected_sum": 12964916,
+      "actual_sum": 12964916
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "row_group_minmax_prune_v1000_e",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/row_group_minmax_prune_v1000_e/harness', 'executable_tasks/row_group_minmax_prune_v1000_e/harness/benchmark_main.cpp', 'executable_tasks/row_group_minmax_prune_v1000_e/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/row_group_minmax_prune_v1000_e/candidate/bench']' returned non-zero exit status 1."
+  }
+}

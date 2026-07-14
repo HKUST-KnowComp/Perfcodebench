@@ -1,0 +1,72 @@
+{
+  "task_id": "genomic_banded_edit_distance_checksum_v2601_a",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/genomic_banded_edit_distance_checksum_v2601_a/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <string>\n#include <vector>\n\nnamespace {\n\nstatic inline int min3(int a, int b, int c) {\n  int m = a < b ? a : b;\n  return c < m ? c : m;\n}\n\n// Exact Levenshtein distance restricted to a diagonal band when possible.\n// Falls back to full two-row DP if the true distance may lie outside the band.\nint edit_distance_banded_or_full(const std::string& a,\n                                 const std::string& b,\n                                 int max_band,\n                                 std::vector<int>& prev,\n                                 std::vector<int>& curr) {\n  const int n = static_cast<int>(a.size());\n  const int m = static_cast<int>(b.size());\n\n  if (n == 0) return m;\n  if (m == 0) return n;\n\n  const int len_diff = n > m ? (n - m) : (m - n);\n\n  // If the length difference already exceeds the band, an exact banded DP with\n  // this width cannot contain the optimal path. Use full DP.\n  const bool use_band = max_band >= 0 && len_diff <= max_band;\n\n  if (!use_band) {\n    if (static_cast<int>(prev.size()) < m + 1) {\n      prev.resize(static_cast<std::size_t>(m + 1));\n      curr.resize(static_cast<std::size_t>(m + 1));\n    }\n\n    for (int j = 0; j <= m; ++j) prev[static_cast<std::size_t>(j)] = j;\n\n    for (int i = 1; i <= n; ++i) {\n      curr[0] = i;\n      const char ca = a[static_cast<std::size_t>(i - 1)];\n      for (int j = 1; j <= m; ++j) {\n        const int cost = (ca == b[static_cast<std::size_t>(j - 1)]) ? 0 : 1;\n        curr[static_cast<std::size_t>(j)] = min3(\n            prev[static_cast<std::size_t>(j)] + 1,\n            curr[static_cast<std::size_t>(j - 1)] + 1,\n            prev[static_cast<std::size_t>(j - 1)] + cost);\n      }\n      prev.swap(curr);\n    }\n    return prev[static_cast<std::size_t>(m)];\n  }\n\n  const int INF = n + m + 1;\n  if (static_cast<int>(prev.size()) < m + 1) {\n    prev.resize(static_cast<std::size_t>(m + 1));\n    curr.resize(static_cast<std::size_t>(m + 1));\n  }\n\n  for (int j = 0; j <= m; ++j) prev[static_cast<std::size_t>(j)] = INF;\n  const int init_hi = m < max_band ? m : max_band;\n  for (int j = 0; j <= init_hi; ++j) prev[static_cast<std::size_t>(j)] = j;\n\n  for (int i = 1; i <= n; ++i) {\n    const int lo = (i - max_band) > 1 ? (i - max_band) : 1;\n    const int hi = (i + max_band) < m ? (i + max_band) : m;\n\n    if (lo > hi) {\n      return len_diff;\n    }\n\n    curr[static_cast<std::size_t>(lo - 1)] = (lo == 1) ? i : INF;\n    const char ca = a[static_cast<std::size_t>(i - 1)];\n\n    for (int j = lo; j <= hi; ++j) {\n      const int cost = (ca == b[static_cast<std::size_t>(j - 1)]) ? 0 : 1;\n      curr[static_cast<std::size_t>(j)] = min3(\n          prev[static_cast<std::size_t>(j)] + 1,\n          curr[static_cast<std::size_t>(j - 1)] + 1,\n          prev[static_cast<std::size_t>(j - 1)] + cost);\n    }\n\n    if (hi < m) curr[static_cast<std::size_t>(hi + 1)] = INF;\n    prev.swap(curr);\n  }\n\n  return prev[static_cast<std::size_t>(m)];\n}\n\n}  // namespace\n\nuint64_t batch_edit_distance_checksum(\n    const std::vector<std::string>& lhs,\n    const std::vector<std::string>& rhs,\n    int max_band,\n    int iters) {\n  const std::size_t count = lhs.size();\n  if (count == 0 || iters <= 0) {\n    return 0;\n  }\n\n  std::vector<int> distances(count);\n  std::vector<int> prev;\n  std::vector<int> curr;\n\n  // Distances are invariant across iterations; compute once and only repeat the\n  // checksum accumulation.\n  for (std::size_t i = 0; i < count; ++i) {\n    distances[i] = edit_distance_banded_or_full(lhs[i], rhs[i], max_band, prev, curr);\n  }\n\n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    for (std::size_t i = 0; i < count; ++i) {\n      hash ^= static_cast<uint64_t>(distances[i] + 1);\n      hash *= 1099511628211ULL;\n    }\n  }\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "genomic_banded_edit_distance_checksum_v2601_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 507109031,
+    "min_elapsed_ns": 506822895,
+    "max_elapsed_ns": 507512712,
+    "all_elapsed_ns": [
+      507512712,
+      506822895,
+      507109031
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 507512712,
+      "expected_checksum": 12850131920921510531,
+      "actual_checksum": 12850131920921510531
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "genomic_banded_edit_distance_checksum_v2601_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 135993825,
+    "min_elapsed_ns": 135526526,
+    "max_elapsed_ns": 201361014,
+    "all_elapsed_ns": [
+      201361014,
+      135526526,
+      135993825
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 201361014,
+      "expected_checksum": 12850131920921510531,
+      "actual_checksum": 12850131920921510531
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "genomic_banded_edit_distance_checksum_v2601_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 11242193,
+    "min_elapsed_ns": 10631314,
+    "max_elapsed_ns": 11331358,
+    "all_elapsed_ns": [
+      11242193,
+      10631314,
+      11331358
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11242193,
+      "expected_checksum": 12850131920921510531,
+      "actual_checksum": 12850131920921510531
+    },
+    "status": "ok"
+  }
+}

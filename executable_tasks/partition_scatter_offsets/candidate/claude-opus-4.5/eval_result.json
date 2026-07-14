@@ -1,0 +1,72 @@
+{
+  "task_id": "partition_scatter_offsets",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/partition_scatter_offsets/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstdint>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t partition_scatter_checksum(const std::vector<uint32_t>& keys, uint32_t groups, int iters) {\n  const std::size_t n = keys.size();\n  const std::size_t g = static_cast<std::size_t>(groups);\n  \n  std::vector<uint32_t> counts(g + 1, 0);\n  std::vector<uint32_t> offsets(g + 1);\n  std::vector<uint32_t> write_pos(g);\n  std::vector<uint32_t> rows(n);\n  \n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    // Reset counts\n    for (std::size_t i = 0; i <= g; ++i) {\n      counts[i] = 0;\n    }\n    \n    // Count elements per bucket\n    for (std::size_t i = 0; i < n; ++i) {\n      counts[keys[i]]++;\n    }\n    \n    // Compute prefix sums (offsets)\n    offsets[0] = 0;\n    for (std::size_t i = 0; i < g; ++i) {\n      offsets[i + 1] = offsets[i] + counts[i];\n    }\n    \n    // Copy offsets to write positions\n    for (std::size_t i = 0; i < g; ++i) {\n      write_pos[i] = offsets[i];\n    }\n    \n    // Scatter row indices into their buckets\n    for (std::size_t i = 0; i < n; ++i) {\n      uint32_t k = keys[i];\n      rows[write_pos[k]++] = static_cast<uint32_t>(i);\n    }\n    \n    // Compute hash\n    hash = 1469598103934665603ULL;\n    for (std::size_t i = 0; i <= g; ++i) {\n      hash = mix(hash, offsets[i]);\n    }\n    for (std::size_t i = 0; i < n; ++i) {\n      hash = mix(hash, rows[i]);\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "partition_scatter_offsets",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 435472042,
+    "min_elapsed_ns": 399944442,
+    "max_elapsed_ns": 472252245,
+    "all_elapsed_ns": [
+      472252245,
+      399944442,
+      435472042
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 472252245,
+      "expected_checksum": 13568259606277348249,
+      "actual_checksum": 13568259606277348249
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "partition_scatter_offsets",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 647335358,
+    "min_elapsed_ns": 641367252,
+    "max_elapsed_ns": 703814999,
+    "all_elapsed_ns": [
+      647335358,
+      641367252,
+      703814999
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 647335358,
+      "expected_checksum": 13568259606277348249,
+      "actual_checksum": 13568259606277348249
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "partition_scatter_offsets",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 721899736,
+    "min_elapsed_ns": 629887448,
+    "max_elapsed_ns": 798153359,
+    "all_elapsed_ns": [
+      798153359,
+      721899736,
+      629887448
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 798153359,
+      "expected_checksum": 13568259606277348249,
+      "actual_checksum": 13568259606277348249
+    },
+    "status": "ok"
+  }
+}

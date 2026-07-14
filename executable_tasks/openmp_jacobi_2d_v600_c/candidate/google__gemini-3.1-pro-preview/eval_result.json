@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_jacobi_2d_v600_c",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v600_c/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\n// FNV-1a style hash used in the baseline\nuint64_t compute_final_checksum(const uint32_t* data, size_t size) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (size_t i = 0; i < size; ++i) {\n        hash ^= static_cast<uint64_t>(data[i]);\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\n} // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n    if (rows <= 0 || cols <= 0) return 0;\n    \n    size_t n = static_cast<size_t>(rows) * static_cast<size_t>(cols);\n    std::vector<uint32_t> grid_a = input;\n    std::vector<uint32_t> grid_b(n);\n\n    uint32_t* a = grid_a.data();\n    uint32_t* b = grid_b.data();\n\n    for (int step = 0; step < steps; ++step) {\n        // Handle boundaries: top and bottom rows\n        #pragma omp parallel\n        {\n            #pragma omp for nowait\n            for (int j = 0; j < cols; ++j) {\n                b[j] = a[j];\n                b[(rows - 1) * cols + j] = a[(rows - 1) * cols + j];\n            }\n\n            // Handle boundaries: left and right columns (excluding corners already handled)\n            #pragma omp for nowait\n            for (int i = 1; i < rows - 1; ++i) {\n                b[i * cols] = a[i * cols];\n                b[i * cols + (cols - 1)] = a[i * cols + (cols - 1)];\n            }\n\n            // Interior points\n            #pragma omp for\n            for (int i = 1; i < rows - 1; ++i) {\n                const uint32_t* __restrict__ a_row = &a[i * cols];\n                const uint32_t* __restrict__ a_prev = &a[(i - 1) * cols];\n                const uint32_t* __restrict__ a_next = &a[(i + 1) * cols];\n                uint32_t* __restrict__ b_row = &b[i * cols];\n\n                for (int j = 1; j < cols - 1; ++j) {\n                    b_row[j] = (a_row[j] * 4u + \n                                a_row[j - 1] + \n                                a_row[j + 1] + \n                                a_prev[j] + \n                                a_next[j]) / 8u;\n                }\n            }\n        }\n        \n        // Swap pointers for next iteration\n        uint32_t* temp = a;\n        a = b;\n        b = temp;\n    }\n\n    // The final result is in 'a' because of the swap at the end of the loop\n    return compute_final_checksum(a, n);\n}",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v600_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 110082856,
+    "min_elapsed_ns": 109946680,
+    "max_elapsed_ns": 234440592,
+    "all_elapsed_ns": [
+      110082856,
+      109946680,
+      234440592
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 110082856,
+      "expected_checksum": 6389366618467326091,
+      "actual_checksum": 6389366618467326091
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v600_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 133127173,
+    "min_elapsed_ns": 78671381,
+    "max_elapsed_ns": 315987133,
+    "all_elapsed_ns": [
+      315987133,
+      78671381,
+      133127173
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 315987133,
+      "expected_checksum": 6389366618467326091,
+      "actual_checksum": 6389366618467326091
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v600_c",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-fopenmp', '-Iexecutable_tasks/openmp_jacobi_2d_v600_c/harness', 'executable_tasks/openmp_jacobi_2d_v600_c/harness/benchmark_main.cpp', 'executable_tasks/openmp_jacobi_2d_v600_c/candidate/google__gemini-3.1-pro-preview/solution.cpp', '-o', 'build/openmp_jacobi_2d_v600_c/candidate/bench']' returned non-zero exit status 1."
+  }
+}

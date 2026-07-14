@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_sum_atomic_v1500_j",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_sum_atomic_v1500_j/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 11,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <algorithm>\n#include <omp.h>\n\nnamespace {\n\nint get_optimal_threads() {\n  // Limit threads to a reasonable number to avoid oversubscription overhead\n  // while ensuring we utilize available hardware concurrency.\n  int max_t = omp_get_max_threads();\n  return std::max(1, std::min(8, max_t));\n}\n\n} // namespace\n\nuint64_t sum_repeated(const std::vector<uint32_t>& input, int iters) {\n  const std::size_t n = input.size();\n  const uint32_t* data = input.data();\n  int threads = get_optimal_threads();\n  omp_set_num_threads(threads);\n\n  uint64_t total_sum = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t iter_sum = 0;\n    // Using reduction clause is significantly faster than atomic because it\n    // eliminates cache line bouncing/contention between threads.\n    // The compiler can also vectorize the loop more effectively.\n    #pragma omp parallel for reduction(+:iter_sum) schedule(static)\n    for (std::size_t i = 0; i < n; ++i) {\n      iter_sum += static_cast<uint64_t>(data[i]);\n    }\n    total_sum = iter_sum;\n  }\n\n  return total_sum;\n}",
+  "baseline": {
+    "task_id": "openmp_sum_atomic_v1500_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4313515483,
+    "min_elapsed_ns": 2745004610,
+    "max_elapsed_ns": 4413593088,
+    "all_elapsed_ns": [
+      4313515483,
+      2745004610,
+      4413593088
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4313515483,
+      "expected_sum": 50282496,
+      "actual_sum": 50282496
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_sum_atomic_v1500_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 93077131,
+    "min_elapsed_ns": 81643131,
+    "max_elapsed_ns": 167175362,
+    "all_elapsed_ns": [
+      93077131,
+      167175362,
+      81643131
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 93077131,
+      "expected_sum": 50282496,
+      "actual_sum": 50282496
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_sum_atomic_v1500_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 14510736,
+    "min_elapsed_ns": 7580190,
+    "max_elapsed_ns": 277942543,
+    "all_elapsed_ns": [
+      14510736,
+      277942543,
+      7580190
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 14510736,
+      "expected_sum": 50282496,
+      "actual_sum": 50282496
+    },
+    "status": "ok"
+  }
+}

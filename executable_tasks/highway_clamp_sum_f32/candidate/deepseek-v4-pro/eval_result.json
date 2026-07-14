@@ -1,0 +1,72 @@
+{
+  "task_id": "highway_clamp_sum_f32",
+  "model": "deepseek-v4-pro",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_clamp_sum_f32/candidate/deepseek-v4-pro/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <hwy/highway.h>\n\nfloat clamp_sum(const float* data, std::size_t n) {\n  if (n == 0) return 0.0f;\n  namespace hn = hwy::HWY_NAMESPACE;\n  const hn::ScalableTag<float> df;\n  using Vec = hn::Vec<decltype(df)>;\n  const size_t N = hn::Lanes(df);\n  \n  // Use 4 accumulators for instruction-level parallelism.\n  constexpr int kNumAcc = 4;\n  Vec acc[kNumAcc];\n  for (int i = 0; i < kNumAcc; ++i) acc[i] = hn::Zero(df);\n  \n  size_t i = 0;\n  // Process blocks of kNumAcc * N elements.\n  for (; i + kNumAcc * N <= n; i += kNumAcc * N) {\n    for (int j = 0; j < kNumAcc; ++j) {\n      Vec v = hn::LoadU(df, data + i + j * N);\n      v = hn::Max(v, hn::Zero(df));\n      acc[j] = hn::Add(acc[j], v);\n    }\n  }\n  // Process remaining full vectors.\n  for (; i + N <= n; i += N) {\n    Vec v = hn::LoadU(df, data + i);\n    v = hn::Max(v, hn::Zero(df));\n    acc[0] = hn::Add(acc[0], v);\n  }\n  \n  // Combine accumulators and reduce.\n  Vec sumv = hn::Zero(df);\n  for (int j = 0; j < kNumAcc; ++j) {\n    sumv = hn::Add(sumv, acc[j]);\n  }\n  float sum = hn::ReduceSum(df, sumv);\n  \n  // Process tail scalar.\n  for (; i < n; ++i) {\n    sum += data[i] > 0.0f ? data[i] : 0.0f;\n  }\n  return sum;\n}",
+  "baseline": {
+    "task_id": "highway_clamp_sum_f32",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 724895,
+    "min_elapsed_ns": 724532,
+    "max_elapsed_ns": 732678,
+    "all_elapsed_ns": [
+      724532,
+      724895,
+      732678
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 724532,
+      "expected_sum": 52565500.0,
+      "actual_sum": 52565500.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_clamp_sum_f32",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 210353,
+    "min_elapsed_ns": 190631,
+    "max_elapsed_ns": 219643,
+    "all_elapsed_ns": [
+      190631,
+      210353,
+      219643
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 190631,
+      "expected_sum": 52565500.0,
+      "actual_sum": 52565600.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_clamp_sum_f32",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 182164,
+    "min_elapsed_ns": 180888,
+    "max_elapsed_ns": 182803,
+    "all_elapsed_ns": [
+      180888,
+      182164,
+      182803
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 180888,
+      "expected_sum": 52565500.0,
+      "actual_sum": 52565500.0
+    },
+    "status": "ok"
+  }
+}

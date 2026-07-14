@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v21",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v21/candidate/google__gemma-4-31b-it/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <device_launch_parameters.h>\n\nnamespace {\n\n__global__ void reduce_kernel(const int* __restrict__ input, int* __restrict__ output, int n) {\n    // Use shared memory for block-level reduction\n    extern __shared__ int sdata[];\n\n    int tid = threadIdx.x;\n    int global_tid = blockIdx.x * blockDim.x + threadIdx.x;\n    int sum = 0;\n\n    // Grid-stride loop to handle n > total threads\n    for (int i = global_tid; i < n; i += blockDim.x * gridDim.x) {\n        sum += input[i];\n    }\n\n    // Warp-level reduction\n    for (int offset = 16; offset > 0; offset /= 2) {\n        sum += __shfl_down_sync(0xFFFFFFFF, sum, offset);\n    }\n\n    // Store warp results to shared memory\n    if ((tid & 31) == 0) {\n        sdata[tid / 32] = sum;\n    }\n\n    __syncthreads();\n\n    // Final reduction of the 8 warp results (for blockDim=256)\n    if (tid == 0) {\n        int block_sum = 0;\n        for (int i = 0; i < (blockDim.x / 32); ++i) {\n            block_sum += sdata[i];\n        }\n        atomicAdd(output, block_sum);\n    }\n}\n\n} // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0) return;\n\n    // Configuration: 256 threads per block, enough blocks to saturate GPU\n    const int threadsPerBlock = 256;\n    const int blocksPerGrid = (n + threadsPerBlock - 1) / threadsPerBlock;\n    // Cap blocks to avoid excessive overhead on small n or too many blocks on large n\n    const int gridSize = (blocksPerGrid < 1024) ? blocksPerBlock : 1024;\n    const int sharedMemSize = (threadsPerBlock / 32) * sizeof(int);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemsetAsync(output, 0, sizeof(int), 0);\n        reduce_kernel<<<gridSize, threadsPerBlock, sharedMemSize>>>(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v21",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 24129760,
+    "min_elapsed_ns": 24127264,
+    "max_elapsed_ns": 24134656,
+    "all_elapsed_ns": [
+      24127264,
+      24129760,
+      24134656
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 24127264,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v21",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1603456,
+    "min_elapsed_ns": 1603360,
+    "max_elapsed_ns": 1614303,
+    "all_elapsed_ns": [
+      1603456,
+      1614303,
+      1603360
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1603456,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v21",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['nvcc', '-O3', '-std=c++17', '-Iexecutable_tasks/cuda_cub_add_reduce_i32_v21/harness', '-gencode=arch=compute_80,code=sm_80', '-gencode=arch=compute_80,code=compute_80', 'executable_tasks/cuda_cub_add_reduce_i32_v21/harness/benchmark_main.cu', 'executable_tasks/cuda_cub_add_reduce_i32_v21/candidate/google__gemma-4-31b-it/solution.cu', '-o', 'build/cuda_cub_add_reduce_i32_v21/candidate/bench']' returned non-zero exit status 2."
+  }
+}

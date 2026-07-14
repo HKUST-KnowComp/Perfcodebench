@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v23",
+  "model": "bytedance-seed/seed-2.0-lite",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v23/candidate/bytedance-seed__seed-2.0-lite/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cub/cub.cuh>\n#include <cuda_runtime.h>\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0 || iters <= 0) return;\n\n    void* d_temp = nullptr;\n    size_t temp_bytes = 0;\n    long long* d_sum_dev = nullptr;\n\n    // Query required temporary storage size for CUB reduction\n    cub::DeviceReduce::Sum(d_temp, temp_bytes, input, d_sum_dev, n);\n    cudaMalloc(&d_temp, temp_bytes);\n    cudaMalloc(&d_sum_dev, sizeof(long long));\n\n    for (int iter = 0; iter < iters; ++iter) {\n        // Compute exact sum in 64-bit to avoid overflow during reduction\n        cub::DeviceReduce::Sum(d_temp, temp_bytes, input, d_sum_dev, n);\n        // Cast to int32 to meet correctness requirement, write to output\n        cudaMemcpy(output, d_sum_dev, sizeof(int), cudaMemcpyDeviceToDevice);\n    }\n\n    // Cleanup temporary allocations\n    cudaFree(d_temp);\n    cudaFree(d_sum_dev);\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v23",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 315008,
+    "min_elapsed_ns": 314815,
+    "max_elapsed_ns": 315647,
+    "all_elapsed_ns": [
+      314815,
+      315647,
+      315008
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 314815,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v23",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2504352,
+    "min_elapsed_ns": 2469536,
+    "max_elapsed_ns": 2531968,
+    "all_elapsed_ns": [
+      2504352,
+      2469536,
+      2531968
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2504352,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v23",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v23/candidate/bench']' timed out after 5 seconds"
+  }
+}

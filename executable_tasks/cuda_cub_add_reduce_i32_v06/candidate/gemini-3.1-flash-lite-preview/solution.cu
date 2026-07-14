@@ -1,0 +1,41 @@
+#include "interface.h"
+#include <cuda_runtime.h>
+
+namespace {
+__global__ void reduce_kernel(const int* input, int* output, int n) {
+    extern __shared__ int sdata[];
+    int tid = threadIdx.x;
+    int i = blockIdx.x * blockDim.x * 2 + threadIdx.x;
+    int gridSize = blockDim.x * 2 * gridDim.x;
+
+    int sum = 0;
+    while (i < n) {
+        sum += input[i];
+        if (i + blockDim.x < n) sum += input[i + blockDim.x];
+        i += gridSize;
+    }
+
+    sdata[tid] = sum;
+    __syncthreads();
+
+    for (int s = blockDim.x / 2; s > 32; s >>= 1) {
+        if (tid < s) sdata[tid] += sdata[tid + s];
+        __syncthreads();
+    }
+
+    if (tid < 32) {
+        volatile int* v = sdata;
+        for (int s = 32; s > 0; s >>= 1) v[tid] += v[tid + s];
+        if (tid == 0) atomicAdd(output, v[0]);
+    }
+}
+} // namespace
+
+void add_reduce_i32(const int* input, int* output, int n, int iters) {
+    const int threads = 256;
+    const int blocks = 1024;
+    for (int iter = 0; iter < iters; ++iter) {
+        cudaMemset(output, 0, sizeof(int));
+        reduce_kernel<<<blocks, threads, threads * sizeof(int)>>>(input, output, n);
+    }
+}

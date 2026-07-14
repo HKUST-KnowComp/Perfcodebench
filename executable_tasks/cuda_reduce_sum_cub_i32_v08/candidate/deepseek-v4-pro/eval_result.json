@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_reduce_sum_cub_i32_v08",
+  "model": "deepseek-v4-pro",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_reduce_sum_cub_i32_v08/candidate/deepseek-v4-pro/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void reduce_sum_kernel(const int* __restrict__ input, int* output, int n) {\n    // Shared memory for warp-level partial sums\n    extern __shared__ int sdata[];\n    const int tid = threadIdx.x;\n    const int blockSize = blockDim.x;\n    const int warpSize = 32;\n    const int warpId = tid / warpSize;\n    const int lane = tid & (warpSize - 1);\n\n    // Each thread computes its partial sum over a grid-stride loop\n    int sum = 0;\n    for (int idx = blockIdx.x * blockSize + tid; idx < n; idx += blockSize * gridDim.x) {\n        sum += input[idx];\n    }\n\n    // Reduce within warp using shuffle\n    #pragma unroll\n    for (int offset = warpSize / 2; offset > 0; offset >>= 1) {\n        sum += __shfl_down_sync(0xffffffff, sum, offset);\n    }\n\n    // Write warp sum to shared memory\n    if (lane == 0) {\n        sdata[warpId] = sum;\n    }\n    __syncthreads();\n\n    // First warp reduces the warp sums\n    if (warpId == 0) {\n        // Load the relevant warp sum (zero for warps beyond the number of active warps)\n        sum = (tid < (blockSize / warpSize)) ? sdata[tid] : 0;\n        #pragma unroll\n        for (int offset = warpSize / 2; offset > 0; offset >>= 1) {\n            sum += __shfl_down_sync(0xffffffff, sum, offset);\n        }\n        // First thread of first warp adds block sum to global output\n        if (tid == 0) {\n            atomicAdd(output, sum);\n        }\n    }\n}\n\nint get_sm_count() {\n    static int sm_count = 0;\n    if (sm_count == 0) {\n        cudaDeviceProp prop;\n        cudaGetDeviceProperties(&prop, 0);\n        sm_count = prop.multiProcessorCount;\n    }\n    return sm_count;\n}\n\n}  // namespace\n\nvoid reduce_sum_i32(const int* input, int* output, int n, int iters) {\n    constexpr int kBlockSize = 256;\n    const int smCount = get_sm_count();\n    // Heuristic: use 8 warps per SM to hide latency, but cap at a reasonable number of blocks.\n    // For n = 0, no kernel launch needed.\n    int grid = (n == 0) ? 0 : std::min(8 * smCount, (n + kBlockSize - 1) / kBlockSize);\n    grid = std::max(grid, 1); // ensure at least one block if n > 0\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, sizeof(int));\n        if (grid > 0) {\n            reduce_sum_kernel<<<grid, kBlockSize, kBlockSize * sizeof(int)>>>(\n                input, output, n);\n        }\n    }\n}\n",
+  "baseline": {
+    "task_id": "cuda_reduce_sum_cub_i32_v08",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 32290622,
+    "min_elapsed_ns": 32272254,
+    "max_elapsed_ns": 32308769,
+    "all_elapsed_ns": [
+      32272254,
+      32290622,
+      32308769
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 32272254,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_reduce_sum_cub_i32_v08",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2191103,
+    "min_elapsed_ns": 2141920,
+    "max_elapsed_ns": 3004832,
+    "all_elapsed_ns": [
+      2141920,
+      3004832,
+      2191103
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2141920,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_reduce_sum_cub_i32_v08",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_reduce_sum_cub_i32_v08/candidate/bench']' timed out after 5 seconds"
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "task_id": "cuda_exclusive_scan_cub_i32_v17",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_exclusive_scan_cub_i32_v17/candidate/claude-opus-4.5/solution.cu",
+  "benchmark_timeout_sec": 16,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int BLOCK_SIZE = 256;\nconstexpr int ITEMS_PER_THREAD = 8;\nconstexpr int TILE_SIZE = BLOCK_SIZE * ITEMS_PER_THREAD;\n\n__device__ __forceinline__ int warp_exclusive_scan(int val, int lane) {\n    #pragma unroll\n    for (int offset = 1; offset < 32; offset <<= 1) {\n        int n = __shfl_up_sync(0xffffffff, val, offset);\n        if (lane >= offset) val += n;\n    }\n    return __shfl_up_sync(0xffffffff, val, 1);\n}\n\n__global__ void scan_tiles_kernel(const int* __restrict__ input, int* __restrict__ output,\n                                   int* __restrict__ block_sums, int n) {\n    __shared__ int warp_totals[BLOCK_SIZE / 32];\n    \n    const int tid = threadIdx.x;\n    const int warp_id = tid >> 5;\n    const int lane = tid & 31;\n    const int block_offset = blockIdx.x * TILE_SIZE;\n    \n    int vals[ITEMS_PER_THREAD];\n    int local_sum = 0;\n    \n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; ++i) {\n        int idx = block_offset + i * BLOCK_SIZE + tid;\n        vals[i] = (idx < n) ? input[idx] : 0;\n        local_sum += vals[i];\n    }\n    \n    int warp_scan = warp_exclusive_scan(local_sum, lane);\n    int thread_prefix = (lane == 0) ? 0 : warp_scan;\n    \n    int warp_total = __shfl_sync(0xffffffff, local_sum, 31);\n    for (int i = 0; i < lane; ++i) {\n        warp_total = __shfl_sync(0xffffffff, local_sum, 31);\n    }\n    warp_total = local_sum;\n    #pragma unroll\n    for (int offset = 1; offset < 32; offset <<= 1) {\n        int n_val = __shfl_up_sync(0xffffffff, warp_total, offset);\n        if (lane >= offset) warp_total += n_val;\n    }\n    \n    if (lane == 31) {\n        warp_totals[warp_id] = warp_total;\n    }\n    __syncthreads();\n    \n    int warp_prefix = 0;\n    if (tid < (BLOCK_SIZE / 32)) {\n        int wt = warp_totals[tid];\n        #pragma unroll\n        for (int offset = 1; offset < (BLOCK_SIZE / 32); offset <<= 1) {\n            int n_val = __shfl_up_sync(0xffffffff, wt, offset);\n            if (tid >= offset) wt += n_val;\n        }\n        warp_totals[tid] = (tid == 0) ? 0 : __shfl_up_sync(0xffffffff, wt, 1);\n    }\n    __syncthreads();\n    \n    warp_prefix = warp_totals[warp_id];\n    thread_prefix += warp_prefix;\n    \n    int running = thread_prefix;\n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; ++i) {\n        int idx = block_offset + i * BLOCK_SIZE + tid;\n        if (idx < n) {\n            output[idx] = running;\n        }\n        running += vals[i];\n    }\n    \n    if (tid == BLOCK_SIZE - 1 && block_sums != nullptr) {\n        block_sums[blockIdx.x] = running;\n    }\n}\n\n__global__ void add_block_sums_kernel(int* __restrict__ output, const int* __restrict__ block_sums, int n) {\n    const int block_offset = blockIdx.x * TILE_SIZE;\n    const int tid = threadIdx.x;\n    \n    int block_prefix = 0;\n    for (int b = 0; b < blockIdx.x; ++b) {\n        block_prefix += block_sums[b];\n    }\n    \n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; ++i) {\n        int idx = block_offset + i * BLOCK_SIZE + tid;\n        if (idx < n) {\n            output[idx] += block_prefix;\n        }\n    }\n}\n\n__global__ void scan_block_sums_kernel(int* __restrict__ block_sums, int num_blocks) {\n    __shared__ int temp[1024];\n    \n    int tid = threadIdx.x;\n    \n    int val = (tid < num_blocks) ? block_sums[tid] : 0;\n    temp[tid] = val;\n    __syncthreads();\n    \n    for (int offset = 1; offset < num_blocks; offset <<= 1) {\n        int t = (tid >= offset) ? temp[tid - offset] : 0;\n        __syncthreads();\n        temp[tid] += t;\n        __syncthreads();\n    }\n    \n    if (tid < num_blocks) {\n        block_sums[tid] = (tid == 0) ? 0 : temp[tid - 1];\n    }\n}\n\n__global__ void add_scanned_block_sums_kernel(int* __restrict__ output, const int* __restrict__ block_sums, int n) {\n    const int block_offset = blockIdx.x * TILE_SIZE;\n    const int tid = threadIdx.x;\n    \n    int block_prefix = block_sums[blockIdx.x];\n    \n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; ++i) {\n        int idx = block_offset + i * BLOCK_SIZE + tid;\n        if (idx < n) {\n            output[idx] += block_prefix;\n        }\n    }\n}\n\n}  // namespace\n\nvoid exclusive_scan_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0) return;\n    \n    int num_blocks = (n + TILE_SIZE - 1) / TILE_SIZE;\n    \n    int* block_sums = nullptr;\n    if (num_blocks > 1) {\n        cudaMalloc(&block_sums, num_blocks * sizeof(int));\n    }\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        scan_tiles_kernel<<<num_blocks, BLOCK_SIZE>>>(input, output, block_sums, n);\n        \n        if (num_blocks > 1) {\n            scan_block_sums_kernel<<<1, 1024>>>(block_sums, num_blocks);\n            add_scanned_block_sums_kernel<<<num_blocks, BLOCK_SIZE>>>(output, block_sums, n);\n        }\n    }\n    \n    if (block_sums != nullptr) {\n        cudaFree(block_sums);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v17",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_exclusive_scan_cub_i32_v17/baseline/bench']' timed out after 16 seconds"
+  },
+  "reference": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v17",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 76617568,
+    "min_elapsed_ns": 70689086,
+    "max_elapsed_ns": 549362365,
+    "all_elapsed_ns": [
+      549362365,
+      76617568,
+      70689086
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 549362365,
+      "checksum": 28862128849801
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v17",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_exclusive_scan_cub_i32_v17/candidate/bench']' timed out after 16 seconds"
+  }
+}

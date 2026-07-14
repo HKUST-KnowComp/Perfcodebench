@@ -1,0 +1,72 @@
+{
+  "task_id": "dictionary_groupby_sum",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dictionary_groupby_sum/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstdint>\n#include <cstring>\n\nnamespace {\n\n/**\n * The mix function provided in the baseline, used for FNV-like hashing.\n */\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\n/**\n * Optimizes the dictionary-coded group-by aggregation.\n * \n * The baseline implementation was slow because it decoded codes back into strings\n * and used a std::unordered_map<std::string, uint64_t> for aggregation.\n * \n * Optimization Strategy:\n * 1. Use the 'codes' (uint16_t) directly as indices into a fixed-size accumulation array.\n * 2. Avoid string operations entirely during the aggregation phase.\n * 3. Pre-allocate the accumulation buffer to avoid repeated allocations.\n * 4. Use a tight loop for the aggregation and hashing.\n */\nuint64_t dictionary_groupby_checksum(\n    const std::vector<std::string>& dictionary,\n    const std::vector<uint16_t>& codes,\n    const std::vector<uint32_t>& values,\n    int iters) {\n  \n  const size_t dict_size = dictionary.size();\n  const size_t num_elements = codes.size();\n  \n  // Pre-allocate a buffer for sums. Since codes are uint16_t, \n  // the dictionary size is at most 65536.\n  std::vector<uint64_t> sums(dict_size);\n  uint64_t hash = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    // Reset sums for this iteration\n    std::fill(sums.begin(), sums.end(), 0ULL);\n\n    // Aggregate values by code index\n    // This is the hot loop. Accessing sums[codes[i]] is efficient as long as\n    // the sums vector fits in cache (max ~512KB for 64k entries).\n    const uint16_t* __restrict p_codes = codes.data();\n    const uint32_t* __restrict p_values = values.data();\n    for (size_t i = 0; i < num_elements; ++i) {\n      sums[p_codes[i]] += p_values[i];\n    }\n\n    // Calculate checksum in dictionary order\n    // FNV-1a offset basis\n    hash = 1469598103934665603ULL;\n    for (size_t i = 0; i < dict_size; ++i) {\n      hash = mix(hash, sums[i]);\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "dictionary_groupby_sum",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 950926358,
+    "min_elapsed_ns": 933685461,
+    "max_elapsed_ns": 953704119,
+    "all_elapsed_ns": [
+      953704119,
+      933685461,
+      950926358
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 953704119,
+      "expected_checksum": 5836389649761944451,
+      "actual_checksum": 5836389649761944451
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dictionary_groupby_sum",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 20929270,
+    "min_elapsed_ns": 20393195,
+    "max_elapsed_ns": 22247500,
+    "all_elapsed_ns": [
+      20929270,
+      22247500,
+      20393195
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 20929270,
+      "expected_checksum": 5836389649761944451,
+      "actual_checksum": 5836389649761944451
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dictionary_groupby_sum",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 16532055,
+    "min_elapsed_ns": 16427044,
+    "max_elapsed_ns": 17014262,
+    "all_elapsed_ns": [
+      17014262,
+      16427044,
+      16532055
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 17014262,
+      "expected_checksum": 5836389649761944451,
+      "actual_checksum": 5836389649761944451
+    },
+    "status": "ok"
+  }
+}

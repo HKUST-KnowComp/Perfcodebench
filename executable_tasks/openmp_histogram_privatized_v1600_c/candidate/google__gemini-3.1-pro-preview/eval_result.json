@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_histogram_privatized_v1600_c",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_histogram_privatized_v1600_c/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <omp.h>\n#include <vector>\n\nnamespace {\n\nint num_threads() {\n  return std::max(1, std::min(8, omp_get_max_threads()));\n}\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t histogram_checksum(const std::vector<uint8_t>& input, int bins, int iters) {\n    int n_threads = num_threads();\n    omp_set_num_threads(n_threads);\n    std::vector<uint32_t> counts(static_cast<std::size_t>(bins), 0);\n    \n    const uint8_t* data = input.data();\n    size_t size = input.size();\n    \n    // Pad bins to a multiple of 16 (64 bytes) to prevent false sharing between thread-local histograms.\n    // Ensure at least 256 bins are allocated to safely handle uint8_t values.\n    int padded_bins = (std::max(256, bins) + 15) & ~15;\n    std::vector<uint32_t> local_counts(n_threads * padded_bins, 0);\n    \n    #pragma omp parallel\n    {\n        int tid = omp_get_thread_num();\n        int num_t = omp_get_num_threads();\n        \n        size_t chunk = size / num_t;\n        size_t start = tid * chunk;\n        size_t end = (tid == num_t - 1) ? size : start + chunk;\n        \n        uint32_t* my_counts = local_counts.data() + tid * padded_bins;\n        \n        for (int iter = 0; iter < iters; ++iter) {\n            for (int i = 0; i < bins; ++i) {\n                my_counts[i] = 0;\n            }\n            \n            size_t i = start;\n            for (; i + 7 < end; i += 8) {\n                my_counts[data[i]]++;\n                my_counts[data[i+1]]++;\n                my_counts[data[i+2]]++;\n                my_counts[data[i+3]]++;\n                my_counts[data[i+4]]++;\n                my_counts[data[i+5]]++;\n                my_counts[data[i+6]]++;\n                my_counts[data[i+7]]++;\n            }\n            for (; i < end; ++i) {\n                my_counts[data[i]]++;\n            }\n            \n            #pragma omp barrier\n            \n            #pragma omp for schedule(static)\n            for (int b = 0; b < bins; ++b) {\n                uint32_t sum = 0;\n                for (int t = 0; t < num_t; ++t) {\n                    sum += local_counts[t * padded_bins + b];\n                }\n                counts[b] = sum;\n            }\n        }\n    }\n    return checksum_u32(counts);\n}\n",
+  "baseline": {
+    "task_id": "openmp_histogram_privatized_v1600_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2901816251,
+    "min_elapsed_ns": 2428064843,
+    "max_elapsed_ns": 3624548169,
+    "all_elapsed_ns": [
+      3624548169,
+      2901816251,
+      2428064843
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3624548169,
+      "expected_checksum": 13315975462258961381,
+      "actual_checksum": 13315975462258961381
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_histogram_privatized_v1600_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 40182428,
+    "min_elapsed_ns": 37292985,
+    "max_elapsed_ns": 51142873,
+    "all_elapsed_ns": [
+      51142873,
+      37292985,
+      40182428
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 51142873,
+      "expected_checksum": 13315975462258961381,
+      "actual_checksum": 13315975462258961381
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_histogram_privatized_v1600_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 140581747,
+    "min_elapsed_ns": 72938216,
+    "max_elapsed_ns": 211115994,
+    "all_elapsed_ns": [
+      72938216,
+      140581747,
+      211115994
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 72938216,
+      "expected_checksum": 13315975462258961381,
+      "actual_checksum": 13315975462258961381
+    },
+    "status": "ok"
+  }
+}

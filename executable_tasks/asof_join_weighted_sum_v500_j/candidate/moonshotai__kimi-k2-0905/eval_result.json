@@ -1,0 +1,72 @@
+{
+  "task_id": "asof_join_weighted_sum_v500_j",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/asof_join_weighted_sum_v500_j/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <algorithm>\n\nuint64_t asof_join_sum(\n    const std::vector<uint32_t>& dim_ts,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_ts,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n\n  const size_t probeN = probe_ts.size();\n  const size_t dimN   = dim_ts.size();\n\n  // fast path: if either side is empty, the weighted sum is zero\n  if (probeN == 0 || dimN == 0) {\n    return 0;\n  }\n\n  const uint32_t * const __restrict dts  = dim_ts.data();\n  const uint32_t * const __restrict dval = dim_values.data();\n  const uint32_t * const __restrict pts  = probe_ts.data();\n  const uint32_t * const __restrict pw   = probe_weights.data();\n\n  uint64_t sum = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n\n    // process 4 probes at once in a manually unrolled loop\n    size_t i = 0;\n    for ( ; i + 3 < probeN; i += 4) {\n      uint32_t t0 = pts[i];\n      uint32_t t1 = pts[i+1];\n      uint32_t t2 = pts[i+2];\n      uint32_t t3 = pts[i+3];\n\n      // find latest dim_ts <= tx\n      size_t idx0 = (std::upper_bound(dts, dts + dimN, t0) - dts) - 1;\n      size_t idx1 = (std::upper_bound(dts, dts + dimN, t1) - dts) - 1;\n      size_t idx2 = (std::upper_bound(dts, dts + dimN, t2) - dts) - 1;\n      size_t idx3 = (std::upper_bound(dts, dts + dimN, t3) - dts) - 1;\n\n      uint64_t v0 = dval[idx0];\n      uint64_t v1 = dval[idx1];\n      uint64_t v2 = dval[idx2];\n      uint64_t v3 = dval[idx3];\n      uint64_t w0 = pw[i];\n      uint64_t w1 = pw[i+1];\n      uint64_t w2 = pw[i+2];\n      uint64_t w3 = pw[i+3];\n\n      sum += v0 * w0 + v1 * w1;\n      sum += v2 * w2 + v3 * w3;\n    }\n\n    // mop up residuals < 4\n    for ( ; i < probeN; ++i) {\n      size_t idx = (std::upper_bound(dts, dts + dimN, pts[i]) - dts) - 1;\n      sum += static_cast<uint64_t>(dval[idx]) * static_cast<uint64_t>(pw[i]);\n    }\n  }\n\n  return sum;\n}",
+  "baseline": {
+    "task_id": "asof_join_weighted_sum_v500_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 520846238,
+    "min_elapsed_ns": 515364171,
+    "max_elapsed_ns": 542883805,
+    "all_elapsed_ns": [
+      542883805,
+      520846238,
+      515364171
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 542883805,
+      "expected_sum": 36791321936,
+      "actual_sum": 36791321936
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "asof_join_weighted_sum_v500_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 69213230,
+    "min_elapsed_ns": 57445484,
+    "max_elapsed_ns": 72242783,
+    "all_elapsed_ns": [
+      72242783,
+      69213230,
+      57445484
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 72242783,
+      "expected_sum": 36791321936,
+      "actual_sum": 36791321936
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "asof_join_weighted_sum_v500_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 598049186,
+    "min_elapsed_ns": 594328742,
+    "max_elapsed_ns": 656323393,
+    "all_elapsed_ns": [
+      598049186,
+      656323393,
+      594328742
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 598049186,
+      "expected_sum": 36791321936,
+      "actual_sum": 36791321936
+    },
+    "status": "ok"
+  }
+}

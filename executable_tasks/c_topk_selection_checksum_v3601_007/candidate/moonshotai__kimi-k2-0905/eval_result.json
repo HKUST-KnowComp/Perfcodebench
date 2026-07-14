@@ -1,0 +1,59 @@
+{
+  "task_id": "c_topk_selection_checksum_v3601_007",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_topk_selection_checksum_v3601_007/candidate/moonshotai__kimi-k2-0905/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n\ntypedef struct {\n    uint32_t score;\n    uint32_t index;\n} Pair;\n\nstatic inline void swap_pair(Pair *a, Pair *b) {\n    Pair t = *a; *a = *b; *b = t;\n}\n\n/* partition for quickselect: returns final pivot position */\nstatic size_t partition(Pair *a, size_t left, size_t right) {\n    Pair pivot = a[right];\n    size_t i = left;\n    for (size_t j = left; j < right; ++j) {\n        int c = (a[j].score > pivot.score) -\n                (a[j].score < pivot.score);\n        if (c == 0) c = (a[j].index < pivot.index) -\n                        (a[j].index > pivot.index);\n        if (c < 0) {\n            swap_pair(&a[i], &a[j]);\n            ++i;\n        }\n    }\n    swap_pair(&a[i], &a[right]);\n    return i;\n}\n\n/* quickselect: places the k-th smallest element in its sorted position */\nstatic void quickselect(Pair *a, size_t n, size_t k) {\n    size_t left = 0, right = n - 1;\n    while (1) {\n        if (left == right) return;\n        size_t p = partition(a, left, right);\n        if (p == k) return;\n        else if (k < p) right = p - 1;\n        else left = p + 1;\n    }\n}\n\n/* insertion sort for small slices */\nstatic void insertion_sort(Pair *a, size_t n) {\n    for (size_t i = 1; i < n; ++i) {\n        Pair key = a[i];\n        size_t j = i;\n        while (j > 0) {\n            int c = (a[j-1].score > key.score) -\n                    (a[j-1].score < key.score);\n            if (c == 0) c = (a[j-1].index < key.index) -\n                            (a[j-1].index > key.index);\n            if (c <= 0) break;\n            a[j] = a[j-1];\n            --j;\n        }\n        a[j] = key;\n    }\n}\n\nuint64_t run(const uint32_t* scores, size_t n, int k, int iters) {\n    if (k <= 0 || n == 0) return 0;\n    if ((size_t)k > n) k = (int)n;\n    Pair *pairs = (Pair*)malloc(n * sizeof(Pair));\n    if (!pairs) return 0;\n    uint64_t h = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        /* fill buffer */\n        for (size_t i = 0; i < n; ++i) {\n            pairs[i].score = scores[i];\n            pairs[i].index = (uint32_t)i;\n        }\n        if ((size_t)k == n) {\n            /* already full sort needed */\n            insertion_sort(pairs, n);\n        } else {\n            /* quickselect to isolate top-k */\n            quickselect(pairs, n, k);\n            /* sort the top-k slice to ensure order */\n            insertion_sort(pairs, k);\n        }\n        /* compute checksum */\n        h = 1469598103934665603ULL;\n        for (int i = 0; i < k; ++i) {\n            h ^= ((uint64_t)pairs[i].score << 32) ^ pairs[i].index;\n            h *= 1099511628211ULL;\n        }\n    }\n    free(pairs);\n    return h;\n}",
+  "baseline": {
+    "task_id": "c_topk_selection_checksum_v3601_007",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 516179000,
+    "min_elapsed_ns": 514144000,
+    "max_elapsed_ns": 517078000,
+    "all_elapsed_ns": [
+      514144000,
+      517078000,
+      516179000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 514144000,
+      "expected_checksum": 9182630688561873748,
+      "actual_checksum": 9182630688561873748
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_topk_selection_checksum_v3601_007",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2855000,
+    "min_elapsed_ns": 2851000,
+    "max_elapsed_ns": 2856000,
+    "all_elapsed_ns": [
+      2851000,
+      2856000,
+      2855000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2851000,
+      "expected_checksum": 9182630688561873748,
+      "actual_checksum": 9182630688561873748
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_topk_selection_checksum_v3601_007",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/c_topk_selection_checksum_v3601_007/candidate/bench']' returned non-zero exit status 1."
+  }
+}

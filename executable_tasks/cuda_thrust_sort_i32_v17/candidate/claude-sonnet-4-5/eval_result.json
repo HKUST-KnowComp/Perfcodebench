@@ -1,0 +1,55 @@
+{
+  "task_id": "cuda_thrust_sort_i32_v17",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_thrust_sort_i32_v17/candidate/claude-sonnet-4-5/solution.cu",
+  "benchmark_timeout_sec": 120,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int RADIX_BITS = 4;\nconstexpr int RADIX_SIZE = 1 << RADIX_BITS;\nconstexpr int RADIX_MASK = RADIX_SIZE - 1;\nconstexpr int NUM_PASSES = 32 / RADIX_BITS;\nconstexpr int BLOCK_SIZE = 256;\nconstexpr int ITEMS_PER_THREAD = 4;\n\n__device__ __forceinline__ int extract_digit(int value, int pass) {\n    unsigned int uval = __uint_as_int(value ^ 0x80000000);\n    return (uval >> (pass * RADIX_BITS)) & RADIX_MASK;\n}\n\n__global__ void radix_sort_kernel(const int* __restrict__ input, \n                                   int* __restrict__ output,\n                                   int n,\n                                   int pass) {\n    __shared__ int local_hist[RADIX_SIZE];\n    __shared__ int global_offsets[RADIX_SIZE];\n    __shared__ int block_data[BLOCK_SIZE * ITEMS_PER_THREAD];\n    \n    const int tid = threadIdx.x;\n    const int lane_id = tid & 31;\n    const int warp_id = tid >> 5;\n    \n    if (tid < RADIX_SIZE) {\n        local_hist[tid] = 0;\n    }\n    __syncthreads();\n    \n    int thread_data[ITEMS_PER_THREAD];\n    int thread_digits[ITEMS_PER_THREAD];\n    \n    const int base_idx = blockIdx.x * BLOCK_SIZE * ITEMS_PER_THREAD + tid * ITEMS_PER_THREAD;\n    \n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; ++i) {\n        int idx = base_idx + i;\n        if (idx < n) {\n            thread_data[i] = input[idx];\n            thread_digits[i] = extract_digit(thread_data[i], pass);\n            atomicAdd(&local_hist[thread_digits[i]], 1);\n        } else {\n            thread_data[i] = 0x7FFFFFFF;\n            thread_digits[i] = RADIX_SIZE - 1;\n        }\n    }\n    __syncthreads();\n    \n    if (tid < RADIX_SIZE) {\n        int sum = 0;\n        for (int b = 0; b < gridDim.x; ++b) {\n            if (b == blockIdx.x) {\n                global_offsets[tid] = sum;\n            }\n            if (b == blockIdx.x) {\n                sum += local_hist[tid];\n            }\n        }\n    }\n    __syncthreads();\n    \n    if (tid == 0) {\n        int scan = 0;\n        for (int i = 0; i < RADIX_SIZE; ++i) {\n            int temp = local_hist[i];\n            local_hist[i] = scan;\n            scan += temp;\n        }\n    }\n    __syncthreads();\n    \n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; ++i) {\n        int idx = base_idx + i;\n        if (idx < n) {\n            int digit = thread_digits[i];\n            int pos = atomicAdd(&local_hist[digit], 1);\n            block_data[pos] = thread_data[i];\n        }\n    }\n    __syncthreads();\n    \n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; ++i) {\n        int local_idx = tid * ITEMS_PER_THREAD + i;\n        if (local_idx < BLOCK_SIZE * ITEMS_PER_THREAD) {\n            int value = block_data[local_idx];\n            int digit = extract_digit(value, pass);\n            int global_idx = global_offsets[digit] + local_idx;\n            \n            int digit_start = (digit == 0) ? 0 : local_hist[digit - 1];\n            int offset_in_digit = local_idx - digit_start;\n            global_idx = global_offsets[digit] + offset_in_digit;\n            \n            if (global_idx < n) {\n                output[global_idx] = value;\n            }\n        }\n    }\n}\n\n__global__ void histogram_kernel(const int* __restrict__ input,\n                                  int* __restrict__ histograms,\n                                  int n,\n                                  int pass) {\n    __shared__ int local_hist[RADIX_SIZE];\n    \n    const int tid = threadIdx.x;\n    const int bid = blockIdx.x;\n    \n    if (tid < RADIX_SIZE) {\n        local_hist[tid] = 0;\n    }\n    __syncthreads();\n    \n    const int base_idx = bid * BLOCK_SIZE * ITEMS_PER_THREAD + tid * ITEMS_PER_THREAD;\n    \n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; ++i) {\n        int idx = base_idx + i;\n        if (idx < n) {\n            int value = input[idx];\n            int digit = extract_digit(value, pass);\n            atomicAdd(&local_hist[digit], 1);\n        }\n    }\n    __syncthreads();\n    \n    if (tid < RADIX_SIZE) {\n        histograms[bid * RADIX_SIZE + tid] = local_hist[tid];\n    }\n}\n\n__global__ void scan_kernel(int* histograms, int num_blocks) {\n    __shared__ int temp[RADIX_SIZE];\n    \n    int tid = threadIdx.x;\n    \n    if (tid < RADIX_SIZE) {\n        int sum = 0;\n        for (int b = 0; b < num_blocks; ++b) {\n            int val = histograms[b * RADIX_SIZE + tid];\n            histograms[b * RADIX_SIZE + tid] = sum;\n            sum += val;\n        }\n    }\n}\n\n__global__ void reorder_kernel(const int* __restrict__ input,\n                                int* __restrict__ output,\n                                const int* __restrict__ histograms,\n                                int n,\n                                int pass) {\n    __shared__ int local_offsets[RADIX_SIZE];\n    __shared__ int block_data[BLOCK_SIZE * ITEMS_PER_THREAD];\n    __shared__ int block_digits[BLOCK_SIZE * ITEMS_PER_THREAD];\n    \n    const int tid = threadIdx.x;\n    const int bid = blockIdx.x;\n    \n    if (tid < RADIX_SIZE) {\n        local_offsets[tid] = histograms[bid * RADIX_SIZE + tid];\n    }\n    __syncthreads();\n    \n    const int base_idx = bid * BLOCK_SIZE * ITEMS_PER_THREAD + tid * ITEMS_PER_THREAD;\n    \n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; ++i) {\n        int idx = base_idx + i;\n        int local_idx = tid * ITEMS_PER_THREAD + i;\n        if (idx < n) {\n            int value = input[idx];\n            block_data[local_idx] = value;\n            block_digits[local_idx] = extract_digit(value, pass);\n        }\n    }\n    __syncthreads();\n    \n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; ++i) {\n        int local_idx = tid * ITEMS_PER_THREAD + i;\n        int idx = base_idx + i;\n        if (idx < n) {\n            int value = block_data[local_idx];\n            int digit = block_digits[local_idx];\n            int pos = atomicAdd(&local_offsets[digit], 1);\n            output[pos] = value;\n        }\n    }\n}\n\n}  // namespace\n\nvoid sort_vec_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0) return;\n    \n    const int num_blocks = (n + BLOCK_SIZE * ITEMS_PER_THREAD - 1) / (BLOCK_SIZE * ITEMS_PER_THREAD);\n    \n    int* histograms;\n    cudaMalloc(&histograms, num_blocks * RADIX_SIZE * sizeof(int));\n    \n    int* temp;\n    cudaMalloc(&temp, n * sizeof(int));\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        const int* src = input;\n        int* dst = (NUM_PASSES % 2 == 0) ? output : temp;\n        \n        for (int pass = 0; pass < NUM_PASSES; ++pass) {\n            histogram_kernel<<<num_blocks, BLOCK_SIZE>>>(src, histograms, n, pass);\n            scan_kernel<<<1, RADIX_SIZE>>>(histograms, num_blocks);\n            reorder_kernel<<<num_blocks, BLOCK_SIZE>>>(src, dst, histograms, n, pass);\n            \n            int* swap = const_cast<int*>(src);\n            src = dst;\n            dst = swap;\n        }\n        \n        if (NUM_PASSES % 2 == 1) {\n            cudaMemcpy(output, temp, n * sizeof(int), cudaMemcpyDeviceToDevice);\n        }\n    }\n    \n    cudaFree(histograms);\n    cudaFree(temp);\n}\n",
+  "baseline": {
+    "task_id": "cuda_thrust_sort_i32_v17",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 59317656250,
+    "min_elapsed_ns": 59317656250,
+    "max_elapsed_ns": 59317656250,
+    "all_elapsed_ns": [
+      59317656250,
+      59317656250,
+      59317656250
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 59317656250
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_thrust_sort_i32_v17",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 332671,
+    "min_elapsed_ns": 327071,
+    "max_elapsed_ns": 335456,
+    "all_elapsed_ns": [
+      332671,
+      327071,
+      335456
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 332671
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_thrust_sort_i32_v17",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['nvcc', '-O3', '-std=c++17', '-Iexecutable_tasks/cuda_thrust_sort_i32_v17/harness', '-gencode=arch=compute_80,code=sm_80', '-gencode=arch=compute_80,code=compute_80', 'executable_tasks/cuda_thrust_sort_i32_v17/harness/benchmark_main.cu', 'executable_tasks/cuda_thrust_sort_i32_v17/candidate/claude-sonnet-4-5/solution.cu', '-o', 'build/cuda_thrust_sort_i32_v17/candidate/bench']' returned non-zero exit status 2."
+  }
+}

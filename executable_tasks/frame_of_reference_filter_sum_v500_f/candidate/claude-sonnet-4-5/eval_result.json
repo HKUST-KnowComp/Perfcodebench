@@ -1,0 +1,59 @@
+{
+  "task_id": "frame_of_reference_filter_sum_v500_f",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/frame_of_reference_filter_sum_v500_f/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n\nuint64_t frame_filter_sum(\n    const std::vector<uint16_t>& deltas,\n    uint32_t base,\n    uint32_t low,\n    uint32_t high,\n    int iters) {\n  uint64_t sum = 0;\n  const std::size_t size = deltas.size();\n  const uint16_t* data = deltas.data();\n  \n  // Precompute adjusted bounds to avoid repeated arithmetic in hot loop\n  const uint32_t adjusted_low = (low >= base) ? (low - base) : 0;\n  const uint32_t adjusted_high = (high >= base) ? (high - base) : 0;\n  const bool base_in_range = (base >= low && base <= high);\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    \n    // Fused decode + filter in single pass\n    // Process in chunks of 4 for better ILP and potential auto-vectorization\n    std::size_t i = 0;\n    const std::size_t limit = size - (size % 4);\n    \n    for (; i < limit; i += 4) {\n      uint32_t d0 = data[i];\n      uint32_t d1 = data[i + 1];\n      uint32_t d2 = data[i + 2];\n      uint32_t d3 = data[i + 3];\n      \n      // Check against adjusted bounds (delta space)\n      if (base_in_range) {\n        if (d0 >= adjusted_low && d0 <= adjusted_high) sum += base + d0;\n        if (d1 >= adjusted_low && d1 <= adjusted_high) sum += base + d1;\n        if (d2 >= adjusted_low && d2 <= adjusted_high) sum += base + d2;\n        if (d3 >= adjusted_low && d3 <= adjusted_high) sum += base + d3;\n      }\n    }\n    \n    // Handle remainder\n    for (; i < size; ++i) {\n      uint32_t delta = data[i];\n      if (base_in_range && delta >= adjusted_low && delta <= adjusted_high) {\n        sum += base + delta;\n      }\n    }\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "frame_of_reference_filter_sum_v500_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 246215344,
+    "min_elapsed_ns": 244793151,
+    "max_elapsed_ns": 252490622,
+    "all_elapsed_ns": [
+      246215344,
+      244793151,
+      252490622
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 246215344,
+      "expected_sum": 13588684800,
+      "actual_sum": 13588684800
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "frame_of_reference_filter_sum_v500_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 141411848,
+    "min_elapsed_ns": 138865504,
+    "max_elapsed_ns": 144519017,
+    "all_elapsed_ns": [
+      138865504,
+      141411848,
+      144519017
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 138865504,
+      "expected_sum": 13588684800,
+      "actual_sum": 13588684800
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "frame_of_reference_filter_sum_v500_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/frame_of_reference_filter_sum_v500_f/candidate/bench']' returned non-zero exit status 1."
+  }
+}

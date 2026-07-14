@@ -1,0 +1,72 @@
+{
+  "task_id": "csr_row_sum_checksum_v500_j",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/csr_row_sum_checksum_v500_j/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <numeric>\n#include <execution>\n#include <algorithm>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) noexcept {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n} // namespace\n\nuint64_t csr_row_hash(const std::vector<uint32_t>& row_ptr,\n                      const std::vector<uint32_t>& values,\n                      int iters)\n{\n    const std::size_t num_rows = row_ptr.size() - 1;\n    const uint64_t init_hash = 1469598103934665603ULL;\n\n    uint64_t hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        hash = init_hash;\n\n        // Heuristic: parallel only when enough rows to amortise overhead\n        if (num_rows >= 4096) {\n            std::vector<uint64_t> partial(num_rows);\n            std::for_each(std::execution::par,\n                          partial.begin(), partial.end(),\n                          [&](uint64_t& out) {\n                              std::size_t r = &out - partial.data();\n                              const uint32_t* beg = values.data() + row_ptr[r];\n                              const uint32_t* end = values.data() + row_ptr[r + 1];\n                              uint64_t sum = 0;\n                              // 4-way unroll\n                              const std::size_t len = end - beg;\n                              std::size_t i = 0;\n                              for (; i + 3 < len; i += 4) {\n                                  sum += static_cast<uint64_t>(beg[i]);\n                                  sum += static_cast<uint64_t>(beg[i+1]);\n                                  sum += static_cast<uint64_t>(beg[i+2]);\n                                  sum += static_cast<uint64_t>(beg[i+3]);\n                              }\n                              for (; i < len; ++i) sum += static_cast<uint64_t>(beg[i]);\n                              out = sum;\n                          });\n            for (uint64_t s : partial) hash = mix(hash, s);\n        } else {\n            for (std::size_t r = 0; r < num_rows; ++r) {\n                const uint32_t* beg = values.data() + row_ptr[r];\n                const uint32_t* end = values.data() + row_ptr[r + 1];\n                uint64_t sum = 0;\n                const std::size_t len = end - beg;\n                std::size_t i = 0;\n                for (; i + 3 < len; i += 4) {\n                    sum += static_cast<uint64_t>(beg[i]);\n                    sum += static_cast<uint64_t>(beg[i+1]);\n                    sum += static_cast<uint64_t>(beg[i+2]);\n                    sum += static_cast<uint64_t>(beg[i+3]);\n                }\n                for (; i < len; ++i) sum += static_cast<uint64_t>(beg[i]);\n                hash = mix(hash, sum);\n            }\n        }\n    }\n    return hash;\n}",
+  "baseline": {
+    "task_id": "csr_row_sum_checksum_v500_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 153016944,
+    "min_elapsed_ns": 150112129,
+    "max_elapsed_ns": 156856005,
+    "all_elapsed_ns": [
+      156856005,
+      150112129,
+      153016944
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 156856005,
+      "expected_checksum": 16805963127334527411,
+      "actual_checksum": 16805963127334527411
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "csr_row_sum_checksum_v500_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 28503890,
+    "min_elapsed_ns": 25165477,
+    "max_elapsed_ns": 38093677,
+    "all_elapsed_ns": [
+      28503890,
+      38093677,
+      25165477
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 28503890,
+      "expected_checksum": 16805963127334527411,
+      "actual_checksum": 16805963127334527411
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "csr_row_sum_checksum_v500_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 55018921,
+    "min_elapsed_ns": 47800331,
+    "max_elapsed_ns": 60191785,
+    "all_elapsed_ns": [
+      55018921,
+      47800331,
+      60191785
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 55018921,
+      "expected_checksum": 16805963127334527411,
+      "actual_checksum": 16805963127334527411
+    },
+    "status": "ok"
+  }
+}

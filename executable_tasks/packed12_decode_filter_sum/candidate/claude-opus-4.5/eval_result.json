@@ -1,0 +1,59 @@
+{
+  "task_id": "packed12_decode_filter_sum",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/packed12_decode_filter_sum/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstddef>\n\n#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)\n#include <immintrin.h>\n#define HAS_SSE4 1\n#else\n#define HAS_SSE4 0\n#endif\n\nuint64_t packed12_filter_sum(const std::vector<uint8_t>& packed, uint16_t threshold, int iters) {\n    const uint8_t* __restrict data = packed.data();\n    const std::size_t size = packed.size();\n    uint64_t sum = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        sum = 0;\n        std::size_t i = 0;\n\n#if HAS_SSE4\n        // Process 24 bytes at a time (16 12-bit values)\n        // Each 3 bytes gives 2 values, so 24 bytes = 16 values\n        const std::size_t simd_end = (size >= 23) ? (size - 23) : 0;\n        \n        __m128i thresh_vec = _mm_set1_epi16(static_cast<int16_t>(threshold));\n        __m128i sum_lo = _mm_setzero_si128();\n        __m128i sum_hi = _mm_setzero_si128();\n        \n        while (i <= simd_end) {\n            // Load 24 bytes\n            __m128i chunk0 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + i));\n            // Load remaining 8 bytes (we only need bytes 16-23)\n            uint64_t tail;\n            __builtin_memcpy(&tail, data + i + 16, 8);\n            __m128i chunk1 = _mm_set_epi64x(0, static_cast<int64_t>(tail));\n            \n            // Extract 16 12-bit values from 24 bytes\n            // Bytes 0,1,2 -> values 0,1\n            // Bytes 3,4,5 -> values 2,3\n            // etc.\n            \n            // Process in groups of 3 bytes -> 2 values\n            // We'll extract each value individually for clarity, then optimize\n            \n            uint16_t vals[16];\n            const uint8_t* p = data + i;\n            \n            for (int j = 0; j < 8; ++j) {\n                const uint8_t* bp = p + j * 3;\n                vals[j * 2] = static_cast<uint16_t>(bp[0]) | (static_cast<uint16_t>(bp[1] & 0x0F) << 8);\n                vals[j * 2 + 1] = static_cast<uint16_t>(bp[1] >> 4) | (static_cast<uint16_t>(bp[2]) << 4);\n            }\n            \n            // Load into SSE registers\n            __m128i v0 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(vals));\n            __m128i v1 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(vals + 8));\n            \n            // Compare: we want v > threshold, which is NOT(v <= threshold)\n            // _mm_cmpgt_epi16 does signed comparison, but our values are 0-4095 (12-bit)\n            // and threshold is 0-65535, so we need unsigned comparison\n            // For unsigned: a > b iff (a ^ 0x8000) > (b ^ 0x8000) in signed\n            __m128i bias = _mm_set1_epi16(static_cast<int16_t>(0x8000));\n            __m128i v0_biased = _mm_xor_si128(v0, bias);\n            __m128i v1_biased = _mm_xor_si128(v1, bias);\n            __m128i thresh_biased = _mm_xor_si128(thresh_vec, bias);\n            \n            __m128i mask0 = _mm_cmpgt_epi16(v0_biased, thresh_biased);\n            __m128i mask1 = _mm_cmpgt_epi16(v1_biased, thresh_biased);\n            \n            // Apply mask\n            __m128i masked0 = _mm_and_si128(v0, mask0);\n            __m128i masked1 = _mm_and_si128(v1, mask1);\n            \n            // Horizontal sum - extend to 32-bit first\n            // _mm_cvtepu16_epi32 extends lower 4 uint16 to 4 uint32\n            __m128i ext0_lo = _mm_cvtepu16_epi32(masked0);\n            __m128i ext0_hi = _mm_cvtepu16_epi32(_mm_srli_si128(masked0, 8));\n            __m128i ext1_lo = _mm_cvtepu16_epi32(masked1);\n            __m128i ext1_hi = _mm_cvtepu16_epi32(_mm_srli_si128(masked1, 8));\n            \n            sum_lo = _mm_add_epi32(sum_lo, ext0_lo);\n            sum_lo = _mm_add_epi32(sum_lo, ext0_hi);\n            sum_hi = _mm_add_epi32(sum_hi, ext1_lo);\n            sum_hi = _mm_add_epi32(sum_hi, ext1_hi);\n            \n            i += 24;\n        }\n        \n        // Reduce SIMD accumulators\n        __m128i total = _mm_add_epi32(sum_lo, sum_hi);\n        // Horizontal sum of 4 32-bit integers\n        total = _mm_add_epi32(total, _mm_srli_si128(total, 8));\n        total = _mm_add_epi32(total, _mm_srli_si128(total, 4));\n        sum = static_cast<uint32_t>(_mm_cvtsi128_si32(total));\n#endif\n\n        // Scalar fallback for remaining bytes\n        const std::size_t scalar_end = (size >= 2) ? (size - 2) : 0;\n        while (i <= scalar_end) {\n            const uint32_t a = static_cast<uint32_t>(data[i]) |\n                              (static_cast<uint32_t>(data[i + 1] & 0x0F) << 8);\n            const uint32_t b = static_cast<uint32_t>(data[i + 1] >> 4) |\n                              (static_cast<uint32_t>(data[i + 2]) << 4);\n            \n            if (a > threshold) sum += a;\n            if (b > threshold) sum += b;\n            \n            i += 3;\n        }\n    }\n\n    return sum;\n}",
+  "baseline": {
+    "task_id": "packed12_decode_filter_sum",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 124395569,
+    "min_elapsed_ns": 121055916,
+    "max_elapsed_ns": 149066908,
+    "all_elapsed_ns": [
+      149066908,
+      124395569,
+      121055916
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 149066908,
+      "expected_sum": 6439522892,
+      "actual_sum": 6439522892
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "packed12_decode_filter_sum",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 58338713,
+    "min_elapsed_ns": 54875330,
+    "max_elapsed_ns": 61042364,
+    "all_elapsed_ns": [
+      58338713,
+      61042364,
+      54875330
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 58338713,
+      "expected_sum": 6439522892,
+      "actual_sum": 6439522892
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "packed12_decode_filter_sum",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/packed12_decode_filter_sum/harness', 'executable_tasks/packed12_decode_filter_sum/harness/benchmark_main.cpp', 'executable_tasks/packed12_decode_filter_sum/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/packed12_decode_filter_sum/candidate/bench']' returned non-zero exit status 1."
+  }
+}

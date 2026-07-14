@@ -1,0 +1,72 @@
+{
+  "task_id": "row_group_minmax_prune_v500_a",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/row_group_minmax_prune_v500_a/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstddef>\n#include <cstdint>\n#include <vector>\n\nuint64_t row_group_range_sum(\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& mins,\n    const std::vector<uint32_t>& maxs,\n    uint32_t low,\n    uint32_t high,\n    uint32_t block_size,\n    int iters) {\n  if (iters <= 0) return 0;\n  if (values.empty()) return 0;\n  if (low > high) return 0;\n\n  const std::size_t n = values.size();\n  const uint32_t* data = values.data();\n\n  // Fast path when metadata is unusable.\n  const bool can_prune =\n      block_size != 0 && !mins.empty() && mins.size() == maxs.size();\n\n  uint64_t sum = 0;\n\n  if (!can_prune) {\n    for (int iter = 0; iter < iters; ++iter) {\n      uint64_t local = 0;\n      std::size_t i = 0;\n      const std::size_t unroll_end = n & ~std::size_t(3);\n      for (; i < unroll_end; i += 4) {\n        const uint32_t v0 = data[i + 0];\n        const uint32_t v1 = data[i + 1];\n        const uint32_t v2 = data[i + 2];\n        const uint32_t v3 = data[i + 3];\n        if (v0 >= low && v0 <= high) local += static_cast<uint64_t>(v0);\n        if (v1 >= low && v1 <= high) local += static_cast<uint64_t>(v1);\n        if (v2 >= low && v2 <= high) local += static_cast<uint64_t>(v2);\n        if (v3 >= low && v3 <= high) local += static_cast<uint64_t>(v3);\n      }\n      for (; i < n; ++i) {\n        const uint32_t v = data[i];\n        if (v >= low && v <= high) local += static_cast<uint64_t>(v);\n      }\n      sum = local;\n    }\n    return sum;\n  }\n\n  const std::size_t group_count = mins.size();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t local = 0;\n\n    for (std::size_t g = 0; g < group_count; ++g) {\n      const uint32_t gmin = mins[g];\n      const uint32_t gmax = maxs[g];\n\n      if (gmax < low || gmin > high) continue;\n\n      std::size_t start = g * static_cast<std::size_t>(block_size);\n      if (start >= n) break;\n      std::size_t end = start + static_cast<std::size_t>(block_size);\n      if (end > n) end = n;\n\n      const uint32_t* p = data + start;\n      const std::size_t len = end - start;\n\n      if (gmin >= low && gmax <= high) {\n        std::size_t i = 0;\n        const std::size_t unroll_end = len & ~std::size_t(3);\n        for (; i < unroll_end; i += 4) {\n          local += static_cast<uint64_t>(p[i + 0]);\n          local += static_cast<uint64_t>(p[i + 1]);\n          local += static_cast<uint64_t>(p[i + 2]);\n          local += static_cast<uint64_t>(p[i + 3]);\n        }\n        for (; i < len; ++i) {\n          local += static_cast<uint64_t>(p[i]);\n        }\n      } else {\n        std::size_t i = 0;\n        const std::size_t unroll_end = len & ~std::size_t(3);\n        for (; i < unroll_end; i += 4) {\n          const uint32_t v0 = p[i + 0];\n          const uint32_t v1 = p[i + 1];\n          const uint32_t v2 = p[i + 2];\n          const uint32_t v3 = p[i + 3];\n          if (v0 >= low && v0 <= high) local += static_cast<uint64_t>(v0);\n          if (v1 >= low && v1 <= high) local += static_cast<uint64_t>(v1);\n          if (v2 >= low && v2 <= high) local += static_cast<uint64_t>(v2);\n          if (v3 >= low && v3 <= high) local += static_cast<uint64_t>(v3);\n        }\n        for (; i < len; ++i) {\n          const uint32_t v = p[i];\n          if (v >= low && v <= high) local += static_cast<uint64_t>(v);\n        }\n      }\n    }\n\n    sum = local;\n  }\n\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "row_group_minmax_prune_v500_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 25209799,
+    "min_elapsed_ns": 24566827,
+    "max_elapsed_ns": 27827498,
+    "all_elapsed_ns": [
+      27827498,
+      25209799,
+      24566827
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 27827498,
+      "expected_sum": 27615140,
+      "actual_sum": 27615140
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "row_group_minmax_prune_v500_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 489433,
+    "min_elapsed_ns": 443988,
+    "max_elapsed_ns": 673010,
+    "all_elapsed_ns": [
+      443988,
+      489433,
+      673010
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 443988,
+      "expected_sum": 27615140,
+      "actual_sum": 27615140
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "row_group_minmax_prune_v500_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 688454,
+    "min_elapsed_ns": 644400,
+    "max_elapsed_ns": 696993,
+    "all_elapsed_ns": [
+      644400,
+      688454,
+      696993
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 644400,
+      "expected_sum": 27615140,
+      "actual_sum": 27615140
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "beam_search_topk_v2000_b",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v2000_b/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <algorithm>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\ninline uint64_t mix(uint64_t h, uint64_t v) {\n    h ^= v;\n    h *= 1099511628211ULL;\n    return h;\n}\n\n// In-place nth_element that partitions [0, n) so the largest elements\n// (according to the deterministic rule) are at the front.\n// Returns pointer one past the k-th element.\ninline int* nth_element_int(int* first, int* last, int k, const int32_t* scores) {\n    while (true) {\n        int* mid = first + ((last - first) >> 1);\n        int pivot = *mid;\n        int* i = first;\n        int* j = last - 1;\n        while (i <= j) {\n            while (scores[*i] > scores[pivot] ||\n                   (scores[*i] == scores[pivot] && *i < pivot)) ++i;\n            while (scores[*j] < scores[pivot] ||\n                   (scores[*j] == scores[pivot] && *j > pivot)) --j;\n            if (i <= j) {\n                std::swap(*i, *j);\n                ++i; --j;\n            }\n        }\n        if (j - first + 1 >= k) {\n            last = j + 1;\n        } else {\n            k -= (i - first);\n            first = i;\n        }\n        if (first >= last) return first;\n    }\n}\n\n} // namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits,\n                            int beams,\n                            int vocab,\n                            int topk,\n                            int iters) {\n    const std::size_t vocab_sz = static_cast<std::size_t>(vocab);\n    std::vector<int> indices(vocab);\n    uint64_t hash = 1469598103934665603ULL;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        hash = 1469598103934665603ULL;\n        for (int b = 0; b < beams; ++b) {\n            const int32_t* const scores = &logits[b * vocab];\n            for (int v = 0; v < vocab; ++v) indices[v] = v;\n\n            int* end = nth_element_int(indices.data(), indices.data() + vocab, topk, scores);\n            std::sort(indices.data(), end,\n                      [&](int a, int b) {\n                          return scores[a] > scores[b] || (scores[a] == scores[b] && a < b);\n                      });\n\n            for (int k = 0; k < topk; ++k) {\n                const int v = indices[k];\n                hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(scores[v])));\n                hash = mix(hash, static_cast<uint64_t>(v));\n            }\n        }\n    }\n    return hash;\n}\n",
+  "baseline": {
+    "task_id": "beam_search_topk_v2000_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 288336790,
+    "min_elapsed_ns": 272290776,
+    "max_elapsed_ns": 289892444,
+    "all_elapsed_ns": [
+      288336790,
+      289892444,
+      272290776
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 288336790,
+      "expected_checksum": 14431094425673165040,
+      "actual_checksum": 14431094425673165040
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v2000_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3426944,
+    "min_elapsed_ns": 3426607,
+    "max_elapsed_ns": 3567124,
+    "all_elapsed_ns": [
+      3567124,
+      3426944,
+      3426607
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3567124,
+      "expected_checksum": 14431094425673165040,
+      "actual_checksum": 14431094425673165040
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v2000_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 31323623,
+    "min_elapsed_ns": 31268622,
+    "max_elapsed_ns": 35848950,
+    "all_elapsed_ns": [
+      31323623,
+      31268622,
+      35848950
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 31323623,
+      "expected_checksum": 14431094425673165040,
+      "actual_checksum": 14431094425673165040
+    },
+    "status": "ok"
+  }
+}

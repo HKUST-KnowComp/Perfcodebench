@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_exclusive_scan_cub_i32_v02",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_exclusive_scan_cub_i32_v02/candidate/claude-sonnet-4-5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int BLOCK_SIZE = 256;\nconstexpr int WARP_SIZE = 32;\n\n__device__ __forceinline__ int warp_scan_exclusive(int val, int lane) {\n  #pragma unroll\n  for (int offset = 1; offset < WARP_SIZE; offset <<= 1) {\n    int temp = __shfl_up_sync(0xffffffff, val, offset);\n    if (lane >= offset) val += temp;\n  }\n  int result = __shfl_up_sync(0xffffffff, val, 1);\n  return (lane == 0) ? 0 : result;\n}\n\n__global__ void block_scan_kernel(const int* input, int* output, int* block_sums, int n) {\n  __shared__ int shared[BLOCK_SIZE];\n  __shared__ int warp_sums[BLOCK_SIZE / WARP_SIZE];\n  \n  int tid = threadIdx.x;\n  int gid = blockIdx.x * BLOCK_SIZE + tid;\n  int lane = tid & (WARP_SIZE - 1);\n  int warp_id = tid / WARP_SIZE;\n  \n  int val = (gid < n) ? input[gid] : 0;\n  \n  int warp_scan = warp_scan_exclusive(val, lane);\n  \n  if (lane == WARP_SIZE - 1) {\n    warp_sums[warp_id] = warp_scan + val;\n  }\n  __syncthreads();\n  \n  if (warp_id == 0) {\n    int warp_sum = (tid < (BLOCK_SIZE / WARP_SIZE)) ? warp_sums[tid] : 0;\n    int scanned_warp_sum = warp_scan_exclusive(warp_sum, lane);\n    if (tid < (BLOCK_SIZE / WARP_SIZE)) {\n      warp_sums[tid] = scanned_warp_sum;\n    }\n  }\n  __syncthreads();\n  \n  int block_offset = (warp_id > 0) ? warp_sums[warp_id] : 0;\n  int result = warp_scan + block_offset;\n  \n  if (gid < n) {\n    output[gid] = result;\n  }\n  \n  if (block_sums != nullptr && tid == BLOCK_SIZE - 1) {\n    block_sums[blockIdx.x] = result + val;\n  }\n}\n\n__global__ void add_block_sums_kernel(int* output, const int* block_sums, int n) {\n  int gid = (blockIdx.x + 1) * BLOCK_SIZE + threadIdx.x;\n  if (gid < n) {\n    output[gid] += block_sums[blockIdx.x];\n  }\n}\n\n}  // namespace\n\nvoid exclusive_scan_i32(const int* input, int* output, int n, int iters) {\n  if (n <= 0) return;\n  \n  int num_blocks = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;\n  \n  int* block_sums = nullptr;\n  int* block_sums_scanned = nullptr;\n  \n  if (num_blocks > 1) {\n    cudaMalloc(&block_sums, num_blocks * sizeof(int));\n    cudaMalloc(&block_sums_scanned, num_blocks * sizeof(int));\n  }\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    block_scan_kernel<<<num_blocks, BLOCK_SIZE>>>(input, output, block_sums, n);\n    \n    if (num_blocks > 1) {\n      block_scan_kernel<<<1, BLOCK_SIZE>>>(block_sums, block_sums_scanned, nullptr, num_blocks);\n      add_block_sums_kernel<<<num_blocks - 1, BLOCK_SIZE>>>(output, block_sums_scanned, n);\n    }\n  }\n  \n  if (block_sums) cudaFree(block_sums);\n  if (block_sums_scanned) cudaFree(block_sums_scanned);\n}",
+  "baseline": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v02",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2082044189,
+    "min_elapsed_ns": 2075465576,
+    "max_elapsed_ns": 2099646484,
+    "all_elapsed_ns": [
+      2099646484,
+      2082044189,
+      2075465576
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2099646484,
+      "checksum": 28862128849801
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v02",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1108319,
+    "min_elapsed_ns": 451743,
+    "max_elapsed_ns": 2617952,
+    "all_elapsed_ns": [
+      451743,
+      2617952,
+      1108319
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 451743,
+      "checksum": 28862128849801
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v02",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_exclusive_scan_cub_i32_v02/candidate/bench']' timed out after 5 seconds"
+  }
+}

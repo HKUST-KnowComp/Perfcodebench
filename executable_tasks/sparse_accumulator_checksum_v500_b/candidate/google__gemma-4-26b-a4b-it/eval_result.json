@@ -1,0 +1,72 @@
+{
+  "task_id": "sparse_accumulator_checksum_v500_b",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sparse_accumulator_checksum_v500_b/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n#include <map>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n// Fast modular exponentiation for the constant multiplier\nuint64_t power(uint64_t base, uint32_t exp) {\n    uint64_t res = 1;\n    while (exp > 0) {\n        if (exp % 2 == 1) res *= base;\n        base *= base;\n        exp /= 2;\n    }\n    return res;\n}\n\n} // namespace\n\nuint64_t sparse_accumulator_hash(\n    const std::vector<uint32_t>& indices,\n    const std::vector<uint32_t>& values,\n    uint32_t domain,\n    int iters) {\n    \n    if (indices.empty()) {\n        uint64_t hash = 1469598103934665603ULL;\n        uint64_t multiplier = 1099511628211ULL;\n        // The original loop: for (key=0; key<domain; ++key) hash = mix(hash, 0);\n        // mix(h, 0) is (h ^ 0) * multiplier = h * multiplier.\n        // So we need hash * (multiplier ^ domain).\n        // However, the loop runs 'iters' times. The problem implies the hash is updated per iteration.\n        // Looking at the baseline: hash is reset to FNV_OFFSET inside the iter loop.\n        // So we only care about the last iteration's result.\n        uint64_t mult_pow = power(multiplier, domain);\n        return hash * mult_pow;\n    }\n\n    // Pre-calculate powers of the multiplier to avoid repeated O(log N) calls\n    // But since we only need it for gaps, we can use a simple loop or precompute if domain is small.\n    // Given the constraints, we'll use a more direct approach.\n    \n    uint64_t final_hash = 0;\n    const uint64_t FNV_OFFSET = 1469598103934665603ULL;\n    const uint64_t MULTIPLIER = 1099511628211ULL;\n\n    // We only need to compute the result for the last iteration because 'hash' is overwritten\n    // inside the loop: hash = 1469598103934665603ULL;\n    // Wait, the baseline code: 'hash = 1469598103934665603ULL;' is INSIDE the 'iter' loop.\n    // This means the 'iters' loop is actually redundant if it doesn't accumulate 'hash' across iterations.\n    // It just repeats the same calculation 'iters' times. \n    // Let's check: 'hash = 1469598103934665603ULL;' is inside 'for (int iter = 0; iter < iters; ++iter)'.\n    // So 'hash' is reset every time. The final value is just the result of the last iteration.\n\n    // 1. Aggregate values\n    std::vector<std::pair<uint32_t, uint64_t>> sorted_accum;\n    sorted_accum.reserve(indices.size());\n    for (size_t i = 0; i < indices.size(); ++i) {\n        sorted_accum.push_back({indices[i], static_cast<uint64_t>(values[i])});\n    }\n    std::sort(sorted_accum.begin(), sorted_accum.end());\n\n    std::vector<std::pair<uint32_t, uint64_t>> merged;\n    if (!sorted_accum.empty()) {\n        merged.push_back(sorted_accum[0]);\n        for (size_t i = 1; i < sorted_accum.size(); ++i) {\n            if (sorted_accum[i].first == merged.back().first) {\n                merged.back().second += sorted_accum[i].second;\n            } else {\n                merged.push_back(sorted_accum[i]);\n            }\n        }\n    }\n\n    // 2. Compute hash with gaps\n    uint64_t h = FNV_OFFSET;\n    uint32_t current_key = 0;\n\n    for (const auto& p : merged) {\n        uint32_t key = p.first;\n        uint64_t val = p.second;\n\n        // Gap of zeros from current_key to key-1\n        uint32_t gap = key - current_key;\n        if (gap > 0) {\n            // h = h * (MULTIPLIER ^ gap)\n            // We use a loop for power to avoid complexity, but for large gaps, \n            // we need a fast way. Since we can't use math.h easily, let's use a simple power.\n            // However, the baseline uses 'mix(hash, 0)'.\n            // mix(h, 0) = (h ^ 0) * MULTIPLIER = h * MULTIPLIER.\n            // So h_after_gap = h * (MULTIPLIER ^ gap).\n            \n            // To handle large gaps efficiently:\n            uint64_t m_pow = 1;\n            uint64_t base = MULTIPLIER;\n            uint32_t exp = gap;\n            while (exp > 0) {\n                if (exp % 2 == 1) m_pow *= base;\n                base *= base;\n                exp /= 2;\n            }\n            h *= m_pow;\n        }\n\n        // The actual value\n        h = mix(h, val);\n        current_key = key + 1;\n    }\n\n    // Final gap\n    if (current_key < domain) {\n        uint32_t gap = domain - current_key;\n        uint64_t m_pow = 1;\n        uint64_t base = MULTIPLIER;\n        uint32_t exp = gap;\n        while (exp > 0) {\n            if (exp % 2 == 1) m_pow *= base;\n            base *= base;\n            exp /= 2;\n        }\n        h *= m_pow;\n    }\n\n    return h;\n}",
+  "baseline": {
+    "task_id": "sparse_accumulator_checksum_v500_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1140826570,
+    "min_elapsed_ns": 1068995671,
+    "max_elapsed_ns": 1191150487,
+    "all_elapsed_ns": [
+      1068995671,
+      1140826570,
+      1191150487
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1068995671,
+      "expected_checksum": 11240735758806009435,
+      "actual_checksum": 11240735758806009435
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sparse_accumulator_checksum_v500_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 145650959,
+    "min_elapsed_ns": 144137176,
+    "max_elapsed_ns": 153174609,
+    "all_elapsed_ns": [
+      153174609,
+      144137176,
+      145650959
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 153174609,
+      "expected_checksum": 11240735758806009435,
+      "actual_checksum": 11240735758806009435
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sparse_accumulator_checksum_v500_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1196644480,
+    "min_elapsed_ns": 1196212951,
+    "max_elapsed_ns": 1382291750,
+    "all_elapsed_ns": [
+      1382291750,
+      1196212951,
+      1196644480
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1382291750,
+      "expected_checksum": 11240735758806009435,
+      "actual_checksum": 11240735758806009435
+    },
+    "status": "ok"
+  }
+}

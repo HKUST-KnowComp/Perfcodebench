@@ -1,0 +1,72 @@
+{
+  "task_id": "python_json_field_checksum_v2700_122",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/python_json_field_checksum_v2700_122/candidate/gpt-5.4/solution.py",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "import json\n\n_MASK64 = (1 << 64) - 1\n_FNV_OFFSET = 1469598103934665603\n_FNV_PRIME = 1099511628211\n\n\n# Fast parser specialized for task rows containing keys: \"u\", \"s\", \"f\".\n# Falls back to json.loads for any unexpected formatting/content.\ndef _extract_v(row: str):\n    n = len(row)\n    i = 0\n    u = None\n    s = None\n    f = None\n\n    while i < n:\n        if row[i] != '\"':\n            i += 1\n            continue\n\n        j = i + 1\n        while j < n and row[j] != '\"':\n            # Fallback on escaped strings; generic JSON parser handles them.\n            if row[j] == '\\\\':\n                return None\n            j += 1\n        if j >= n:\n            return None\n\n        key = row[i + 1:j]\n        k = j + 1\n        while k < n and row[k] in ' \\t\\r\\n':\n            k += 1\n        if k >= n or row[k] != ':':\n            i = j + 1\n            continue\n        k += 1\n        while k < n and row[k] in ' \\t\\r\\n':\n            k += 1\n        if k >= n:\n            return None\n\n        if key == 'u' or key == 's':\n            sign = 1\n            if row[k] == '-':\n                sign = -1\n                k += 1\n                if k >= n:\n                    return None\n            if k >= n or not ('0' <= row[k] <= '9'):\n                return None\n            val = 0\n            while k < n:\n                c = row[k]\n                if '0' <= c <= '9':\n                    val = val * 10 + (ord(c) - 48)\n                    k += 1\n                else:\n                    break\n            val *= sign\n            if key == 'u':\n                u = val\n            else:\n                s = val\n            i = k\n            continue\n\n        if key == 'f':\n            c = row[k]\n            if c == 't':\n                if row.startswith('true', k):\n                    f = True\n                    i = k + 4\n                    continue\n                return None\n            if c == 'f':\n                if row.startswith('false', k):\n                    f = False\n                    i = k + 5\n                    continue\n                return None\n            return None\n\n        # Skip unknown value conservatively; fallback for complex cases.\n        c = row[k]\n        if c == '\"' or c == '{' or c == '[':\n            return None\n        while k < n and row[k] not in ',}':\n            k += 1\n        i = k\n\n    if u is None or s is None or f is None:\n        return None\n    return (u & 1023) + s + (17 if f else 0)\n\n\ndef run(rows: list[str]) -> int:\n    h = _FNV_OFFSET\n    for row in rows:\n        v = _extract_v(row)\n        if v is None:\n            obj = json.loads(row)\n            v = (obj['u'] & 1023) + obj['s'] + (17 if obj['f'] else 0)\n        h ^= v + 1\n        h = (h * _FNV_PRIME) & _MASK64\n    return h\n",
+  "baseline": {
+    "task_id": "python_json_field_checksum_v2700_122",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 837122562,
+    "min_elapsed_ns": 826456953,
+    "max_elapsed_ns": 1273956054,
+    "all_elapsed_ns": [
+      826456953,
+      1273956054,
+      837122562
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 826456953,
+      "expected_checksum": 15680473018318474742,
+      "actual_checksum": 15680473018318474742
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "python_json_field_checksum_v2700_122",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 830452651,
+    "min_elapsed_ns": 780115132,
+    "max_elapsed_ns": 978041781,
+    "all_elapsed_ns": [
+      780115132,
+      978041781,
+      830452651
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 780115132,
+      "expected_checksum": 15680473018318474742,
+      "actual_checksum": 15680473018318474742
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "python_json_field_checksum_v2700_122",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1911641596,
+    "min_elapsed_ns": 1794387868,
+    "max_elapsed_ns": 2072339262,
+    "all_elapsed_ns": [
+      2072339262,
+      1794387868,
+      1911641596
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2072339262,
+      "expected_checksum": 15680473018318474742,
+      "actual_checksum": 15680473018318474742
+    },
+    "status": "ok"
+  }
+}

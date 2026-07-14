@@ -1,0 +1,59 @@
+{
+  "task_id": "c_groupby_histogram_checksum_v3300_063",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_groupby_histogram_checksum_v3300_063/candidate/google__gemini-3.1-pro-preview/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n\n/**\n * Optimized dense histogram aggregation.\n * \n * Improvements:\n * 1. Moved memory allocation outside the iteration loop to avoid repeated malloc/free overhead.\n * 2. Used memset to clear the histogram buffer efficiently.\n * 3. Unrolled the accumulation loop by a factor of 8 to improve ILP (Instruction Level Parallelism).\n * 4. Used a local pointer for the histogram to assist the compiler with alias analysis.\n */\nuint64_t run(const uint32_t* keys, const uint32_t* vals, size_t n, uint32_t buckets, int iters) {\n    if (buckets == 0) return 0;\n\n    uint64_t* hist = (uint64_t*)malloc(buckets * sizeof(uint64_t));\n    if (!hist) return 0;\n\n    uint64_t hash = 0;\n    const uint64_t fnv_offset_basis = 1469598103934665603ULL;\n    const uint64_t fnv_prime = 1099511628211ULL;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        memset(hist, 0, buckets * sizeof(uint64_t));\n\n        size_t i = 0;\n        // Unroll the accumulation loop by 8\n        for (; i + 7 < n; i += 8) {\n            uint32_t k0 = keys[i], k1 = keys[i+1], k2 = keys[i+2], k3 = keys[i+3];\n            uint32_t k4 = keys[i+4], k5 = keys[i+5], k6 = keys[i+6], k7 = keys[i+7];\n            uint32_t v0 = vals[i], v1 = vals[i+1], v2 = vals[i+2], v3 = vals[i+3];\n            uint32_t v4 = vals[i+4], v5 = vals[i+5], v6 = vals[i+6], v7 = vals[i+7];\n            \n            hist[k0] += v0;\n            hist[k1] += v1;\n            hist[k2] += v2;\n            hist[k3] += v3;\n            hist[k4] += v4;\n            hist[k5] += v5;\n            hist[k6] += v6;\n            hist[k7] += v7;\n        }\n        // Handle remainder\n        for (; i < n; ++i) {\n            hist[keys[i]] += vals[i];\n        }\n\n        // FNV-1a checksum calculation\n        hash = fnv_offset_basis;\n        for (uint32_t j = 0; j < buckets; ++j) {\n            hash ^= (hist[j] + 1ULL);\n            hash *= fnv_prime;\n        }\n    }\n\n    free(hist);\n    return hash;\n}\n",
+  "baseline": {
+    "task_id": "c_groupby_histogram_checksum_v3300_063",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1156000,
+    "min_elapsed_ns": 1156000,
+    "max_elapsed_ns": 1159000,
+    "all_elapsed_ns": [
+      1156000,
+      1156000,
+      1159000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1156000,
+      "expected_checksum": 11121430907004576273,
+      "actual_checksum": 11121430907004576273
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_groupby_histogram_checksum_v3300_063",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1624000,
+    "min_elapsed_ns": 1527000,
+    "max_elapsed_ns": 1636000,
+    "all_elapsed_ns": [
+      1527000,
+      1636000,
+      1624000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1527000,
+      "expected_checksum": 11121430907004576273,
+      "actual_checksum": 11121430907004576273
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_groupby_histogram_checksum_v3300_063",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/c_groupby_histogram_checksum_v3300_063/candidate/bench']' died with <Signals.SIGABRT: 6>."
+  }
+}

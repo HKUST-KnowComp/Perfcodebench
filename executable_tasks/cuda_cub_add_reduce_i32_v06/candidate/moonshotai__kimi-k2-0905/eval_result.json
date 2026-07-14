@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v06",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v06/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include <cub/block/block_reduce.cuh>\n#include \"interface.h\"\n\nnamespace {\n__global__ void reduce_kernel(const int* in, int* out, int n) {\n    int tid = blockIdx.x * blockDim.x + threadIdx.x;\n    int val = (tid < n) ? in[tid] : 0;\n\n    typedef cub::BlockReduce<int, 512> BlockReduce;\n    __shared__ typename BlockReduce::TempStorage temp;\n    val = BlockReduce(temp).Sum(val);\n    if (threadIdx.x == 0) out[blockIdx.x] = val;\n}\n\n__global__ final_reduce(int* partial, int blocks) {\n    __shared__ int smem[512];\n    int tid = threadIdx.x;\n    int sum = 0;\n    for (int i = tid; i < blocks; i += blockDim.x) sum += partial[i];\n    smem[tid] = sum;\n    __syncthreads();\n    for (int off = blockDim.x / 2; off > 0; off >>= 1) {\n        if (tid < off) smem[tid] += smem[tid + off];\n        __syncthreads();\n    }\n    if (tid == 0) partial[0] = smem[0];\n}\n} // anonymous\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    const int threads = 512;\n    const int blocks = (n + threads - 1) / threads;\n    int *tmp;\n    cudaMalloc(&tmp, blocks * sizeof(int));\n    for (int i = 0; i < iters; ++i) {\n        reduce_kernel<<<blocks, threads>>>(input, tmp, n);\n        final_reduce<<<1, threads>>>(tmp, blocks);\n        cudaMemcpy(output, tmp, sizeof(int), cudaMemcpyDeviceToDevice);\n    }\n    cudaFree(tmp);\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v06",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 8059967,
+    "min_elapsed_ns": 8051615,
+    "max_elapsed_ns": 8061440,
+    "all_elapsed_ns": [
+      8061440,
+      8059967,
+      8051615
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8061440,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v06",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 555136,
+    "min_elapsed_ns": 551648,
+    "max_elapsed_ns": 555935,
+    "all_elapsed_ns": [
+      555935,
+      555136,
+      551648
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 555935,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v06",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['nvcc', '-O3', '-std=c++17', '-Iexecutable_tasks/cuda_cub_add_reduce_i32_v06/harness', '-gencode=arch=compute_80,code=sm_80', '-gencode=arch=compute_80,code=compute_80', 'executable_tasks/cuda_cub_add_reduce_i32_v06/harness/benchmark_main.cu', 'executable_tasks/cuda_cub_add_reduce_i32_v06/candidate/moonshotai__kimi-k2-0905/solution.cu', '-o', 'build/cuda_cub_add_reduce_i32_v06/candidate/bench']' returned non-zero exit status 2."
+  }
+}

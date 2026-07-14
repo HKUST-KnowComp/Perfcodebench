@@ -1,0 +1,72 @@
+{
+  "task_id": "fir_filter_energy_checksum_v2600_j",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/fir_filter_energy_checksum_v2600_j/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nuint64_t fir_energy_checksum(\n    const std::vector<int16_t>& signal,\n    const std::vector<int16_t>& taps,\n    int iters) {\n  // Baseline behavior: if iters == 0, the loop body never runs and total remains 0.\n  if (iters <= 0) {\n    return 0ULL;\n  }\n\n  const std::size_t n = signal.size();\n  const std::size_t m = taps.size();\n  const int16_t* s = signal.data();\n  const int16_t* t = taps.data();\n\n  uint64_t total = 1469598103934665603ULL; // FNV-1a 64-bit offset basis\n\n  if (m == 0) {\n    // All accumulations are zero\n    for (std::size_t i = 0; i < n; ++i) {\n      int64_t acc = 0;\n      int64_t val = acc * acc + 3 * acc; // remains 0\n      total ^= static_cast<uint64_t>(val);\n      total *= 1099511628211ULL; // FNV-1a prime\n    }\n    return total;\n  }\n\n  if (m == 1) {\n    // Single-tap filter: acc = s[i] * t[0]\n    const int16_t c0 = t[0];\n    for (std::size_t i = 0; i < n; ++i) {\n      int64_t acc = static_cast<int64_t>(s[i]) * static_cast<int64_t>(c0);\n      int64_t val = acc * acc + 3 * acc;\n      total ^= static_cast<uint64_t>(val);\n      total *= 1099511628211ULL;\n    }\n    return total;\n  }\n\n  for (std::size_t i = 0; i < n; ++i) {\n    int64_t acc = 0;\n    std::size_t jmax = m;\n    const std::size_t avail = i + 1;\n    if (jmax > avail) jmax = avail;\n\n    const int16_t* sp = s + i; // points at signal[i]\n    std::size_t k = 0;\n\n    // Unroll by 4\n    std::size_t blocks = jmax >> 2; // jmax / 4\n    for (std::size_t b = 0; b < blocks; ++b) {\n      acc += static_cast<int64_t>(sp[0]) * static_cast<int64_t>(t[k]);\n      acc += static_cast<int64_t>(sp[-1]) * static_cast<int64_t>(t[k + 1]);\n      acc += static_cast<int64_t>(sp[-2]) * static_cast<int64_t>(t[k + 2]);\n      acc += static_cast<int64_t>(sp[-3]) * static_cast<int64_t>(t[k + 3]);\n      sp -= 4;\n      k += 4;\n    }\n\n    // Remainder\n    for (; k < jmax; ++k) {\n      acc += static_cast<int64_t>(sp[0]) * static_cast<int64_t>(t[k]);\n      --sp;\n    }\n\n    // Maintain same arithmetic as baseline (int64_t operations before cast)\n    int64_t val = acc * acc + 3 * acc;\n    total ^= static_cast<uint64_t>(val);\n    total *= 1099511628211ULL;\n  }\n\n  // Baseline resets and recomputes per iteration; final result equals last iteration.\n  // Since signal and taps are unchanged, computing once is sufficient.\n  return total;\n}\n",
+  "baseline": {
+    "task_id": "fir_filter_energy_checksum_v2600_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 13005959,
+    "min_elapsed_ns": 12865434,
+    "max_elapsed_ns": 13018808,
+    "all_elapsed_ns": [
+      13005959,
+      12865434,
+      13018808
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 13005959,
+      "expected_checksum": 8633924258125192551,
+      "actual_checksum": 8633924258125192551
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "fir_filter_energy_checksum_v2600_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 13682038,
+    "min_elapsed_ns": 13407035,
+    "max_elapsed_ns": 14150531,
+    "all_elapsed_ns": [
+      13407035,
+      13682038,
+      14150531
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 13407035,
+      "expected_checksum": 8633924258125192551,
+      "actual_checksum": 8633924258125192551
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "fir_filter_energy_checksum_v2600_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 2410524,
+    "min_elapsed_ns": 2392777,
+    "max_elapsed_ns": 2511303,
+    "all_elapsed_ns": [
+      2511303,
+      2392777,
+      2410524
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2511303,
+      "expected_checksum": 8633924258125192551,
+      "actual_checksum": 8633924258125192551
+    },
+    "status": "ok"
+  }
+}

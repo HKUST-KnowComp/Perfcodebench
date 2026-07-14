@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_jacobi_2d_v1500_d",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v1500_d/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  const std::size_t total = static_cast<std::size_t>(rows) * static_cast<std::size_t>(cols);\n  const std::size_t cols_sz = static_cast<std::size_t>(cols);\n  \n  std::vector<uint32_t> a = input;\n  std::vector<uint32_t> b(total);\n  \n  uint32_t* src = a.data();\n  uint32_t* dst = b.data();\n  \n  for (int step = 0; step < steps; ++step) {\n    // Copy boundary rows (top and bottom)\n    #pragma omp parallel\n    {\n      #pragma omp for nowait\n      for (std::size_t col = 0; col < cols_sz; ++col) {\n        dst[col] = src[col];\n      }\n      \n      #pragma omp for nowait\n      for (std::size_t col = 0; col < cols_sz; ++col) {\n        std::size_t idx = (rows - 1) * cols_sz + col;\n        dst[idx] = src[idx];\n      }\n      \n      // Process interior rows (including left/right boundary columns)\n      #pragma omp for schedule(static)\n      for (int row = 1; row < rows - 1; ++row) {\n        const std::size_t row_off = static_cast<std::size_t>(row) * cols_sz;\n        const std::size_t row_above = row_off - cols_sz;\n        const std::size_t row_below = row_off + cols_sz;\n        \n        // Left boundary\n        dst[row_off] = src[row_off];\n        \n        // Interior columns - main computation\n        for (std::size_t col = 1; col < cols_sz - 1; ++col) {\n          const std::size_t idx = row_off + col;\n          dst[idx] = (src[idx] * 4u + \n                      src[idx - 1] + src[idx + 1] +\n                      src[row_above + col] + src[row_below + col]) / 8u;\n        }\n        \n        // Right boundary\n        dst[row_off + cols_sz - 1] = src[row_off + cols_sz - 1];\n      }\n    }\n    \n    // Swap pointers\n    uint32_t* tmp = src;\n    src = dst;\n    dst = tmp;\n  }\n  \n  // Compute checksum - parallelize with reduction\n  const uint64_t FNV_PRIME = 1099511628211ULL;\n  const uint64_t FNV_OFFSET = 1469598103934665603ULL;\n  \n  // Sequential checksum to match reference exactly\n  uint64_t hash = FNV_OFFSET;\n  for (std::size_t i = 0; i < total; ++i) {\n    hash ^= static_cast<uint64_t>(src[i]);\n    hash *= FNV_PRIME;\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v1500_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4978647,
+    "min_elapsed_ns": 3791601,
+    "max_elapsed_ns": 10642084,
+    "all_elapsed_ns": [
+      10642084,
+      4978647,
+      3791601
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10642084,
+      "expected_checksum": 5311671338593182502,
+      "actual_checksum": 5311671338593182502
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v1500_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 38293917,
+    "min_elapsed_ns": 23177464,
+    "max_elapsed_ns": 124592178,
+    "all_elapsed_ns": [
+      38293917,
+      23177464,
+      124592178
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 38293917,
+      "expected_checksum": 5311671338593182502,
+      "actual_checksum": 5311671338593182502
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v1500_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 3688024413,
+    "min_elapsed_ns": 1741811285,
+    "max_elapsed_ns": 4270223319,
+    "all_elapsed_ns": [
+      1741811285,
+      4270223319,
+      3688024413
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1741811285,
+      "expected_checksum": 5311671338593182502,
+      "actual_checksum": 5311671338593182502
+    },
+    "status": "ok"
+  }
+}

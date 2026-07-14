@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v21",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v21/candidate/google__gemma-4-26b-a4b-it/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void histogram256_shared_kernel(const unsigned char* input, unsigned int* output, int n) {\n    // Local histogram in shared memory to reduce global atomic contention\n    __shared__ unsigned int local_hist[256];\n\n    // Initialize shared memory\n    int tid = threadIdx.x;\n    if (tid < 256) {\n        local_hist[tid] = 0;\n    }\n    __syncthreads();\n\n    // Each thread processes multiple elements using a grid-stride loop\n    // We use a larger loop to ensure all elements are covered\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    int stride = blockDim.x * gridDim.x;\n\n    // To avoid massive shared memory usage per block, we use a 256-bin local buffer.\n    // Since 256 * 4 bytes = 1KB, this fits easily in shared memory.\n    // However, to handle the case where threads > 256, we use the thread index\n    // to map to the local histogram if the block size is 256.\n    \n    // Note: The kernel is launched with blockDim.x = 256.\n    // We use a local histogram per block.\n    \n    for (int i = idx; i < n; i += stride) {\n        unsigned char val = input[i];\n        atomicAdd(&local_hist[val], 1U);\n    }\n\n    __syncthreads();\n\n    // Reduce local histogram to global output\n    // Each thread handles one bin to minimize global atomic contention\n    if (tid < 256) {\n        atomicAdd(&output[tid], local_hist[tid]);\n    }\n}\n\n} // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters) {\n    // Using 256 threads per block to match the 256 bins for easy reduction\n    constexpr int kBlock = 256;\n    // Calculate grid size to cover n elements efficiently\n    // We use a fixed grid size to keep launch overhead consistent, but ensure it's sufficient\n    // or use a dynamic grid. For performance, a large enough grid is better.\n    const int kGrid = 256; \n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, 256 * sizeof(unsigned int));\n        // We use a grid-stride loop inside the kernel, so grid size doesn't strictly need to be n/kBlock\n        // but we want enough parallelism.\n        histogram256_shared_kernel<<<kGrid, kBlock>>>(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v21",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 64656066,
+    "min_elapsed_ns": 64652832,
+    "max_elapsed_ns": 64656478,
+    "all_elapsed_ns": [
+      64656478,
+      64656066,
+      64652832
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 64656478,
+      "checksum": 1077936128
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v21",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 463712,
+    "min_elapsed_ns": 462687,
+    "max_elapsed_ns": 465312,
+    "all_elapsed_ns": [
+      462687,
+      463712,
+      465312
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 462687,
+      "checksum": 1077936128
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v21",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_histogram256_shared_u8_v21/candidate/bench']' timed out after 5 seconds"
+  }
+}

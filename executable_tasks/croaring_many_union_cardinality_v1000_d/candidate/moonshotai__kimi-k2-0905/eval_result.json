@@ -1,0 +1,59 @@
+{
+  "task_id": "croaring_many_union_cardinality_v1000_d",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/croaring_many_union_cardinality_v1000_d/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <roaring/roaring.h>\n#include <thread>\n#include <vector>\n\nnamespace {\n\n// Each thread adds its slice into the shared bitmap.\nvoid add_range(roaring_bitmap_t* dst,\n               const uint32_t* values,\n               uint32_t begin,\n               uint32_t end) {\n    roaring_bitmap_add_many(dst, end - begin, values + begin);\n}\n\n} // anonymous namespace\n\nuint64_t many_union_cardinality(\n    const std::vector<uint32_t>& offsets,\n    const std::vector<uint32_t>& values) {\n\n    if (offsets.size() < 2) return 0;\n\n    roaring_bitmap_t* rb = roaring_bitmap_create();\n    if (!rb) return 0;\n\n    const std::size_t shards = offsets.size() - 1;\n    const unsigned hardware = std::thread::hardware_concurrency();\n    const unsigned threads_to_use = (shards < hardware) ? static_cast<unsigned>(shards) : hardware;\n\n    if (threads_to_use <= 1) {\n        // Single-thread fallback\n        for (std::size_t s = 0; s < shards; ++s) {\n            add_range(rb, values.data(), offsets[s], offsets[s + 1]);\n        }\n    } else {\n        std::vector<std::thread> workers;\n        workers.reserve(threads_to_use);\n\n        const std::size_t block = (shards + threads_to_use - 1) / threads_to_use;\n        for (unsigned t = 0; t < threads_to_use; ++t) {\n            const std::size_t first = t * block;\n            if (first >= shards) break;\n            const std::size_t last = std::min(first + block, shards);\n\n            workers.emplace_back([rb, &values, &offsets, first, last]() {\n                for (std::size_t s = first; s < last; ++s) {\n                    add_range(rb, values.data(), offsets[s], offsets[s + 1]);\n                }\n            });\n        }\n        for (auto& th : workers) th.join();\n    }\n\n    roaring_bitmap_run_optimize(rb);   // compress run containers\n    roaring_bitmap_shrink_to_fit(rb);  // reclaim unused memory\n\n    const uint64_t card = roaring_bitmap_get_cardinality(rb);\n    roaring_bitmap_free(rb);\n    return card;\n}",
+  "baseline": {
+    "task_id": "croaring_many_union_cardinality_v1000_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 238112508,
+    "min_elapsed_ns": 236399249,
+    "max_elapsed_ns": 279118602,
+    "all_elapsed_ns": [
+      236399249,
+      279118602,
+      238112508
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 236399249,
+      "expected_cardinality": 881369,
+      "actual_cardinality": 881369
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "croaring_many_union_cardinality_v1000_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 13200570,
+    "min_elapsed_ns": 12657928,
+    "max_elapsed_ns": 13630683,
+    "all_elapsed_ns": [
+      13200570,
+      12657928,
+      13630683
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 13200570,
+      "expected_cardinality": 881369,
+      "actual_cardinality": 881369
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "croaring_many_union_cardinality_v1000_d",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/croaring_many_union_cardinality_v1000_d/harness', '-Iexternal/croaring_amalg', 'executable_tasks/croaring_many_union_cardinality_v1000_d/harness/benchmark_main.cpp', 'executable_tasks/croaring_many_union_cardinality_v1000_d/candidate/moonshotai__kimi-k2-0905/solution.cpp', 'external/croaring_amalg/roaring.c', '-o', 'build/croaring_many_union_cardinality_v1000_d/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v17",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v17/candidate/claude-sonnet-4-5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void histogram_shared_kernel(const unsigned char* input, unsigned int* output, int n) {\n  __shared__ unsigned int shared_hist[256];\n  \n  // Initialize shared memory\n  for (int i = threadIdx.x; i < 256; i += blockDim.x) {\n    shared_hist[i] = 0;\n  }\n  __syncthreads();\n  \n  // Process input with vectorized loads (4 bytes at a time)\n  int idx = blockIdx.x * blockDim.x + threadIdx.x;\n  int stride = blockDim.x * gridDim.x;\n  \n  // Vectorized processing for aligned portion\n  int n_vec = n / 4;\n  const uint32_t* input_vec = reinterpret_cast<const uint32_t*>(input);\n  \n  for (int i = idx; i < n_vec; i += stride) {\n    uint32_t val = input_vec[i];\n    unsigned char b0 = val & 0xFF;\n    unsigned char b1 = (val >> 8) & 0xFF;\n    unsigned char b2 = (val >> 16) & 0xFF;\n    unsigned char b3 = (val >> 24) & 0xFF;\n    \n    atomicAdd(&shared_hist[b0], 1U);\n    atomicAdd(&shared_hist[b1], 1U);\n    atomicAdd(&shared_hist[b2], 1U);\n    atomicAdd(&shared_hist[b3], 1U);\n  }\n  \n  // Handle remaining bytes\n  for (int i = n_vec * 4 + idx; i < n; i += stride) {\n    atomicAdd(&shared_hist[input[i]], 1U);\n  }\n  \n  __syncthreads();\n  \n  // Commit shared histogram to global memory\n  for (int i = threadIdx.x; i < 256; i += blockDim.x) {\n    unsigned int count = shared_hist[i];\n    if (count > 0) {\n      atomicAdd(&output[i], count);\n    }\n  }\n}\n\n}  // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters) {\n  constexpr int kBlock = 256;\n  const int grid = 256;\n  for (int iter = 0; iter < iters; ++iter) {\n    cudaMemset(output, 0, 256 * sizeof(unsigned int));\n    histogram_shared_kernel<<<grid, kBlock>>>(input, output, n);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v17",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 206753250,
+    "min_elapsed_ns": 206740005,
+    "max_elapsed_ns": 206819290,
+    "all_elapsed_ns": [
+      206740005,
+      206753250,
+      206819290
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 206740005,
+      "checksum": 4311744512
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v17",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1067648,
+    "min_elapsed_ns": 1061439,
+    "max_elapsed_ns": 1069344,
+    "all_elapsed_ns": [
+      1061439,
+      1067648,
+      1069344
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1061439,
+      "checksum": 4311744512
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v17",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['nvcc', '-O3', '-std=c++17', '-Iexecutable_tasks/cuda_histogram256_shared_u8_v17/harness', '-gencode=arch=compute_80,code=sm_80', '-gencode=arch=compute_80,code=compute_80', 'executable_tasks/cuda_histogram256_shared_u8_v17/harness/benchmark_main.cu', 'executable_tasks/cuda_histogram256_shared_u8_v17/candidate/claude-sonnet-4-5/solution.cu', '-o', 'build/cuda_histogram256_shared_u8_v17/candidate/bench']' returned non-zero exit status 2."
+  }
+}

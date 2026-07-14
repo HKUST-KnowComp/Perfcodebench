@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_jacobi_2d_v600_j",
+  "model": "gemini-3.1-flash-lite-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v600_j/candidate/gemini-3.1-flash-lite-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n    if (rows <= 2 || cols <= 2) {\n        uint64_t hash = 1469598103934665603ULL;\n        for (uint32_t v : input) {\n            hash ^= static_cast<uint64_t>(v);\n            hash *= 1099511628211ULL;\n        }\n        return hash;\n    }\n\n    std::vector<uint32_t> buffer1 = input;\n    std::vector<uint32_t> buffer2(input.size());\n    uint32_t* a = buffer1.data();\n    uint32_t* b = buffer2.data();\n\n    for (int step = 0; step < steps; ++step) {\n        #pragma omp parallel for schedule(static)\n        for (int row = 1; row < rows - 1; ++row) {\n            const uint32_t* row_prev = &a[(row - 1) * cols];\n            const uint32_t* row_curr = &a[row * cols];\n            const uint32_t* row_next = &a[(row + 1) * cols];\n            uint32_t* row_out = &b[row * cols];\n\n            row_out[0] = row_curr[0];\n            for (int col = 1; col < cols - 1; ++col) {\n                row_out[col] = (row_curr[col] * 4u + row_curr[col - 1] + row_curr[col + 1] + row_prev[col] + row_next[col]) / 8u;\n            }\n            row_out[cols - 1] = row_curr[cols - 1];\n        }\n\n        // Copy boundaries\n        for (int col = 0; col < cols; ++col) {\n            b[col] = a[col];\n            b[(rows - 1) * cols + col] = a[(rows - 1) * cols + col];\n        }\n\n        std::swap(a, b);\n    }\n\n    uint64_t hash = 1469598103934665603ULL;\n    for (size_t i = 0; i < input.size(); ++i) {\n        hash ^= static_cast<uint64_t>(a[i]);\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v600_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 362793581,
+    "min_elapsed_ns": 178627422,
+    "max_elapsed_ns": 506119093,
+    "all_elapsed_ns": [
+      178627422,
+      362793581,
+      506119093
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 178627422,
+      "expected_checksum": 9512188109832611599,
+      "actual_checksum": 9512188109832611599
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v600_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 496689565,
+    "min_elapsed_ns": 242993915,
+    "max_elapsed_ns": 1756962810,
+    "all_elapsed_ns": [
+      1756962810,
+      242993915,
+      496689565
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1756962810,
+      "expected_checksum": 9512188109832611599,
+      "actual_checksum": 9512188109832611599
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v600_j",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-fopenmp', '-Iexecutable_tasks/openmp_jacobi_2d_v600_j/harness', 'executable_tasks/openmp_jacobi_2d_v600_j/harness/benchmark_main.cpp', 'executable_tasks/openmp_jacobi_2d_v600_j/candidate/gemini-3.1-flash-lite-preview/solution.cpp', '-o', 'build/openmp_jacobi_2d_v600_j/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "nibble_decode_filter_sum_v1300_f",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/nibble_decode_filter_sum_v1300_f/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstddef>\n\nuint64_t nibble_filter_sum(const std::vector<uint8_t>& packed, uint8_t threshold, int iters) {\n  // Handle trivial cases quickly\n  if (iters <= 0) return 0;\n  if (packed.empty()) return 0;\n  // If threshold >= 15, no 4-bit value (0..15) is greater than threshold\n  if (threshold >= 15u) return 0;\n\n  // Precompute per-byte contribution: sum of its two nibbles if > threshold\n  uint8_t lut[256];\n  const unsigned thr = static_cast<unsigned>(threshold);\n  for (unsigned b = 0; b < 256; ++b) {\n    unsigned lo = b & 0xFu;\n    unsigned hi = b >> 4;\n    unsigned v = (lo > thr ? lo : 0u) + (hi > thr ? hi : 0u);\n    lut[b] = static_cast<uint8_t>(v); // v <= 30\n  }\n\n  const uint8_t* data = packed.data();\n  const std::size_t n = packed.size();\n\n  uint64_t sum = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    // Use multiple accumulators and unroll to improve ILP and reduce loop overhead\n    uint64_t a0 = 0, a1 = 0, a2 = 0, a3 = 0;\n    std::size_t i = 0;\n    const std::size_t n16 = n & ~static_cast<std::size_t>(15);\n\n    for (; i < n16; i += 16) {\n      const uint8_t* p = data + i;\n      a0 += lut[p[0]];  a1 += lut[p[1]];  a2 += lut[p[2]];  a3 += lut[p[3]];\n      a0 += lut[p[4]];  a1 += lut[p[5]];  a2 += lut[p[6]];  a3 += lut[p[7]];\n      a0 += lut[p[8]];  a1 += lut[p[9]];  a2 += lut[p[10]]; a3 += lut[p[11]];\n      a0 += lut[p[12]]; a1 += lut[p[13]]; a2 += lut[p[14]]; a3 += lut[p[15]];\n    }\n\n    uint64_t acc = a0 + a1 + a2 + a3;\n    for (; i < n; ++i) {\n      acc += lut[data[i]];\n    }\n\n    sum = acc; // per baseline semantics: return the sum from the last iteration\n  }\n\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "nibble_decode_filter_sum_v1300_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 704143568,
+    "min_elapsed_ns": 702887620,
+    "max_elapsed_ns": 713882025,
+    "all_elapsed_ns": [
+      713882025,
+      702887620,
+      704143568
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 713882025,
+      "expected_sum": 314572800,
+      "actual_sum": 314572800
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "nibble_decode_filter_sum_v1300_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 188856279,
+    "min_elapsed_ns": 188197395,
+    "max_elapsed_ns": 224419330,
+    "all_elapsed_ns": [
+      188856279,
+      188197395,
+      224419330
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 188856279,
+      "expected_sum": 314572800,
+      "actual_sum": 314572800
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "nibble_decode_filter_sum_v1300_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 33165417,
+    "min_elapsed_ns": 32956784,
+    "max_elapsed_ns": 33504130,
+    "all_elapsed_ns": [
+      32956784,
+      33165417,
+      33504130
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 32956784,
+      "expected_sum": 314572800,
+      "actual_sum": 314572800
+    },
+    "status": "ok"
+  }
+}

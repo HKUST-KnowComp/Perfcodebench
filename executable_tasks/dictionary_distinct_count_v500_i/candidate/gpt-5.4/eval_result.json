@@ -1,0 +1,72 @@
+{
+  "task_id": "dictionary_distinct_count_v500_i",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dictionary_distinct_count_v500_i/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <string>\n#include <vector>\n\nuint64_t dictionary_distinct(\n    const std::vector<std::string>& dictionary,\n    const std::vector<uint16_t>& codes,\n    int iters) {\n  uint64_t count = 0;\n\n  if (iters <= 0) return 0;\n  if (codes.empty()) return 0;\n  if (dictionary.empty()) return 0;\n\n  const std::size_t dict_size = dictionary.size();\n\n  // Fast path: if dictionary fits in uint16_t code space, count distinct codes\n  // directly with a compact stamp table. Distinct decoded strings are counted,\n  // so duplicate dictionary entries must be merged by string equality.\n  if (dict_size <= 65536u) {\n    std::vector<uint32_t> code_mark(dict_size, 0);\n    std::vector<uint16_t> touched_codes;\n    touched_codes.reserve(codes.size());\n\n    std::vector<uint32_t> dict_group(dict_size, 0);\n    uint32_t next_group = 1;\n\n    for (int iter = 0; iter < iters; ++iter) {\n      touched_codes.clear();\n      uint32_t stamp = static_cast<uint32_t>(iter + 1);\n\n      for (uint16_t code : codes) {\n        const std::size_t idx = static_cast<std::size_t>(code);\n        if (code_mark[idx] != stamp) {\n          code_mark[idx] = stamp;\n          touched_codes.push_back(code);\n        }\n      }\n\n      // Assign equal dictionary strings the same group id among touched codes.\n      for (uint16_t code : touched_codes) {\n        const std::size_t idx = static_cast<std::size_t>(code);\n        if (dict_group[idx] != 0) continue;\n        dict_group[idx] = next_group;\n        const std::string& s = dictionary[idx];\n        for (std::size_t j = idx + 1; j < dict_size; ++j) {\n          if (dict_group[j] == 0 && dictionary[j] == s) {\n            dict_group[j] = next_group;\n          }\n        }\n        ++next_group;\n      }\n\n      std::vector<uint32_t> group_seen(next_group, 0);\n      uint64_t distinct = 0;\n      for (uint16_t code : touched_codes) {\n        const uint32_t g = dict_group[static_cast<std::size_t>(code)];\n        if (group_seen[g] == 0) {\n          group_seen[g] = 1;\n          ++distinct;\n        }\n      }\n      count = distinct;\n    }\n    return count;\n  }\n\n  // Fallback for oversized dictionary (should be rare under uint16_t codes).\n  // Only indices addressable by codes can appear.\n  const std::size_t addressable = 65536u;\n  std::vector<uint32_t> code_mark(addressable, 0);\n  std::vector<uint16_t> touched_codes;\n  touched_codes.reserve(codes.size());\n\n  for (int iter = 0; iter < iters; ++iter) {\n    touched_codes.clear();\n    const uint32_t stamp = static_cast<uint32_t>(iter + 1);\n    for (uint16_t code : codes) {\n      const std::size_t idx = static_cast<std::size_t>(code);\n      if (code_mark[idx] != stamp) {\n        code_mark[idx] = stamp;\n        touched_codes.push_back(code);\n      }\n    }\n\n    uint64_t distinct = 0;\n    for (std::size_t i = 0; i < touched_codes.size(); ++i) {\n      const std::string& s = dictionary[static_cast<std::size_t>(touched_codes[i])];\n      bool found = false;\n      for (std::size_t j = 0; j < i; ++j) {\n        if (dictionary[static_cast<std::size_t>(touched_codes[j])] == s) {\n          found = true;\n          break;\n        }\n      }\n      if (!found) ++distinct;\n    }\n    count = distinct;\n  }\n\n  return count;\n}\n",
+  "baseline": {
+    "task_id": "dictionary_distinct_count_v500_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2531064233,
+    "min_elapsed_ns": 2257862658,
+    "max_elapsed_ns": 2941613931,
+    "all_elapsed_ns": [
+      2257862658,
+      2941613931,
+      2531064233
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2257862658,
+      "expected_count": 4096,
+      "actual_count": 4096
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dictionary_distinct_count_v500_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 71636628,
+    "min_elapsed_ns": 66594112,
+    "max_elapsed_ns": 72306213,
+    "all_elapsed_ns": [
+      72306213,
+      71636628,
+      66594112
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 72306213,
+      "expected_count": 4096,
+      "actual_count": 4096
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dictionary_distinct_count_v500_i",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 79502030,
+    "min_elapsed_ns": 75414700,
+    "max_elapsed_ns": 91291670,
+    "all_elapsed_ns": [
+      91291670,
+      79502030,
+      75414700
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 91291670,
+      "expected_count": 4096,
+      "actual_count": 4096
+    },
+    "status": "ok"
+  }
+}

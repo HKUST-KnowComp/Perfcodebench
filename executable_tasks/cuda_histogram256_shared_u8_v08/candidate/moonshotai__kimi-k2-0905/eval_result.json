@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v08",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v08/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 6,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void histogram_shared_kernel(const unsigned char* __restrict__ input,\n                                        unsigned int* __restrict__ out, int n) {\n    __shared__ unsigned int smem[257];          // 257 to avoid bank conflicts\n    const int tid = threadIdx.x;\n    const int warpId = tid >> 5;\n    const int lane = tid & 31;\n\n    // zero shared memory cooperatively\n    for (int i = tid; i < 257; i += blockDim.x) smem[i] = 0;\n    __syncthreads();\n\n    // grid-stride loop with 4-byte vectorized loads and 4\u00d7 unroll\n    const int gridStride = blockDim.x * gridDim.x;\n    int idx = blockIdx.x * blockDim.x + tid;\n    const uint4* vecIn = reinterpret_cast<const uint4*>(input);\n    int vecCount = n >> 2;   // number of full uint4 elements\n\n    while (idx < vecCount) {\n        uint4 v = vecIn[idx];\n        #pragma unroll\n        for (int k = 0; k < 4; ++k) {\n            unsigned char b = reinterpret_cast<unsigned char*>(&v)[k];\n            smem[b]++;\n        }\n        idx += gridStride;\n    }\n\n    // handle tail bytes\n    int tailStart = vecCount << 2;\n    idx = tailStart + tid;\n    while (idx < n) {\n        unsigned char b = input[idx];\n        smem[b]++;\n        idx += blockDim.x;\n    }\n    __syncthreads();\n\n    // flush shared histogram to global memory using one warp only\n    if (warpId == 0) {\n        for (int bin = lane; bin < 256; bin += 32) {\n            unsigned int cnt = smem[bin];\n            if (cnt != 0) atomicAdd(out + bin, cnt);\n        }\n    }\n}\n\n}  // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters) {\n    constexpr int kBlock = 256;\n    constexpr int kGrid = 48;   // one block per SM on V100/A100\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, 256 * sizeof(unsigned int));\n        histogram_shared_kernel<<<kGrid, kBlock>>>(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v08",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1033982421,
+    "min_elapsed_ns": 1033971557,
+    "max_elapsed_ns": 1034044311,
+    "all_elapsed_ns": [
+      1033971557,
+      1033982421,
+      1034044311
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1033971557,
+      "checksum": 8623489024
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v08",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 9977408,
+    "min_elapsed_ns": 9960384,
+    "max_elapsed_ns": 9978688,
+    "all_elapsed_ns": [
+      9978688,
+      9960384,
+      9977408
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9978688,
+      "checksum": 8623489024
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v08",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_histogram256_shared_u8_v08/candidate/bench']' returned non-zero exit status 2."
+  }
+}

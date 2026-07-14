@@ -1,0 +1,72 @@
+{
+  "task_id": "bitmap_filter_sum_v600_g",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/bitmap_filter_sum_v600_g/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 8,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nuint64_t bitmap_filter_sum(\n    const std::vector<uint32_t>& enabled_keys,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int iters) {\n  const std::size_t n = probe_keys.size();\n  if (iters <= 0 || n == 0 || enabled_keys.empty() || key_space == 0) {\n    return 0;\n  }\n\n  // Dense bitmap over the bounded key space.\n  const std::size_t words = (static_cast<std::size_t>(key_space) + 63u) >> 6;\n  std::vector<uint64_t> bitmap(words, 0);\n\n  // Build once: enabled_keys is invariant across iterations.\n  for (uint32_t k : enabled_keys) {\n    if (k < key_space) {\n      bitmap[static_cast<std::size_t>(k) >> 6] |=\n          (uint64_t{1} << (k & 63u));\n    }\n  }\n\n  const uint32_t* pk = probe_keys.data();\n  const uint32_t* pv = values.data();\n  uint64_t sum = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t local_sum = 0;\n\n    std::size_t i = 0;\n    const std::size_t unroll_end = n & ~std::size_t(3);\n    for (; i < unroll_end; i += 4) {\n      const uint32_t k0 = pk[i + 0];\n      const uint32_t k1 = pk[i + 1];\n      const uint32_t k2 = pk[i + 2];\n      const uint32_t k3 = pk[i + 3];\n\n      if (k0 < key_space &&\n          (bitmap[static_cast<std::size_t>(k0) >> 6] & (uint64_t{1} << (k0 & 63u)))) {\n        local_sum += static_cast<uint64_t>(pv[i + 0]);\n      }\n      if (k1 < key_space &&\n          (bitmap[static_cast<std::size_t>(k1) >> 6] & (uint64_t{1} << (k1 & 63u)))) {\n        local_sum += static_cast<uint64_t>(pv[i + 1]);\n      }\n      if (k2 < key_space &&\n          (bitmap[static_cast<std::size_t>(k2) >> 6] & (uint64_t{1} << (k2 & 63u)))) {\n        local_sum += static_cast<uint64_t>(pv[i + 2]);\n      }\n      if (k3 < key_space &&\n          (bitmap[static_cast<std::size_t>(k3) >> 6] & (uint64_t{1} << (k3 & 63u)))) {\n        local_sum += static_cast<uint64_t>(pv[i + 3]);\n      }\n    }\n\n    for (; i < n; ++i) {\n      const uint32_t k = pk[i];\n      if (k < key_space &&\n          (bitmap[static_cast<std::size_t>(k) >> 6] & (uint64_t{1} << (k & 63u)))) {\n        local_sum += static_cast<uint64_t>(pv[i]);\n      }\n    }\n\n    sum = local_sum;\n  }\n\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "bitmap_filter_sum_v600_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4809731702,
+    "min_elapsed_ns": 4704333100,
+    "max_elapsed_ns": 5484571420,
+    "all_elapsed_ns": [
+      4809731702,
+      4704333100,
+      5484571420
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4809731702,
+      "expected_sum": 2151677952,
+      "actual_sum": 2151677952
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "bitmap_filter_sum_v600_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1132860211,
+    "min_elapsed_ns": 1124391647,
+    "max_elapsed_ns": 1139234003,
+    "all_elapsed_ns": [
+      1132860211,
+      1139234003,
+      1124391647
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1132860211,
+      "expected_sum": 2151677952,
+      "actual_sum": 2151677952
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "bitmap_filter_sum_v600_g",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 909093492,
+    "min_elapsed_ns": 898765524,
+    "max_elapsed_ns": 921209581,
+    "all_elapsed_ns": [
+      898765524,
+      921209581,
+      909093492
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 898765524,
+      "expected_sum": 2151677952,
+      "actual_sum": 2151677952
+    },
+    "status": "ok"
+  }
+}

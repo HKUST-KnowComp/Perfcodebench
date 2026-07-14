@@ -1,0 +1,72 @@
+{
+  "task_id": "is_utf8_line_validate",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/is_utf8_line_validate/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <string>\n\nnamespace {\n\n// Optimized UTF-8 validation that works on a raw pointer range\nbool is_valid_utf8_range(const unsigned char* p, const unsigned char* end) {\n    while (p < end) {\n        const unsigned char c = *p++;\n        if (c <= 0x7F) continue;\n        if (c >= 0xC2 && c <= 0xDF) {\n            if (p >= end || (p[0] & 0xC0) != 0x80) return false;\n            p++;\n            continue;\n        }\n        if (c >= 0xE0 && c <= 0xEF) {\n            if (end - p < 2) return false;\n            unsigned char c2 = p[0];\n            unsigned char c3 = p[1];\n            if ((c3 & 0xC0) != 0x80) return false;\n            if (c == 0xE0) {\n                if (c2 < 0xA0 || c2 > 0xBF) return false;\n            } else if (c == 0xED) {\n                if (c2 < 0x80 || c2 > 0x9F) return false;\n            } else {\n                if ((c2 & 0xC0) != 0x80) return false;\n            }\n            p += 2;\n            continue;\n        }\n        if (c >= 0xF0 && c <= 0xF4) {\n            if (end - p < 3) return false;\n            unsigned char c2 = p[0];\n            unsigned char c3 = p[1];\n            unsigned char c4 = p[2];\n            if ((c3 & 0xC0) != 0x80 || (c4 & 0xC0) != 0x80) return false;\n            if (c == 0xF0) {\n                if (c2 < 0x90 || c2 > 0xBF) return false;\n            } else if (c == 0xF4) {\n                if (c2 < 0x80 || c2 > 0x8F) return false;\n            } else {\n                if ((c2 & 0xC0) != 0x80) return false;\n            }\n            p += 3;\n            continue;\n        }\n        return false;\n    }\n    return true;\n}\n\n} // namespace\n\nstd::size_t count_valid_lines(const std::string& input) {\n    std::size_t count = 0;\n    const unsigned char* p = reinterpret_cast<const unsigned char*>(input.data());\n    const unsigned char* const end = p + input.size();\n\n    while (p < end) {\n        const unsigned char* line_start = p;\n        while (p < end && *p != '\\n') {\n            p++;\n        }\n        \n        if (is_valid_utf8_range(line_start, p)) {\n            count++;\n        }\n        \n        if (p < end && *p == '\\n') {\n            p++;\n        }\n    }\n    \n    // Handle trailing newline case: if the string ends with '\\n', \n    // the loop above processes the content before the last '\\n'.\n    // If the string is empty or ends with '\\n', the logic above is correct\n    // because the loop terminates. However, if the input is \"abc\\n\", \n    // it counts \"abc\". If it is \"abc\\n\\n\", it counts \"abc\" and \"\".\n    // The baseline logic: start = end + 1. If input is \"\\n\", start=0, end=0, \n    // substr(0,0) is valid, count=1, start=1. Loop ends. Correct.\n    \n    // To match baseline exactly for trailing newlines:\n    // If the input ends with '\\n', the baseline loop runs one more time \n    // because start < input.size() is checked after start = end + 1.\n    // Wait, if input = \"\\n\", size=1. start=0. end=0. substr(0,0) valid. count=1. start=1. \n    // Loop ends. \n    // If input = \"a\\n\", size=2. start=0. end=1. substr(0,1) valid. count=1. start=2. \n    // Loop ends.\n    // My current loop: input=\"\\n\". p=0, end=1. line_start=0, p=0. is_valid(0,0) true. count=1. p=1. Loop ends.\n    // input=\"a\\n\". p=0, end=2. line_start=0, p=1. is_valid(0,1) true. count=1. p=2. Loop ends.\n    // It matches.\n\n    return count;\n}",
+  "baseline": {
+    "task_id": "is_utf8_line_validate",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 8629148,
+    "min_elapsed_ns": 8546044,
+    "max_elapsed_ns": 8646924,
+    "all_elapsed_ns": [
+      8546044,
+      8646924,
+      8629148
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8546044,
+      "expected_count": 41142,
+      "actual_count": 41142
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "is_utf8_line_validate",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1669992,
+    "min_elapsed_ns": 1640817,
+    "max_elapsed_ns": 1717073,
+    "all_elapsed_ns": [
+      1717073,
+      1640817,
+      1669992
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1717073,
+      "expected_count": 41142,
+      "actual_count": 41142
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "is_utf8_line_validate",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 7434005,
+    "min_elapsed_ns": 6983113,
+    "max_elapsed_ns": 7590811,
+    "all_elapsed_ns": [
+      7434005,
+      7590811,
+      6983113
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7434005,
+      "expected_count": 41142,
+      "actual_count": 41142
+    },
+    "status": "ok"
+  }
+}

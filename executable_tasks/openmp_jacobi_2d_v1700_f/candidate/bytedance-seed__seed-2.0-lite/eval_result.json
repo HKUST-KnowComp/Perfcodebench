@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_jacobi_2d_v1700_f",
+  "model": "bytedance-seed/seed-2.0-lite",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v1700_f/candidate/bytedance-seed__seed-2.0-lite/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <omp.h>\n\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  const std::size_t cols_sz = static_cast<std::size_t>(cols);\n  const std::size_t total_sz = static_cast<std::size_t>(rows) * cols_sz;\n  std::vector<uint32_t> a = input;\n  std::vector<uint32_t> b = a;\n\n  // Boundaries are immutable, so no need to update them in every step\n  if (steps <= 0) {\n    return checksum_u32(a);\n  }\n\n  const int inner_row_start = 1;\n  const int inner_row_end = rows - 2;\n  const int inner_col_start = 1;\n  const int inner_col_end = cols - 2;\n\n  for (int step = 0; step < steps; ++step) {\n    if (inner_row_start > inner_row_end || inner_col_start > inner_col_end) {\n      // All cells are boundaries, no updates needed\n      a.swap(b);\n      continue;\n    }\n\n    #pragma omp parallel for schedule(static) default(none) shared(a, b, cols_sz) firstprivate(inner_row_end, inner_col_start, inner_col_end)\n    for (int row = inner_row_start; row <= inner_row_end; ++row) {\n      const std::size_t row_base = static_cast<std::size_t>(row) * cols_sz;\n      #pragma omp simd\n      for (int col = inner_col_start; col <= inner_col_end; ++col) {\n        const std::size_t idx = row_base + static_cast<std::size_t>(col);\n        b[idx] = (a[idx] * 4u + a[idx - 1] + a[idx + 1] +\n                  a[idx - cols_sz] + a[idx + cols_sz]) / 8u;\n      }\n    }\n    a.swap(b);\n  }\n\n  return checksum_u32(a);\n}",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v1700_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 123989468,
+    "min_elapsed_ns": 109350042,
+    "max_elapsed_ns": 251747799,
+    "all_elapsed_ns": [
+      109350042,
+      123989468,
+      251747799
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 109350042,
+      "expected_checksum": 18219294193654688755,
+      "actual_checksum": 18219294193654688755
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v1700_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 145790256,
+    "min_elapsed_ns": 120485204,
+    "max_elapsed_ns": 1133583251,
+    "all_elapsed_ns": [
+      1133583251,
+      145790256,
+      120485204
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1133583251,
+      "expected_checksum": 18219294193654688755,
+      "actual_checksum": 18219294193654688755
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v1700_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/openmp_jacobi_2d_v1700_f/candidate/bench']' timed out after 5 seconds"
+  }
+}

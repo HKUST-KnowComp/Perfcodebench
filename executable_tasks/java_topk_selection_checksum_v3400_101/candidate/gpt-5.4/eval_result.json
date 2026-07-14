@@ -1,0 +1,72 @@
+{
+  "task_id": "java_topk_selection_checksum_v3400_101",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/java_topk_selection_checksum_v3400_101/candidate/gpt-5.4/Solution.java",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "import java.util.*;\n\npublic class Solution {\n  // Exact ordering required by the task:\n  // higher score first, and for equal score lower index first.\n  private static boolean better(int scoreA, int indexA, int scoreB, int indexB) {\n    return scoreA > scoreB || (scoreA == scoreB && indexA < indexB);\n  }\n\n  private static void swap(int[] scores, int[] idx, int a, int b) {\n    int ts = scores[a];\n    scores[a] = scores[b];\n    scores[b] = ts;\n    int ti = idx[a];\n    idx[a] = idx[b];\n    idx[b] = ti;\n  }\n\n  // Median-of-three pivot selection on the task comparator.\n  private static int medianOf3(int[] scores, int[] idx, int a, int b, int c) {\n    int sa = scores[a], ia = idx[a];\n    int sb = scores[b], ib = idx[b];\n    int sc = scores[c], ic = idx[c];\n\n    if (better(sa, ia, sb, ib)) {\n      if (better(sb, ib, sc, ic)) return b;\n      return better(sa, ia, sc, ic) ? c : a;\n    } else {\n      if (better(sa, ia, sc, ic)) return a;\n      return better(sb, ib, sc, ic) ? c : b;\n    }\n  }\n\n  // 3-way partition quickselect so that positions [0, k) contain the exact top-k set.\n  private static void selectTopK(int[] scores, int[] idx, int n, int k) {\n    int left = 0, right = n - 1;\n    int target = k - 1;\n\n    while (left < right) {\n      int mid = (left + right) >>> 1;\n      int p = medianOf3(scores, idx, left, mid, right);\n      int pivotScore = scores[p];\n      int pivotIdx = idx[p];\n\n      int lt = left;\n      int i = left;\n      int gt = right;\n\n      while (i <= gt) {\n        int si = scores[i];\n        int ii = idx[i];\n        if (better(si, ii, pivotScore, pivotIdx)) {\n          swap(scores, idx, lt++, i++);\n        } else if (better(pivotScore, pivotIdx, si, ii)) {\n          swap(scores, idx, i, gt--);\n        } else {\n          i++;\n        }\n      }\n\n      if (target < lt) {\n        right = lt - 1;\n      } else if (target > gt) {\n        left = gt + 1;\n      } else {\n        return;\n      }\n    }\n  }\n\n  // Insertion sort is very fast for small k and nearly-partitioned data.\n  private static void insertionSortTopK(int[] scores, int[] idx, int k) {\n    for (int i = 1; i < k; i++) {\n      int s = scores[i];\n      int id = idx[i];\n      int j = i - 1;\n      while (j >= 0 && better(s, id, scores[j], idx[j])) {\n        scores[j + 1] = scores[j];\n        idx[j + 1] = idx[j];\n        j--;\n      }\n      scores[j + 1] = s;\n      idx[j + 1] = id;\n    }\n  }\n\n  private static void heapSortTopK(int[] scores, int[] idx, int k) {\n    // Build max-heap under the same comparator, then sort descending in-place.\n    for (int i = (k >>> 1) - 1; i >= 0; i--) siftDown(scores, idx, i, k);\n    for (int end = k - 1; end > 0; end--) {\n      swap(scores, idx, 0, end);\n      siftDown(scores, idx, 0, end);\n    }\n    // Heap sort above yields ascending under the comparator; reverse to descending.\n    for (int i = 0, j = k - 1; i < j; i++, j--) swap(scores, idx, i, j);\n  }\n\n  private static void siftDown(int[] scores, int[] idx, int root, int size) {\n    while (true) {\n      int child = (root << 1) + 1;\n      if (child >= size) return;\n      int best = child;\n      int right = child + 1;\n      if (right < size && better(scores[right], idx[right], scores[child], idx[child])) {\n        best = right;\n      }\n      if (!better(scores[best], idx[best], scores[root], idx[root])) return;\n      swap(scores, idx, root, best);\n      root = best;\n    }\n  }\n\n  public static long run(int[] inputScores, int k, int iters) {\n    final int n = inputScores.length;\n    if (k <= 0) {\n      long h = 1469598103934665603L;\n      return h;\n    }\n\n    int[] scores = new int[n];\n    int[] idx = new int[n];\n    for (int i = 0; i < n; i++) idx[i] = i;\n\n    long h = 0L;\n    for (int iter = 0; iter < iters; iter++) {\n      System.arraycopy(inputScores, 0, scores, 0, n);\n      // idx is deterministic; refill to restore after prior iteration mutations.\n      for (int i = 0; i < n; i++) idx[i] = i;\n\n      if (k < n) {\n        selectTopK(scores, idx, n, k);\n      }\n\n      if (k <= 64) {\n        insertionSortTopK(scores, idx, k);\n      } else {\n        heapSortTopK(scores, idx, k);\n      }\n\n      h = 1469598103934665603L;\n      for (int i = 0; i < k; i++) {\n        h ^= (((long) scores[i]) << 32) ^ (idx[i] & 0xffffffffL);\n        h *= 1099511628211L;\n      }\n    }\n    return h;\n  }\n}\n",
+  "baseline": {
+    "task_id": "java_topk_selection_checksum_v3400_101",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1836123260,
+    "min_elapsed_ns": 1821927204,
+    "max_elapsed_ns": 1848575016,
+    "all_elapsed_ns": [
+      1821927204,
+      1836123260,
+      1848575016
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1821927204,
+      "expected_checksum": 8237012014371744158,
+      "actual_checksum": 8237012014371744158
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "java_topk_selection_checksum_v3400_101",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 93026351,
+    "min_elapsed_ns": 84093752,
+    "max_elapsed_ns": 96059100,
+    "all_elapsed_ns": [
+      96059100,
+      93026351,
+      84093752
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 96059100,
+      "expected_checksum": 8237012014371744158,
+      "actual_checksum": 8237012014371744158
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "java_topk_selection_checksum_v3400_101",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 65000411,
+    "min_elapsed_ns": 63355996,
+    "max_elapsed_ns": 65624072,
+    "all_elapsed_ns": [
+      65624072,
+      65000411,
+      63355996
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 65624072,
+      "expected_checksum": 8237012014371744158,
+      "actual_checksum": 8237012014371744158
+    },
+    "status": "ok"
+  }
+}

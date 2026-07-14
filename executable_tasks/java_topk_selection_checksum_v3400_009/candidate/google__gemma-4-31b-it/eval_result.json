@@ -1,0 +1,59 @@
+{
+  "task_id": "java_topk_selection_checksum_v3400_009",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/java_topk_selection_checksum_v3400_009/candidate/google__gemma-4-31b-it/Solution.java",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "import java.util.*;\n\npublic class Solution {\n    public static long run(int[] scores, int k, int iters) {\n        int n = scores.length;\n        long[] packed = new long[n];\n        long h = 0;\n\n        for (int iter = 0; iter < iters; iter++) {\n            for (int i = 0; i < n; i++) {\n                // Pack score and index into a long for fast sorting.\n                // Score is shifted to high bits. \n                // To handle the tie-break (smaller index first), we use (n - 1 - index).\n                // This way, a larger value in the low bits corresponds to a smaller index.\n                // We use a bitmask to ensure the score is treated as unsigned/shifted correctly.\n                long s = scores[i];\n                packed[i] = ((s & 0xFFFFFFFFL) << 32) | (n - 1 - i);\n            }\n\n            quickSelect(packed, 0, n - 1, k);\n\n            // The top k are now in the first k positions, but not necessarily sorted.\n            // The problem requires the checksum over the ORDERED winners.\n            // So we must sort the top k elements.\n            Arrays.sort(packed, 0, k);\n            // Arrays.sort sorts ascending, so the top k (largest) are at the end of the range [0, k).\n            // However, our packed format makes larger scores larger values.\n            // So the top k are indices [0...k-1] after quickSelect, but we need them sorted descending.\n            \n            h = 1469598103934665603L;\n            for (int i = k - 1; i >= 0; i--) {\n                long val = packed[i];\n                int score = (int) (val >> 32);\n                int index = n - 1 - (int) (val & 0xFFFFFFFFL);\n                h ^= (((long) score) << 32) ^ (index & 0xffffffffL);\n                h *= 1099511628211L;\n            }\n        }\n        return h;\n    }\n\n    private static void quickSelect(long[] a, int left, int right, int k) {\n        while (left < right) {\n            int pivotIndex = partition(a, left, right);\n            if (pivotIndex == k) return;\n            if (pivotIndex < k) {\n                left = pivotIndex + 1;\n            } else {\n                right = pivotIndex - 1;\n            }\n        }\n    }\n\n    private static int partition(long[] a, int left, int right) {\n        long pivot = a[(left + right) >>> 1];\n        int i = left - 1;\n        int j = right + 1;\n        while (true) {\n            do { i++; } while (a[i] < pivot);\n            do { j--; } while (a[j] > pivot);\n            if (i >= j) return j;\n            long temp = a[i];\n            a[i] = a[j];\n            a[j] = temp;\n        }\n    }\n\n    // Redefining the logic to match the exact sorting requirement: \n    // The baseline sorts by score DESC, then index ASC.\n    // My packed long: (score << 32) | (n - 1 - index).\n    // A larger packed long means: larger score OR (same score and smaller index).\n    // This perfectly maps to the baseline's sorting criteria.\n    // To get the top k, we need the k largest packed longs.\n    \n    // Corrected run method to ensure the top k are selected and sorted correctly.\n    public static long runFixed(int[] scores, int k, int iters) {\n        int n = scores.length;\n        long[] packed = new long[n];\n        long h = 0;\n        for (int iter = 0; iter < iters; iter++) {\n            for (int i = 0; i < n; i++) {\n                packed[i] = (((long) scores[i]) << 32) | (n - 1 - i);\n            }\n            // We want the k largest elements. \n            // After this, elements from [n-k, n-1] will be the top k.\n            nthElement(packed, 0, n - 1, n - k);\n            \n            Arrays.sort(packed, n - k, n);\n            \n            h = 1469598103934665603L;\n            for (int i = n - 1; i >= n - k; i--) {\n                long val = packed[i];\n                int score = (int) (val >> 32);\n                int index = n - 1 - (int) (val & 0xFFFFFFFFL);\n                h ^= (((long) score) << 32) ^ (index & 0xffffffffL);\n                h *= 1099511628211L;\n            }\n        }\n        return h;\n    }\n\n    private static void nthElement(long[] a, int left, int right, int n) {\n        while (left < right) {\n            int i = left, j = right;\n            long pivot = a[(i + j) >>> 1];\n            while (i <= j) {\n                while (a[i] < pivot) i++;\n                while (a[j] > pivot) j--;\n                if (i <= j) {\n                    long temp = a[i]; a[i] = a[j]; a[j] = temp;\n                    i++; j--;\n                }\n            }\n            if (n <= j) right = j;\n            else if (n >= i) left = i;\n            else break;\n        }\n    }\n\n    // Overriding the entry point to use the fixed logic\n    public static long run(int[] scores, int k, int iters) {\n        return runFixed(scores, k, iters);\n    }\n}",
+  "baseline": {
+    "task_id": "java_topk_selection_checksum_v3400_009",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 791037516,
+    "min_elapsed_ns": 771976181,
+    "max_elapsed_ns": 835612424,
+    "all_elapsed_ns": [
+      835612424,
+      791037516,
+      771976181
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 835612424,
+      "expected_checksum": -157625415545386436,
+      "actual_checksum": -157625415545386436
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "java_topk_selection_checksum_v3400_009",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 52701826,
+    "min_elapsed_ns": 51483712,
+    "max_elapsed_ns": 61846058,
+    "all_elapsed_ns": [
+      61846058,
+      52701826,
+      51483712
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 61846058,
+      "expected_checksum": -157625415545386436,
+      "actual_checksum": -157625415545386436
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "java_topk_selection_checksum_v3400_009",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['javac', '-d', 'build/java_topk_selection_checksum_v3400_009/candidate', 'executable_tasks/java_topk_selection_checksum_v3400_009/harness/BenchmarkMain.java', 'executable_tasks/java_topk_selection_checksum_v3400_009/candidate/google__gemma-4-31b-it/Solution.java']' returned non-zero exit status 1."
+  }
+}

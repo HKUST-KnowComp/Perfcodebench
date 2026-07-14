@@ -1,0 +1,72 @@
+{
+  "task_id": "c_image_blend_checksum_v2800_049",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_image_blend_checksum_v2800_049/candidate/moonshotai__kimi-k2-0905/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <stdint.h>\n#include <stdlib.h>\n#include <emmintrin.h>\n\nstatic inline __m128i blend_rgba(__m128i s, __m128i d)\n{\n    /*\n     * Layout after _mm_unpacklo/hi_epi8 (low 64 bits shown):\n     * s:  b7 g7 r7 a7 ... b0 g0 r0 a0   (16 bytes)\n     * d:  same layout for destination\n     *\n     * Goal: compute blended RGB, keep dest alpha 255.\n     */\n    __m128i zero = _mm_setzero_si128();\n    __m128i s_lo = _mm_unpacklo_epi8(s, zero);\n    __m128i s_hi = _mm_unpackhi_epi8(s, zero);\n    __m128i d_lo = _mm_unpacklo_epi8(d, zero);\n    __m128i d_hi = _mm_unpackhi_epi8(d, zero);\n\n    /* Extract alpha for each pixel and replicate across RGBA lanes.\n       Alpha is in bytes 3,7,11,15. */\n    __m128i alpha = _mm_shuffle_epi32(_mm_shuffle_epi8(s,\n                                   _mm_setr_epi8(3,3,3,3, 7,7,7,7, 11,11,11,11, 15,15,15,15)),\n                                   _MM_SHUFFLE(3,2,1,0));\n    __m128i a_lo = _mm_unpacklo_epi8(alpha, zero);\n    __m128i a_hi = _mm_unpackhi_epi8(alpha, zero);\n\n    /* d * (255 - a) */\n    __m128i da_lo = _mm_sub_epi16(_mm_set1_epi16(255), a_lo);\n    __m128i da_hi = _mm_sub_epi16(_mm_set1_epi16(255), a_hi);\n    da_lo = _mm_mullo_epi16(d_lo, da_lo);\n    da_hi = _mm_mullo_epi16(d_hi, da_hi);\n\n    /* s * a */\n    __m128i sa_lo = _mm_mullo_epi16(s_lo, a_lo);\n    __m128i sa_hi = _mm_mullo_epi16(s_hi, a_hi);\n\n    /* Sum + 127 for rounding */\n    __m128i sum_lo = _mm_add_epi16(sa_lo, da_lo);\n    __m128i sum_hi = _mm_add_epi16(sa_hi, da_hi);\n    sum_lo = _mm_add_epi16(sum_lo, _mm_set1_epi16(127));\n    sum_hi = _mm_add_epi16(sum_hi, _mm_set1_epi16(127));\n\n    /* Divide by 255 using multiply-high trick: x/255 \u2248 (x*0x8081)>>23 */\n    const __m128i mul = _mm_set1_epi16(0x8081);\n    sum_lo = _mm_mulhi_epu16(sum_lo, mul);\n    sum_hi = _mm_mulhi_epu16(sum_hi, mul);\n\n    /* Pack back to RGBA, force alpha=255 */\n    __m128i out = _mm_packus_epi16(sum_lo, sum_hi);\n    out = _mm_or_si128(out, _mm_set1_epi32(0xFF000000));\n    return out;\n}\n\nuint64_t run(const uint8_t* src, const uint8_t* dst, int width, int height, int iters)\n{\n    size_t pixels = (size_t)width * (size_t)height;\n    uint64_t hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint8_t* out = (uint8_t*)malloc(pixels * 4u);\n        if (!out) return 0;\n\n        const __m128i* s = (const __m128i*)src;\n        const __m128i* d = (const __m128i*)dst;\n        __m128i* o = (__m128i*)out;\n        size_t i = 0;\n\n        /* Blend 4 pixels (16 bytes) per iteration */\n        for (; i + 15 < pixels * 4; i += 16) {\n            __m128i sv = _mm_loadu_si128(s++);\n            __m128i dv = _mm_loadu_si128(d++);\n            __m128i res = blend_rgba(sv, dv);\n            _mm_storeu_si128(o++, res);\n        }\n\n        /* Tail: scalar fallback for remaining <4 pixels */\n        for (; i < pixels * 4; i += 4) {\n            uint8_t a = src[i + 3];\n            out[i + 0] = (uint8_t)(((uint32_t)src[i + 0] * a + (uint32_t)dst[i + 0] * (255u - a) + 127u) / 255u);\n            out[i + 1] = (uint8_t)(((uint32_t)src[i + 1] * a + (uint32_t)dst[i + 1] * (255u - a) + 127u) / 255u);\n            out[i + 2] = (uint8_t)(((uint32_t)src[i + 2] * a + (uint32_t)dst[i + 2] * (255u - a) + 127u) / 255u);\n            out[i + 3] = 255u;\n        }\n\n        /* Fused checksum while data is hot in cache */\n        uint64_t h = 1469598103934665603ULL;\n        const uint8_t* p = out;\n        for (size_t j = 0; j < pixels * 4; ++j) {\n            h ^= (uint64_t)p[j];\n            h *= 1099511628211ULL;\n        }\n        hash = h;\n        free(out);\n    }\n    return hash;\n}",
+  "baseline": {
+    "task_id": "c_image_blend_checksum_v2800_049",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 15887000,
+    "min_elapsed_ns": 15793000,
+    "max_elapsed_ns": 15971000,
+    "all_elapsed_ns": [
+      15793000,
+      15971000,
+      15887000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15793000,
+      "expected_checksum": 10685353658636860825,
+      "actual_checksum": 10685353658636860825
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_image_blend_checksum_v2800_049",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 15805000,
+    "min_elapsed_ns": 15521000,
+    "max_elapsed_ns": 18159000,
+    "all_elapsed_ns": [
+      15521000,
+      18159000,
+      15805000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15521000,
+      "expected_checksum": 10685353658636860825,
+      "actual_checksum": 10685353658636860825
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_image_blend_checksum_v2800_049",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 17644000,
+    "min_elapsed_ns": 16673000,
+    "max_elapsed_ns": 22450000,
+    "all_elapsed_ns": [
+      16673000,
+      17644000,
+      22450000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 16673000,
+      "expected_checksum": 10685353658636860825,
+      "actual_checksum": 10685353658636860825
+    },
+    "status": "ok"
+  }
+}

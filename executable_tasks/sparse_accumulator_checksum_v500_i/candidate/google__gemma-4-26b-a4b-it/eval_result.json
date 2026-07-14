@@ -1,0 +1,72 @@
+{
+  "task_id": "sparse_accumulator_checksum_v500_i",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sparse_accumulator_checksum_v500_i/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n#include <cstdint>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\nstruct Entry {\n    uint32_t index;\n    uint64_t value;\n};\n\n} // namespace\n\nuint64_t sparse_accumulator_hash(\n    const std::vector<uint32_t>& indices,\n    const std::vector<uint32_t>& values,\n    uint32_t domain,\n    int iters) {\n    \n    if (indices.empty()) {\n        uint64_t hash = 1469598103934665603ULL;\n        for (uint32_t k = 0; k < domain; ++k) {\n            hash = mix(hash, 0ULL);\n        }\n        // Note: The loop above is still O(domain). \n        // However, mathematically, mixing 0 repeatedly can be optimized.\n        // But for correctness with the specific mix function:\n        for (int i = 0; i < iters; ++i) {\n            hash = 1469598103934665603ULL;\n            for (uint32_t k = 0; k < domain; ++k) {\n                hash = mix(hash, 0ULL);\n            }\n        }\n        return hash;\n    }\n\n    // Pre-allocate to avoid reallocations\n    std::vector<Entry> entries(indices.size());\n    uint64_t final_hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        for (std::size_t i = 0; i < indices.size(); ++i) {\n            entries[i] = {indices[i], static_cast<uint64_t>(values[i])};\n        }\n\n        // Sort by index to allow linear accumulation and gap detection\n        std::sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) {\n            return a.index < b.index;\n        });\n\n        // Accumulate values for duplicate indices\n        std::vector<Entry> compressed;\n        compressed.reserve(entries.size());\n        if (!entries.empty()) {\n            compressed.push_back(entries[0]);\n            for (std::size_t i = 1; i < entries.size(); ++i) {\n                if (entries[i].index == compressed.back().index) {\n                    compressed.back().value += entries[i].value;\n                } else {\n                    compressed.push_back(entries[i]);\n                }\n            }\n        }\n\n        uint64_t hash = 1469598103934665603ULL;\n        uint32_t current_idx = 0;\n\n        // Iterate through compressed entries and fill gaps with 0\n        for (const auto& entry : compressed) {\n            // Fill gaps from current_idx to entry.index - 1 with 0\n            while (current_idx < entry.index) {\n                hash = mix(hash, 0ULL);\n                current_idx++;\n            }\n            // Apply the accumulated value\n            hash = mix(hash, entry.value);\n            current_idx = entry.index + 1;\n        }\n\n        // Fill remaining gaps up to domain\n        while (current_idx < domain) {\n            hash = mix(hash, 0ULL);\n            current_idx++;\n        }\n        \n        final_hash = hash;\n    }\n\n    return final_hash;\n}",
+  "baseline": {
+    "task_id": "sparse_accumulator_checksum_v500_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 656150285,
+    "min_elapsed_ns": 655537770,
+    "max_elapsed_ns": 690661749,
+    "all_elapsed_ns": [
+      690661749,
+      655537770,
+      656150285
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 690661749,
+      "expected_checksum": 7011805548364326379,
+      "actual_checksum": 7011805548364326379
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sparse_accumulator_checksum_v500_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 61695435,
+    "min_elapsed_ns": 59845889,
+    "max_elapsed_ns": 62727262,
+    "all_elapsed_ns": [
+      61695435,
+      62727262,
+      59845889
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 61695435,
+      "expected_checksum": 7011805548364326379,
+      "actual_checksum": 7011805548364326379
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sparse_accumulator_checksum_v500_i",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 3164052121,
+    "min_elapsed_ns": 3063839935,
+    "max_elapsed_ns": 3395138662,
+    "all_elapsed_ns": [
+      3063839935,
+      3164052121,
+      3395138662
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3063839935,
+      "expected_checksum": 7011805548364326379,
+      "actual_checksum": 7011805548364326379
+    },
+    "status": "ok"
+  }
+}

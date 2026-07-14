@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_011",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_011/candidate/google__gemini-3.1-pro-preview/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <stdint.h>\n#include <stdlib.h>\n\n/**\n * Optimized linear audio resampling with integrated FNV-1a checksum.\n * \n * Key optimizations:\n * 1. Moved malloc/free outside the iteration loop.\n * 2. Combined resampling and checksum calculation to improve cache locality.\n * 3. Replaced double-precision floating point with 64-bit fixed-point arithmetic (32.32).\n * 4. Pre-calculated the step size to avoid division inside the inner loop.\n */\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n    if (output_len <= 0) return 0;\n\n    // Allocate buffer once outside the loop\n    int16_t* out = (int16_t*)malloc((size_t)output_len * sizeof(int16_t));\n    if (!out) return 0;\n\n    uint64_t final_hash = 0;\n    const uint64_t fnv_prime = 1099511628211ULL;\n    const uint64_t fnv_offset_basis = 1469598103934665603ULL;\n\n    // Pre-calculate step size in 32.32 fixed point\n    // pos = i * (input_len - 1) / (output_len - 1)\n    uint64_t step_fixed = 0;\n    if (output_len > 1) {\n        step_fixed = (((uint64_t)(input_len - 1)) << 32) / (output_len - 1);\n    }\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t hash = fnv_offset_basis;\n        uint64_t pos_fixed = 0;\n\n        for (int i = 0; i < output_len; ++i) {\n            int left = (int)(pos_fixed >> 32);\n            int right = left + 1;\n            if (right >= input_len) right = input_len - 1;\n\n            // frac is the lower 32 bits of pos_fixed\n            uint64_t frac_fixed = pos_fixed & 0xFFFFFFFFULL;\n\n            // Linear interpolation: sample = src[left] + frac * (src[right] - src[left])\n            // Using 64-bit intermediate to prevent overflow before the shift\n            int32_t s_left = (int32_t)src[left];\n            int32_t s_right = (int32_t)src[right];\n            int32_t diff = s_right - s_left;\n            \n            // Fixed point multiply: (diff * frac_fixed) >> 32\n            int64_t product = (int64_t)diff * (int64_t)frac_fixed;\n            \n            // Rounding logic equivalent to: (int16_t)(sample + (sample >= 0 ? 0.5 : -0.5))\n            // In fixed point, 0.5 is 1 << 31.\n            int64_t sample_fixed = ((int64_t)s_left << 32) + product;\n            \n            int16_t result;\n            if (sample_fixed >= 0) {\n                result = (int16_t)((sample_fixed + 0x80000000LL) >> 32);\n            } else {\n                result = (int16_t)((sample_fixed - 0x7FFFFFFFLL) >> 32);\n            }\n\n            // Update checksum\n            hash ^= (uint16_t)result;\n            hash *= fnv_prime;\n\n            pos_fixed += step_fixed;\n        }\n        final_hash = hash;\n    }\n\n    free(out);\n    return final_hash;\n}\n",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_011",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 878000,
+    "min_elapsed_ns": 817000,
+    "max_elapsed_ns": 900000,
+    "all_elapsed_ns": [
+      900000,
+      817000,
+      878000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 900000,
+      "expected_checksum": 4215574957456807525,
+      "actual_checksum": 4215574957456807525
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_011",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 752000,
+    "min_elapsed_ns": 707000,
+    "max_elapsed_ns": 852000,
+    "all_elapsed_ns": [
+      752000,
+      852000,
+      707000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 752000,
+      "expected_checksum": 4215574957456807525,
+      "actual_checksum": 4215574957456807525
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_011",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 655000,
+    "min_elapsed_ns": 625000,
+    "max_elapsed_ns": 736000,
+    "all_elapsed_ns": [
+      736000,
+      625000,
+      655000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 736000,
+      "expected_checksum": 4215574957456807525,
+      "actual_checksum": 4215574957456807525
+    },
+    "status": "ok"
+  }
+}

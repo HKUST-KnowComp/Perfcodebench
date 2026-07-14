@@ -1,0 +1,72 @@
+{
+  "task_id": "moe_router_top2",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/moe_router_top2/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nuint64_t moe_router_checksum(const std::vector<int32_t>& logits, int tokens, int experts, int iters) {\n    const int32_t* __restrict__ data = logits.data();\n    const std::size_t stride = static_cast<std::size_t>(experts);\n    \n    uint64_t hash = 0;\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        hash = 1469598103934665603ULL;\n        \n        for (int t = 0; t < tokens; ++t) {\n            const int32_t* row = data + static_cast<std::size_t>(t) * stride;\n            \n            // Find top-2 with deterministic tie-breaking (lower index wins)\n            // Initialize with first two elements in correct order\n            int32_t top1_val, top2_val;\n            int top1_idx, top2_idx;\n            \n            if (experts >= 2) {\n                int32_t v0 = row[0];\n                int32_t v1 = row[1];\n                // v0 is better if v0 > v1, or v0 == v1 (index 0 < 1)\n                // So v0 is better unless v1 > v0\n                if (v1 > v0) {\n                    top1_val = v1; top1_idx = 1;\n                    top2_val = v0; top2_idx = 0;\n                } else {\n                    top1_val = v0; top1_idx = 0;\n                    top2_val = v1; top2_idx = 1;\n                }\n            } else {\n                // Edge case: only 1 expert (shouldn't happen for top-2, but handle it)\n                top1_val = row[0]; top1_idx = 0;\n                top2_val = row[0]; top2_idx = 0;\n            }\n            \n            // Scan remaining experts\n            for (int e = 2; e < experts; ++e) {\n                int32_t val = row[e];\n                \n                // Check if this beats top1: val > top1_val, or (val == top1_val && e < top1_idx)\n                // Since e > top1_idx always (we process in order and top1_idx < e), \n                // tie goes to existing top1. So only val > top1_val promotes to top1.\n                if (val > top1_val) {\n                    // New top1, old top1 becomes top2\n                    top2_val = top1_val;\n                    top2_idx = top1_idx;\n                    top1_val = val;\n                    top1_idx = e;\n                } else if (val > top2_val) {\n                    // Beats top2 but not top1\n                    // Same logic: e > top2_idx, so only strictly greater wins\n                    top2_val = val;\n                    top2_idx = e;\n                }\n                // If val == top2_val, existing top2 wins (lower index)\n            }\n            \n            // Mix into hash (FNV-1a style)\n            hash ^= static_cast<uint64_t>(static_cast<uint32_t>(top1_val));\n            hash *= 1099511628211ULL;\n            hash ^= static_cast<uint64_t>(top1_idx);\n            hash *= 1099511628211ULL;\n            hash ^= static_cast<uint64_t>(static_cast<uint32_t>(top2_val));\n            hash *= 1099511628211ULL;\n            hash ^= static_cast<uint64_t>(top2_idx);\n            hash *= 1099511628211ULL;\n        }\n    }\n    \n    return hash;\n}\n",
+  "baseline": {
+    "task_id": "moe_router_top2",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 456825100,
+    "min_elapsed_ns": 441124408,
+    "max_elapsed_ns": 480184229,
+    "all_elapsed_ns": [
+      456825100,
+      441124408,
+      480184229
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 456825100,
+      "expected_checksum": 9796343864209795290,
+      "actual_checksum": 9796343864209795290
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "moe_router_top2",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 30116813,
+    "min_elapsed_ns": 28807369,
+    "max_elapsed_ns": 35949886,
+    "all_elapsed_ns": [
+      28807369,
+      35949886,
+      30116813
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 28807369,
+      "expected_checksum": 9796343864209795290,
+      "actual_checksum": 9796343864209795290
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "moe_router_top2",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 19275391,
+    "min_elapsed_ns": 18401470,
+    "max_elapsed_ns": 19467940,
+    "all_elapsed_ns": [
+      19467940,
+      19275391,
+      18401470
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 19467940,
+      "expected_checksum": 9796343864209795290,
+      "actual_checksum": 9796343864209795290
+    },
+    "status": "ok"
+  }
+}

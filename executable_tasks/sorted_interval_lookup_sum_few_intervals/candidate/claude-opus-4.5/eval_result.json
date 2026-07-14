@@ -1,0 +1,59 @@
+{
+  "task_id": "sorted_interval_lookup_sum_few_intervals",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sorted_interval_lookup_sum_few_intervals/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <immintrin.h>\n\nuint64_t interval_lookup_sum(\n    const std::vector<uint32_t>& starts,\n    const std::vector<uint32_t>& ends,\n    const std::vector<uint32_t>& payloads,\n    const std::vector<uint32_t>& probes,\n    const std::vector<uint32_t>& weights,\n    int iters) {\n  (void)ends;\n  \n  const std::size_t n_intervals = starts.size();\n  const std::size_t n_probes = probes.size();\n  \n  if (n_intervals == 0 || n_probes == 0) {\n    return 0;\n  }\n  \n  const uint32_t* starts_ptr = starts.data();\n  const uint32_t* payloads_ptr = payloads.data();\n  const uint32_t* probes_ptr = probes.data();\n  const uint32_t* weights_ptr = weights.data();\n  \n  uint64_t sum = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    \n    __m256i sum_lo = _mm256_setzero_si256();\n    __m256i sum_hi = _mm256_setzero_si256();\n    \n    std::size_t i = 0;\n    \n    // Process 8 probes at a time using AVX2\n    for (; i + 8 <= n_probes; i += 8) {\n      // Prefetch future data\n      if (i + 32 < n_probes) {\n        _mm_prefetch(reinterpret_cast<const char*>(probes_ptr + i + 32), _MM_HINT_T0);\n        _mm_prefetch(reinterpret_cast<const char*>(weights_ptr + i + 32), _MM_HINT_T0);\n      }\n      \n      // Load 8 probes and weights\n      __m256i probe_vec = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(probes_ptr + i));\n      __m256i weight_vec = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(weights_ptr + i));\n      \n      // Vectorized binary search (upper_bound - 1)\n      __m256i lo = _mm256_setzero_si256();\n      __m256i hi = _mm256_set1_epi32(static_cast<int>(n_intervals));\n      \n      while (true) {\n        __m256i diff = _mm256_sub_epi32(hi, lo);\n        __m256i ones = _mm256_set1_epi32(1);\n        __m256i all_one = _mm256_cmpeq_epi32(diff, ones);\n        if (_mm256_movemask_epi8(all_one) == -1) break;\n        \n        __m256i mid = _mm256_srli_epi32(_mm256_add_epi32(lo, hi), 1);\n        \n        // Gather starts[mid]\n        __m256i starts_mid = _mm256_i32gather_epi32(reinterpret_cast<const int*>(starts_ptr), mid, 4);\n        \n        // Compare: starts[mid] <= probe ? (we want upper_bound, so starts[mid] <= probe means go right)\n        __m256i cmp = _mm256_cmpgt_epi32(probe_vec, _mm256_sub_epi32(starts_mid, ones));\n        \n        // Update lo and hi based on comparison\n        lo = _mm256_blendv_epi8(lo, mid, cmp);\n        hi = _mm256_blendv_epi8(mid, hi, cmp);\n      }\n      \n      // lo now contains the indices (upper_bound - 1)\n      __m256i idx_vec = lo;\n      \n      // Gather payloads[idx]\n      __m256i payload_vec = _mm256_i32gather_epi32(reinterpret_cast<const int*>(payloads_ptr), idx_vec, 4);\n      \n      // Multiply payload * weight (need 64-bit result)\n      // Split into low and high 4 elements\n      __m256i payload_lo = _mm256_cvtepu32_epi64(_mm256_castsi256_si128(payload_vec));\n      __m256i payload_hi = _mm256_cvtepu32_epi64(_mm256_extracti128_si256(payload_vec, 1));\n      __m256i weight_lo = _mm256_cvtepu32_epi64(_mm256_castsi256_si128(weight_vec));\n      __m256i weight_hi = _mm256_cvtepu32_epi64(_mm256_extracti128_si256(weight_vec, 1));\n      \n      // 64-bit multiply\n      __m256i prod_lo = _mm256_mul_epu32(payload_lo, weight_lo);\n      __m256i prod_hi = _mm256_mul_epu32(payload_hi, weight_hi);\n      \n      sum_lo = _mm256_add_epi64(sum_lo, prod_lo);\n      sum_hi = _mm256_add_epi64(sum_hi, prod_hi);\n    }\n    \n    // Horizontal sum of vector accumulators\n    __m256i total = _mm256_add_epi64(sum_lo, sum_hi);\n    __m128i total_128 = _mm_add_epi64(_mm256_castsi256_si128(total), _mm256_extracti128_si256(total, 1));\n    total_128 = _mm_add_epi64(total_128, _mm_srli_si128(total_128, 8));\n    sum = static_cast<uint64_t>(_mm_cvtsi128_si64(total_128));\n    \n    // Handle remaining probes with scalar code\n    for (; i < n_probes; ++i) {\n      const auto it = std::upper_bound(starts.begin(), starts.end(), probes_ptr[i]);\n      const std::size_t idx = static_cast<std::size_t>(it - starts.begin() - 1);\n      sum += static_cast<uint64_t>(payloads_ptr[idx]) * static_cast<uint64_t>(weights_ptr[i]);\n    }\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "sorted_interval_lookup_sum_few_intervals",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 745637715,
+    "min_elapsed_ns": 665888108,
+    "max_elapsed_ns": 929532083,
+    "all_elapsed_ns": [
+      665888108,
+      745637715,
+      929532083
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 665888108,
+      "expected_sum": 171652150376,
+      "actual_sum": 171652150376
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sorted_interval_lookup_sum_few_intervals",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 86109904,
+    "min_elapsed_ns": 74407133,
+    "max_elapsed_ns": 209281447,
+    "all_elapsed_ns": [
+      209281447,
+      86109904,
+      74407133
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 209281447,
+      "expected_sum": 171652150376,
+      "actual_sum": 171652150376
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sorted_interval_lookup_sum_few_intervals",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/sorted_interval_lookup_sum_few_intervals/harness', 'executable_tasks/sorted_interval_lookup_sum_few_intervals/harness/benchmark_main.cpp', 'executable_tasks/sorted_interval_lookup_sum_few_intervals/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/sorted_interval_lookup_sum_few_intervals/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "yyjson_stringify_v2400_h",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/yyjson_stringify_v2400_h/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <string>\n#include <vector>\n#include <cstdint>\n#include <cstring>\n\nnamespace {\n\ninline uint32_t count_digits_u32(uint32_t v) {\n  if (v >= 1000000000u) return 10;\n  if (v >= 100000000u) return 9;\n  if (v >= 10000000u) return 8;\n  if (v >= 1000000u) return 7;\n  if (v >= 100000u) return 6;\n  if (v >= 10000u) return 5;\n  if (v >= 1000u) return 4;\n  if (v >= 100u) return 3;\n  if (v >= 10u) return 2;\n  return 1;\n}\n\ninline void append_u32(std::string &out, uint32_t v) {\n  char buf[10];\n  uint32_t pos = 10;\n  do {\n    uint32_t q = v / 10u;\n    buf[--pos] = static_cast<char>('0' + (v - q * 10u));\n    v = q;\n  } while (v != 0);\n  out.append(buf + pos, 10 - pos);\n}\n\ninline std::size_t escaped_json_size(const std::string &s) {\n  std::size_t extra = 0;\n  for (unsigned char c : s) {\n    switch (c) {\n      case '\"':\n      case '\\\\':\n      case '\\b':\n      case '\\f':\n      case '\\n':\n      case '\\r':\n      case '\\t':\n        ++extra;\n        break;\n      default:\n        if (c < 0x20) extra += 5;\n        break;\n    }\n  }\n  return s.size() + extra;\n}\n\ninline void append_json_escaped(std::string &out, const std::string &s) {\n  static constexpr char hex[] = \"0123456789abcdef\";\n  const char *p = s.data();\n  const char *end = p + s.size();\n  const char *chunk = p;\n\n  while (p != end) {\n    unsigned char c = static_cast<unsigned char>(*p);\n    const char *esc = nullptr;\n    char short_esc = 0;\n    switch (c) {\n      case '\"': esc = \"\\\\\\\"\"; break;\n      case '\\\\': esc = \"\\\\\\\\\"; break;\n      case '\\b': short_esc = 'b'; break;\n      case '\\f': short_esc = 'f'; break;\n      case '\\n': short_esc = 'n'; break;\n      case '\\r': short_esc = 'r'; break;\n      case '\\t': short_esc = 't'; break;\n      default: break;\n    }\n\n    if (esc || short_esc || c < 0x20) {\n      if (p != chunk) out.append(chunk, static_cast<std::size_t>(p - chunk));\n      if (esc) {\n        out.append(esc, 2);\n      } else if (short_esc) {\n        out.push_back('\\\\');\n        out.push_back(short_esc);\n      } else {\n        char buf[6];\n        buf[0] = '\\\\';\n        buf[1] = 'u';\n        buf[2] = '0';\n        buf[3] = '0';\n        buf[4] = hex[c >> 4];\n        buf[5] = hex[c & 0x0F];\n        out.append(buf, 6);\n      }\n      ++p;\n      chunk = p;\n    } else {\n      ++p;\n    }\n  }\n\n  if (chunk != end) out.append(chunk, static_cast<std::size_t>(end - chunk));\n}\n\n}  // namespace\n\nstd::string build_json(\n    const std::vector<uint32_t>& ids,\n    const std::vector<uint32_t>& values,\n    const std::vector<std::string>& names) {\n  const std::size_t n = ids.size();\n\n  std::size_t total = 2;  // [ ]\n  for (std::size_t i = 0; i < n; ++i) {\n    total += 35;  // punctuation + keys + bool text + quotes around name/object\n    total += count_digits_u32(ids[i]);\n    total += count_digits_u32(values[i]);\n    total += escaped_json_size(names[i]);\n  }\n  if (n > 1) total += (n - 1);\n\n  std::string out;\n  out.reserve(total);\n  out.push_back('[');\n\n  for (std::size_t i = 0; i < n; ++i) {\n    if (i) out.push_back(',');\n    out.append(\"{\\\"id\\\":\", 6);\n    append_u32(out, ids[i]);\n    out.append(\",\\\"flag\\\":\", 9);\n    if ((ids[i] % 3u) == 0u) {\n      out.append(\"true\", 4);\n    } else {\n      out.append(\"false\", 5);\n    }\n    out.append(\",\\\"value\\\":\", 10);\n    append_u32(out, values[i]);\n    out.append(\",\\\"name\\\":\\\"\", 10);\n    append_json_escaped(out, names[i]);\n    out.append(\"\\\"}\", 2);\n  }\n\n  out.push_back(']');\n  return out;\n}\n",
+  "baseline": {
+    "task_id": "yyjson_stringify_v2400_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 652072,
+    "min_elapsed_ns": 647207,
+    "max_elapsed_ns": 662756,
+    "all_elapsed_ns": [
+      662756,
+      652072,
+      647207
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 662756,
+      "expected_size": 58290,
+      "actual_size": 58290
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "yyjson_stringify_v2400_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 161295,
+    "min_elapsed_ns": 149389,
+    "max_elapsed_ns": 182155,
+    "all_elapsed_ns": [
+      182155,
+      161295,
+      149389
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 182155,
+      "expected_size": 58290,
+      "actual_size": 58290
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "yyjson_stringify_v2400_h",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/yyjson_stringify_v2400_h/candidate/bench']' returned non-zero exit status 1."
+  }
+}

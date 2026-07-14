@@ -1,0 +1,59 @@
+{
+  "task_id": "coo_to_csr_offsets_checksum_many_rows",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/coo_to_csr_offsets_checksum_many_rows/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstdint>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t csr_offsets_hash(const std::vector<uint32_t>& row_ids, uint32_t rows, int iters) {\n  const size_t n = row_ids.size();\n  const size_t offset_size = static_cast<size_t>(rows) + 1u;\n  \n  // Pre-allocate buffers outside the loop\n  std::vector<uint32_t> counts(rows, 0);\n  std::vector<uint32_t> offsets(offset_size);\n  \n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    // Clear counts\n    std::fill(counts.begin(), counts.end(), 0);\n    \n    // Count occurrences of each row - simple histogram\n    // Since row_ids are sorted, we could use run-length but histogram is cache-friendly\n    const uint32_t* __restrict row_ptr = row_ids.data();\n    uint32_t* __restrict cnt_ptr = counts.data();\n    \n    for (size_t i = 0; i < n; ++i) {\n      ++cnt_ptr[row_ptr[i]];\n    }\n    \n    // Compute prefix sum to get offsets\n    uint32_t* __restrict off_ptr = offsets.data();\n    off_ptr[0] = 0;\n    \n    uint32_t cumsum = 0;\n    for (uint32_t r = 0; r < rows; ++r) {\n      cumsum += cnt_ptr[r];\n      off_ptr[r + 1] = cumsum;\n    }\n    \n    // Compute hash\n    hash = 1469598103934665603ULL;\n    for (size_t i = 0; i < offset_size; ++i) {\n      hash = mix(hash, off_ptr[i]);\n    }\n  }\n  \n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "coo_to_csr_offsets_checksum_many_rows",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 507061094,
+    "min_elapsed_ns": 501194471,
+    "max_elapsed_ns": 528340945,
+    "all_elapsed_ns": [
+      501194471,
+      528340945,
+      507061094
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 501194471,
+      "expected_checksum": 17873534269088135065,
+      "actual_checksum": 17873534269088135065
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "coo_to_csr_offsets_checksum_many_rows",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 86968940,
+    "min_elapsed_ns": 86586154,
+    "max_elapsed_ns": 100981972,
+    "all_elapsed_ns": [
+      100981972,
+      86586154,
+      86968940
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 100981972,
+      "expected_checksum": 17873534269088135065,
+      "actual_checksum": 17873534269088135065
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "coo_to_csr_offsets_checksum_many_rows",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/coo_to_csr_offsets_checksum_many_rows/harness', 'executable_tasks/coo_to_csr_offsets_checksum_many_rows/harness/benchmark_main.cpp', 'executable_tasks/coo_to_csr_offsets_checksum_many_rows/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/coo_to_csr_offsets_checksum_many_rows/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "beam_search_topk_v2100_d",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v2100_d/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <utility>\n#include <vector>\n\nnamespace {\n\ninline bool better(const std::pair<int32_t, int>& a, const std::pair<int32_t, int>& b) {\n  return a.first > b.first || (a.first == b.first && a.second < b.second);\n}\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits,\n                            int beams,\n                            int vocab,\n                            int topk,\n                            int iters) {\n  std::vector<std::pair<int32_t, int>> row(static_cast<size_t>(vocab));\n  uint64_t hash = 1469598103934665603ULL;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    if (iter != 0) hash = 1469598103934665603ULL;\n\n    for (int b = 0; b < beams; ++b) {\n      const int32_t* base_ptr = &logits[static_cast<size_t>(b) * static_cast<size_t>(vocab)];\n\n      // fill\n      for (int v = 0; v < vocab; ++v) {\n        row[static_cast<size_t>(v)].first  = base_ptr[v];\n        row[static_cast<size_t>(v)].second = v;\n      }\n\n      // nth_element to partition top-k\n      std::nth_element(row.begin(), row.begin() + topk, row.end(), better);\n      // sort only the top-k slice for exact order\n      std::sort(row.begin(), row.begin() + topk, better);\n\n      // unrolled mixing\n      const auto* top = row.data();\n      int k = 0;\n      for (; k + 3 < topk; k += 4) {\n        hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(top[k].first)));\n        hash = mix(hash, static_cast<uint64_t>(top[k].second));\n        hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(top[k+1].first)));\n        hash = mix(hash, static_cast<uint64_t>(top[k+1].second));\n        hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(top[k+2].first)));\n        hash = mix(hash, static_cast<uint64_t>(top[k+2].second));\n        hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(top[k+3].first)));\n        hash = mix(hash, static_cast<uint64_t>(top[k+3].second));\n      }\n      for (; k < topk; ++k) {\n        hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(top[k].first)));\n        hash = mix(hash, static_cast<uint64_t>(top[k].second));\n      }\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "beam_search_topk_v2100_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 135471005,
+    "min_elapsed_ns": 132221958,
+    "max_elapsed_ns": 156822789,
+    "all_elapsed_ns": [
+      135471005,
+      132221958,
+      156822789
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 135471005,
+      "expected_checksum": 17579167458887634272,
+      "actual_checksum": 17579167458887634272
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v2100_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1834528,
+    "min_elapsed_ns": 1601251,
+    "max_elapsed_ns": 1900700,
+    "all_elapsed_ns": [
+      1601251,
+      1900700,
+      1834528
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1601251,
+      "expected_checksum": 17579167458887634272,
+      "actual_checksum": 17579167458887634272
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v2100_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 16530309,
+    "min_elapsed_ns": 16375627,
+    "max_elapsed_ns": 19811789,
+    "all_elapsed_ns": [
+      16375627,
+      16530309,
+      19811789
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 16375627,
+      "expected_checksum": 17579167458887634272,
+      "actual_checksum": 17579167458887634272
+    },
+    "status": "ok"
+  }
+}

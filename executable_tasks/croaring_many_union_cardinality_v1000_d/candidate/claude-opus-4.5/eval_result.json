@@ -1,0 +1,72 @@
+{
+  "task_id": "croaring_many_union_cardinality_v1000_d",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/croaring_many_union_cardinality_v1000_d/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <roaring.h>\n#include <vector>\n#include <thread>\n#include <algorithm>\n\nuint64_t many_union_cardinality(\n    const std::vector<uint32_t>& offsets,\n    const std::vector<uint32_t>& values) {\n  \n  if (offsets.size() <= 1) {\n    return 0;\n  }\n  \n  const size_t num_shards = offsets.size() - 1;\n  \n  // For few huge shards, build bitmaps in parallel\n  std::vector<roaring_bitmap_t*> bitmaps(num_shards);\n  \n  // Determine number of threads based on hardware and shard count\n  unsigned int hw_threads = std::thread::hardware_concurrency();\n  if (hw_threads == 0) hw_threads = 4;\n  const size_t num_threads = std::min(static_cast<size_t>(hw_threads), num_shards);\n  \n  if (num_threads > 1 && num_shards > 1) {\n    std::vector<std::thread> threads;\n    threads.reserve(num_threads);\n    \n    auto worker = [&](size_t thread_id) {\n      for (size_t shard = thread_id; shard < num_shards; shard += num_threads) {\n        const uint32_t begin = offsets[shard];\n        const uint32_t end = offsets[shard + 1];\n        const uint32_t count = end - begin;\n        \n        if (count == 0) {\n          bitmaps[shard] = roaring_bitmap_create();\n        } else {\n          // Data is sorted, use optimized bulk add\n          bitmaps[shard] = roaring_bitmap_of_ptr(count, values.data() + begin);\n        }\n      }\n    };\n    \n    for (size_t t = 0; t < num_threads; ++t) {\n      threads.emplace_back(worker, t);\n    }\n    \n    for (auto& th : threads) {\n      th.join();\n    }\n  } else {\n    // Single-threaded for small number of shards\n    for (size_t shard = 0; shard < num_shards; ++shard) {\n      const uint32_t begin = offsets[shard];\n      const uint32_t end = offsets[shard + 1];\n      const uint32_t count = end - begin;\n      \n      if (count == 0) {\n        bitmaps[shard] = roaring_bitmap_create();\n      } else {\n        bitmaps[shard] = roaring_bitmap_of_ptr(count, values.data() + begin);\n      }\n    }\n  }\n  \n  // Use heap-based many-way union which is efficient for this use case\n  roaring_bitmap_t* result = roaring_bitmap_or_many_heap(num_shards, const_cast<const roaring_bitmap_t**>(bitmaps.data()));\n  \n  uint64_t cardinality = roaring_bitmap_get_cardinality(result);\n  \n  // Cleanup\n  roaring_bitmap_free(result);\n  for (size_t i = 0; i < num_shards; ++i) {\n    roaring_bitmap_free(bitmaps[i]);\n  }\n  \n  return cardinality;\n}",
+  "baseline": {
+    "task_id": "croaring_many_union_cardinality_v1000_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 238112508,
+    "min_elapsed_ns": 236399249,
+    "max_elapsed_ns": 279118602,
+    "all_elapsed_ns": [
+      236399249,
+      279118602,
+      238112508
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 236399249,
+      "expected_cardinality": 881369,
+      "actual_cardinality": 881369
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "croaring_many_union_cardinality_v1000_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 13200570,
+    "min_elapsed_ns": 12657928,
+    "max_elapsed_ns": 13630683,
+    "all_elapsed_ns": [
+      13200570,
+      12657928,
+      13630683
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 13200570,
+      "expected_cardinality": 881369,
+      "actual_cardinality": 881369
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "croaring_many_union_cardinality_v1000_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 4261982,
+    "min_elapsed_ns": 4241688,
+    "max_elapsed_ns": 4583540,
+    "all_elapsed_ns": [
+      4241688,
+      4261982,
+      4583540
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4241688,
+      "expected_cardinality": 881369,
+      "actual_cardinality": 881369
+    },
+    "status": "ok"
+  }
+}

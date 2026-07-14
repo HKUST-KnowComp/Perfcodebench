@@ -1,0 +1,72 @@
+{
+  "task_id": "stable_partition_checksum_v500_d",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/stable_partition_checksum_v500_d/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstddef>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t stable_partition_hash(\n    const std::vector<uint8_t>& flags,\n    const std::vector<uint32_t>& values,\n    int iters) {\n  const size_t n = values.size();\n  if (n == 0) {\n    uint64_t hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n      hash = 1469598103934665603ULL;\n    }\n    return hash;\n  }\n\n  // Pre-allocate output buffer once\n  std::vector<uint32_t> out(n);\n  \n  // Pre-compute prefix sums for true flags (positions in left partition)\n  // and false flags (positions in right partition)\n  std::vector<uint32_t> true_prefix(n);\n  std::vector<uint32_t> false_prefix(n);\n  \n  const uint8_t* __restrict fp = flags.data();\n  const uint32_t* __restrict vp = values.data();\n  uint32_t* __restrict op = out.data();\n  \n  // Count total true flags\n  size_t true_count = 0;\n  for (size_t i = 0; i < n; ++i) {\n    true_count += fp[i] ? 1 : 0;\n  }\n  \n  // Compute prefix sums\n  uint32_t t_idx = 0;\n  uint32_t f_idx = 0;\n  for (size_t i = 0; i < n; ++i) {\n    if (fp[i]) {\n      true_prefix[i] = t_idx++;\n    } else {\n      false_prefix[i] = f_idx++;\n    }\n  }\n  \n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    // Scatter values to their final positions\n    for (size_t i = 0; i < n; ++i) {\n      if (fp[i]) {\n        op[true_prefix[i]] = vp[i];\n      } else {\n        op[true_count + false_prefix[i]] = vp[i];\n      }\n    }\n    \n    // Compute hash with unrolling\n    hash = 1469598103934665603ULL;\n    size_t i = 0;\n    size_t n4 = n & ~3ULL;\n    for (; i < n4; i += 4) {\n      hash = mix(hash, op[i]);\n      hash = mix(hash, op[i + 1]);\n      hash = mix(hash, op[i + 2]);\n      hash = mix(hash, op[i + 3]);\n    }\n    for (; i < n; ++i) {\n      hash = mix(hash, op[i]);\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "stable_partition_checksum_v500_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2604049633,
+    "min_elapsed_ns": 2591422202,
+    "max_elapsed_ns": 2615584800,
+    "all_elapsed_ns": [
+      2591422202,
+      2615584800,
+      2604049633
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2591422202,
+      "expected_checksum": 8072586594728036497,
+      "actual_checksum": 8072586594728036497
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "stable_partition_checksum_v500_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2022069836,
+    "min_elapsed_ns": 2017936844,
+    "max_elapsed_ns": 2032917510,
+    "all_elapsed_ns": [
+      2022069836,
+      2017936844,
+      2032917510
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2022069836,
+      "expected_checksum": 8072586594728036497,
+      "actual_checksum": 8072586594728036497
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "stable_partition_checksum_v500_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 2295715473,
+    "min_elapsed_ns": 2283438314,
+    "max_elapsed_ns": 2357887044,
+    "all_elapsed_ns": [
+      2357887044,
+      2283438314,
+      2295715473
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2357887044,
+      "expected_checksum": 8072586594728036497,
+      "actual_checksum": 8072586594728036497
+    },
+    "status": "ok"
+  }
+}

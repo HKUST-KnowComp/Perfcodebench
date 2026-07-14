@@ -1,0 +1,38 @@
+#include "interface.h"
+
+#include <cuda_runtime.h>
+
+namespace {
+
+__global__ void histogram_shared_atomic_kernel(const unsigned char* input, unsigned int* output, int n) {
+  __shared__ unsigned int s_hist[256];
+  
+  // Initialize shared histogram to zero (256 threads cover all 256 bins in one step)
+  if (threadIdx.x < 256) {
+    s_hist[threadIdx.x] = 0U;
+  }
+  __syncthreads();
+
+  // Grid-stride loop to process all input elements, accumulate to shared memory
+  for (int idx = blockIdx.x * blockDim.x + threadIdx.x; idx < n; idx += blockDim.x * gridDim.x) {
+    const unsigned char val = input[idx];
+    atomicAdd(&s_hist[val], 1U);
+  }
+  __syncthreads();
+
+  // Merge block's shared histogram into global output, one bin per thread
+  if (threadIdx.x < 256) {
+    atomicAdd(&output[threadIdx.x], s_hist[threadIdx.x]);
+  }
+}
+
+}  // namespace
+
+void histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters) {
+  constexpr int kBlock = 256;
+  const int grid = 1024;
+  for (int iter = 0; iter < iters; ++iter) {
+    cudaMemset(output, 0, 256 * sizeof(unsigned int));
+    histogram_shared_atomic_kernel<<<grid, kBlock>>>(input, output, n);
+  }
+}

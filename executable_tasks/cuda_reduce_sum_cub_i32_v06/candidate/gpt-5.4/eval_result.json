@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_reduce_sum_cub_i32_v06",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_reduce_sum_cub_i32_v06/candidate/gpt-5.4/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int kBlockSize = 256;\nconstexpr int kItemsPerThread = 8;\n\n__inline__ __device__ int warp_reduce_sum(int v) {\n  for (int offset = 16; offset > 0; offset >>= 1) {\n    v += __shfl_down_sync(0xffffffff, v, offset);\n  }\n  return v;\n}\n\n__global__ void reduce_sum_kernel(const int* __restrict__ input,\n                                  int* __restrict__ output,\n                                  int n) {\n  int local = 0;\n\n  const int tid = threadIdx.x;\n  const int block_threads = blockDim.x;\n  const int global_thread = blockIdx.x * block_threads + tid;\n  const int stride = gridDim.x * block_threads * kItemsPerThread;\n  int idx = global_thread;\n\n  while (idx < n) {\n#pragma unroll\n    for (int i = 0; i < kItemsPerThread; ++i) {\n      int j = idx + i * gridDim.x * block_threads;\n      if (j < n) local += input[j];\n    }\n    idx += stride;\n  }\n\n  local = warp_reduce_sum(local);\n\n  __shared__ int warp_sums[32];\n  const int lane = tid & 31;\n  const int warp = tid >> 5;\n  const int warp_count = (block_threads + 31) >> 5;\n\n  if (lane == 0) warp_sums[warp] = local;\n  __syncthreads();\n\n  int block_sum = 0;\n  if (warp == 0) {\n    block_sum = (lane < warp_count) ? warp_sums[lane] : 0;\n    block_sum = warp_reduce_sum(block_sum);\n    if (lane == 0) atomicAdd(output, block_sum);\n  }\n}\n\ninline int ceil_div(int a, int b) {\n  return (a + b - 1) / b;\n}\n\n}  // namespace\n\nvoid reduce_sum_i32(const int* input, int* output, int n, int iters) {\n  if (iters <= 0) return;\n\n  if (n <= 0) {\n    for (int iter = 0; iter < iters; ++iter) {\n      cudaMemset(output, 0, sizeof(int));\n    }\n    return;\n  }\n\n  int device = 0;\n  cudaGetDevice(&device);\n  cudaDeviceProp prop;\n  cudaGetDeviceProperties(&prop, device);\n\n  int sm_count = prop.multiProcessorCount > 0 ? prop.multiProcessorCount : 1;\n  int grid = ceil_div(n, kBlockSize * kItemsPerThread);\n  int max_grid = sm_count * 8;\n  if (grid < 1) grid = 1;\n  if (grid > max_grid) grid = max_grid;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    cudaMemset(output, 0, sizeof(int));\n    reduce_sum_kernel<<<grid, kBlockSize>>>(input, output, n);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_reduce_sum_cub_i32_v06",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 24212640,
+    "min_elapsed_ns": 24205919,
+    "max_elapsed_ns": 24214464,
+    "all_elapsed_ns": [
+      24214464,
+      24212640,
+      24205919
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 24214464,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_reduce_sum_cub_i32_v06",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1627583,
+    "min_elapsed_ns": 1617856,
+    "max_elapsed_ns": 1639487,
+    "all_elapsed_ns": [
+      1627583,
+      1639487,
+      1617856
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1627583,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_reduce_sum_cub_i32_v06",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_reduce_sum_cub_i32_v06/candidate/bench']' timed out after 5 seconds"
+  }
+}

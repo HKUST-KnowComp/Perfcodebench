@@ -1,0 +1,72 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v21",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v21/candidate/google__gemini-3.1-pro-preview/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void optimized_reduce_kernel(const int* __restrict__ input, int* __restrict__ output, int n) {\n    // Use int4 for vectorized loads to maximize bandwidth\n    const int4* input_v4 = reinterpret_cast<const int4*>(input);\n    int n_v4 = n / 4;\n    int sum = 0;\n\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    int stride = blockDim.x * gridDim.x;\n\n    // Process vectorized part\n    for (int i = idx; i < n_v4; i += stride) {\n        int4 val = input_v4[i];\n        sum += val.x + val.y + val.z + val.w;\n    }\n\n    // Process remaining elements if n is not a multiple of 4\n    if (idx == 0) {\n        for (int i = n_v4 * 4; i < n; ++i) {\n            sum += input[i];\n        }\n    }\n\n    // Warp-level reduction\n    for (int offset = 16; offset > 0; offset /= 2) {\n        sum += __shfl_down_sync(0xffffffff, sum, offset);\n    }\n\n    // Block-level reduction using shared memory\n    __shared__ int shared_sums[32]; // Max 1024 threads / 32 = 32 warps\n    int lane = threadIdx.x % 32;\n    int wid = threadIdx.x / 32;\n\n    if (lane == 0) {\n        shared_sums[wid] = sum;\n    }\n\n    __syncthreads();\n\n    // Final reduction in the first warp\n    if (wid == 0) {\n        sum = (threadIdx.x < (blockDim.x / 32)) ? shared_sums[lane] : 0;\n        for (int offset = 16; offset > 0; offset /= 2) {\n            sum += __shfl_down_sync(0xffffffff, sum, offset);\n        }\n        // One atomic per block\n        if (lane == 0) {\n            atomicAdd(output, sum);\n        }\n    }\n}\n\n} // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    // Heuristic for grid size: enough to saturate the GPU but not too many to cause overhead\n    int threads_per_block = 256;\n    int blocks_per_grid = (n + (threads_per_block * 4) - 1) / (threads_per_block * 4);\n    if (blocks_per_grid > 2048) blocks_per_grid = 2048;\n    if (blocks_per_grid == 0) blocks_per_grid = 1;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, sizeof(int));\n        if (n > 0) {\n            optimized_reduce_kernel<<<blocks_per_grid, threads_per_block>>>(input, output, n);\n        }\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v21",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 24129760,
+    "min_elapsed_ns": 24127264,
+    "max_elapsed_ns": 24134656,
+    "all_elapsed_ns": [
+      24127264,
+      24129760,
+      24134656
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 24127264,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v21",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1603456,
+    "min_elapsed_ns": 1603360,
+    "max_elapsed_ns": 1614303,
+    "all_elapsed_ns": [
+      1603456,
+      1614303,
+      1603360
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1603456,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v21",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1529664,
+    "min_elapsed_ns": 1527232,
+    "max_elapsed_ns": 1544288,
+    "all_elapsed_ns": [
+      1544288,
+      1527232,
+      1529664
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1544288,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  }
+}

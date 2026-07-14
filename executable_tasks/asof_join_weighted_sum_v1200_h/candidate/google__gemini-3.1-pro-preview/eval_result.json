@@ -1,0 +1,72 @@
+{
+  "task_id": "asof_join_weighted_sum_v1200_h",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/asof_join_weighted_sum_v1200_h/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <vector>\n\n/**\n * Optimized as-of join weighted sum.\n * \n * The baseline implementation uses std::upper_bound for every probe, resulting in O(iters * P * log D) complexity.\n * Given the task title \"sorted as-of join\", we assume both dim_ts and probe_ts are sorted.\n * This allows a two-pointer approach with O(iters * (P + D)) complexity.\n */\nuint64_t asof_join_sum(\n    const std::vector<uint32_t>& dim_ts,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_ts,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n    \n    if (probe_ts.empty() || dim_ts.empty()) return 0;\n\n    const uint32_t* const d_ts = dim_ts.data();\n    const uint32_t* const d_val = dim_values.data();\n    const uint32_t* const p_ts = probe_ts.data();\n    const uint32_t* const p_w = probe_weights.data();\n    \n    const size_t d_size = dim_ts.size();\n    const size_t p_size = probe_ts.size();\n\n    uint64_t total_sum = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t current_sum = 0;\n        size_t d_idx = 0;\n\n        // Two-pointer approach: since both p_ts and d_ts are sorted,\n        // we can find the 'as-of' index for each probe by advancing d_idx.\n        for (size_t p_idx = 0; p_idx < p_size; ++p_idx) {\n            const uint32_t target = p_ts[p_idx];\n            \n            // Advance d_idx to the largest index such that d_ts[d_idx] <= target.\n            // We check d_idx + 1 to see if the next dimension timestamp is still valid.\n            while (d_idx + 1 < d_size && d_ts[d_idx + 1] <= target) {\n                d_idx++;\n            }\n            \n            // The baseline logic: idx = upper_bound - 1.\n            // If target < d_ts[0], the baseline would result in idx = (size_t)-1.\n            // We assume target >= d_ts[0] based on standard as-of join constraints,\n            // but we maintain the pointer logic to match baseline behavior.\n            current_sum += static_cast<uint64_t>(d_val[d_idx]) * static_cast<uint64_t>(p_w[p_idx]);\n        }\n        total_sum = current_sum;\n    }\n\n    return total_sum;\n}\n",
+  "baseline": {
+    "task_id": "asof_join_weighted_sum_v1200_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 785677256,
+    "min_elapsed_ns": 765507553,
+    "max_elapsed_ns": 807861345,
+    "all_elapsed_ns": [
+      785677256,
+      807861345,
+      765507553
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 785677256,
+      "expected_sum": 110421037448,
+      "actual_sum": 110421037448
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "asof_join_weighted_sum_v1200_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 76450099,
+    "min_elapsed_ns": 69272796,
+    "max_elapsed_ns": 76544861,
+    "all_elapsed_ns": [
+      76544861,
+      69272796,
+      76450099
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 76544861,
+      "expected_sum": 110421037448,
+      "actual_sum": 110421037448
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "asof_join_weighted_sum_v1200_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 55196303,
+    "min_elapsed_ns": 53449264,
+    "max_elapsed_ns": 61893761,
+    "all_elapsed_ns": [
+      55196303,
+      61893761,
+      53449264
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 55196303,
+      "expected_sum": 110421037448,
+      "actual_sum": 110421037448
+    },
+    "status": "ok"
+  }
+}

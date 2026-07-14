@@ -1,0 +1,59 @@
+{
+  "task_id": "columnar_filter_sum_v1100_h",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/columnar_filter_sum_v1100_h/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <immintrin.h>\n\nuint64_t filter_sum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint8_t>& flags,\n    uint32_t key_threshold,\n    int iters)\n{\n    const std::size_t n = keys.size();\n    const uint32_t*  k = keys.data();\n    const uint32_t*  v = values.data();\n    const uint8_t*   f = flags.data();\n\n    uint64_t total = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        __m256i vacc = _mm256_setzero_si256();\n        std::size_t i = 0;\n\n        // vectorised main loop: 8 elements per iteration\n        const std::size_t vec_end = n & ~std::size_t(7);\n        for (; i < vec_end; i += 8) {\n            __m256i kv = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(k + i));\n            __m256i vv = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(v + i));\n\n            // flags as 32-bit mask\n            __m256i fv = _mm256_set_epi32(\n                f[i+7], f[i+6], f[i+5], f[i+4],\n                f[i+3], f[i+2], f[i+1], f[i+0]);\n            __m256i maskF = _mm256_cmpgt_epi32(fv, _mm256_setzero_si256());\n\n            // key < key_threshold\n            __m256i limit = _mm256_set1_epi32(static_cast<int32_t>(key_threshold));\n            __m256i maskT = _mm256_cmpgt_epi32(limit, kv);\n\n            // (key & 3) == 0\n            __m256i and3 = _mm256_and_si256(kv, _mm256_set1_epi32(3));\n            __m256i maskA = _mm256_cmpeq_epi32(and3, _mm256_setzero_si256());\n\n            // combine all conditions\n            __m256i mask = _mm256_and_si256(_mm256_and_si256(maskF, maskT), maskA);\n\n            // zero values that fail the filter\n            vv = _mm256_and_si256(vv, mask);\n            vacc = _mm256_add_epi64(\n                vacc,\n                _mm256_unpacklo_epi32(vv, _mm256_setzero_si256()));\n            vacc = _mm256_add_epi64(\n                vacc,\n                _mm256_unpackhi_epi32(vv, _mm256_setzero_si256()));\n        }\n\n        // horizontal sum of vector accumulator\n        __m256i shuf = _mm256_shuffle_epi32(vacc, 0x4E);\n        __m256i sums = _mm256_add_epi64(vacc, shuf);\n        uint64_t partial = static_cast<uint64_t>(_mm256_extract_epi64(sums, 0)) +\n                           static_cast<uint64_t>(_mm256_extract_epi64(sums, 1));\n\n        // scalar tail\n        for (; i < n; ++i) {\n            if (f[i] && k[i] < key_threshold && ((k[i] & 3u) == 0u))\n                partial += v[i];\n        }\n\n        total = partial;\n    }\n    return total;\n}",
+  "baseline": {
+    "task_id": "columnar_filter_sum_v1100_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 756871771,
+    "min_elapsed_ns": 749801108,
+    "max_elapsed_ns": 794370702,
+    "all_elapsed_ns": [
+      794370702,
+      749801108,
+      756871771
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 794370702,
+      "expected_sum": 234917446,
+      "actual_sum": 234917446
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "columnar_filter_sum_v1100_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 718491847,
+    "min_elapsed_ns": 704892411,
+    "max_elapsed_ns": 753333133,
+    "all_elapsed_ns": [
+      753333133,
+      704892411,
+      718491847
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 753333133,
+      "expected_sum": 234917446,
+      "actual_sum": 234917446
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "columnar_filter_sum_v1100_h",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/columnar_filter_sum_v1100_h/harness', 'executable_tasks/columnar_filter_sum_v1100_h/harness/benchmark_main.cpp', 'executable_tasks/columnar_filter_sum_v1100_h/candidate/moonshotai__kimi-k2-0905/solution.cpp', '-o', 'build/columnar_filter_sum_v1100_h/candidate/bench']' returned non-zero exit status 1."
+  }
+}

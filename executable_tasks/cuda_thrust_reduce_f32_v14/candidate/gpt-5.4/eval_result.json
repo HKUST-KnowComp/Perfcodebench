@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_thrust_reduce_f32_v14",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_thrust_reduce_f32_v14/candidate/gpt-5.4/solution.cu",
+  "benchmark_timeout_sec": 6,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n#ifndef WARP_SIZE\n#define WARP_SIZE 32\n#endif\n\n__inline__ __device__ float warp_reduce_sum(float v) {\n  for (int offset = WARP_SIZE / 2; offset > 0; offset >>= 1) {\n    v += __shfl_down_sync(0xffffffff, v, offset);\n  }\n  return v;\n}\n\n__global__ void reduce_stage1_kernel(const float* __restrict__ input,\n                                     float* __restrict__ partial,\n                                     int n) {\n  float sum = 0.0f;\n  const int tid = threadIdx.x;\n  const int global_thread = blockIdx.x * blockDim.x + tid;\n  const int stride = blockDim.x * gridDim.x;\n\n  for (int i = global_thread; i < n; i += stride) {\n    sum += input[i];\n  }\n\n  sum = warp_reduce_sum(sum);\n\n  __shared__ float warp_sums[32];\n  const int lane = tid & (WARP_SIZE - 1);\n  const int warp = tid >> 5;\n  const int num_warps = blockDim.x >> 5;\n\n  if (lane == 0) warp_sums[warp] = sum;\n  __syncthreads();\n\n  if (warp == 0) {\n    sum = (lane < num_warps) ? warp_sums[lane] : 0.0f;\n    sum = warp_reduce_sum(sum);\n    if (lane == 0) partial[blockIdx.x] = sum;\n  }\n}\n\n__global__ void reduce_stage2_kernel(const float* __restrict__ partial,\n                                     float* __restrict__ output,\n                                     int n) {\n  float sum = 0.0f;\n  const int tid = threadIdx.x;\n\n  for (int i = tid; i < n; i += blockDim.x) {\n    sum += partial[i];\n  }\n\n  sum = warp_reduce_sum(sum);\n\n  __shared__ float warp_sums[32];\n  const int lane = tid & (WARP_SIZE - 1);\n  const int warp = tid >> 5;\n  const int num_warps = blockDim.x >> 5;\n\n  if (lane == 0) warp_sums[warp] = sum;\n  __syncthreads();\n\n  if (warp == 0) {\n    sum = (lane < num_warps) ? warp_sums[lane] : 0.0f;\n    sum = warp_reduce_sum(sum);\n    if (lane == 0) *output = sum;\n  }\n}\n\n}  // namespace\n\nfloat reduce_f32(const float* input, int n, int iters) {\n  if (n <= 0 || iters <= 0) return 0.0f;\n\n  cudaDeviceProp prop;\n  int device = 0;\n  cudaGetDevice(&device);\n  cudaGetDeviceProperties(&prop, device);\n\n  constexpr int block_size = 256;\n  int sm_count = prop.multiProcessorCount > 0 ? prop.multiProcessorCount : 1;\n  int grid_size = (n + block_size - 1) / block_size;\n  int max_blocks = sm_count * 8;\n  if (grid_size > max_blocks) grid_size = max_blocks;\n  if (grid_size < 1) grid_size = 1;\n\n  float* d_partial = nullptr;\n  float* d_out = nullptr;\n  cudaMalloc(&d_partial, static_cast<size_t>(grid_size) * sizeof(float));\n  cudaMalloc(&d_out, sizeof(float));\n\n  for (int iter = 0; iter < iters; ++iter) {\n    reduce_stage1_kernel<<<grid_size, block_size>>>(input, d_partial, n);\n    reduce_stage2_kernel<<<1, block_size>>>(d_partial, d_out, grid_size);\n  }\n\n  float actual = 0.0f;\n  cudaMemcpy(&actual, d_out, sizeof(float), cudaMemcpyDeviceToHost);\n\n  cudaFree(d_partial);\n  cudaFree(d_out);\n  return actual;\n}\n",
+  "baseline": {
+    "task_id": "cuda_thrust_reduce_f32_v14",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1602805053,
+    "min_elapsed_ns": 1601229858,
+    "max_elapsed_ns": 1610271606,
+    "all_elapsed_ns": [
+      1601229858,
+      1610271606,
+      1602805053
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1601229858,
+      "expected_sum": 100663000.0,
+      "actual_sum": 99668500.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_thrust_reduce_f32_v14",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 755360,
+    "min_elapsed_ns": 504159,
+    "max_elapsed_ns": 4720672,
+    "all_elapsed_ns": [
+      504159,
+      755360,
+      4720672
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 504159,
+      "expected_sum": 100663000.0,
+      "actual_sum": 100663000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_thrust_reduce_f32_v14",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_thrust_reduce_f32_v14/candidate/bench']' timed out after 6 seconds"
+  }
+}

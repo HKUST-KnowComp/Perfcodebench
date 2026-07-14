@@ -1,0 +1,59 @@
+{
+  "task_id": "go_groupby_histogram_checksum_v3300_092",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/go_groupby_histogram_checksum_v3300_092/candidate/moonshotai__kimi-k2-0905/solution.go",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "package main\n\nimport \"unsafe\"\n\nfunc run(keys, vals []uint32, buckets uint32, iters int) uint64 {\n\tif buckets == 0 || len(keys) == 0 || iters == 0 {\n\t\treturn 0\n\t}\n\n\t// Allocate histogram on stack / heap once.\n\thist := make([]uint64, buckets)\n\n\t// Reusable hash constant.\n\tconst (\n\t\tmul = 1099511628211\n\t\tinitial = 1469598103934665603\n\t)\n\n\tfor iter := 0; iter < iters; iter++ {\n\t\t// Fast path: zero histogram in bulk.\n\t\tfor i := range hist {\n\t\t\thist[i] = 0\n\t\t}\n\n\t\t// Bulk accumulation loop.\n\t\tk := uintptr(len(keys))\n\t\tif k > 0 {\n\t\t\tkptr := (*uint32)(unsafe.Pointer(&keys[0]))\n\t\t\tvptr := (*uint32)(unsafe.Pointer(&vals[0]))\n\t\t\tend := unsafe.Pointer(uintptr(unsafe.Pointer(kptr)) + k*4)\n\n\t\t\tfor {\n\t\t\t\tp := unsafe.Pointer(kptr)\n\t\t\t\tif p == end { break }\n\n\t\t\t\t// Unrolled 4-wide accumulation.\n\t\t\t\tb0 := *(*uint32)(p)\n\t\t\t\tb1 := *(*uint32)(unsafe.Pointer(uintptr(p) + 4))\n\t\t\t\tb2 := *(*uint32)(unsafe.Pointer(uintptr(p) + 8))\n\t\t\t\tb3 := *(*uint32)(unsafe.Pointer(uintptr(p) + 12))\n\n\t\t\t\tv0 := uint64(*(*uint32)(unsafe.Pointer(uintptr(unsafe.Pointer(vptr)) + (uintptr(kptr)-uintptr(unsafe.Pointer(&keys[0])))*4)))\n\t\t\t\tv1 := uint64(*(*uint32)(unsafe.Pointer(uintptr(unsafe.Pointer(vptr)) + (uintptr(kptr)-uintptr(unsafe.Pointer(&keys[0])))*4 + 4)))\n\t\t\t\tv2 := uint64(*(*uint32)(unsafe.Pointer(uintptr(unsafe.Pointer(vptr)) + (uintptr(kptr)-uintptr(unsafe.Pointer(&keys[0])))*4 + 8)))\n\t\t\t\tv3 := uint64(*(*uint32)(unsafe.Pointer(uintptr(unsafe.Pointer(vptr)) + (uintptr(kptr)-uintptr(unsafe.Pointer(&keys[0])))*4 + 12)))\n\n\t\t\t\thist[b0] += v0\n\t\t\t\thist[b1] += v1\n\t\t\t\thist[b2] += v2\n\t\t\t\thist[b3] += v3\n\n\t\t\t\tkptr = (*uint32)(unsafe.Pointer(uintptr(unsafe.Pointer(kptr)) + 16))\n\t\t\t}\n\t\t}\n\n\t\t// Compute rolling 64-bit FNV-1a checksum.\n\t\th := initial\n\t\tfor _, v := range hist {\n\t\t\th ^= v + 1\n\t\t\th *= mul\n\t\t}\n\t\tif iter == iters-1 {\n\t\t\treturn h\n\t\t}\n\t}\n\treturn 0\n}",
+  "baseline": {
+    "task_id": "go_groupby_histogram_checksum_v3300_092",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4293720,
+    "min_elapsed_ns": 4270350,
+    "max_elapsed_ns": 7239957,
+    "all_elapsed_ns": [
+      7239957,
+      4293720,
+      4270350
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7239957,
+      "expected_checksum": 8509450875845640293,
+      "actual_checksum": 8509450875845640293
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "go_groupby_histogram_checksum_v3300_092",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4209506,
+    "min_elapsed_ns": 4194783,
+    "max_elapsed_ns": 4261210,
+    "all_elapsed_ns": [
+      4194783,
+      4261210,
+      4209506
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4194783,
+      "expected_checksum": 8509450875845640293,
+      "actual_checksum": 8509450875845640293
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "go_groupby_histogram_checksum_v3300_092",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['env', 'GOCACHE=build/go_groupby_histogram_checksum_v3300_092/candidate/.gocache', 'go', 'build', '-o', 'build/go_groupby_histogram_checksum_v3300_092/candidate/bench', 'build/go_groupby_histogram_checksum_v3300_092/candidate/benchmark_main.go', 'build/go_groupby_histogram_checksum_v3300_092/candidate/solution.go']' returned non-zero exit status 2."
+  }
+}

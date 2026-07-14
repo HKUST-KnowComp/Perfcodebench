@@ -1,0 +1,59 @@
+{
+  "task_id": "frame_of_reference_filter_sum_v500_f",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/frame_of_reference_filter_sum_v500_f/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <cstdint>\n\n/**\n * Optimized frame-of-reference decode and filter.\n * \n * Performance improvements:\n * 1. Removed the intermediate 'decoded' vector allocation and resize inside the loop.\n * 2. Combined decoding (base + delta) and filtering into a single pass.\n * 3. Used a branchless range-check trick: (val - low) <= (high - low) \n *    to replace two comparisons with one, aiding SIMD auto-vectorization.\n * 4. Ensured the inner loop is tight and uses local accumulators to minimize memory traffic.\n */\nuint64_t frame_filter_sum(\n    const std::vector<uint16_t>& deltas,\n    uint32_t base,\n    uint32_t low,\n    uint32_t high,\n    int iters) {\n    \n    const size_t n = deltas.size();\n    const uint16_t* __restrict__ delta_ptr = deltas.data();\n    uint64_t final_sum = 0;\n\n    // If the range is invalid, the sum is always 0.\n    if (low > high) {\n        return 0;\n    }\n\n    const uint32_t range_len = high - low;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t current_iter_sum = 0;\n        \n        // The compiler can auto-vectorize this loop effectively.\n        // The condition (v - low <= range_len) handles both v < low (underflow to large value) \n        // and v > high (result > range_len) in one check.\n        #pragma omp simd reduction(+:current_iter_sum)\n        for (size_t i = 0; i < n; ++i) {\n            const uint32_t v = base + static_cast<uint32_t>(delta_ptr[i]);\n            if ((v - low) <= range_len) {\n                current_iter_sum += static_cast<uint64_t>(v);\n            }\n        }\n        final_sum = current_iter_sum;\n    }\n\n    return final_sum;\n}\n",
+  "baseline": {
+    "task_id": "frame_of_reference_filter_sum_v500_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 246215344,
+    "min_elapsed_ns": 244793151,
+    "max_elapsed_ns": 252490622,
+    "all_elapsed_ns": [
+      246215344,
+      244793151,
+      252490622
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 246215344,
+      "expected_sum": 13588684800,
+      "actual_sum": 13588684800
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "frame_of_reference_filter_sum_v500_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 141411848,
+    "min_elapsed_ns": 138865504,
+    "max_elapsed_ns": 144519017,
+    "all_elapsed_ns": [
+      138865504,
+      141411848,
+      144519017
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 138865504,
+      "expected_sum": 13588684800,
+      "actual_sum": 13588684800
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "frame_of_reference_filter_sum_v500_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/frame_of_reference_filter_sum_v500_f/harness', 'executable_tasks/frame_of_reference_filter_sum_v500_f/harness/benchmark_main.cpp', 'executable_tasks/frame_of_reference_filter_sum_v500_f/candidate/google__gemini-3.1-pro-preview/solution.cpp', '-o', 'build/frame_of_reference_filter_sum_v500_f/candidate/bench']' returned non-zero exit status 1."
+  }
+}

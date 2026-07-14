@@ -1,0 +1,72 @@
+{
+  "task_id": "packet_ipv4_classify_checksum_v2600_e",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/packet_ipv4_classify_checksum_v2600_e/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstddef>\n#include <cstdint>\n\nnamespace {\n\nconstexpr std::size_t kPacketSize = 64;\n\n__attribute__((always_inline)) inline uint32_t classify_single(\n    const uint8_t* __restrict__ pkt) noexcept {\n  const uint8_t ttl = pkt[8];\n  const uint8_t protocol = pkt[9];\n  const uint8_t src0 = pkt[12];\n  const uint8_t src1 = pkt[13];\n  const uint16_t dst_port = static_cast<uint16_t>(\n      (static_cast<uint16_t>(pkt[22]) << 8) | pkt[23]);\n  \n  const uint32_t ttl_bucket = static_cast<uint32_t>(ttl >> 6);\n  \n  // Branchless private IP check\n  const uint32_t is_10 = (src0 == 10u);\n  const uint32_t is_172_16 = (src0 == 172u) & (src1 >= 16u) & (src1 < 32u);\n  const uint32_t is_192_168 = (src0 == 192u) & (src1 == 168u);\n  const uint32_t is_private = is_10 | is_172_16 | is_192_168;\n  const uint32_t addr_class = is_private ? 5u : 11u;\n  \n  // Branchless port bucket\n  const uint32_t is_tcp_udp = (protocol == 6u) | (protocol == 17u);\n  const uint32_t port_lt_1024 = (dst_port < 1024u);\n  const uint32_t port_lt_8192 = (dst_port < 8192u);\n  const uint32_t port_bucket_tcp_udp = port_lt_1024 ? 0u : (port_lt_8192 ? 1u : 2u);\n  const uint32_t port_bucket = is_tcp_udp ? port_bucket_tcp_udp : 3u;\n  \n  return static_cast<uint32_t>(protocol) * 131u + ttl_bucket * 17u +\n         addr_class + port_bucket * 23u;\n}\n\n}  // namespace\n\nuint64_t classify_packets_checksum(\n    const std::vector<uint8_t>& packets,\n    std::size_t packet_count,\n    int iters) {\n  const uint8_t* __restrict__ data = packets.data();\n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    \n    std::size_t i = 0;\n    const std::size_t unroll_limit = packet_count & ~static_cast<std::size_t>(3);\n    \n    // Unrolled loop - process 4 packets at a time\n    for (; i < unroll_limit; i += 4) {\n      const uint8_t* __restrict__ pkt0 = data + i * kPacketSize;\n      const uint8_t* __restrict__ pkt1 = pkt0 + kPacketSize;\n      const uint8_t* __restrict__ pkt2 = pkt1 + kPacketSize;\n      const uint8_t* __restrict__ pkt3 = pkt2 + kPacketSize;\n      \n      // Prefetch next batch\n      if (i + 8 < packet_count) {\n        __builtin_prefetch(pkt0 + 4 * kPacketSize, 0, 1);\n        __builtin_prefetch(pkt0 + 5 * kPacketSize, 0, 1);\n      }\n      \n      const uint32_t key0 = classify_single(pkt0);\n      const uint32_t key1 = classify_single(pkt1);\n      const uint32_t key2 = classify_single(pkt2);\n      const uint32_t key3 = classify_single(pkt3);\n      \n      hash ^= static_cast<uint64_t>(key0);\n      hash *= 1099511628211ULL;\n      hash ^= static_cast<uint64_t>(key1);\n      hash *= 1099511628211ULL;\n      hash ^= static_cast<uint64_t>(key2);\n      hash *= 1099511628211ULL;\n      hash ^= static_cast<uint64_t>(key3);\n      hash *= 1099511628211ULL;\n    }\n    \n    // Handle remaining packets\n    for (; i < packet_count; ++i) {\n      const uint32_t key = classify_single(data + i * kPacketSize);\n      hash ^= static_cast<uint64_t>(key);\n      hash *= 1099511628211ULL;\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 568649,
+    "min_elapsed_ns": 453890,
+    "max_elapsed_ns": 576667,
+    "all_elapsed_ns": [
+      568649,
+      576667,
+      453890
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 568649,
+      "expected_checksum": 12449503600715617849,
+      "actual_checksum": 12449503600715617849
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 559648,
+    "min_elapsed_ns": 439685,
+    "max_elapsed_ns": 635607,
+    "all_elapsed_ns": [
+      559648,
+      439685,
+      635607
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 559648,
+      "expected_checksum": 12449503600715617849,
+      "actual_checksum": 12449503600715617849
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_e",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 752678,
+    "min_elapsed_ns": 736717,
+    "max_elapsed_ns": 886262,
+    "all_elapsed_ns": [
+      752678,
+      886262,
+      736717
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 752678,
+      "expected_checksum": 12449503600715617849,
+      "actual_checksum": 12449503600715617849
+    },
+    "status": "ok"
+  }
+}

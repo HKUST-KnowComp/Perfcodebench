@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce_v2200_f",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v2200_f/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 6,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <thread>\n#include <vector>\n#include <algorithm>\n\nnamespace {\n\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  const std::size_t k_space = static_cast<std::size_t>(key_space);\n  const std::size_t n_keys = keys.size();\n  uint64_t final_hash = 0;\n\n  // Pre-allocate thread-local buffers to avoid repeated allocations in the loop\n  std::vector<std::vector<uint64_t>> thread_local_counts(num_threads, std::vector<uint64_t>(k_space));\n  std::vector<std::thread> threads(num_threads);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    const std::size_t chunk = n_keys / static_cast<std::size_t>(num_threads);\n\n    for (int t = 0; t < num_threads; ++t) {\n      const std::size_t begin = static_cast<std::size_t>(t) * chunk;\n      const std::size_t end = (t + 1 == num_threads) ? n_keys : begin + chunk;\n\n      threads[t] = std::thread([&, t, begin, end]() {\n        auto& my_counts = thread_local_counts[t];\n        // Reset local buffer\n        std::fill(my_counts.begin(), my_counts.end(), 0);\n        \n        for (std::size_t i = begin; i < end; ++i) {\n          my_counts[static_cast<std::size_t>(keys[i])] += static_cast<uint64_t>(values[i]);\n        }\n      });\n    }\n\n    for (int t = 0; t < num_threads; ++t) {\n      threads[t].join();\n    }\n\n    // Reduce thread-local counts into a single global view for checksumming\n    // We reuse a single vector for the reduction to minimize allocations\n    std::vector<uint64_t> global_counts(k_space, 0);\n    for (int t = 0; t < num_threads; ++t) {\n      for (std::size_t k = 0; k < k_space; ++k) {\n        global_counts[k] += thread_local_counts[t][k];\n      }\n    }\n\n    final_hash = checksum_u64(global_counts);\n  }\n\n  return final_hash;\n}",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v2200_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4625702687,
+    "min_elapsed_ns": 3597961603,
+    "max_elapsed_ns": 5219934401,
+    "all_elapsed_ns": [
+      3597961603,
+      5219934401,
+      4625702687
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3597961603,
+      "expected_checksum": 9756277127520650115,
+      "actual_checksum": 9756277127520650115
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v2200_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 28601977,
+    "min_elapsed_ns": 24133747,
+    "max_elapsed_ns": 39890680,
+    "all_elapsed_ns": [
+      39890680,
+      28601977,
+      24133747
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 39890680,
+      "expected_checksum": 9756277127520650115,
+      "actual_checksum": 9756277127520650115
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v2200_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 30525394,
+    "min_elapsed_ns": 29845648,
+    "max_elapsed_ns": 41003916,
+    "all_elapsed_ns": [
+      30525394,
+      41003916,
+      29845648
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 30525394,
+      "expected_checksum": 9756277127520650115,
+      "actual_checksum": 9756277127520650115
+    },
+    "status": "ok"
+  }
+}

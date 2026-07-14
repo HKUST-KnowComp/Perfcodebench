@@ -1,0 +1,59 @@
+{
+  "task_id": "highway_dot_product_xxlarge",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_dot_product_xxlarge/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <hwy/highway.h>\n\nnamespace hw = hwy;\n\nfloat dot_product(const float* a, const float* b, std::size_t n) {\n    if (n == 0) return 0.0f;\n\n    const hw::HWF32D d = hw::Simd<float>{};\n    hw::V32F sum_vec = hw::Zero(d);\n    \n    std::size_t i = 0;\n    // Process in blocks of 4 vectors to improve instruction-level parallelism\n    for (; i + 4 * hw::Lanes(d) <= n; i += 4 * hw::Lanes(d)) {\n        hw::V32F a0 = hw::Load(d, a + i);\n        hw::V32F b0 = hw::Load(d, b + i);\n        sum_vec = hw::Add(sum_vec, hw::Mul(a0, b0));\n\n        hw::V32F a1 = hw::Load(d, a + i + hw::Lanes(d));\n        hw::V32F b1 = hw::Load(d, b + i + hw::Lanes(d));\n        sum_vec = hw::Add(sum_vec, hw::Mul(a1, b1));\n\n        hw::V32F a2 = hw::Load(d, a + i + 2 * hw::Lanes(d));\n        hw::V32F b2 = hw::Load(d, b + i + 2 * hw::Lanes(d));\n        sum_vec = hw::Add(sum_vec, hw::Mul(a2, b2));\n\n        hw::V32F a3 = hw::Load(d, a + i + 3 * hw::Lanes(d));\n        hw::V32F b3 = hw::Load(d, b + i + 3 * hw::Lanes(d));\n        sum_vec = hw::Add(sum_vec, hw::Mul(a3, b3));\n    }\n\n    // Process remaining full vectors\n    for (; i + hw::Lanes(d) <= n; i += hw::Lanes(d)) {\n        hw::V32F va = hw::Load(d, a + i);\n        hw::V32F vb = hw::Load(d, b + i);\n        sum_vec = hw::Add(sum_vec, hw::Mul(va, vb));\n    }\n\n    // Horizontal sum of the SIMD register\n    float total_sum = hw::ReduceSum(sum_vec);\n\n    // Tail processing for remaining elements\n    for (; i < n; ++i) {\n        total_sum += a[i] * b[i];\n    }\n\n    return total_sum;\n}",
+  "baseline": {
+    "task_id": "highway_dot_product_xxlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6499402,
+    "min_elapsed_ns": 6440938,
+    "max_elapsed_ns": 6507922,
+    "all_elapsed_ns": [
+      6440938,
+      6507922,
+      6499402
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6440938,
+      "expected_dot": 2631150.0,
+      "actual_dot": 2631600.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_dot_product_xxlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5361025,
+    "min_elapsed_ns": 5229245,
+    "max_elapsed_ns": 5536127,
+    "all_elapsed_ns": [
+      5536127,
+      5361025,
+      5229245
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5536127,
+      "expected_dot": 2631150.0,
+      "actual_dot": 2631140.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_dot_product_xxlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/highway_dot_product_xxlarge/harness', '-Iexternal/highway', 'executable_tasks/highway_dot_product_xxlarge/harness/benchmark_main.cpp', 'executable_tasks/highway_dot_product_xxlarge/candidate/google__gemma-4-31b-it/solution.cpp', 'external/highway/hwy/abort.cc', 'external/highway/hwy/targets.cc', 'external/highway/hwy/aligned_allocator.cc', 'external/highway/hwy/per_target.cc', '-o', 'build/highway_dot_product_xxlarge/candidate/bench']' returned non-zero exit status 1."
+  }
+}

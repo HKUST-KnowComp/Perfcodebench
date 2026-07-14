@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_115",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_115/candidate/claude-opus-4.5/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\nstatic uint64_t checksum_i16(const int16_t* data, size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  size_t i = 0;\n  size_t n4 = n & ~(size_t)3;\n  for (; i < n4; i += 4) {\n    hash ^= (uint16_t)data[i];\n    hash *= 1099511628211ULL;\n    hash ^= (uint16_t)data[i + 1];\n    hash *= 1099511628211ULL;\n    hash ^= (uint16_t)data[i + 2];\n    hash *= 1099511628211ULL;\n    hash ^= (uint16_t)data[i + 3];\n    hash *= 1099511628211ULL;\n  }\n  for (; i < n; ++i) {\n    hash ^= (uint16_t)data[i];\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n  uint64_t hash = 0;\n  int16_t* out = (int16_t*)malloc((size_t)output_len * sizeof(int16_t));\n  if (!out) return 0;\n\n  const uint64_t FRAC_BITS = 32;\n  const uint64_t FRAC_ONE = (uint64_t)1 << FRAC_BITS;\n  const uint64_t FRAC_HALF = FRAC_ONE >> 1;\n\n  uint64_t step = ((uint64_t)(input_len - 1) << FRAC_BITS) / (uint64_t)(output_len - 1);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t pos_fixed = 0;\n    for (int i = 0; i < output_len; ++i) {\n      int left = (int)(pos_fixed >> FRAC_BITS);\n      int right = left + 1;\n      if (right >= input_len) right = input_len - 1;\n      uint64_t frac = pos_fixed & (FRAC_ONE - 1);\n      int32_t left_val = src[left];\n      int32_t right_val = src[right];\n      int64_t interp = ((int64_t)left_val << FRAC_BITS) + (int64_t)(right_val - left_val) * (int64_t)frac;\n      int64_t rounded;\n      if (interp >= 0) {\n        rounded = (interp + (int64_t)FRAC_HALF) >> FRAC_BITS;\n      } else {\n        rounded = (interp - (int64_t)FRAC_HALF + 1) >> FRAC_BITS;\n      }\n      out[i] = (int16_t)rounded;\n      pos_fixed += step;\n    }\n    hash = checksum_i16(out, (size_t)output_len);\n  }\n\n  free(out);\n  return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_115",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2521000,
+    "min_elapsed_ns": 2477000,
+    "max_elapsed_ns": 2589000,
+    "all_elapsed_ns": [
+      2521000,
+      2589000,
+      2477000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2521000,
+      "expected_checksum": 6177233866916399586,
+      "actual_checksum": 6177233866916399586
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_115",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2809000,
+    "min_elapsed_ns": 2554000,
+    "max_elapsed_ns": 2887000,
+    "all_elapsed_ns": [
+      2554000,
+      2809000,
+      2887000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2554000,
+      "expected_checksum": 6177233866916399586,
+      "actual_checksum": 6177233866916399586
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_115",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1993000,
+    "min_elapsed_ns": 1941000,
+    "max_elapsed_ns": 2030000,
+    "all_elapsed_ns": [
+      1993000,
+      1941000,
+      2030000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1993000,
+      "expected_checksum": 6177233866916399586,
+      "actual_checksum": 6177233866916399586
+    },
+    "status": "ok"
+  }
+}

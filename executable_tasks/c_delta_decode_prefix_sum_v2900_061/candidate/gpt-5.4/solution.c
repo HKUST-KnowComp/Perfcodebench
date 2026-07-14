@@ -1,0 +1,39 @@
+#include "interface.h"
+
+#include <stdint.h>
+#include <stdlib.h>
+
+uint64_t run(const int32_t* deltas, size_t count, int iters) {
+  uint64_t total = 0;
+  const uint64_t bias = (uint64_t)(int64_t)0x9E3779B1LL;
+
+  for (int iter = 0; iter < iters; ++iter) {
+    int64_t current = 0;
+    uint64_t sum = 0;
+
+    size_t i = 0;
+    size_t n4 = count & ~(size_t)3;
+    for (; i < n4; i += 4) {
+      current += (int64_t)deltas[i];
+      sum += (uint64_t)current + bias;
+
+      current += (int64_t)deltas[i + 1];
+      sum += (uint64_t)current + bias;
+
+      current += (int64_t)deltas[i + 2];
+      sum += (uint64_t)current + bias;
+
+      current += (int64_t)deltas[i + 3];
+      sum += (uint64_t)current + bias;
+    }
+
+    for (; i < count; ++i) {
+      current += (int64_t)deltas[i];
+      sum += (uint64_t)current + bias;
+    }
+
+    total = sum;
+  }
+
+  return total;
+}

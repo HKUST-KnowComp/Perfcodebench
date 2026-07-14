@@ -1,0 +1,72 @@
+{
+  "task_id": "nibble_decode_filter_sum_v1300_j",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/nibble_decode_filter_sum_v1300_j/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nuint64_t nibble_filter_sum(const std::vector<uint8_t>& packed, uint8_t threshold, int iters) {\n  if (iters <= 0 || packed.empty()) {\n    return 0;\n  }\n\n  // No 4-bit value can exceed 15.\n  if (threshold >= 15) {\n    return 0;\n  }\n\n  uint64_t sum = 0;\n\n  // Very selective fast path: only value 15 qualifies.\n  if (threshold >= 14) {\n    for (int iter = 0; iter < iters; ++iter) {\n      uint64_t s = 0;\n      const uint8_t* p = packed.data();\n      const uint8_t* end = p + packed.size();\n      while (p != end) {\n        const uint8_t b = *p++;\n        s += static_cast<uint64_t>((b & 0x0Fu) == 0x0Fu) * 15u;\n        s += static_cast<uint64_t>((b >> 4) == 0x0Fu) * 15u;\n      }\n      sum = s;\n    }\n    return sum;\n  }\n\n  // General path: precompute per-byte contribution for this threshold.\n  uint8_t lut[256];\n  for (unsigned i = 0; i < 256; ++i) {\n    const uint8_t lo = static_cast<uint8_t>(i & 0x0Fu);\n    const uint8_t hi = static_cast<uint8_t>(i >> 4);\n    lut[i] = static_cast<uint8_t>((lo > threshold ? lo : 0u) + (hi > threshold ? hi : 0u));\n  }\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t s = 0;\n    const uint8_t* p = packed.data();\n    const uint8_t* end = p + packed.size();\n\n    // Unroll to reduce loop overhead and improve ILP.\n    while (end - p >= 8) {\n      s += lut[p[0]];\n      s += lut[p[1]];\n      s += lut[p[2]];\n      s += lut[p[3]];\n      s += lut[p[4]];\n      s += lut[p[5]];\n      s += lut[p[6]];\n      s += lut[p[7]];\n      p += 8;\n    }\n    while (p != end) {\n      s += lut[*p++];\n    }\n\n    sum = s;\n  }\n\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "nibble_decode_filter_sum_v1300_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 509098283,
+    "min_elapsed_ns": 469881249,
+    "max_elapsed_ns": 571028437,
+    "all_elapsed_ns": [
+      571028437,
+      509098283,
+      469881249
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 571028437,
+      "expected_sum": 7864320,
+      "actual_sum": 7864320
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "nibble_decode_filter_sum_v1300_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 192802564,
+    "min_elapsed_ns": 187196239,
+    "max_elapsed_ns": 204199456,
+    "all_elapsed_ns": [
+      187196239,
+      192802564,
+      204199456
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 187196239,
+      "expected_sum": 7864320,
+      "actual_sum": 7864320
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "nibble_decode_filter_sum_v1300_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 36183608,
+    "min_elapsed_ns": 36172363,
+    "max_elapsed_ns": 36263321,
+    "all_elapsed_ns": [
+      36183608,
+      36172363,
+      36263321
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 36183608,
+      "expected_sum": 7864320,
+      "actual_sum": 7864320
+    },
+    "status": "ok"
+  }
+}

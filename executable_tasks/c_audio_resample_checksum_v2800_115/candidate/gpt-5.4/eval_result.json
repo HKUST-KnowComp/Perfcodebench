@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_115",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_115/candidate/gpt-5.4/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\nstatic inline uint64_t fnv1a_mix_i16(uint64_t hash, int16_t v) {\n  hash ^= (uint16_t)v;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n  if (iters <= 0) return 0;\n  if (src == NULL) return 0;\n  if (input_len <= 0 || output_len <= 0) return 0;\n\n  uint64_t hash = 0;\n\n  /* Degenerate source: every output sample is the only input sample. */\n  if (input_len == 1) {\n    const int16_t v = src[0];\n    for (int iter = 0; iter < iters; ++iter) {\n      uint64_t h = 1469598103934665603ULL;\n      for (int i = 0; i < output_len; ++i) {\n        h = fnv1a_mix_i16(h, v);\n      }\n      hash = h;\n    }\n    return hash;\n  }\n\n  /* Degenerate output: baseline formula would divide by zero; use first sample. */\n  if (output_len == 1) {\n    const int16_t v = src[0];\n    for (int iter = 0; iter < iters; ++iter) {\n      uint64_t h = 1469598103934665603ULL;\n      h = fnv1a_mix_i16(h, v);\n      hash = h;\n    }\n    return hash;\n  }\n\n  const uint64_t denom = (uint64_t)(output_len - 1);\n  const uint64_t step = (((uint64_t)(input_len - 1)) << 32) / denom;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t h = 1469598103934665603ULL;\n    uint64_t pos_fp = 0;\n\n    for (int i = 0; i < output_len; ++i) {\n      uint32_t left = (uint32_t)(pos_fp >> 32);\n      uint32_t frac_fp = (uint32_t)pos_fp;\n\n      int32_t l = src[left];\n      int32_t r;\n      if ((int)left + 1 < input_len) {\n        r = src[left + 1];\n      } else {\n        r = src[input_len - 1];\n      }\n\n      int64_t diff = (int64_t)r - (int64_t)l;\n      int64_t interp = ((int64_t)l << 32) + diff * (int64_t)frac_fp;\n\n      int64_t rounded;\n      if (interp >= 0) {\n        rounded = (interp + (1LL << 31)) >> 32;\n      } else {\n        rounded = -(((-interp) + (1LL << 31)) >> 32);\n      }\n\n      h = fnv1a_mix_i16(h, (int16_t)rounded);\n      pos_fp += step;\n    }\n\n    hash = h;\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_115",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2521000,
+    "min_elapsed_ns": 2477000,
+    "max_elapsed_ns": 2589000,
+    "all_elapsed_ns": [
+      2521000,
+      2589000,
+      2477000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2521000,
+      "expected_checksum": 6177233866916399586,
+      "actual_checksum": 6177233866916399586
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_115",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2809000,
+    "min_elapsed_ns": 2554000,
+    "max_elapsed_ns": 2887000,
+    "all_elapsed_ns": [
+      2554000,
+      2809000,
+      2887000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2554000,
+      "expected_checksum": 6177233866916399586,
+      "actual_checksum": 6177233866916399586
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_115",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1942000,
+    "min_elapsed_ns": 1912000,
+    "max_elapsed_ns": 2106000,
+    "all_elapsed_ns": [
+      2106000,
+      1912000,
+      1942000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2106000,
+      "expected_checksum": 6177233866916399586,
+      "actual_checksum": 6177233866916399586
+    },
+    "status": "ok"
+  }
+}

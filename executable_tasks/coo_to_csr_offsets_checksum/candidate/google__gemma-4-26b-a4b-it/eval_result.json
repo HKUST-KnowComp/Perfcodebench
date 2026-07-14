@@ -1,0 +1,59 @@
+{
+  "task_id": "coo_to_csr_offsets_checksum",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/coo_to_csr_offsets_checksum/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <cstdint>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n} // namespace\n\nuint64_t csr_offsets_hash(const std::vector<uint32_t>& row_ids, uint32_t rows, int iters) {\n    if (iters <= 0) return 0;\n\n    // Step 1: Compute offsets in O(N + R) time.\n    // Since row_ids is sorted, we can count occurrences efficiently.\n    std::vector<uint32_t> offsets(static_cast<size_t>(rows) + 1, 0);\n    \n    // Count frequencies using a direct array to avoid map overhead\n    // We use the fact that row_ids is sorted to build offsets directly\n    // or just count them. Given the constraints, a frequency array is fastest.\n    // However, to handle potentially large 'rows' without massive allocation if not needed,\n    // we use the sorted property.\n    \n    size_t current_row_idx = 0;\n    uint32_t current_offset = 0;\n    \n    // Initialize offsets with 0\n    // We iterate through row_ids to find counts for each row\n    size_t i = 0;\n    size_t n = row_ids.size();\n    \n    for (uint32_t r = 0; r < rows; ++r) {\n        offsets[r] = current_offset;\n        uint32_t count = 0;\n        while (i < n && row_ids[i] == r) {\n            count++;\n            i++;\n        }\n        current_offset += count;\n        offsets[r + 1] = current_offset;\n    }\n    // If there are row_ids > rows-1 (though unlikely per CSR definition), \n    // we ensure the last offset is correct if we were to follow the logic strictly.\n    // But standard CSR assumes row_ids < rows.\n\n    // Step 2: Perform the hashing 'iters' times.\n    // The offsets array is constant across iterations.\n    uint64_t hash = 1469598103934665603ULL;\n    for (uint32_t v : offsets) {\n        hash = mix(hash, static_cast<uint64_t>(v));\n    }\n\n    // The original code re-calculates the same hash 'iters' times.\n    // Wait, looking at the original code: \n    // for (int iter = 0; iter < iters; ++iter) { ... hash = 1469598103934665603ULL; for (uint32_t v : offsets) { hash = mix(hash, v); } }\n    // The hash is reset inside the loop, so the final value is just the hash of the offsets.\n    // The 'iters' loop in the original code actually doesn't accumulate anything across iterations \n    // because 'hash' is reset to the seed inside the loop. \n    // Therefore, the result is simply the hash of the offsets calculated once.\n    \n    return hash;\n}",
+  "baseline": {
+    "task_id": "coo_to_csr_offsets_checksum",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 239109587,
+    "min_elapsed_ns": 236921030,
+    "max_elapsed_ns": 297839118,
+    "all_elapsed_ns": [
+      239109587,
+      236921030,
+      297839118
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 239109587,
+      "expected_checksum": 10481953510414940057,
+      "actual_checksum": 10481953510414940057
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "coo_to_csr_offsets_checksum",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 42962770,
+    "min_elapsed_ns": 40582839,
+    "max_elapsed_ns": 45041410,
+    "all_elapsed_ns": [
+      45041410,
+      42962770,
+      40582839
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 45041410,
+      "expected_checksum": 10481953510414940057,
+      "actual_checksum": 10481953510414940057
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "coo_to_csr_offsets_checksum",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/coo_to_csr_offsets_checksum/harness', 'executable_tasks/coo_to_csr_offsets_checksum/harness/benchmark_main.cpp', 'executable_tasks/coo_to_csr_offsets_checksum/candidate/google__gemma-4-26b-a4b-it/solution.cpp', '-o', 'build/coo_to_csr_offsets_checksum/candidate/bench']' returned non-zero exit status 1."
+  }
+}

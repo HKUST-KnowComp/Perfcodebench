@@ -1,0 +1,35 @@
+import java.util.List;
+
+public class Solution {
+  public static long run(List<String> rows) {
+    long hash = 1469598103934665603L;
+    for (String row : rows) {
+      int len = row.length();
+      int i1 = row.indexOf('&');
+      int i2 = row.indexOf('&', i1 + 1);
+
+      int u = 0;
+      for (int i = 2; i < i1; i++) {
+        char c = row.charAt(i);
+        if (c >= '0' && c <= '9') u = u * 10 + (c - '0');
+      }
+
+      int s = 0;
+      for (int i = i1 + 7; i < i2; i++) {
+        char c = row.charAt(i);
+        if (c >= '0' && c <= '9') s = s * 10 + (c - '0');
+      }
+
+      int f = 0;
+      for (int i = i2 + 6; i < len; i++) {
+        char c = row.charAt(i);
+        if (c >= '0' && c <= '9') f = f * 10 + (c - '0');
+      }
+
+      long v = (u & 2047) + s + f * 19L;
+      hash ^= (v + 1);
+      hash *= 1099511628211L;
+    }
+    return hash;
+  }
+}

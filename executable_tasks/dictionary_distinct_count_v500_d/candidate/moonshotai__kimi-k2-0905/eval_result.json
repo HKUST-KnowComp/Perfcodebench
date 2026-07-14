@@ -1,0 +1,59 @@
+{
+  "task_id": "dictionary_distinct_count_v500_d",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dictionary_distinct_count_v500_d/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 6,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <string>\n#include <vector>\n#include <unordered_set>\n#include <cstdint>\n#include <cstring>\n\nuint64_t dictionary_distinct(\n    const std::vector<std::string>& dictionary,\n    const std::vector<uint16_t>& codes,\n    int iters)\n{\n    // ---------- one-time setup ----------\n    static constexpr uint32_t BLOOM_BITS = 1u << 16;   // 64 kbits\n    static constexpr uint32_t BLOOM_MASK = BLOOM_BITS - 1;\n    alignas(64) static uint64_t bloom[BLOOM_BITS / 64] = {0};\n\n    const uint32_t dict_size = static_cast<uint32_t>(dictionary.size());\n\n    // string_view-like POD: pointer + length\n    struct Ref { const char* ptr; uint32_t len; };\n    static thread_local Ref dict_ref[65536];           // covers full uint16_t range\n\n    // populate bloom filter and dict_ref once per process\n    static bool init_done = false;\n    if (!init_done) {\n        for (uint32_t i = 0; i < dict_size; ++i) {\n            const std::string& s = dictionary[i];\n            dict_ref[i] = { s.data(), static_cast<uint32_t>(s.size()) };\n\n            // very cheap hash: mix code with length\n            uint32_t h = i * 0x9e3779b9u + static_cast<uint32_t>(s.size());\n            h ^= h >> 16;\n            bloom[(h >> 6) & BLOOM_MASK] |= 1ull << (h & 63);\n        }\n        init_done = true;\n    }\n\n    // ---------- per-iteration work ----------\n    uint64_t count = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        // 1. collect unique codes\n        uint32_t unique[65536];\n        uint32_t unique_cnt = 0;\n\n        for (uint16_t c : codes) {\n            // bloom filter fast-path\n            uint32_t h = c * 0x9e3779b9u + dict_ref[c].len;\n            h ^= h >> 16;\n            if (bloom[(h >> 6) & BLOOM_MASK] & (1ull << (h & 63))) {\n                // possible duplicate \u2013 linear scan tiny unique[]\n                bool found = false;\n                for (uint32_t j = 0; j < unique_cnt; ++j) {\n                    if (unique[j] == c) { found = true; break; }\n                }\n                if (!found) unique[unique_cnt++] = c;\n            } else {\n                // definitely new\n                unique[unique_cnt++] = c;\n                bloom[(h >> 6) & BLOOM_MASK] |= 1ull << (h & 63);\n            }\n        }\n\n        // 2. build unordered_set<string_view> for these unique codes\n        struct SV { const char* p; uint32_t l; };\n        struct SVHash {\n            size_t operator()(const SV& v) const noexcept {\n                // FNV-1a on bytes\n                size_t h = 14695981039346656037ull;\n                const char* e = v.p + v.l;\n                for (const char* c = v.p; c != e; ++c)\n                    h = (h ^ static_cast<unsigned char>(*c)) * 1099511628211ull;\n                return h;\n            }\n        };\n        struct SVEqual {\n            bool operator()(const SV& a, const SV& b) const noexcept {\n                return a.l == b.l && std::memcmp(a.p, b.p, a.l) == 0;\n            }\n        };\n        std::unordered_set<SV, SVHash, SVEqual> seen;\n        seen.reserve(unique_cnt);\n\n        for (uint32_t i = 0; i < unique_cnt; ++i) {\n            uint16_t c = static_cast<uint16_t>(unique[i]);\n            seen.insert({ dict_ref[c].ptr, dict_ref[c].len });\n        }\n        count = static_cast<uint64_t>(seen.size());\n    }\n    return count;\n}",
+  "baseline": {
+    "task_id": "dictionary_distinct_count_v500_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2671034758,
+    "min_elapsed_ns": 2603439639,
+    "max_elapsed_ns": 3372703000,
+    "all_elapsed_ns": [
+      2671034758,
+      2603439639,
+      3372703000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2671034758,
+      "expected_count": 4096,
+      "actual_count": 4096
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dictionary_distinct_count_v500_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 78395091,
+    "min_elapsed_ns": 74390696,
+    "max_elapsed_ns": 86566474,
+    "all_elapsed_ns": [
+      78395091,
+      74390696,
+      86566474
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 78395091,
+      "expected_count": 4096,
+      "actual_count": 4096
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dictionary_distinct_count_v500_d",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/dictionary_distinct_count_v500_d/candidate/bench']' died with <Signals.SIGSEGV: 11>."
+  }
+}

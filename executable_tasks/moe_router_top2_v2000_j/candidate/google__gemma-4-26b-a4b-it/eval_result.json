@@ -1,0 +1,59 @@
+{
+  "task_id": "moe_router_top2_v2000_j",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/moe_router_top2_v2000_j/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <cstdint>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\nstruct Candidate {\n  int32_t val;\n  int idx;\n};\n\n// Tie-breaking: higher value first, then lower index first.\ninline bool is_better(int32_t v1, int i1, int32_t v2, int i2) {\n  if (v1 != v2) return v1 > v2;\n  return i1 < i2;\n}\n\n} // namespace\n\nuint64_t moe_router_checksum(const std::vector<int32_t>& logits, int tokens, int experts, int iters) {\n  uint64_t hash = 0;\n  const int32_t* data = logits.data();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    for (int t = 0; t < tokens; ++t) {\n      const int32_t* row_ptr = data + (static_cast<size_t>(t) * experts);\n      \n      // Initialize top 2 with values that are guaranteed to be 'worse' than any possible input\n      // Using a very small value and a very large index for tie-breaking logic.\n      Candidate top1 = {-2147483648, experts + 1};\n      Candidate top2 = {-2147483648, experts + 1};\n\n      for (int e = 0; e < experts; ++e) {\n        int32_t current_val = row_ptr[e];\n        int current_idx = e;\n\n        if (is_better(current_val, current_idx, top1.val, top1.idx)) {\n          top2 = top1;\n          top1 = {current_val, current_idx};\n        } else if (is_better(current_val, current_idx, top2.val, top2.idx)) {\n          top2 = {current_val, current_idx};\n        }\n      }\n\n      hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(top1.val)));\n      hash = mix(hash, static_cast<uint64_t>(top1.idx));\n      hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(top2.val)));\n      hash = mix(hash, static_cast<uint64_t>(top2.idx));\n    }\n  }\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "moe_router_top2_v2000_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 865649,
+    "min_elapsed_ns": 856598,
+    "max_elapsed_ns": 892801,
+    "all_elapsed_ns": [
+      892801,
+      865649,
+      856598
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 892801,
+      "expected_checksum": 3853187172486180215,
+      "actual_checksum": 3853187172486180215
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "moe_router_top2_v2000_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 565476,
+    "min_elapsed_ns": 560888,
+    "max_elapsed_ns": 572924,
+    "all_elapsed_ns": [
+      572924,
+      560888,
+      565476
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 572924,
+      "expected_checksum": 3853187172486180215,
+      "actual_checksum": 3853187172486180215
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "moe_router_top2_v2000_j",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/moe_router_top2_v2000_j/harness', 'executable_tasks/moe_router_top2_v2000_j/harness/benchmark_main.cpp', 'executable_tasks/moe_router_top2_v2000_j/candidate/google__gemma-4-26b-a4b-it/solution.cpp', '-o', 'build/moe_router_top2_v2000_j/candidate/bench']' returned non-zero exit status 1."
+  }
+}

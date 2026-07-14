@@ -1,0 +1,72 @@
+{
+  "task_id": "beam_search_topk_v1800_j",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v1800_j/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <utility>\n#include <vector>\n\nnamespace {\n\n// Tie-breaking: higher score first, then lower index first.\n// To use std::nth_element/std::sort, we define a strict weak ordering.\n// We want the 'top' elements to be at the beginning.\nstruct Element {\n    int32_t score;\n    int32_t index;\n\n    bool operator<(const Element& other) const {\n        if (score != other.score) {\n            return score > other.score; // Higher score is 'less' (comes first)\n        }\n        return index < other.index;    // Lower index is 'less' (comes first)\n    }\n};\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n} // namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits, int beams, int vocab, int topk, int iters) {\n    if (vocab <= 0 || beams <= 0 || topk <= 0) return 0;\n    \n    // Pre-allocate buffer to avoid repeated allocations\n    std::vector<Element> row(static_cast<size_t>(vocab));\n    uint64_t hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        hash = 1469598103934665603ULL;\n        for (int b = 0; b < beams; ++b) {\n            const size_t base = static_cast<size_t>(b) * static_cast<size_t>(vocab);\n            \n            // Fill the buffer\n            for (int v = 0; v < vocab; ++v) {\n                row[v] = {logits[base + v], v};\n            }\n\n            // Use nth_element to find the top-k elements in O(V) average time\n            if (topk < vocab) {\n                std::nth_element(row.begin(), row.begin() + topk, row.end());\n                // nth_element doesn't guarantee order within the top-k, so we sort only the top-k\n                std::sort(row.begin(), row.begin() + topk);\n            } else {\n                std::sort(row.begin(), row.end());\n            }\n\n            // Accumulate hash\n            for (int k = 0; k < topk; ++k) {\n                hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(row[k].score)));\n                hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(row[k].index)));\n            }\n        }\n    }\n    return hash;\n}\n",
+  "baseline": {
+    "task_id": "beam_search_topk_v1800_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 168538396,
+    "min_elapsed_ns": 160118057,
+    "max_elapsed_ns": 176247674,
+    "all_elapsed_ns": [
+      168538396,
+      176247674,
+      160118057
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 168538396,
+      "expected_checksum": 12403806424808752780,
+      "actual_checksum": 12403806424808752780
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v1800_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4165130,
+    "min_elapsed_ns": 4146375,
+    "max_elapsed_ns": 4430734,
+    "all_elapsed_ns": [
+      4430734,
+      4146375,
+      4165130
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4430734,
+      "expected_checksum": 12403806424808752780,
+      "actual_checksum": 12403806424808752780
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v1800_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 23098641,
+    "min_elapsed_ns": 22982664,
+    "max_elapsed_ns": 24419441,
+    "all_elapsed_ns": [
+      24419441,
+      22982664,
+      23098641
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 24419441,
+      "expected_checksum": 12403806424808752780,
+      "actual_checksum": 12403806424808752780
+    },
+    "status": "ok"
+  }
+}

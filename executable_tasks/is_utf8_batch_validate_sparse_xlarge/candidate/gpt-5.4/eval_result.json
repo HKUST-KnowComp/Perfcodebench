@@ -1,0 +1,72 @@
+{
+  "task_id": "is_utf8_batch_validate_sparse_xlarge",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/is_utf8_batch_validate_sparse_xlarge/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstddef>\n#include <cstdint>\n#include <string>\n#include <vector>\n\nnamespace {\n\nstatic inline bool validate_utf8_fast(const std::string& s) {\n  const unsigned char* p = reinterpret_cast<const unsigned char*>(s.data());\n  const unsigned char* end = p + s.size();\n\n  while (p < end) {\n    // Fast ASCII skip: process machine words while all bytes are ASCII.\n    while (static_cast<std::size_t>(end - p) >= sizeof(std::size_t)) {\n      std::size_t word = 0;\n      __builtin_memcpy(&word, p, sizeof(word));\n      if (word & (sizeof(std::size_t) == 8\n                      ? static_cast<std::size_t>(0x8080808080808080ULL)\n                      : static_cast<std::size_t>(0x80808080U))) {\n        break;\n      }\n      p += sizeof(std::size_t);\n    }\n    while (p < end && *p <= 0x7F) {\n      ++p;\n    }\n    if (p >= end) break;\n\n    const unsigned char c = *p++;\n\n    if (c < 0xC2) {\n      return false;\n    }\n\n    if (c <= 0xDF) {\n      if (p >= end || (p[0] & 0xC0U) != 0x80U) return false;\n      ++p;\n      continue;\n    }\n\n    if (c <= 0xEF) {\n      if (static_cast<std::size_t>(end - p) < 2) return false;\n      const unsigned char b1 = p[0];\n      const unsigned char b2 = p[1];\n      if ((b1 & 0xC0U) != 0x80U || (b2 & 0xC0U) != 0x80U) return false;\n      if (c == 0xE0) {\n        if (b1 < 0xA0 || b1 > 0xBF) return false;\n      } else if (c == 0xED) {\n        if (b1 > 0x9F) return false;\n      }\n      p += 2;\n      continue;\n    }\n\n    if (c <= 0xF4) {\n      if (static_cast<std::size_t>(end - p) < 3) return false;\n      const unsigned char b1 = p[0];\n      const unsigned char b2 = p[1];\n      const unsigned char b3 = p[2];\n      if ((b1 & 0xC0U) != 0x80U || (b2 & 0xC0U) != 0x80U || (b3 & 0xC0U) != 0x80U) return false;\n      if (c == 0xF0) {\n        if (b1 < 0x90 || b1 > 0xBF) return false;\n      } else if (c == 0xF4) {\n        if (b1 > 0x8F) return false;\n      }\n      p += 3;\n      continue;\n    }\n\n    return false;\n  }\n\n  return true;\n}\n\n}  // namespace\n\nstd::size_t count_valid_strings(const std::vector<std::string>& inputs) {\n  std::size_t count = 0;\n  for (const std::string& s : inputs) {\n    count += static_cast<std::size_t>(validate_utf8_fast(s));\n  }\n  return count;\n}\n",
+  "baseline": {
+    "task_id": "is_utf8_batch_validate_sparse_xlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 14199417,
+    "min_elapsed_ns": 14176239,
+    "max_elapsed_ns": 14231640,
+    "all_elapsed_ns": [
+      14231640,
+      14176239,
+      14199417
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 14231640,
+      "expected_count": 89291,
+      "actual_count": 89291
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "is_utf8_batch_validate_sparse_xlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3000850,
+    "min_elapsed_ns": 2944210,
+    "max_elapsed_ns": 3116853,
+    "all_elapsed_ns": [
+      2944210,
+      3000850,
+      3116853
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2944210,
+      "expected_count": 89291,
+      "actual_count": 89291
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "is_utf8_batch_validate_sparse_xlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 22232749,
+    "min_elapsed_ns": 22218170,
+    "max_elapsed_ns": 22485297,
+    "all_elapsed_ns": [
+      22218170,
+      22232749,
+      22485297
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 22218170,
+      "expected_count": 89291,
+      "actual_count": 89291
+    },
+    "status": "ok"
+  }
+}

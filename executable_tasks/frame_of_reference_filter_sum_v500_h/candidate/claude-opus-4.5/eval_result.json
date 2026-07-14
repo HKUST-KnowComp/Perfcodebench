@@ -1,0 +1,59 @@
+{
+  "task_id": "frame_of_reference_filter_sum_v500_h",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/frame_of_reference_filter_sum_v500_h/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstddef>\n\n#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)\n#include <immintrin.h>\n#define HAS_SSE4 1\n#else\n#define HAS_SSE4 0\n#endif\n\nuint64_t frame_filter_sum(\n    const std::vector<uint16_t>& deltas,\n    uint32_t base,\n    uint32_t low,\n    uint32_t high,\n    int iters) {\n  \n  const size_t n = deltas.size();\n  const uint16_t* __restrict data = deltas.data();\n  uint64_t sum = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    size_t i = 0;\n    \n#if HAS_SSE4\n    if (n >= 8) {\n      __m128i vbase = _mm_set1_epi32(static_cast<int>(base));\n      __m128i vlow = _mm_set1_epi32(static_cast<int>(low));\n      __m128i vhigh = _mm_set1_epi32(static_cast<int>(high));\n      __m128i vsum_lo = _mm_setzero_si128();\n      __m128i vsum_hi = _mm_setzero_si128();\n      \n      size_t vec_end = (n / 8) * 8;\n      \n      for (; i < vec_end; i += 8) {\n        // Load 8 uint16_t values\n        __m128i d16 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + i));\n        \n        // Zero-extend to 32-bit: lower 4 and upper 4\n        __m128i d32_lo = _mm_cvtepu16_epi32(d16);\n        __m128i d32_hi = _mm_cvtepu16_epi32(_mm_srli_si128(d16, 8));\n        \n        // Add base\n        __m128i val_lo = _mm_add_epi32(d32_lo, vbase);\n        __m128i val_hi = _mm_add_epi32(d32_hi, vbase);\n        \n        // Compare: val >= low  =>  !(val < low)  =>  low <= val\n        // For unsigned comparison, we use signed comparison with offset trick\n        // Or use: val >= low is equivalent to (val - low) doesn't underflow in unsigned\n        // SSE4.1 doesn't have unsigned compare, so we use signed with bias\n        // Actually for range [low, high], we can do: (val - low) <= (high - low) unsigned\n        // But simpler: use signed comparison after biasing by 0x80000000\n        \n        const __m128i bias = _mm_set1_epi32(static_cast<int>(0x80000000u));\n        __m128i val_lo_biased = _mm_xor_si128(val_lo, bias);\n        __m128i val_hi_biased = _mm_xor_si128(val_hi, bias);\n        __m128i vlow_biased = _mm_xor_si128(vlow, bias);\n        __m128i vhigh_biased = _mm_xor_si128(vhigh, bias);\n        \n        // val >= low: signed compare (val_biased >= low_biased) => !(val_biased < low_biased)\n        // val <= high: signed compare (val_biased <= high_biased) => !(val_biased > high_biased)\n        \n        // cmplt gives -1 where val < low\n        __m128i lt_low_lo = _mm_cmplt_epi32(val_lo_biased, vlow_biased);\n        __m128i lt_low_hi = _mm_cmplt_epi32(val_hi_biased, vlow_biased);\n        \n        // cmpgt gives -1 where val > high\n        __m128i gt_high_lo = _mm_cmpgt_epi32(val_lo_biased, vhigh_biased);\n        __m128i gt_high_hi = _mm_cmpgt_epi32(val_hi_biased, vhigh_biased);\n        \n        // in_range = !(lt_low | gt_high)\n        __m128i out_of_range_lo = _mm_or_si128(lt_low_lo, gt_high_lo);\n        __m128i out_of_range_hi = _mm_or_si128(lt_low_hi, gt_high_hi);\n        \n        __m128i mask_lo = _mm_andnot_si128(out_of_range_lo, _mm_set1_epi32(-1));\n        __m128i mask_hi = _mm_andnot_si128(out_of_range_hi, _mm_set1_epi32(-1));\n        \n        // Mask the values\n        __m128i masked_lo = _mm_and_si128(val_lo, mask_lo);\n        __m128i masked_hi = _mm_and_si128(val_hi, mask_hi);\n        \n        // Accumulate as 64-bit to avoid overflow\n        // Unpack to 64-bit and add\n        __m128i zero = _mm_setzero_si128();\n        __m128i sum_lo_0 = _mm_unpacklo_epi32(masked_lo, zero);\n        __m128i sum_lo_1 = _mm_unpackhi_epi32(masked_lo, zero);\n        __m128i sum_hi_0 = _mm_unpacklo_epi32(masked_hi, zero);\n        __m128i sum_hi_1 = _mm_unpackhi_epi32(masked_hi, zero);\n        \n        vsum_lo = _mm_add_epi64(vsum_lo, sum_lo_0);\n        vsum_lo = _mm_add_epi64(vsum_lo, sum_lo_1);\n        vsum_hi = _mm_add_epi64(vsum_hi, sum_hi_0);\n        vsum_hi = _mm_add_epi64(vsum_hi, sum_hi_1);\n      }\n      \n      // Horizontal sum\n      __m128i vsum = _mm_add_epi64(vsum_lo, vsum_hi);\n      uint64_t tmp[2];\n      _mm_storeu_si128(reinterpret_cast<__m128i*>(tmp), vsum);\n      sum = tmp[0] + tmp[1];\n    }\n#endif\n    \n    // Scalar tail\n    for (; i < n; ++i) {\n      uint32_t val = base + static_cast<uint32_t>(data[i]);\n      if (val >= low && val <= high) {\n        sum += val;\n      }\n    }\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "frame_of_reference_filter_sum_v500_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 337254377,
+    "min_elapsed_ns": 330168215,
+    "max_elapsed_ns": 412100766,
+    "all_elapsed_ns": [
+      330168215,
+      412100766,
+      337254377
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 330168215,
+      "expected_sum": 266362060800,
+      "actual_sum": 266362060800
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "frame_of_reference_filter_sum_v500_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 177052595,
+    "min_elapsed_ns": 174373548,
+    "max_elapsed_ns": 201110128,
+    "all_elapsed_ns": [
+      177052595,
+      201110128,
+      174373548
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 177052595,
+      "expected_sum": 266362060800,
+      "actual_sum": 266362060800
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "frame_of_reference_filter_sum_v500_h",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/frame_of_reference_filter_sum_v500_h/harness', 'executable_tasks/frame_of_reference_filter_sum_v500_h/harness/benchmark_main.cpp', 'executable_tasks/frame_of_reference_filter_sum_v500_h/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/frame_of_reference_filter_sum_v500_h/candidate/bench']' returned non-zero exit status 1."
+  }
+}

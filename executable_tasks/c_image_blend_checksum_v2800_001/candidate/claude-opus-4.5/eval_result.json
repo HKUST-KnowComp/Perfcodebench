@@ -1,0 +1,72 @@
+{
+  "task_id": "c_image_blend_checksum_v2800_001",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_image_blend_checksum_v2800_001/candidate/claude-opus-4.5/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\nstatic inline uint8_t blend_byte(uint8_t s, uint8_t d, uint8_t a, uint8_t inv_a) {\n  return (uint8_t)(((uint32_t)s * (uint32_t)a + (uint32_t)d * (uint32_t)inv_a + 127u) / 255u);\n}\n\nstatic uint64_t checksum_bytes(const uint8_t* data, size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  const uint8_t* end = data + n;\n  const uint8_t* end8 = data + (n & ~(size_t)7);\n  \n  while (data < end8) {\n    hash ^= (uint64_t)data[0]; hash *= 1099511628211ULL;\n    hash ^= (uint64_t)data[1]; hash *= 1099511628211ULL;\n    hash ^= (uint64_t)data[2]; hash *= 1099511628211ULL;\n    hash ^= (uint64_t)data[3]; hash *= 1099511628211ULL;\n    hash ^= (uint64_t)data[4]; hash *= 1099511628211ULL;\n    hash ^= (uint64_t)data[5]; hash *= 1099511628211ULL;\n    hash ^= (uint64_t)data[6]; hash *= 1099511628211ULL;\n    hash ^= (uint64_t)data[7]; hash *= 1099511628211ULL;\n    data += 8;\n  }\n  while (data < end) {\n    hash ^= (uint64_t)*data++;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\nuint64_t run(const uint8_t* src, const uint8_t* dst, int width, int height, int iters) {\n  size_t pixels = (size_t)width * (size_t)height;\n  size_t bytes = pixels * 4u;\n  uint64_t hash = 0;\n  \n  uint8_t* out = (uint8_t*)malloc(bytes);\n  if (!out) return 0;\n  \n  static const uint8_t inv_table[256] = {\n    255,254,253,252,251,250,249,248,247,246,245,244,243,242,241,240,\n    239,238,237,236,235,234,233,232,231,230,229,228,227,226,225,224,\n    223,222,221,220,219,218,217,216,215,214,213,212,211,210,209,208,\n    207,206,205,204,203,202,201,200,199,198,197,196,195,194,193,192,\n    191,190,189,188,187,186,185,184,183,182,181,180,179,178,177,176,\n    175,174,173,172,171,170,169,168,167,166,165,164,163,162,161,160,\n    159,158,157,156,155,154,153,152,151,150,149,148,147,146,145,144,\n    143,142,141,140,139,138,137,136,135,134,133,132,131,130,129,128,\n    127,126,125,124,123,122,121,120,119,118,117,116,115,114,113,112,\n    111,110,109,108,107,106,105,104,103,102,101,100,99,98,97,96,\n    95,94,93,92,91,90,89,88,87,86,85,84,83,82,81,80,\n    79,78,77,76,75,74,73,72,71,70,69,68,67,66,65,64,\n    63,62,61,60,59,58,57,56,55,54,53,52,51,50,49,48,\n    47,46,45,44,43,42,41,40,39,38,37,36,35,34,33,32,\n    31,30,29,28,27,26,25,24,23,22,21,20,19,18,17,16,\n    15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0\n  };\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    const uint8_t* sp = src;\n    const uint8_t* dp = dst;\n    uint8_t* op = out;\n    \n    size_t i = 0;\n    size_t pixels4 = pixels & ~(size_t)3;\n    \n    for (; i < pixels4; i += 4) {\n      uint8_t a0 = sp[3];\n      uint8_t inv_a0 = inv_table[a0];\n      op[0] = blend_byte(sp[0], dp[0], a0, inv_a0);\n      op[1] = blend_byte(sp[1], dp[1], a0, inv_a0);\n      op[2] = blend_byte(sp[2], dp[2], a0, inv_a0);\n      op[3] = 255u;\n      \n      uint8_t a1 = sp[7];\n      uint8_t inv_a1 = inv_table[a1];\n      op[4] = blend_byte(sp[4], dp[4], a1, inv_a1);\n      op[5] = blend_byte(sp[5], dp[5], a1, inv_a1);\n      op[6] = blend_byte(sp[6], dp[6], a1, inv_a1);\n      op[7] = 255u;\n      \n      uint8_t a2 = sp[11];\n      uint8_t inv_a2 = inv_table[a2];\n      op[8] = blend_byte(sp[8], dp[8], a2, inv_a2);\n      op[9] = blend_byte(sp[9], dp[9], a2, inv_a2);\n      op[10] = blend_byte(sp[10], dp[10], a2, inv_a2);\n      op[11] = 255u;\n      \n      uint8_t a3 = sp[15];\n      uint8_t inv_a3 = inv_table[a3];\n      op[12] = blend_byte(sp[12], dp[12], a3, inv_a3);\n      op[13] = blend_byte(sp[13], dp[13], a3, inv_a3);\n      op[14] = blend_byte(sp[14], dp[14], a3, inv_a3);\n      op[15] = 255u;\n      \n      sp += 16;\n      dp += 16;\n      op += 16;\n    }\n    \n    for (; i < pixels; ++i) {\n      uint8_t a = sp[3];\n      uint8_t inv_a = inv_table[a];\n      op[0] = blend_byte(sp[0], dp[0], a, inv_a);\n      op[1] = blend_byte(sp[1], dp[1], a, inv_a);\n      op[2] = blend_byte(sp[2], dp[2], a, inv_a);\n      op[3] = 255u;\n      sp += 4;\n      dp += 4;\n      op += 4;\n    }\n    \n    hash = checksum_bytes(out, bytes);\n  }\n  \n  free(out);\n  return hash;\n}",
+  "baseline": {
+    "task_id": "c_image_blend_checksum_v2800_001",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1207000,
+    "min_elapsed_ns": 1195000,
+    "max_elapsed_ns": 1216000,
+    "all_elapsed_ns": [
+      1207000,
+      1195000,
+      1216000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1207000,
+      "expected_checksum": 120814221177348444,
+      "actual_checksum": 120814221177348444
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_image_blend_checksum_v2800_001",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1199000,
+    "min_elapsed_ns": 1196000,
+    "max_elapsed_ns": 1268000,
+    "all_elapsed_ns": [
+      1268000,
+      1196000,
+      1199000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1268000,
+      "expected_checksum": 120814221177348444,
+      "actual_checksum": 120814221177348444
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_image_blend_checksum_v2800_001",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1215000,
+    "min_elapsed_ns": 1209000,
+    "max_elapsed_ns": 1336000,
+    "all_elapsed_ns": [
+      1215000,
+      1209000,
+      1336000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1215000,
+      "expected_checksum": 120814221177348444,
+      "actual_checksum": 120814221177348444
+    },
+    "status": "ok"
+  }
+}

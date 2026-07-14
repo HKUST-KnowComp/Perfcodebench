@@ -1,0 +1,59 @@
+{
+  "task_id": "packet_ipv4_classify_checksum_v2600_h",
+  "model": "meta-llama/llama-4-maverick",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/packet_ipv4_classify_checksum_v2600_h/candidate/meta-llama__llama-4-maverick/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstddef>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nconstexpr std::size_t kPacketSize = 64;\n\nstruct Header {\n  uint8_t version_ihl;\n  uint8_t tos;\n  uint16_t total_length;\n  uint16_t id;\n  uint16_t frag;\n  uint8_t ttl;\n  uint8_t protocol;\n  uint16_t checksum;\n  uint8_t src[4];\n  uint8_t dst[4];\n  uint16_t src_port;\n  uint16_t dst_port;\n};\n\nbool is_private_ip(const uint8_t* ip) {\n  return ip[0] == 10u ||\n         (ip[0] == 172u && ip[1] >= 16u && ip[1] < 32u) ||\n         (ip[0] == 192u && ip[1] == 168u);\n}\n\n}  // namespace\n\nuint64_t classify_packets_checksum(\n    const std::vector<uint8_t>& packets,\n    std::size_t packet_count,\n    int iters) {\n  uint64_t hash = 0;\n  const uint8_t* packets_data = packets.data();\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    for (std::size_t i = 0; i < packet_count; ++i) {\n      const uint8_t* packet_data = packets_data + i * kPacketSize;\n      uint8_t protocol = packet_data[9];\n      uint8_t ttl = packet_data[8];\n      uint8_t src_ip[4];\n      std::memcpy(src_ip, packet_data + 12, 4);\n      uint16_t dst_port = (packet_data[22] << 8) | packet_data[23];\n      const uint32_t ttl_bucket = static_cast<uint32_t>(ttl >> 6);\n      const uint32_t port_bucket =\n          (protocol == 6u || protocol == 17u) ? ((dst_port < 1024u) ? 0u : ((dst_port < 8192u) ? 1u : 2u)) : 3u;\n      const uint32_t key =\n          static_cast<uint32_t>(protocol) * 131u + ttl_bucket * 17u +\n          (is_private_ip(src_ip) ? 5u : 11u) + port_bucket * 23u;\n      hash ^= static_cast<uint64_t>(key);\n      hash *= 1099511628211ULL;\n    }\n  }\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2126626,
+    "min_elapsed_ns": 1865783,
+    "max_elapsed_ns": 2234157,
+    "all_elapsed_ns": [
+      1865783,
+      2126626,
+      2234157
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1865783,
+      "expected_checksum": 15720879676828501607,
+      "actual_checksum": 15720879676828501607
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2043440,
+    "min_elapsed_ns": 1783887,
+    "max_elapsed_ns": 2112174,
+    "all_elapsed_ns": [
+      2043440,
+      2112174,
+      1783887
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2043440,
+      "expected_checksum": 15720879676828501607,
+      "actual_checksum": 15720879676828501607
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_h",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/packet_ipv4_classify_checksum_v2600_h/harness', 'executable_tasks/packet_ipv4_classify_checksum_v2600_h/harness/benchmark_main.cpp', 'executable_tasks/packet_ipv4_classify_checksum_v2600_h/candidate/meta-llama__llama-4-maverick/solution.cpp', '-o', 'build/packet_ipv4_classify_checksum_v2600_h/candidate/bench']' returned non-zero exit status 1."
+  }
+}

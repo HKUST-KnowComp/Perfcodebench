@@ -1,0 +1,59 @@
+{
+  "task_id": "rapidjson_ondemand_parse_xlarge",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/rapidjson_ondemand_parse_xlarge/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"rapidjson/reader.h\"\n#include \"rapidjson/document.h\"\n#include \"rapidjson/rapidjson.h\"\n\nusing namespace rapidjson;\n\nuint64_t compute_checksum(const std::string& json_input) {\n    uint64_t sum = 0;\n    \n    // Use RapidJSON's Reader for a streaming approach to avoid DOM overhead\n    // Since the task is to parse a large array of objects, we can use a custom handler\n    struct ChecksumHandler : public BaseReader {\n        uint64_t total_sum = 0;\n        std::string current_key;\n        bool in_nested = false;\n        bool in_array = false;\n\n        bool Key(const char* str, size_t length, bool copy) override {\n            current_key.assign(str, length);\n            if (current_key == \"nested\") {\n                in_nested = true;\n            }\n            return true;\n        }\n\n        bool Uint(unsigned u) override {\n            if (current_key == \"id\" && !in_nested) {\n                total_sum += u;\n            } else if (in_nested) {\n                if (current_key == \"a\" || current_key == \"b\") {\n                    total_sum += u;\n                }\n            }\n            return true;\n        }\n\n        bool Int(int i) override {\n            // Handle negative numbers if they appear, though task implies uint64_t\n            uint64_t val = static_cast<uint64_t>(i);\n            if (current_key == \"id\" && !in_nested) {\n                total_sum += val;\n            } else if (in_nested) {\n                if (current_key == \"a\" || current_key == \"b\") {\n                    total_sum += val;\n                }\n            }\n            return true;\n        }\n\n        bool StartObject() override {\n            return true;\n        }\n\n        bool EndObject(bool zeroRC) override {\n            in_nested = false;\n            return true;\n        }\n\n        bool StartArray() override {\n            in_array = true;\n            return true;\n        }\n\n        bool EndArray(bool zeroRC) override {\n            in_array = false;\n            return true;\n        }\n    };\n\n    // For the specific structure of this task, using the Reader is fast, \n    // but since we have rapidjson/document.h available, we can use the \n    // more ergonomic but still fast Reader API or the Document if memory allows.\n    // However, for \"xlarge\" workloads, the Reader is the gold standard.\n    \n    // To ensure correctness and simplicity while using the provided headers:\n    Reader reader;\n    ChecksumHandler handler;\n    StringStream ss(json_input.c_str());\n    reader.Read(ss, handler);\n    \n    return handler.total_sum;\n}\n\n// The above Reader implementation is a sketch. Let's provide a robust \n// implementation using the Document for simplicity if the memory limit allows,\n// but since it's \"xlarge\", we use the Reader pattern correctly.\n\n// Re-implementing with a more standard RapidJSON approach for the specific fields:\n\nuint64_t compute_checksum_fast(const std::string& json_input) {\n    uint64_t sum = 0;\n    Document doc;\n    // Use Insitu if possible, but json_input is const std::string\n    if (doc.Parse(json_input.c_str()).HasParseError()) return 0;\n\n    if (!doc.IsArray()) return 0;\n\n    for (auto& item : doc.GetArray()) {\n        if (item.HasMember(\"id\") && item[\"id\"].IsUint64()) {\n            sum += item[\"id\"].GetUint64();\n        }\n        if (item.HasMember(\"nested\") && item[\"nested\"].IsObject()) {\n            const auto& nested = item[\"nested\"];\n            if (nested.HasMember(\"a\") && nested[\"a\"].IsUint64()) {\n                sum += nested[\"a\"].GetUint64();\n            }\n            if (nested.HasMember(\"b\") && nested[\"b\"].IsUint64()) {\n                sum += nested[\"b\"].GetUint64();\n            }\n        }\n    }\n    return sum;\n}\n\n// To truly optimize for \"xlarge\", we should use the Reader. \n// Let's provide the most performant version that fits the provided headers.\n\n#include \"rapidjson/reader.h\"\n\nstruct ChecksumHandler : public Reader::Handler {\n    uint64_t sum = 0;\n    std::string key;\n    bool in_nested = false;\n\n    bool Key(const char* str, size_t length, bool copy) override {\n        key.assign(str, length);\n        in_nested = (key == \"nested\");\n        return true;\n    }\n    bool Uint(unsigned u) override {\n        if (key == \"id\" && !in_nested) sum += u;\n        else if (in_nested && (key == \"a\" || key == \"b\")) sum += u;\n        return true;\n    }\n    bool Int(int i) override {\n        if (key == \"id\" && !in_nested) sum += (uint64_t)i;\n        else if (in_nested && (key == \"a\" || key == \"b\")) sum += (uint64_t)i;\n        return true;\n    }\n    bool StartObject() override { return true; }\n    bool EndObject(bool) override { in_nested = false; return true; }\n    bool StartArray() override { return true; }\n    bool EndArray(bool) override { return true; }\n    bool Null() override { return true; }\n    bool Bool(bool) override { return true; }\n    bool Double() override { return true; }\n    bool String(const char*, size_t, bool) override { return true; }\n};\n\nuint64_t compute_checksum_final(const std::string& json_input) {\n    ChecksumHandler handler;\n    Reader reader;\n    StringStream ss(json_input.c_str());\n    reader.Read(ss, handler);\n    return handler.sum;\n}\n\n// Final override to match the interface\nuint64_t compute_checksum(const std::string& json_input) {\n    return compute_checksum_final(json_input);\n}",
+  "baseline": {
+    "task_id": "rapidjson_ondemand_parse_xlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 137441374,
+    "min_elapsed_ns": 135072429,
+    "max_elapsed_ns": 141063271,
+    "all_elapsed_ns": [
+      141063271,
+      135072429,
+      137441374
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 141063271,
+      "expected_checksum": 22400280000,
+      "actual_checksum": 22400280000
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "rapidjson_ondemand_parse_xlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 19424721,
+    "min_elapsed_ns": 19143420,
+    "max_elapsed_ns": 19990355,
+    "all_elapsed_ns": [
+      19990355,
+      19143420,
+      19424721
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 19990355,
+      "expected_checksum": 22400280000,
+      "actual_checksum": 22400280000
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "rapidjson_ondemand_parse_xlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/rapidjson_ondemand_parse_xlarge/harness', '-Iexternal/nlohmann_json/single_include', '-Iexternal/rapidjson_src/include', 'executable_tasks/rapidjson_ondemand_parse_xlarge/harness/benchmark_main.cpp', 'executable_tasks/rapidjson_ondemand_parse_xlarge/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/rapidjson_ondemand_parse_xlarge/candidate/bench']' returned non-zero exit status 1."
+  }
+}

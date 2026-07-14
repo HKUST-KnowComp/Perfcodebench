@@ -1,0 +1,72 @@
+{
+  "task_id": "topk_ordered_sum_v1100_e",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/topk_ordered_sum_v1100_e/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <functional>\n\nuint64_t topk_sum(const std::vector<uint32_t>& scores, int k, int iters) {\n  const std::size_t n = scores.size();\n  const std::size_t kk = static_cast<std::size_t>(k);\n  \n  if (kk == 0 || n == 0) return 0;\n  \n  std::vector<uint32_t> tmp;\n  tmp.reserve(n);\n  uint64_t sum = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    tmp.assign(scores.begin(), scores.end());\n    \n    if (kk >= n) {\n      // Sum all elements\n      sum = 0;\n      const uint32_t* ptr = tmp.data();\n      std::size_t i = 0;\n      // Unrolled loop for better ILP\n      for (; i + 4 <= n; i += 4) {\n        sum += ptr[i] + ptr[i+1] + ptr[i+2] + ptr[i+3];\n      }\n      for (; i < n; ++i) {\n        sum += ptr[i];\n      }\n    } else {\n      // Use nth_element for O(n) partial sort\n      std::nth_element(tmp.begin(), tmp.begin() + static_cast<std::ptrdiff_t>(kk), tmp.end(), std::greater<uint32_t>());\n      \n      // Sum the top k elements (now in tmp[0..k-1], unordered but all >= tmp[k])\n      sum = 0;\n      const uint32_t* ptr = tmp.data();\n      std::size_t i = 0;\n      // Prefetch and unroll for cache efficiency\n      for (; i + 8 <= kk; i += 8) {\n        if (i + 64 < kk) {\n          __builtin_prefetch(ptr + i + 64, 0, 0);\n        }\n        sum += static_cast<uint64_t>(ptr[i]) + ptr[i+1] + ptr[i+2] + ptr[i+3]\n             + ptr[i+4] + ptr[i+5] + ptr[i+6] + ptr[i+7];\n      }\n      for (; i < kk; ++i) {\n        sum += ptr[i];\n      }\n    }\n  }\n  return sum;\n}",
+  "baseline": {
+    "task_id": "topk_ordered_sum_v1100_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1661734885,
+    "min_elapsed_ns": 1652791775,
+    "max_elapsed_ns": 1876347810,
+    "all_elapsed_ns": [
+      1876347810,
+      1652791775,
+      1661734885
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1876347810,
+      "expected_sum": 4289385492,
+      "actual_sum": 4289385492
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "topk_ordered_sum_v1100_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 53024184,
+    "min_elapsed_ns": 52453201,
+    "max_elapsed_ns": 56664399,
+    "all_elapsed_ns": [
+      52453201,
+      56664399,
+      53024184
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 52453201,
+      "expected_sum": 4289385492,
+      "actual_sum": 4289385492
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "topk_ordered_sum_v1100_e",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 53921645,
+    "min_elapsed_ns": 53018572,
+    "max_elapsed_ns": 59025194,
+    "all_elapsed_ns": [
+      53921645,
+      59025194,
+      53018572
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 53921645,
+      "expected_sum": 4289385492,
+      "actual_sum": 4289385492
+    },
+    "status": "ok"
+  }
+}

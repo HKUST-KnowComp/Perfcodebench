@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v19",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v19/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cub/cub.cuh>\n#include <cstdint>\n\nnamespace {\n\nconstexpr int BLOCK_THREADS = 256;\nconstexpr int ITEMS_PER_THREAD = 16;                 // 128-bit vector loads \u2192 4 int32 per thread\nconstexpr int TILE_SIZE = BLOCK_THREADS * ITEMS_PER_THREAD;\n\n__global__ void reduce_kernel(const int* __restrict__ input,\n                              int* __restrict__ blockSums,\n                              int n, int iters)\n{\n    using BlockReduce = cub::BlockReduce<int, BLOCK_THREADS>;\n    __shared__ typename BlockReduce::TempStorage temp;\n\n    const int tid = threadIdx.x;\n    const int blockOff = blockIdx.x * TILE_SIZE;\n    const int gridStride = gridDim.x * TILE_SIZE;\n\n    for (int iter = 0; iter < iters; ++iter)\n    {\n        int threadSum = 0;\n\n        // Vectorized loads with 128-bit alignment\n        const int4* vecIn = reinterpret_cast<const int4*>(input);\n        int idx = blockOff + tid * 4;\n        #pragma unroll\n        for (; idx + 3 < n; idx += gridStride)\n        {\n            int4 v = vecIn[idx / 4];\n            threadSum += v.x + v.y + v.z + v.w;\n        }\n        // Tail\n        idx = blockOff + tid;\n        for (; idx < n; idx += gridDim.x * BLOCK_THREADS)\n            threadSum += input[idx];\n\n        int blockSum = BlockReduce(temp).Sum(threadSum);\n        if (tid == 0) atomicAdd(&blockSums[blockIdx.x + iter * gridDim.x], blockSum);\n    }\n}\n\n} // anonymous namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters)\n{\n    int device;\n    cudaGetDevice(&device);\n    cudaDeviceProp prop;\n    cudaGetDeviceProperties(&prop, device);\n    const int blocks = prop.multiProcessorCount; // occupancy-tuned launch\n\n    int* dBlockSums;\n    cudaMalloc(&dBlockSums, sizeof(int) * blocks * iters);\n    cudaMemset(dBlockSums, 0, sizeof(int) * blocks * iters);\n\n    reduce_kernel<<<blocks, BLOCK_THREADS>>>(input, dBlockSums, n, iters);\n\n    // Final reduction of block sums on device\n    int64_t hostSum = 0;\n    int* hBlockSums = new int[blocks * iters];\n    cudaMemcpy(hBlockSums, dBlockSums, sizeof(int) * blocks * iters, cudaMemcpyDeviceToHost);\n    for (int i = 0; i < blocks * iters; ++i) hostSum += hBlockSums[i];\n    *output = static_cast<int>(hostSum);\n\n    delete[] hBlockSums;\n    cudaFree(dBlockSums);\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v19",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 10048192,
+    "min_elapsed_ns": 10046815,
+    "max_elapsed_ns": 10076064,
+    "all_elapsed_ns": [
+      10048192,
+      10046815,
+      10076064
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10048192,
+      "expected_sum": 31457280,
+      "actual_sum": 31457280
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v19",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 797855,
+    "min_elapsed_ns": 750240,
+    "max_elapsed_ns": 4887775,
+    "all_elapsed_ns": [
+      4887775,
+      750240,
+      797855
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4887775,
+      "expected_sum": 31457280,
+      "actual_sum": 31457280
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v19",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v19/candidate/bench']' timed out after 5 seconds"
+  }
+}

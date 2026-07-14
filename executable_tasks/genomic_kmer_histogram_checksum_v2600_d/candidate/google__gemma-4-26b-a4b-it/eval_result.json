@@ -1,0 +1,72 @@
+{
+  "task_id": "genomic_kmer_histogram_checksum_v2600_d",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/genomic_kmer_histogram_checksum_v2600_d/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <string>\n#include <vector>\n#include <algorithm>\n\nnamespace {\n\n// Fast lookup table for DNA bases to 2-bit representation\n// A=0, C=1, G=2, T=3. Non-ACGT characters are handled by masking/resetting.\nstatic const uint8_t DNA_LOOKUP[256] = {\n    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,\n    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,\n    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,\n    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,\n    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,\n    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,\n    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,\n    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,\n    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,\n    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,\n    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,\n    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,\n    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,\n    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,\n    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,\n    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0\n};\n\n// Manual initialization of lookup to ensure correctness\ninline void init_lookup() {\n    // This is a conceptual placeholder; in real code we'd use a static const array.\n    // For the sake of this implementation, we'll use a local static.\n}\n\n// Using a more robust approach for the lookup to avoid initialization issues\nstruct DNA_Map {\n    uint8_t map[256];\n    DNA_Map() {\n        for(int i=0; i<256; ++i) map[i] = 0;\n        map['A'] = 0; map['C'] = 1; map['G'] = 2; map['T'] = 3;\n    }\n} const dna_map;\n\ninline uint64_t checksum_counts(const std::vector<uint32_t>& counts) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (uint32_t count : counts) {\n        hash ^= static_cast<uint64_t>(count);\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\n} // namespace\n\nuint64_t kmer_histogram_checksum(const std::string& dna, int k, int iters) {\n    const std::size_t num_bins = 1u << (2 * k);\n    const std::size_t n = dna.size();\n    const std::size_t k_size = static_cast<std::size_t>(k);\n    const uint32_t mask = (1u << (2 * k)) - 1;\n    \n    std::vector<uint32_t> dense(num_bins);\n    uint64_t final_hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        std::fill(dense.begin(), dense.end(), 0u);\n        \n        if (n >= k_size) {\n            uint32_t current_kmer = 0;\n            uint32_t valid_len = 0;\n\n            for (std::size_t i = 0; i < n; ++i) {\n                uint8_t val = 0;\n                char c = dna[i];\n                if (c == 'C') val = 1;\n                else if (c == 'G') val = 2;\n                else if (c == 'T') val = 3;\n                else if (c == 'A') val = 0;\n                else {\n                    // Handle non-ACGT if necessary, though problem implies DNA\n                    valid_len = 0;\n                    current_kmer = 0;\n                    continue;\n                }\n\n                current_kmer = ((current_kmer << 2) | val) & mask;\n                valid_len++;\n\n                if (valid_len >= k_size) {\n                    dense[current_kmer]++;\n                }\n            }\n        }\n        final_hash = checksum_counts(dense);\n    }\n\n    return final_hash;\n}\n",
+  "baseline": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 166321098,
+    "min_elapsed_ns": 164296685,
+    "max_elapsed_ns": 166517208,
+    "all_elapsed_ns": [
+      164296685,
+      166321098,
+      166517208
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 164296685,
+      "expected_checksum": 2756138305636597943,
+      "actual_checksum": 2756138305636597943
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 14519114,
+    "min_elapsed_ns": 14459127,
+    "max_elapsed_ns": 14647774,
+    "all_elapsed_ns": [
+      14519114,
+      14647774,
+      14459127
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 14519114,
+      "expected_checksum": 2756138305636597943,
+      "actual_checksum": 2756138305636597943
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 40192967,
+    "min_elapsed_ns": 39999648,
+    "max_elapsed_ns": 42061505,
+    "all_elapsed_ns": [
+      42061505,
+      40192967,
+      39999648
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 42061505,
+      "expected_checksum": 2756138305636597943,
+      "actual_checksum": 2756138305636597943
+    },
+    "status": "ok"
+  }
+}

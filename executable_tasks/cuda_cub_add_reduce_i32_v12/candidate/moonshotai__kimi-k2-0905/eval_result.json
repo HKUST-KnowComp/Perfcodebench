@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v12",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v12/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cub/cub.cuh>\n\nnamespace {\n__global__ void block_reduce(const int* __restrict__ in,\n                             int*          __restrict__ blockSums,\n                             int                         n)\n{\n    typedef cub::BlockReduce<int, 256> BlockReduce;\n    __shared__ typename BlockReduce::TempStorage temp;\n\n    int tid = blockIdx.x * blockDim.x + threadIdx.x;\n    int value = (tid < n) ? in[tid] : 0;\n    int aggregate = BlockReduce(temp).Sum(value);\n\n    if (threadIdx.x == 0) atomicAdd(blockSums, aggregate);\n}\n} // anonymous namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters)\n{\n    const int blockSize = 256;\n    const int numBlocks = (n + blockSize - 1) / blockSize;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, sizeof(int));\n        block_reduce<<<numBlocks, blockSize>>>(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v12",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 21111967,
+    "min_elapsed_ns": 21093984,
+    "max_elapsed_ns": 21188928,
+    "all_elapsed_ns": [
+      21111967,
+      21093984,
+      21188928
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 21111967,
+      "expected_sum": 7864320,
+      "actual_sum": 7864320
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v12",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8077599,
+    "min_elapsed_ns": 2916352,
+    "max_elapsed_ns": 9829983,
+    "all_elapsed_ns": [
+      9829983,
+      8077599,
+      2916352
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9829983,
+      "expected_sum": 7864320,
+      "actual_sum": 7864320
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v12",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v12/candidate/bench']' timed out after 5 seconds"
+  }
+}

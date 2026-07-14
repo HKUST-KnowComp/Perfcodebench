@@ -1,0 +1,72 @@
+{
+  "task_id": "simdjson_validate_utf8",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdjson_validate_utf8/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"simdjson.h\"\n\n#include <cstddef>\n#include <string>\n#include <vector>\n\nnamespace {\n\nstatic inline bool is_ascii(const std::string &s) noexcept {\n  const unsigned char *p = reinterpret_cast<const unsigned char *>(s.data());\n  size_t n = s.size();\n  size_t i = 0;\n\n  uint64_t orv = 0;\n  for (; i + 8 <= n; i += 8) {\n    uint64_t v;\n    __builtin_memcpy(&v, p + i, sizeof(v));\n    orv |= v;\n  }\n  if ((orv & 0x8080808080808080ULL) != 0) return false;\n  for (; i < n; ++i) {\n    if (p[i] & 0x80U) return false;\n  }\n  return true;\n}\n\nstatic inline bool is_valid_utf8_fallback(const std::string& s) noexcept {\n  const unsigned char* p = reinterpret_cast<const unsigned char*>(s.data());\n  const unsigned char* end = p + s.size();\n  while (p < end) {\n    const unsigned char c = *p++;\n    if (c <= 0x7F) continue;\n    if (c >= 0xC2 && c <= 0xDF) {\n      if (p >= end || (p[0] & 0xC0U) != 0x80U) return false;\n      ++p;\n      continue;\n    }\n    if (c == 0xE0) {\n      if (end - p < 2 || p[0] < 0xA0 || p[0] > 0xBF || (p[1] & 0xC0U) != 0x80U) return false;\n      p += 2;\n      continue;\n    }\n    if (c >= 0xE1 && c <= 0xEC) {\n      if (end - p < 2 || (p[0] & 0xC0U) != 0x80U || (p[1] & 0xC0U) != 0x80U) return false;\n      p += 2;\n      continue;\n    }\n    if (c == 0xED) {\n      if (end - p < 2 || p[0] < 0x80 || p[0] > 0x9F || (p[1] & 0xC0U) != 0x80U) return false;\n      p += 2;\n      continue;\n    }\n    if (c >= 0xEE && c <= 0xEF) {\n      if (end - p < 2 || (p[0] & 0xC0U) != 0x80U || (p[1] & 0xC0U) != 0x80U) return false;\n      p += 2;\n      continue;\n    }\n    if (c == 0xF0) {\n      if (end - p < 3 || p[0] < 0x90 || p[0] > 0xBF || (p[1] & 0xC0U) != 0x80U || (p[2] & 0xC0U) != 0x80U) return false;\n      p += 3;\n      continue;\n    }\n    if (c >= 0xF1 && c <= 0xF3) {\n      if (end - p < 3 || (p[0] & 0xC0U) != 0x80U || (p[1] & 0xC0U) != 0x80U || (p[2] & 0xC0U) != 0x80U) return false;\n      p += 3;\n      continue;\n    }\n    if (c == 0xF4) {\n      if (end - p < 3 || p[0] < 0x80 || p[0] > 0x8F || (p[1] & 0xC0U) != 0x80U || (p[2] & 0xC0U) != 0x80U) return false;\n      p += 3;\n      continue;\n    }\n    return false;\n  }\n  return true;\n}\n\nstatic inline bool is_valid_utf8_simdjson(const std::string& s) noexcept {\n  if (s.empty() || is_ascii(s)) return true;\n  return simdjson::validate_utf8(s.data(), s.size());\n}\n\n}  // namespace\n\nstd::size_t count_valid_strings(const std::vector<std::string>& inputs) {\n  std::size_t count = 0;\n  for (const auto& s : inputs) {\n    count += is_valid_utf8_simdjson(s) ? 1u : 0u;\n  }\n  return count;\n}\n",
+  "baseline": {
+    "task_id": "simdjson_validate_utf8",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 7102503,
+    "min_elapsed_ns": 7004617,
+    "max_elapsed_ns": 7134816,
+    "all_elapsed_ns": [
+      7102503,
+      7134816,
+      7004617
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7102503,
+      "expected_count": 36000,
+      "actual_count": 36000
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdjson_validate_utf8",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 935313,
+    "min_elapsed_ns": 920766,
+    "max_elapsed_ns": 960793,
+    "all_elapsed_ns": [
+      960793,
+      935313,
+      920766
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 960793,
+      "expected_count": 36000,
+      "actual_count": 36000
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdjson_validate_utf8",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 985297,
+    "min_elapsed_ns": 984040,
+    "max_elapsed_ns": 997343,
+    "all_elapsed_ns": [
+      984040,
+      985297,
+      997343
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 984040,
+      "expected_count": 36000,
+      "actual_count": 36000
+    },
+    "status": "ok"
+  }
+}

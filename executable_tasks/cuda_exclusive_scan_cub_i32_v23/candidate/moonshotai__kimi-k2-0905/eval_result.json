@@ -1,0 +1,33 @@
+{
+  "task_id": "cuda_exclusive_scan_cub_i32_v23",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_exclusive_scan_cub_i32_v23/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\nstatic constexpr int BLOCK_THREADS = 256;\nstatic constexpr int WARP  = 32;\ntemplate <int W> __device__ __forceinline__\nint warp_scan_inclusive(int val, int* shmem, int lane) {\n    shmem[size_t(threadIdx.x)] = val;\n    if (W >= 2) shmem[size_t(threadIdx.x)] = val = (lane>=1)?shmem[threadIdx.x-1]+val:val;\n    if (W >= 4) shmem[size_t(threadIdx.x)] = val = (lane>=2)?shmem[threadIdx.x-2]+val:val;\n    if (W >= 8) shmem[size_t(threadIdx.x)] = val = (lane>=4)?shmem[threadIdx.x-4]+val:val;\n    if (W >=16) shmem[size_t(threadIdx.x)] = val = (lane>=8)?shmem[threadIdx.x-8]+val:val;\n    if (W >=32) shmem[size_t(threadIdx.x)] = val = (lane>=16)?shmem[threadIdx.x-16]+val:val;\n    return val;\n}\n\ntemplate <int W> __device__ __forceinline__\nint warp_scan_exclusive(int val, int* shmem, int lane) {\n    return warp_scan_inclusive<W>(val, shmem, lane) - val;\n}\n\n__global__ void block_scan_kernel(\n        const int* __restrict__ d_in,\n        int* __restrict__ d_out,\n        int n,\n        int* __restrict__ d_block_sums,\n        int* __restrict__ d_block_offsets)\n{\n    constexpr int W = WARP;\n    constexpr int NUM_WARPS = BLOCK_THREADS/W;\n    constexpr int SHMEM_ELEMS = BLOCK_THREADS + BLOCK_THREADS/W;\n    __shared__ int shmem[SHMEM_ELEMS];\n    int tid = threadIdx.x;\n    int lane = tid & (W-1);\n    int warp_id = tid / W;\n\n    int block_offset = blockIdx.x * BLOCK_THREADS;\n    int idx = block_offset + tid;\n\n    int val = (idx < n)? d_in[idx] : 0;\n\n    // warp exclusive scan, then inclusive sum for this warp\n    int warp_excl = warp_scan_exclusive<W>(val, shmem + blockDim.x, lane);\n    int warp_incl = warp_excl + val;\n\n    // write warp totals in shmem\n    if (lane == W-1) shmem[warp_id] = warp_incl;\n    __syncthreads();\n\n    // scan warp totals\n    int thread_val = 0;\n    if (tid < NUM_WARPS) thread_val = shmem[tid];\n    int warp_total_excl = warp_scan_exclusive<W>(thread_val, shmem + blockDim.x, lane);\n\n    // broadcast totals to all threads\n    if (tid < NUM_WARPS) shmem[tid] = warp_total_excl;\n    __syncthreads();\n\n    // distribute carry to all warp offsets\n    int block_carry = shmem[warp_id];\n    int excl_scan = block_carry + warp_excl;\n\n    if (idx < n) d_out[idx] = excl_scan;\n\n    // write inclusive block sum for carry propagation\n    int block_total = shmem[NUM_WARPS-1] + shmem[SHMEM_ELEMS-1];\n    if (tid == blockDim.x-1) d_block_sums[blockIdx.x] = block_total;\n}\n\n__global__ void carry_kernel(\n        const int* __restrict__ d_block_sums,\n        int*  __restrict__ d_block_offsets,\n        int num_blocks)\n{\n    int tid = blockIdx.x*blockDim.x + threadIdx.x;\n    if (tid==0) d_block_offsets[0] = 0;\n    for(int i=tid+1; i<num_blocks; i+=gridDim.x*blockDim.x) {\n        d_block_offsets[i] = d_block_sums[i-1];\n    }\n}\n\n__global__ void add_carry_kernel(\n        int* __restrict__ d_out,\n        const int* __restrict__ d_block_offsets,\n        int n)\n{\n    int idx = blockIdx.x*blockDim.x + threadIdx.x;\n    if (idx < n) {\n        int carry = d_block_offsets[blockIdx.x];\n        d_out[idx] += carry;\n    }\n}\n\nvoid exclusive_scan_i32(const int* input, int* output, int n, int iters) {\n    static int* d_block_sums = nullptr;\n    static int* d_block_offs = nullptr;\n\n    int total_threads = n;\n    int num_blocks = (total_threads + BLOCK_THREADS - 1) / BLOCK_THREADS;\n\n    // persistent allocations\n    if (d_block_sums==nullptr) {\n        cudaMalloc(&d_block_sums, sizeof(int)*num_blocks);\n        cudaMalloc(&d_block_offs, sizeof(int)*num_blocks);\n    }\n\n    for (int iter = 0; iter < iters; ++iter) {\n        block_scan_kernel<<<num_blocks, BLOCK_THREADS>>>(input, output, n, d_block_sums, d_block_offs);\n        carry_kernel<<<128, 128>>>(d_block_sums, d_block_offs, num_blocks);\n        add_carry_kernel<<<num_blocks, BLOCK_THREADS>>>(output, d_block_offs, n);\n    }\n    cudaDeviceSynchronize();\n}\n\n}  // namespace",
+  "baseline": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v23",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_exclusive_scan_cub_i32_v23/baseline/bench']' timed out after 5 seconds"
+  },
+  "reference": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v23",
+    "variant": "reference",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_exclusive_scan_cub_i32_v23/reference/bench']' timed out after 5 seconds"
+  },
+  "candidate": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v23",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['nvcc', '-O3', '-std=c++17', '-Iexecutable_tasks/cuda_exclusive_scan_cub_i32_v23/harness', '-gencode=arch=compute_80,code=sm_80', '-gencode=arch=compute_80,code=compute_80', 'executable_tasks/cuda_exclusive_scan_cub_i32_v23/harness/benchmark_main.cu', 'executable_tasks/cuda_exclusive_scan_cub_i32_v23/candidate/moonshotai__kimi-k2-0905/solution.cu', '-o', 'build/cuda_exclusive_scan_cub_i32_v23/candidate/bench']' returned non-zero exit status 1."
+  }
+}

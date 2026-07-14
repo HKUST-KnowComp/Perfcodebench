@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_exclusive_scan_cub_i32_v29",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_exclusive_scan_cub_i32_v29/candidate/gpt-5.4/solution.cu",
+  "benchmark_timeout_sec": 77,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\n// Tuned block size for modern GPUs; 256 threads gives good occupancy and\n// enough work per block for a two-level scan.\nconstexpr int BLOCK_THREADS = 256;\n\n__global__ void block_exclusive_scan_kernel(const int* __restrict__ input,\n                                            int* __restrict__ output,\n                                            int* __restrict__ block_sums,\n                                            int n) {\n  __shared__ int shmem[BLOCK_THREADS];\n\n  const int tid = threadIdx.x;\n  const int gid = blockIdx.x * blockDim.x + tid;\n\n  int x = 0;\n  if (gid < n) x = input[gid];\n  shmem[tid] = x;\n  __syncthreads();\n\n  // Inclusive scan in shared memory (Hillis-Steele).\n  #pragma unroll\n  for (int offset = 1; offset < BLOCK_THREADS; offset <<= 1) {\n    int val = 0;\n    if (tid >= offset) val = shmem[tid - offset];\n    __syncthreads();\n    shmem[tid] += val;\n    __syncthreads();\n  }\n\n  if (gid < n) {\n    output[gid] = shmem[tid] - x;\n  }\n\n  if (tid == blockDim.x - 1) {\n    const int block_start = blockIdx.x * blockDim.x;\n    const int valid = n - block_start;\n    if (valid > 0) {\n      const int last = valid >= blockDim.x ? (blockDim.x - 1) : (valid - 1);\n      block_sums[blockIdx.x] = shmem[last];\n    }\n  }\n}\n\n__global__ void scan_block_sums_kernel(int* data, int count) {\n  if (blockIdx.x != 0 || threadIdx.x != 0) return;\n\n  int running = 0;\n  for (int i = 0; i < count; ++i) {\n    const int v = data[i];\n    data[i] = running;\n    running += v;\n  }\n}\n\n__global__ void add_block_offsets_kernel(int* __restrict__ output,\n                                         const int* __restrict__ block_offsets,\n                                         int n) {\n  const int gid = blockIdx.x * blockDim.x + threadIdx.x;\n  if (gid < n) {\n    output[gid] += block_offsets[blockIdx.x];\n  }\n}\n\n}  // namespace\n\nvoid exclusive_scan_i32(const int* input, int* output, int n, int iters) {\n  if (n <= 0 || iters <= 0) return;\n\n  const int num_blocks = (n + BLOCK_THREADS - 1) / BLOCK_THREADS;\n\n  int* d_block_sums = nullptr;\n  if (num_blocks > 1) {\n    cudaMalloc(&d_block_sums, static_cast<size_t>(num_blocks) * sizeof(int));\n  }\n\n  for (int iter = 0; iter < iters; ++iter) {\n    if (num_blocks == 1) {\n      block_exclusive_scan_kernel<<<1, BLOCK_THREADS>>>(input, output, output, n);\n    } else {\n      block_exclusive_scan_kernel<<<num_blocks, BLOCK_THREADS>>>(input, output, d_block_sums, n);\n      scan_block_sums_kernel<<<1, 1>>>(d_block_sums, num_blocks);\n      add_block_offsets_kernel<<<num_blocks, BLOCK_THREADS>>>(output, d_block_sums, n);\n    }\n  }\n\n  if (d_block_sums) cudaFree(d_block_sums);\n}\n",
+  "baseline": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v29",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 14980544921,
+    "min_elapsed_ns": 14978484375,
+    "max_elapsed_ns": 15038174804,
+    "all_elapsed_ns": [
+      14978484375,
+      14980544921,
+      15038174804
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 14978484375,
+      "checksum": 461794810265178
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v29",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1495808,
+    "min_elapsed_ns": 1464704,
+    "max_elapsed_ns": 1500640,
+    "all_elapsed_ns": [
+      1495808,
+      1464704,
+      1500640
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1495808,
+      "checksum": 461794810265178
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v29",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_exclusive_scan_cub_i32_v29/candidate/bench']' returned non-zero exit status 1."
+  }
+}

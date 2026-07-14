@@ -1,0 +1,11 @@
+#include "interface.h"
+#include <thrust/device_ptr.h>
+#include <thrust/copy.h>
+#include <thrust/sort.h>
+
+void sort_vec_i32(const int* input, int* output, int n, int iters) {
+    for (int iter = 0; iter < iters; ++iter) {
+        thrust::copy(input, input + n, output);
+        thrust::sort(output, output + n);
+    }
+}

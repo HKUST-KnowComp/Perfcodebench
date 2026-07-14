@@ -1,0 +1,27 @@
+#include <stddef.h>
+#include <stdint.h>
+
+uint64_t run(const uint32_t* ids, size_t n, const uint32_t* dict_vals, uint32_t dict_size, int iters) {
+  (void)dict_size;
+  uint64_t h = 0;
+  for (int iter = 0; iter < iters; ++iter) {
+    h = 1469598103934665603ULL;
+    size_t i = 0;
+    for (; i + 3 < n; i += 4) {
+      uint64_t v0 = (uint64_t)dict_vals[ids[i]] + 1ULL;
+      uint64_t v1 = (uint64_t)dict_vals[ids[i+1]] + 1ULL;
+      uint64_t v2 = (uint64_t)dict_vals[ids[i+2]] + 1ULL;
+      uint64_t v3 = (uint64_t)dict_vals[ids[i+3]] + 1ULL;
+      h ^= v0; h *= 1099511628211ULL;
+      h ^= v1; h *= 1099511628211ULL;
+      h ^= v2; h *= 1099511628211ULL;
+      h ^= v3; h *= 1099511628211ULL;
+    }
+    for (; i < n; ++i) {
+      uint64_t val = (uint64_t)dict_vals[ids[i]] + 1ULL;
+      h ^= val;
+      h *= 1099511628211ULL;
+    }
+  }
+  return h;
+}

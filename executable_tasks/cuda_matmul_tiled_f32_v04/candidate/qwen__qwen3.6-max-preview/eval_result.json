@@ -1,0 +1,33 @@
+{
+  "task_id": "cuda_matmul_tiled_f32_v04",
+  "model": "qwen/qwen3.6-max-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_matmul_tiled_f32_v04/candidate/qwen__qwen3.6-max-preview/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int BLOCK_DIM = 16;\n\n__global__ void matmul_tiled_kernel(const float* __restrict__ a, \n                                    const float* __restrict__ b, \n                                    float* __restrict__ c, int n) {\n    // Pad shared memory by 1 column to avoid bank conflicts during strided access\n    __shared__ float As[BLOCK_DIM][BLOCK_DIM + 1];\n    __shared__ float Bs[BLOCK_DIM][BLOCK_DIM + 1];\n\n    int bx = blockIdx.x, by = blockIdx.y;\n    int tx = threadIdx.x, ty = threadIdx.y;\n\n    int row = by * BLOCK_DIM + ty;\n    int col = bx * BLOCK_DIM + tx;\n\n    float sum = 0.0f;\n    int num_tiles = (n + BLOCK_DIM - 1) / BLOCK_DIM;\n\n    for (int t = 0; t < num_tiles; ++t) {\n        int a_col = t * BLOCK_DIM + tx;\n        int b_row = t * BLOCK_DIM + ty;\n\n        // Coalesced global memory loads into shared memory tiles\n        As[ty][tx] = (row < n && a_col < n) ? a[row * n + a_col] : 0.0f;\n        Bs[ty][tx] = (b_row < n && col < n) ? b[b_row * n + col] : 0.0f;\n\n        __syncthreads();\n\n        // Compute partial dot product for this tile\n        #pragma unroll\n        for (int k = 0; k < BLOCK_DIM; ++k) {\n            sum += As[ty][k] * Bs[k][tx];\n        }\n\n        __syncthreads();\n    }\n\n    if (row < n && col < n) {\n        c[row * n + col] = sum;\n    }\n}\n\n}  // namespace\n\nvoid matmul_f32(const float* a, const float* b, float* c, int n, int iters) {\n    const dim3 block(BLOCK_DIM, BLOCK_DIM);\n    const dim3 grid((n + block.x - 1) / block.x, (n + block.y - 1) / block.y);\n    for (int iter = 0; iter < iters; ++iter) {\n        matmul_tiled_kernel<<<grid, block>>>(a, b, c, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_matmul_tiled_f32_v04",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_matmul_tiled_f32_v04/baseline/bench']' timed out after 5 seconds"
+  },
+  "reference": {
+    "task_id": "cuda_matmul_tiled_f32_v04",
+    "variant": "reference",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_matmul_tiled_f32_v04/reference/bench']' timed out after 5 seconds"
+  },
+  "candidate": {
+    "task_id": "cuda_matmul_tiled_f32_v04",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_matmul_tiled_f32_v04/candidate/bench']' timed out after 5 seconds"
+  }
+}

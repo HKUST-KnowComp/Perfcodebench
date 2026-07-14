@@ -1,0 +1,59 @@
+{
+  "task_id": "merge_dedup_keep_last_checksum_v1300_f",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/merge_dedup_keep_last_checksum_v1300_f/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t merge_keep_last_hash(\n    const std::vector<uint32_t>& left_keys,\n    const std::vector<uint32_t>& left_values,\n    const std::vector<uint32_t>& right_keys,\n    const std::vector<uint32_t>& right_values,\n    int iters) {\n  uint64_t final_hash = 0;\n  \n  const size_t n_left = left_keys.size();\n  const size_t n_right = right_keys.size();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t hash = 1469598103934665603ULL;\n    size_t i = 0, j = 0;\n\n    while (i < n_left || j < n_right) {\n      uint32_t key, val;\n      if (i < n_left && j < n_right) {\n        if (left_keys[i] < right_keys[j]) {\n          key = left_keys[i];\n          val = left_values[i];\n          ++i;\n        } else if (left_keys[i] > right_keys[j]) {\n          key = right_keys[j];\n          val = right_values[j];\n          ++j;\n        } else {\n          // Keys are equal: keep the right-side value\n          key = right_keys[j];\n          val = right_values[j];\n          ++i;\n          ++j;\n        }\n      } else if (i < n_left) {\n        key = left_keys[i];\n        val = left_values[i];\n        ++i;\n      } else {\n        key = right_keys[j];\n        val = right_values[j];\n        ++j;\n      }\n\n      // Handle duplicates within the same run (if they exist) or across runs\n      // The problem states runs are sorted. If runs can have internal duplicates,\n      // we must ensure only the last one is hashed. \n      // However, the baseline logic 'out.back().first == kv.first' implies \n      // we only care about the final value for a key.\n      \n      // To correctly emulate the baseline's 'out' vector behavior with the merge:\n      // We need to peek ahead to see if the next element has the same key.\n      while ((i < n_left && left_keys[i] == key) || (j < n_right && right_keys[j] == key)) {\n        if (i < n_left && left_keys[i] == key) {\n          // If it's from left, it's only relevant if no right-side value exists for this key\n          // But since we are merging, we just advance i.\n          ++i;\n        }\n        if (j < n_right && right_keys[j] == key) {\n          val = right_values[j]; // Update to the latest value for this key\n          ++j;\n        }\n      }\n      \n      hash = mix(hash, (uint64_t)key);\n      hash = mix(hash, (uint64_t)val);\n    }\n    final_hash = hash;\n  }\n  return final_hash;\n}\n",
+  "baseline": {
+    "task_id": "merge_dedup_keep_last_checksum_v1300_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 756654896,
+    "min_elapsed_ns": 732696378,
+    "max_elapsed_ns": 761034883,
+    "all_elapsed_ns": [
+      761034883,
+      756654896,
+      732696378
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 761034883,
+      "expected_checksum": 15274686177764414393,
+      "actual_checksum": 15274686177764414393
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "merge_dedup_keep_last_checksum_v1300_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 173672336,
+    "min_elapsed_ns": 169922694,
+    "max_elapsed_ns": 203483192,
+    "all_elapsed_ns": [
+      203483192,
+      173672336,
+      169922694
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 203483192,
+      "expected_checksum": 15274686177764414393,
+      "actual_checksum": 15274686177764414393
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "merge_dedup_keep_last_checksum_v1300_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/merge_dedup_keep_last_checksum_v1300_f/harness', 'executable_tasks/merge_dedup_keep_last_checksum_v1300_f/harness/benchmark_main.cpp', 'executable_tasks/merge_dedup_keep_last_checksum_v1300_f/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/merge_dedup_keep_last_checksum_v1300_f/candidate/bench']' returned non-zero exit status 1."
+  }
+}

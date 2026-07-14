@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_matmul_tiled_f32_v31",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_matmul_tiled_f32_v31/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n// 32\u00d732 tile, each thread computes 8 elements \u2192 128 threads/block\nconstexpr int TILE = 32;\nconstexpr int ELEMS_PER_THREAD = 8;\n\n__global__ void matmul_tiled_kernel(const float* __restrict__ A,\n                                    const float* __restrict__ B,\n                                    float* __restrict__ C,\n                                    int n) {\n  // Shared memory for 32\u00d732 tiles of A and B\n  __shared__ float tileA[TILE][TILE + 1]; // +1 to avoid bank conflicts\n  __shared__ float tileB[TILE][TILE + 1];\n\n  // Each thread handles ELEMS_PER_THREAD consecutive columns in its row\n  const int tileRow = threadIdx.y;\n  const int tileCol = threadIdx.x * ELEMS_PER_THREAD;\n  const int globalRow = blockIdx.y * TILE + tileRow;\n\n  float accum[ELEMS_PER_THREAD] = {0.0f};\n\n  const int numTiles = (n + TILE - 1) / TILE;\n  for (int t = 0; t < numTiles; ++t) {\n    // Load tileA: transpose while loading to get coalesced reads\n    #pragma unroll\n    for (int e = 0; e < ELEMS_PER_THREAD; ++e) {\n      int col = tileCol + e;\n      int gRow = globalRow;\n      int gCol = t * TILE + tileRow;\n      tileA[col][tileRow] = (gRow < n && gCol < n) ? A[gRow * n + gCol] : 0.0f;\n    }\n\n    // Load tileB: coalesced read along rows\n    #pragma unroll\n    for (int e = 0; e < ELEMS_PER_THREAD; ++e) {\n      int col = tileCol + e;\n      int gRow = t * TILE + tileRow;\n      int gCol = blockIdx.x * TILE + col;\n      tileB[tileRow][col] = (gRow < n && gCol < n) ? B[gRow * n + gCol] : 0.0f;\n    }\n    __syncthreads();\n\n    // Compute partial dot products\n    #pragma unroll\n    for (int k = 0; k < TILE; ++k) {\n      #pragma unroll\n      for (int e = 0; e < ELEMS_PER_THREAD; ++e) {\n        accum[e] += tileA[tileCol + e][k] * tileB[k][tileCol + e];\n      }\n    }\n    __syncthreads();\n  }\n\n  // Write back results\n  #pragma unroll\n  for (int e = 0; e < ELEMS_PER_THREAD; ++e) {\n    int col = tileCol + e;\n    int gRow = globalRow;\n    int gCol = blockIdx.x * TILE + col;\n    if (gRow < n && gCol < n) {\n      C[gRow * n + gCol] = accum[e];\n    }\n  }\n}\n\n} // namespace\n\nvoid matmul_f32(const float* a, const float* b, float* c, int n, int iters) {\n  dim3 block(TILE / ELEMS_PER_THREAD, TILE);\n  dim3 grid((n + TILE - 1) / TILE, (n + TILE - 1) / TILE);\n  for (int i = 0; i < iters; ++i) {\n    matmul_tiled_kernel<<<grid, block>>>(a, b, c, n);\n  }\n}",
+  "baseline": {
+    "task_id": "cuda_matmul_tiled_f32_v31",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 480479,
+    "min_elapsed_ns": 478303,
+    "max_elapsed_ns": 481184,
+    "all_elapsed_ns": [
+      480479,
+      481184,
+      478303
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 480479,
+      "max_abs_error": 0,
+      "checksum": 2394920000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_matmul_tiled_f32_v31",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 323935,
+    "min_elapsed_ns": 323711,
+    "max_elapsed_ns": 324512,
+    "all_elapsed_ns": [
+      324512,
+      323935,
+      323711
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 324512,
+      "max_abs_error": 0,
+      "checksum": 2394920000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_matmul_tiled_f32_v31",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_matmul_tiled_f32_v31/candidate/bench']' timed out after 5 seconds"
+  }
+}

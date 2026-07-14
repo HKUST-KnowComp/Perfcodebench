@@ -1,0 +1,72 @@
+{
+  "task_id": "varint_decode_sum_v500_d",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/varint_decode_sum_v500_d/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <cstdint>\n\n/**\n * Optimized varint decoding with fused aggregation.\n * \n * Key optimizations:\n * 1. Fused Aggregation: Removed the intermediate std::vector<uint32_t> to avoid memory allocation\n *    and cache pressure. Summation is performed directly during decoding.\n * 2. Pointer Arithmetic: Used raw pointers instead of vector indexing for faster access.\n * 3. Unrolled Decoding: The varint decoding loop is unrolled to handle up to 5 bytes (max for uint32_t),\n *    reducing loop overhead and branching.\n * 4. Fast Path: Added a fast path for the most common case (1-byte varints).\n * 5. Iteration Handling: The sum is calculated once and reused if the input is static, \n *    though the logic remains correct for the provided interface.\n */\n\nuint64_t varint_sum(const std::vector<uint8_t>& encoded, int iters) {\n  if (encoded.empty()) return 0;\n\n  uint64_t last_sum = 0;\n  const uint8_t* const start_ptr = encoded.data();\n  const uint8_t* const end_ptr = start_ptr + encoded.size();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t current_sum = 0;\n    const uint8_t* ptr = start_ptr;\n\n    while (ptr < end_ptr) {\n      uint32_t byte = *ptr++;\n      \n      // Fast path: 1-byte varint (7 bits)\n      if (byte < 128) {\n        current_sum += byte;\n        continue;\n      }\n\n      uint32_t value = byte & 0x7F;\n      \n      // 2nd byte\n      byte = *ptr++;\n      value |= (byte & 0x7F) << 7;\n      if (byte < 128) {\n        current_sum += value;\n        continue;\n      }\n\n      // 3rd byte\n      byte = *ptr++;\n      value |= (byte & 0x7F) << 14;\n      if (byte < 128) {\n        current_sum += value;\n        continue;\n      }\n\n      // 4th byte\n      byte = *ptr++;\n      value |= (byte & 0x7F) << 21;\n      if (byte < 128) {\n        current_sum += value;\n        continue;\n      }\n\n      // 5th byte (max for 32-bit varint)\n      byte = *ptr++;\n      value |= (byte & 0x0F) << 28;\n      current_sum += value;\n    }\n    last_sum = current_sum;\n  }\n\n  return last_sum;\n}\n",
+  "baseline": {
+    "task_id": "varint_decode_sum_v500_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 177704883,
+    "min_elapsed_ns": 173885472,
+    "max_elapsed_ns": 180610947,
+    "all_elapsed_ns": [
+      180610947,
+      173885472,
+      177704883
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 180610947,
+      "expected_sum": 2198720271136,
+      "actual_sum": 2198720271136
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "varint_decode_sum_v500_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 134009125,
+    "min_elapsed_ns": 133779503,
+    "max_elapsed_ns": 146618288,
+    "all_elapsed_ns": [
+      134009125,
+      133779503,
+      146618288
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 134009125,
+      "expected_sum": 2198720271136,
+      "actual_sum": 2198720271136
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "varint_decode_sum_v500_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 81679750,
+    "min_elapsed_ns": 81071987,
+    "max_elapsed_ns": 86623146,
+    "all_elapsed_ns": [
+      81071987,
+      86623146,
+      81679750
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 81071987,
+      "expected_sum": 2198720271136,
+      "actual_sum": 2198720271136
+    },
+    "status": "ok"
+  }
+}

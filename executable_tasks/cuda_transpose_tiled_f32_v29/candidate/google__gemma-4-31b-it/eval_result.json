@@ -1,0 +1,69 @@
+{
+  "task_id": "cuda_transpose_tiled_f32_v29",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_transpose_tiled_f32_v29/candidate/google__gemma-4-31b-it/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n// Tile size 32x32 is generally efficient for most GPUs\nconstexpr int TILE_DIM = 32;\n\n__global__ void transpose_tiled_kernel(const float* __restrict__ input, float* __restrict__ output, int width, int height) {\n    // Shared memory tile with padding to avoid bank conflicts\n    // [TILE_DIM][TILE_DIM + 1] ensures that columns map to different banks\n    __shared__ float tile[TILE_DIM][TILE_DIM + 1];\n\n    const int x = blockIdx.x * TILE_DIM + threadIdx.x;\n    const int y = blockIdx.y * TILE_DIM + threadIdx.y;\n\n    // Read from global memory into shared memory\n    if (x < width && y < height) {\n        tile[threadIdx.y][threadIdx.x] = input[y * width + x];\n    } else {\n        tile[threadIdx.y][threadIdx.x] = 0.0f;\n    }\n\n    __syncthreads();\n\n    // Calculate the output coordinates\n    // The block is transposed: blockIdx.x becomes the row index for output\n    const int out_x = blockIdx.y * TILE_DIM + threadIdx.x;\n    const int out_y = blockIdx.x * TILE_DIM + threadIdx.y;\n\n    // Write from shared memory to global memory (coalesced)\n    if (out_x < width && out_y < height) {\n        output[out_y * height + out_x] = tile[threadIdx.x][threadIdx.y];\n    } // Note: The logic here is slightly different to ensure coalesced writes\n    // Correct mapping for transpose: output[x][y] = input[y][x]\n    // In our tiled approach: \n    // input index: (blockIdx.y * 32 + ty) * width + (blockIdx.x * 32 + tx)\n    // output index: (blockIdx.x * 32 + tx) * height + (blockIdx.y * 32 + ty)\n    // To make output writes coalesced, we need to write to output[out_y * height + out_x]\n    // where out_x is the fast-moving index.\n}\n\n// Refined kernel for better coalescing\n__global__ void transpose_optimized_kernel(const float* __restrict__ input, float* __restrict__ output, int width, int height) {\n    __shared__ float tile[TILE_DIM][TILE_DIM + 1];\n\n    int tx = threadIdx.x;\n    int ty = threadIdx.y;\n    int gx = blockIdx.x * TILE_DIM + tx;\n    int gy = blockIdx.y * TILE_DIM + ty;\n\n    if (gx < width && gy < height) {\n        tile[ty][tx] = input[gy * width + gx];\n    } else {\n        tile[ty][tx] = 0.0f;\n    }\n\n    __syncthreads();\n\n    // Transpose the tile indices for the write phase\n    // We want to write to output[ (blockIdx.x * 32 + tx) * height + (blockIdx.y * 32 + ty) ]\n    // But to be coalesced, the inner index must be the one varying with threadIdx.x\n    // So we swap the roles of tx and ty for the output write\n    int out_gx = blockIdx.y * TILE_DIM + tx;\n    int out_gy = blockIdx.x * TILE_DIM + ty;\n\n    if (out_gx < width && out_gy < height) {\n        output[out_gy * height + out_gx] = tile[tx][ty];\n    }\n}\n\n} // namespace\n\nvoid transpose_f32(const float* input, float* output, int width, int height, int iters) {\n    dim3 block(TILE_DIM, TILE_DIM);\n    dim3 grid((width + TILE_DIM - 1) / TILE_DIM, (height + TILE_DIM - 1) / TILE_DIM);\n\n    for (int i = 0; i < iters; ++i) {\n        transpose_optimized_kernel<<<grid, block>>>(input, output, width, height);\n    }\n    cudaDeviceSynchronize();\n}\n",
+  "baseline": {
+    "task_id": "cuda_transpose_tiled_f32_v29",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 17398912,
+    "min_elapsed_ns": 14802816,
+    "max_elapsed_ns": 18882879,
+    "all_elapsed_ns": [
+      17398912,
+      18882879,
+      14802816
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 17398912,
+      "checksum": 589824000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_transpose_tiled_f32_v29",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1039423,
+    "min_elapsed_ns": 1036479,
+    "max_elapsed_ns": 1056383,
+    "all_elapsed_ns": [
+      1036479,
+      1039423,
+      1056383
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1036479,
+      "checksum": 589824000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_transpose_tiled_f32_v29",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 25178239,
+    "min_elapsed_ns": 24767679,
+    "max_elapsed_ns": 25325664,
+    "all_elapsed_ns": [
+      25178239,
+      25325664,
+      24767679
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 25178239,
+      "checksum": 589824000.0
+    },
+    "status": "ok"
+  }
+}

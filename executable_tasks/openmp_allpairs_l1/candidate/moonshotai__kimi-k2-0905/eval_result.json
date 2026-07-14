@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_allpairs_l1",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_allpairs_l1/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <omp.h>\n#include <vector>\n#include <cstdint>\n#include <algorithm>\n\nint64_t allpairs_l1_sum(const std::vector<int32_t>& xs,\n                        const std::vector<int32_t>& ys,\n                        int iters) {\n    const std::size_t n = xs.size();\n    if (n == 0) return 0;\n\n    // Determine coordinate range\n    int32_t minx = xs[0], maxx = xs[0];\n    int32_t miny = ys[0], maxy = ys[0];\n    #pragma omp parallel for reduction(min:minx,miny) reduction(max:maxx,maxy)\n    for (std::size_t i = 0; i < n; ++i) {\n        minx = std::min(minx, xs[i]);\n        maxx = std::max(maxx, xs[i]);\n        miny = std::min(miny, ys[i]);\n        maxy = std::max(maxy, ys[i]);\n    }\n    const int32_t rangex = maxx - minx + 1;\n    const int32_t rangey = maxy - miny + 1;\n\n    // Allocate histograms\n    std::vector<int64_t> histx(rangex, 0);\n    std::vector<int64_t> histy(rangey, 0);\n\n    int64_t total = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        // Clear histograms\n        std::fill(histx.begin(), histx.end(), 0);\n        std::fill(histy.begin(), histy.end(), 0);\n\n        // Build histograms in parallel\n        #pragma omp parallel\n        {\n            std::vector<int64_t> localx(rangex, 0);\n            std::vector<int64_t> localy(rangey, 0);\n            #pragma omp for nowait\n            for (std::size_t i = 0; i < n; ++i) {\n                localx[xs[i] - minx]++;\n                localy[ys[i] - miny]++;\n            }\n            #pragma omp critical\n            {\n                for (int32_t v = 0; v < rangex; ++v) histx[v] += localx[v];\n                for (int32_t v = 0; v < rangey; ++v) histy[v] += localy[v];\n            }\n        }\n\n        // Compute L1 contribution via prefix sums\n        int64_t sumx = 0, sumy = 0;\n        int64_t cntx = 0, cnty = 0;\n        #pragma omp parallel for reduction(+:sumx,cntx)\n        for (int32_t v = 0; v < rangex; ++v) {\n            sumx += histx[v] * static_cast<int64_t>(v);\n            cntx += histx[v];\n        }\n        #pragma omp parallel for reduction(+:sumy,cnty)\n        for (int32_t v = 0; v < rangey; ++v) {\n            sumy += histy[v] * static_cast<int64_t>(v);\n            cnty += histy[v];\n        }\n\n        int64_t partx = 0, party = 0;\n        int64_t prefix = 0;\n        #pragma omp parallel for reduction(+:partx)\n        for (int32_t v = 0; v < rangex; ++v) {\n            prefix += histx[v];\n            partx += prefix * static_cast<int64_t>(v);\n        }\n        prefix = 0;\n        #pragma omp parallel for reduction(+:party)\n        for (int32_t v = 0; v < rangey; ++v) {\n            prefix += histy[v];\n            party += prefix * static_cast<int64_t>(v);\n        }\n\n        total = (sumx * cntx - 2 * partx) + (sumy * cnty - 2 * party);\n    }\n    return total;\n}",
+  "baseline": {
+    "task_id": "openmp_allpairs_l1",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 16283408,
+    "min_elapsed_ns": 16248916,
+    "max_elapsed_ns": 17258126,
+    "all_elapsed_ns": [
+      17258126,
+      16283408,
+      16248916
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 17258126,
+      "expected_sum": 11453235200,
+      "actual_sum": 11453235200
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_allpairs_l1",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4108263,
+    "min_elapsed_ns": 4089456,
+    "max_elapsed_ns": 4155648,
+    "all_elapsed_ns": [
+      4155648,
+      4108263,
+      4089456
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4155648,
+      "expected_sum": 11453235200,
+      "actual_sum": 11453235200
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_allpairs_l1",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/openmp_allpairs_l1/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "fast_float_colon_parse_large",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/fast_float_colon_parse_large/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <fast_float/fast_float.h>\n#include <string>\n\n// Parse a colon-delimited buffer of decimal numbers and return their sum.\n// Optimized for large inputs by:\n//  - avoiding C locale-aware strtod\n//  - using fast_float::from_chars on bounded [ptr,end) ranges\n//  - scanning directly for ':' delimiters without temporary substrings\n//  - unrolling accumulation to reduce dependency chains\n\ndouble parse_sum(const std::string& input) {\n  const char* p = input.data();\n  const char* const end = p + input.size();\n\n  double sum0 = 0.0;\n  double sum1 = 0.0;\n  double sum2 = 0.0;\n  double sum3 = 0.0;\n  unsigned lane = 0;\n\n  while (p < end) {\n    const char* q = p;\n    while (q < end && *q != ':') {\n      ++q;\n    }\n\n    double value;\n    auto res = fast_float::from_chars(p, q, value);\n    if (res.ec != std::errc() || res.ptr != q) {\n      break;\n    }\n\n    switch (lane) {\n      case 0: sum0 += value; break;\n      case 1: sum1 += value; break;\n      case 2: sum2 += value; break;\n      default: sum3 += value; break;\n    }\n    lane = (lane + 1u) & 3u;\n\n    p = (q < end) ? (q + 1) : q;\n  }\n\n  return (sum0 + sum1) + (sum2 + sum3);\n}\n",
+  "baseline": {
+    "task_id": "fast_float_colon_parse_large",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 46454325,
+    "min_elapsed_ns": 46319822,
+    "max_elapsed_ns": 46468807,
+    "all_elapsed_ns": [
+      46468807,
+      46319822,
+      46454325
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 46468807,
+      "expected_sum": -14651228.996591924,
+      "actual_sum": -14651228.996591924
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "fast_float_colon_parse_large",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 10052910,
+    "min_elapsed_ns": 9993959,
+    "max_elapsed_ns": 10106255,
+    "all_elapsed_ns": [
+      10106255,
+      9993959,
+      10052910
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10106255,
+      "expected_sum": -14651228.996591924,
+      "actual_sum": -14651228.996591924
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "fast_float_colon_parse_large",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/fast_float_colon_parse_large/candidate/bench']' returned non-zero exit status 1."
+  }
+}

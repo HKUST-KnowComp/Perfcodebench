@@ -1,0 +1,59 @@
+{
+  "task_id": "beam_search_topk_v2200_f",
+  "model": "bytedance-seed/seed-2.0-lite",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v2200_f/candidate/bytedance-seed__seed-2.0-lite/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <utility>\n#include <vector>\n\nnamespace {\n\nbool better(const std::pair<int32_t, int>& a, const std::pair<int32_t, int>& b) {\n  return a.first > b.first || (a.first == b.first && a.second < b.second);\n}\n\nuint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits, int beams, int vocab, int topk, int iters) {\n  std::vector<std::pair<int32_t, int>> min_heap;\n  min_heap.reserve(static_cast<std::size_t>(topk));\n  const auto is_worse = [](const std::pair<int32_t, int>& a, const std::pair<int32_t, int>& b) {\n    return better(b, a);\n  };\n  const int32_t* logits_data = logits.data();\n  uint64_t hash = 0;\n  const std::size_t vocab_sz = static_cast<std::size_t>(vocab);\n  const std::size_t topk_sz = static_cast<std::size_t>(topk);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    for (int b = 0; b < beams; ++b) {\n      min_heap.clear();\n      const std::size_t base = static_cast<std::size_t>(b) * vocab_sz;\n      for (int v = 0; v < vocab; ++v) {\n        const int32_t l = logits_data[base + static_cast<std::size_t>(v)];\n        std::pair<int32_t, int> p = {l, v};\n        if (min_heap.size() < topk_sz) {\n          min_heap.push_back(p);\n          std::push_heap(min_heap.begin(), min_heap.end(), is_worse);\n        } else if (better(p, min_heap[0])) {\n          std::pop_heap(min_heap.begin(), min_heap.end(), is_worse);\n          min_heap.pop_back();\n          min_heap.push_back(p);\n          std::push_heap(min_heap.begin(), min_heap.end(), is_worse);\n        }\n      }\n      std::sort(min_heap.begin(), min_heap.end(), better);\n      for (int k = 0; k < topk; ++k) {\n        hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(min_heap[static_cast<std::size_t>(k)].first)));\n        hash = mix(hash, static_cast<uint64_t>(min_heap[static_cast<std::size_t>(k)].second));\n      }\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "beam_search_topk_v2200_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 247776038,
+    "min_elapsed_ns": 244083699,
+    "max_elapsed_ns": 254034707,
+    "all_elapsed_ns": [
+      254034707,
+      244083699,
+      247776038
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 254034707,
+      "expected_checksum": 16565030028261021178,
+      "actual_checksum": 16565030028261021178
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v2200_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5263974,
+    "min_elapsed_ns": 4697459,
+    "max_elapsed_ns": 5267017,
+    "all_elapsed_ns": [
+      5263974,
+      4697459,
+      5267017
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5263974,
+      "expected_checksum": 16565030028261021178,
+      "actual_checksum": 16565030028261021178
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v2200_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/beam_search_topk_v2200_f/candidate/bench']' returned non-zero exit status 1."
+  }
+}

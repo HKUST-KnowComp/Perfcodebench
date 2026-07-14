@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_dimension_join_sum_v1100_g",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_dimension_join_sum_v1100_g/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 11,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n\nuint64_t join_sum(\n    const std::vector<uint32_t>& dim_keys,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n    if (dim_keys.empty() || probe_keys.empty()) return 0;\n\n    // Find the range of keys to determine if a direct map is feasible\n    uint32_t max_key = 0;\n    for (uint32_t k : dim_keys) if (k > max_key) max_key = k;\n    for (uint32_t k : probe_keys) if (k > max_key) max_key = k;\n\n    // If the key range is reasonably small, use a direct lookup table\n    // Otherwise, we would use a hash map or keep the binary search.\n    // For 'dense' dimensions, a direct map is usually the intended optimization.\n    if (max_key < 10000000) {\n        std::vector<uint32_t> lookup(max_key + 1, 0);\n        for (size_t i = 0; i < dim_keys.size(); ++i) {\n            lookup[dim_keys[i]] = dim_values[i];\n        }\n\n        uint64_t total_sum = 0;\n        const size_t probe_size = probe_keys.size();\n        \n        for (int iter = 0; iter < iters; ++iter) {\n            uint64_t current_sum = 0;\n            for (size_t i = 0; i < probe_size; ++i) {\n                current_sum += static_cast<uint64_t>(lookup[probe_keys[i]]) * probe_weights[i];\n            }\n            total_sum = current_sum;\n        }\n        return total_sum;\n    } else {\n        // Fallback for very sparse/large keys: binary search is O(log N)\n        // but we can optimize by using raw pointers to avoid vector overhead\n        const uint32_t* d_keys = dim_keys.data();\n        const uint32_t* d_vals = dim_values.data();\n        const uint32_t* p_keys = probe_keys.data();\n        const uint32_t* p_weights = probe_weights.data();\n        size_t d_size = dim_keys.size();\n        size_t p_size = probe_keys.size();\n\n        uint64_t total_sum = 0;\n        for (int iter = 0; iter < iters; ++iter) {\n            uint64_t current_sum = 0;\n            for (size_t i = 0; i < p_size; ++i) {\n                uint32_t target = p_keys[i];\n                auto it = std::lower_bound(d_keys, d_keys + d_size, target);\n                size_t idx = it - d_keys;\n                current_sum += static_cast<uint64_t>(d_vals[idx]) * p_weights[i];\n            }\n            total_sum = current_sum;\n        }\n        return total_sum;\n    }\n}",
+  "baseline": {
+    "task_id": "dense_dimension_join_sum_v1100_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6666294137,
+    "min_elapsed_ns": 6469111539,
+    "max_elapsed_ns": 6842100121,
+    "all_elapsed_ns": [
+      6469111539,
+      6666294137,
+      6842100121
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6469111539,
+      "expected_sum": 36603691008,
+      "actual_sum": 36603691008
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_dimension_join_sum_v1100_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 91461180,
+    "min_elapsed_ns": 84267270,
+    "max_elapsed_ns": 96923745,
+    "all_elapsed_ns": [
+      96923745,
+      91461180,
+      84267270
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 96923745,
+      "expected_sum": 36603691008,
+      "actual_sum": 36603691008
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_dimension_join_sum_v1100_g",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 110174266,
+    "min_elapsed_ns": 106065674,
+    "max_elapsed_ns": 128244412,
+    "all_elapsed_ns": [
+      128244412,
+      106065674,
+      110174266
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 128244412,
+      "expected_sum": 36603691008,
+      "actual_sum": 36603691008
+    },
+    "status": "ok"
+  }
+}

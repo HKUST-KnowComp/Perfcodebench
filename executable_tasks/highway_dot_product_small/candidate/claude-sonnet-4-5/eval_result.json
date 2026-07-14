@@ -1,0 +1,59 @@
+{
+  "task_id": "highway_dot_product_small",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_dot_product_small/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"hwy/highway.h\"\n\nnamespace hn = hwy::HWY_NAMESPACE;\n\nfloat dot_product(const float* a, const float* b, std::size_t n) {\n  const hn::ScalableTag<float> d;\n  const size_t N = hn::Lanes(d);\n  \n  auto sum_vec = hn::Zero(d);\n  size_t i = 0;\n  \n  // Process full vectors\n  for (; i + N <= n; i += N) {\n    auto va = hn::LoadU(d, a + i);\n    auto vb = hn::LoadU(d, b + i);\n    sum_vec = hn::MulAdd(va, vb, sum_vec);\n  }\n  \n  // Horizontal sum\n  float sum = hn::ReduceSum(d, sum_vec);\n  \n  // Handle remaining elements\n  for (; i < n; ++i) {\n    sum += a[i] * b[i];\n  }\n  \n  return sum;\n}\n\nHWY_AFTER_NAMESPACE();\n\n#if HWY_ONCE\nnamespace {\nHWY_EXPORT(dot_product);\n}\n\nfloat dot_product(const float* a, const float* b, std::size_t n) {\n  return HWY_DYNAMIC_DISPATCH(dot_product)(a, b, n);\n}\n#endif",
+  "baseline": {
+    "task_id": "highway_dot_product_small",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 182051,
+    "min_elapsed_ns": 181414,
+    "max_elapsed_ns": 182351,
+    "all_elapsed_ns": [
+      182051,
+      182351,
+      181414
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 182051,
+      "expected_dot": -221178,
+      "actual_dot": -221178
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_dot_product_small",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 54737,
+    "min_elapsed_ns": 53750,
+    "max_elapsed_ns": 57243,
+    "all_elapsed_ns": [
+      57243,
+      54737,
+      53750
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 57243,
+      "expected_dot": -221178,
+      "actual_dot": -221179
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_dot_product_small",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/highway_dot_product_small/harness', '-Iexternal/highway', 'executable_tasks/highway_dot_product_small/harness/benchmark_main.cpp', 'executable_tasks/highway_dot_product_small/candidate/claude-sonnet-4-5/solution.cpp', 'external/highway/hwy/abort.cc', 'external/highway/hwy/targets.cc', 'external/highway/hwy/aligned_allocator.cc', 'external/highway/hwy/per_target.cc', '-o', 'build/highway_dot_product_small/candidate/bench']' returned non-zero exit status 1."
+  }
+}

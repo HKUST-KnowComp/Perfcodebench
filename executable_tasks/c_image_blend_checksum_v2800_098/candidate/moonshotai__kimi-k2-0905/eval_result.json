@@ -1,0 +1,72 @@
+{
+  "task_id": "c_image_blend_checksum_v2800_098",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_image_blend_checksum_v2800_098/candidate/moonshotai__kimi-k2-0905/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <stdint.h>\n#include <stdlib.h>\n#include <emmintrin.h>   /* SSE2 */\n\nstatic uint64_t checksum_bytes(const uint8_t* data, size_t n)\n{\n    uint64_t hash = 1469598103934665603ULL;\n    for (size_t i = 0; i < n; ++i) {\n        hash ^= (uint64_t)data[i];\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\nstatic inline __m128i blend_epi16(__m128i s, __m128i d, __m128i a)\n{\n    const __m128i round = _mm_set1_epi16(127);\n    const __m128i scale = _mm_set1_epi16(255);\n    __m128i lo = _mm_mullo_epi16(s, a);\n    __m128i hi = _mm_mullo_epi16(d, _mm_sub_epi16(scale, a));\n    __m128i sum = _mm_add_epi16(_mm_add_epi16(lo, hi), round);\n    return _mm_srli_epi16(_mm_mulhi_epu16(sum, _mm_set1_epi16(0x8081)), 7);\n}\n\nstatic inline __m128i blend_four_pixels(__m128i src, __m128i dst)\n{\n    /* src layout: R G B A R G B A ...  (16 bytes = 4 pixels) */\n    __m128i a16 = _mm_shufflelo_epi16(src, _MM_SHUFFLE(3,3,3,3));\n    a16 = _mm_shufflehi_epi16(a16, _MM_SHUFFLE(3,3,3,3));\n    __m128i rb = blend_epi16(_mm_and_si128(src, _mm_set1_epi16(0x00FF)),\n                             _mm_and_si128(dst, _mm_set1_epi16(0x00FF)), a16);\n    __m128i ga = blend_epi16(_mm_srli_epi16(src, 8),\n                             _mm_srli_epi16(dst, 8), a16);\n    __m128i out = _mm_or_si128(rb, _mm_slli_epi16(ga, 8));\n    /* set alpha to 0xFFFF (255) for all four pixels */\n    out = _mm_or_si128(out, _mm_set1_epi32(0xFF000000));\n    return out;\n}\n\nuint64_t run(const uint8_t* src, const uint8_t* dst, int width, int height, int iters)\n{\n    size_t pixels = (size_t)width * (size_t)height;\n    uint8_t* out = (uint8_t*)malloc(pixels * 4);\n    if (!out) return 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        const __m128i* s128 = (const __m128i*)src;\n        const __m128i* d128 = (const __m128i*)dst;\n        __m128i* o128       = (__m128i*)out;\n        size_t i = 0;\n        size_t limit = pixels / 4;\n\n        for (; i < limit; ++i) {\n            __m128i srcv = _mm_loadu_si128(s128 + i);\n            __m128i dstv = _mm_loadu_si128(d128 + i);\n            __m128i res  = blend_four_pixels(srcv, dstv);\n            _mm_storeu_si128(o128 + i, res);\n        }\n\n        /* tail (fewer than 4 pixels) */\n        for (i *= 4; i < pixels; ++i) {\n            size_t idx = i * 4;\n            uint8_t a  = src[idx + 3];\n            uint32_t s, d;\n            s = src[idx + 0]; d = dst[idx + 0];\n            out[idx + 0] = (uint8_t)((s * a + d * (255 - a) + 127) / 255);\n            s = src[idx + 1]; d = dst[idx + 1];\n            out[idx + 1] = (uint8_t)((s * a + d * (255 - a) + 127) / 255);\n            s = src[idx + 2]; d = dst[idx + 2];\n            out[idx + 2] = (uint8_t)((s * a + d * (255 - a) + 127) / 255);\n            out[idx + 3] = 255;\n        }\n    }\n\n    uint64_t hash = checksum_bytes(out, pixels * 4);\n    free(out);\n    return hash;\n}",
+  "baseline": {
+    "task_id": "c_image_blend_checksum_v2800_098",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 13450000,
+    "min_elapsed_ns": 13115000,
+    "max_elapsed_ns": 14665000,
+    "all_elapsed_ns": [
+      13115000,
+      14665000,
+      13450000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 13115000,
+      "expected_checksum": 6183179225486765850,
+      "actual_checksum": 6183179225486765850
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_image_blend_checksum_v2800_098",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 14526000,
+    "min_elapsed_ns": 13435000,
+    "max_elapsed_ns": 14782000,
+    "all_elapsed_ns": [
+      14526000,
+      13435000,
+      14782000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 14526000,
+      "expected_checksum": 6183179225486765850,
+      "actual_checksum": 6183179225486765850
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_image_blend_checksum_v2800_098",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 12414000,
+    "min_elapsed_ns": 12404000,
+    "max_elapsed_ns": 12715000,
+    "all_elapsed_ns": [
+      12404000,
+      12414000,
+      12715000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12404000,
+      "expected_checksum": 6183179225486765850,
+      "actual_checksum": 6183179225486765850
+    },
+    "status": "ok"
+  }
+}

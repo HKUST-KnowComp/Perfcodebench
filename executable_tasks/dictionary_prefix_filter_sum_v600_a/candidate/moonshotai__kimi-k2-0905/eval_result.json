@@ -1,0 +1,72 @@
+{
+  "task_id": "dictionary_prefix_filter_sum_v600_a",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dictionary_prefix_filter_sum_v600_a/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <cstring>\n\nnamespace {\n\ninline bool matches_prefix(const char* s) noexcept {\n    return (s[0] == 'q') & (static_cast<unsigned char>(s[1]) <= static_cast<unsigned char>('m'));\n}\n\n} // namespace\n\nuint64_t dictionary_prefix_weight_sum(\n    const std::vector<std::string>& dictionary,\n    const std::vector<uint16_t>& codes,\n    const std::vector<uint32_t>& weights,\n    int iters)\n{\n    const std::size_t dict_size = dictionary.size();\n    const std::size_t n_rows    = codes.size();\n\n    // Pre-compute a bitset: 1 if dictionary[i] matches the prefix.\n    alignas(64) uint8_t mask[8192] = {0};  // 8 KB, fits in L1\n    for (std::size_t i = 0; i < dict_size; ++i) {\n        const std::string& s = dictionary[i];\n        if (s.size() >= 2) {\n            mask[i] = matches_prefix(s.data());\n        }\n    }\n\n    uint64_t total = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t sum = 0;\n        const uint16_t* __restrict code_ptr = codes.data();\n        const uint32_t* __restrict w_ptr  = weights.data();\n\n        std::size_t i = 0;\n        // Process 8 at a time\n        for (; i + 8 <= n_rows; i += 8) {\n            uint64_t m0 = mask[code_ptr[i+0]];\n            uint64_t m1 = mask[code_ptr[i+1]];\n            uint64_t m2 = mask[code_ptr[i+2]];\n            uint64_t m3 = mask[code_ptr[i+3]];\n            uint64_t m4 = mask[code_ptr[i+4]];\n            uint64_t m5 = mask[code_ptr[i+5]];\n            uint64_t m6 = mask[code_ptr[i+6]];\n            uint64_t m7 = mask[code_ptr[i+7]];\n\n            sum += m0 * w_ptr[i+0];\n            sum += m1 * w_ptr[i+1];\n            sum += m2 * w_ptr[i+2];\n            sum += m3 * w_ptr[i+3];\n            sum += m4 * w_ptr[i+4];\n            sum += m5 * w_ptr[i+5];\n            sum += m6 * w_ptr[i+6];\n            sum += m7 * w_ptr[i+7];\n        }\n        // Tail\n        for (; i < n_rows; ++i) {\n            sum += mask[code_ptr[i]] * w_ptr[i];\n        }\n        total = sum;\n    }\n    return total;\n}",
+  "baseline": {
+    "task_id": "dictionary_prefix_filter_sum_v600_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 87451097,
+    "min_elapsed_ns": 79840157,
+    "max_elapsed_ns": 89414833,
+    "all_elapsed_ns": [
+      89414833,
+      87451097,
+      79840157
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 89414833,
+      "expected_sum": 1671168,
+      "actual_sum": 1671168
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dictionary_prefix_filter_sum_v600_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 6154987,
+    "min_elapsed_ns": 6003577,
+    "max_elapsed_ns": 6657934,
+    "all_elapsed_ns": [
+      6154987,
+      6657934,
+      6003577
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6154987,
+      "expected_sum": 1671168,
+      "actual_sum": 1671168
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dictionary_prefix_filter_sum_v600_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 3586444,
+    "min_elapsed_ns": 3241756,
+    "max_elapsed_ns": 4828247,
+    "all_elapsed_ns": [
+      3241756,
+      3586444,
+      4828247
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3241756,
+      "expected_sum": 1671168,
+      "actual_sum": 1671168
+    },
+    "status": "ok"
+  }
+}

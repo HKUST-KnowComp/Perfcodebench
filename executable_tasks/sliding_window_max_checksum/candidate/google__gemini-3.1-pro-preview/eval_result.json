@@ -1,0 +1,72 @@
+{
+  "task_id": "sliding_window_max_checksum",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sliding_window_max_checksum/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <cstdint>\n#include <memory>\n\nnamespace {\n\n// FNV-1a style mix function provided in the baseline\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n/**\n * Optimized sliding window maximum using a monotonic deque.\n * Complexity: O(N) per iteration, where N is values.size().\n * The deque stores indices of elements in the current window such that \n * values[deque] is always non-increasing.\n */\nuint64_t compute_sliding_window_max_hash(const std::vector<uint32_t>& values, int window, uint32_t* deque_buffer) {\n  const size_t n = values.size();\n  if (n == 0 || window <= 0) return 1469598103934665603ULL;\n\n  uint64_t hash = 1469598103934665603ULL;\n  int head = 0;\n  int tail = 0;\n\n  // Process the first window\n  for (int i = 0; i < window; ++i) {\n    uint32_t val = values[i];\n    while (tail > head && values[deque_buffer[tail - 1]] <= val) {\n      --tail;\n    }\n    deque_buffer[tail++] = i;\n  }\n\n  // The maximum for the first window\n  hash = mix(hash, values[deque_buffer[head]]);\n\n  // Process the rest of the windows\n  for (size_t i = window; i < n; ++i) {\n    // Remove indices that are out of the window boundary\n    if (deque_buffer[head] <= static_cast<int>(i - window)) {\n      ++head;\n    }\n\n    uint32_t val = values[i];\n    // Maintain monotonic property: values[deque] must be descending\n    while (tail > head && values[deque_buffer[tail - 1]] <= val) {\n      --tail;\n    }\n    deque_buffer[tail++] = static_cast<uint32_t>(i);\n\n    // The maximum of the current window is at the front of the deque\n    hash = mix(hash, values[deque_buffer[head]]);\n  }\n\n  return hash;\n}\n\n} // namespace\n\nuint64_t sliding_window_max_hash(const std::vector<uint32_t>& values, int window, int iters) {\n  if (values.empty() || window <= 0 || static_cast<size_t>(window) > values.size()) {\n    return 0;\n  }\n\n  // Pre-allocate a buffer for the monotonic deque to avoid allocations inside the loop.\n  // The deque will store at most 'window' indices, but 'values.size()' is a safe upper bound.\n  std::unique_ptr<uint32_t[]> deque_buffer(new uint32_t[values.size()]);\n\n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = compute_sliding_window_max_hash(values, window, deque_buffer.get());\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "sliding_window_max_checksum",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 438463095,
+    "min_elapsed_ns": 434166155,
+    "max_elapsed_ns": 510778308,
+    "all_elapsed_ns": [
+      434166155,
+      510778308,
+      438463095
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 434166155,
+      "expected_checksum": 1681123604754607418,
+      "actual_checksum": 1681123604754607418
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sliding_window_max_checksum",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 140876202,
+    "min_elapsed_ns": 138058357,
+    "max_elapsed_ns": 202675435,
+    "all_elapsed_ns": [
+      138058357,
+      140876202,
+      202675435
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 138058357,
+      "expected_checksum": 1681123604754607418,
+      "actual_checksum": 1681123604754607418
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sliding_window_max_checksum",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 120785010,
+    "min_elapsed_ns": 113507840,
+    "max_elapsed_ns": 137460811,
+    "all_elapsed_ns": [
+      120785010,
+      137460811,
+      113507840
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 120785010,
+      "expected_checksum": 1681123604754607418,
+      "actual_checksum": 1681123604754607418
+    },
+    "status": "ok"
+  }
+}

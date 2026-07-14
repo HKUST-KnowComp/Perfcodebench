@@ -1,0 +1,72 @@
+{
+  "task_id": "is_utf8_line_validate_dense",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/is_utf8_line_validate_dense/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <cstring>\n\nstd::size_t count_valid_lines(const std::string& input) {\n    const unsigned char* p = reinterpret_cast<const unsigned char*>(input.data());\n    const unsigned char* end = p + input.size();\n    std::size_t count = 0;\n\n    auto validate_utf8 = [](const unsigned char* start, const unsigned char* end_ptr) -> bool {\n        const unsigned char* curr = start;\n        while (curr < end_ptr) {\n            unsigned char c = *curr++;\n            if (c <= 0x7F) continue;\n            if (c >= 0xC2 && c <= 0xDF) {\n                if (curr >= end_ptr || (curr[0] & 0xC0) != 0x80) return false;\n                curr++;\n            } else if (c >= 0xE0 && c <= 0xEF) {\n                if (end_ptr - curr < 2) return false;\n                unsigned char c2 = curr[0];\n                unsigned char c3 = curr[1];\n                if ((c3 & 0xC0) != 0x80) return false;\n                if (c == 0xE0) { if (c2 < 0xA0 || c2 > 0xBF) return false; }\n                else if (c == 0xED) { if (c2 < 0x80 || c2 > 0x9F) return false; }\n                else { if ((c2 & 0xC0) != 0x80) return false; }\n                curr += 2;\n            } else if (c >= 0xF0 && c <= 0xF4) {\n                if (end_ptr - curr < 3) return false;\n                unsigned char c2 = curr[0];\n                unsigned char c3 = curr[1];\n                unsigned char c4 = curr[2];\n                if ((c3 & 0xC0) != 0x80 || (c4 & 0xC0) != 0x80) return false;\n                if (c == 0xF0) { if (c2 < 0x90 || c2 > 0xBF) return false; }\n                else if (c == 0xF4) { if (c2 < 0x80 || c2 > 0x8F) return false; }\n                else { if ((c2 & 0xC0) != 0x80) return false; }\n                curr += 3;\n            } else {\n                return false;\n            }\n        }\n        return true;\n    };\n\n    while (p < end) {\n        const unsigned char* line_start = p;\n        const unsigned char* line_end = p;\n\n        // Fast scan for non-ASCII or newline\n        while (line_end < end) {\n            if ((end - line_end) >= 8) {\n                uint64_t word;\n                std::memcpy(&word, line_end, 8);\n                // Check if any byte has the high bit set (non-ASCII) or is a newline (0x0A)\n                // High bit: word & 0x8080808080808080\n                // Newline: word & 0x0A0A0A0A0A0A0A0A (but we need to be careful about other bytes being 0x0A)\n                // A more robust way to find the first byte that is either > 127 or == 10:\n                bool has_special = false;\n                for (int i = 0; i < 8; ++i) {\n                    unsigned char b = (unsigned char)((word >> (i * 8)) & 0xFF);\n                    if (b > 0x7F || b == 0x0A) {\n                        line_end += i;\n                        has_special = true;\n                        break;\n                    }\n                }\n                if (has_special) break;\n                line_end += 8;\n            } else {\n                if (*line_end > 0x7F || *line_end == 0x0A) break;\n                line_end++;\n            }\n        }\n\n        if (line_end < end && *line_end == 0x0A) {\n            // We found a newline, but we must check if there were any non-ASCII chars before it\n            // The fast scan might have stopped at a non-ASCII char before the newline\n            // We need to find the actual end of the line\n            const unsigned char* actual_end = line_start;\n            while (actual_end < end && *actual_end != 0x0A) {\n                actual_end++;\n            }\n            if (validate_utf8(line_start, actual_end)) count++;\n            p = actual_end + 1;\n        } else {\n            // Reached end of input\n            const unsigned char* actual_end = line_start;\n            while (actual_end < end && *actual_end != 0x0A) {\n                actual_end++;\n            }\n            if (validate_utf8(line_start, actual_end)) count++;\n            p = actual_end + 1;\n        }\n    }\n\n    return count;\n}",
+  "baseline": {
+    "task_id": "is_utf8_line_validate_dense",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6436682,
+    "min_elapsed_ns": 6411633,
+    "max_elapsed_ns": 6464407,
+    "all_elapsed_ns": [
+      6436682,
+      6464407,
+      6411633
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6436682,
+      "expected_count": 40173,
+      "actual_count": 40173
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "is_utf8_line_validate_dense",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2665784,
+    "min_elapsed_ns": 2649317,
+    "max_elapsed_ns": 2667195,
+    "all_elapsed_ns": [
+      2667195,
+      2665784,
+      2649317
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2667195,
+      "expected_count": 40173,
+      "actual_count": 40173
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "is_utf8_line_validate_dense",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 5291220,
+    "min_elapsed_ns": 5070503,
+    "max_elapsed_ns": 6943699,
+    "all_elapsed_ns": [
+      6943699,
+      5291220,
+      5070503
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6943699,
+      "expected_count": 40173,
+      "actual_count": 40173
+    },
+    "status": "ok"
+  }
+}

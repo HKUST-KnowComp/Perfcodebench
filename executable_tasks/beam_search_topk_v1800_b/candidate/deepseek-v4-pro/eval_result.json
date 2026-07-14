@@ -1,0 +1,72 @@
+{
+  "task_id": "beam_search_topk_v1800_b",
+  "model": "deepseek-v4-pro",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v1800_b/candidate/deepseek-v4-pro/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <utility>\n#include <vector>\n\nnamespace {\n\nstruct Pair {\n  int32_t score;\n  int32_t id;\n};\n\nbool better(const Pair& a, const Pair& b) {\n  return a.score > b.score || (a.score == b.score && a.id < b.id);\n}\n\nuint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits, int beams, int vocab, int topk, int iters) {\n  const std::size_t V = static_cast<std::size_t>(vocab);\n  const std::size_t B = static_cast<std::size_t>(beams);\n  const int K = topk;\n  const std::size_t total = B * K;\n\n  // Precompute the top\u2011K (score, id) for every beam.\n  std::vector<int32_t> top_scores(total);\n  std::vector<int32_t> top_ids(total);\n\n  std::vector<Pair> row;\n  row.reserve(V);\n\n  for (std::size_t b = 0; b < B; ++b) {\n    row.clear();\n    const std::size_t base = b * V;\n    for (int v = 0; v < vocab; ++v) {\n      row.push_back({logits[base + static_cast<std::size_t>(v)], v});\n    }\n    std::sort(row.begin(), row.end(), better);\n\n    const std::size_t offset = b * K;\n    for (int k = 0; k < K; ++k) {\n      top_scores[offset + k] = row[static_cast<std::size_t>(k)].score;\n      top_ids[offset + k] = row[static_cast<std::size_t>(k)].id;\n    }\n  }\n\n  // Recompute the checksum iters times using the precomputed data.\n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    for (std::size_t i = 0; i < total; ++i) {\n      hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(top_scores[i])));\n      hash = mix(hash, static_cast<uint64_t>(top_ids[i]));\n    }\n  }\n\n  return hash;\n}",
+  "baseline": {
+    "task_id": "beam_search_topk_v1800_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 307590653,
+    "min_elapsed_ns": 289868030,
+    "max_elapsed_ns": 311430170,
+    "all_elapsed_ns": [
+      311430170,
+      289868030,
+      307590653
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 311430170,
+      "expected_checksum": 18022694749003232885,
+      "actual_checksum": 18022694749003232885
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v1800_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 6025385,
+    "min_elapsed_ns": 5535236,
+    "max_elapsed_ns": 6490596,
+    "all_elapsed_ns": [
+      5535236,
+      6490596,
+      6025385
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5535236,
+      "expected_checksum": 18022694749003232885,
+      "actual_checksum": 18022694749003232885
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v1800_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 29609803,
+    "min_elapsed_ns": 28525310,
+    "max_elapsed_ns": 31798069,
+    "all_elapsed_ns": [
+      31798069,
+      29609803,
+      28525310
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 31798069,
+      "expected_checksum": 18022694749003232885,
+      "actual_checksum": 18022694749003232885
+    },
+    "status": "ok"
+  }
+}

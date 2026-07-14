@@ -1,0 +1,59 @@
+{
+  "task_id": "coo_to_csr_offsets_checksum_few_rows",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/coo_to_csr_offsets_checksum_few_rows/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <cstdint>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n} // namespace\n\nuint64_t csr_offsets_hash(const std::vector<uint32_t>& row_ids, uint32_t rows, int iters) {\n  if (rows == 0) {\n    // Handle edge case where rows might be 0, though unlikely per task description\n    uint64_t hash = 1469598103934665603ULL;\n    // offsets would be [0]\n    return mix(hash, 0);\n  }\n\n  std::vector<uint32_t> offsets(static_cast<size_t>(rows) + 1);\n  uint64_t final_hash = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    // Reset offsets\n    for (uint32_t i = 0; i <= rows; ++i) {\n      offsets[i] = 0;\n    }\n\n    // Since row_ids is sorted, we can build the counts/offsets in one pass\n    // We first count occurrences of each row\n    // Because it's sorted, we can just iterate and increment\n    for (uint32_t row : row_ids) {\n      if (row < rows) {\n        offsets[row + 1]++;\n      }\n    }\n\n    // Convert counts to prefix sums (CSR offsets)\n    uint32_t current_offset = 0;\n    offsets[0] = 0;\n    for (uint32_t r = 0; r < rows; ++r) {\n      current_offset += offsets[r + 1]; // This is actually the count for row r\n      // Wait, the logic above: offsets[r+1] currently holds the count of row r.\n      // Let's fix the logic to be cleaner.\n    }\n    \n    // Re-implementing logic for clarity and speed:\n    // 1. Clear offsets\n    // 2. Count row occurrences\n    // 3. Prefix sum\n    \n    // Let's use a more direct approach:\n    // offsets[i] will store the count of row i\n    // Then we transform it into prefix sums.\n    \n    // Resetting offsets to 0\n    for (size_t i = 0; i <= rows; ++i) offsets[i] = 0;\n    \n    for (uint32_t row : row_ids) {\n      if (row < rows) {\n        offsets[row]++;\n      }\n    }\n\n    // Now offsets[r] = count of row r\n    // We need CSR: offsets[0]=0, offsets[1]=count[0], offsets[2]=count[0]+count[1]...\n    uint32_t running_sum = 0;\n    offsets[0] = 0;\n    for (uint32_t r = 0; r < rows; ++r) {\n      uint32_t count = offsets[r];\n      running_sum += count;\n      offsets[r + 1] = running_sum;\n    }\n\n    final_hash = 1469598103934665603ULL;\n    for (uint32_t v : offsets) {\n      final_hash = mix(final_hash, static_cast<uint64_t>(v));\n    }\n  }\n\n  return final_hash;\n}\n",
+  "baseline": {
+    "task_id": "coo_to_csr_offsets_checksum_few_rows",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 14711291,
+    "min_elapsed_ns": 14503589,
+    "max_elapsed_ns": 14858997,
+    "all_elapsed_ns": [
+      14711291,
+      14503589,
+      14858997
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 14711291,
+      "expected_checksum": 634632768387708825,
+      "actual_checksum": 634632768387708825
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "coo_to_csr_offsets_checksum_few_rows",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2353705,
+    "min_elapsed_ns": 2322552,
+    "max_elapsed_ns": 3104314,
+    "all_elapsed_ns": [
+      2353705,
+      2322552,
+      3104314
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2353705,
+      "expected_checksum": 634632768387708825,
+      "actual_checksum": 634632768387708825
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "coo_to_csr_offsets_checksum_few_rows",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/coo_to_csr_offsets_checksum_few_rows/harness', 'executable_tasks/coo_to_csr_offsets_checksum_few_rows/harness/benchmark_main.cpp', 'executable_tasks/coo_to_csr_offsets_checksum_few_rows/candidate/google__gemma-4-26b-a4b-it/solution.cpp', '-o', 'build/coo_to_csr_offsets_checksum_few_rows/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_093",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_093/candidate/google__gemma-4-26b-a4b-it/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\nstatic uint64_t checksum_i16(const int16_t* data, size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (size_t i = 0; i < n; ++i) {\n    hash ^= (uint16_t)data[i];\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n  if (output_len <= 0) return 0;\n  \n  int16_t* out = (int16_t*)malloc((size_t)output_len * sizeof(int16_t));\n  if (!out) return 0;\n\n  uint64_t hash = 0;\n  \n  // Pre-calculate fixed-point constants to avoid double math in the loop\n  // We use a large scale to maintain precision equivalent to the original double math\n  // The original formula: pos = i * (input_len - 1) / (output_len - 1)\n  // We use 64-bit fixed point math to simulate the double precision behavior.\n  \n  if (output_len == 1) {\n    // Edge case: output_len 1 would cause division by zero in original logic\n    // but the loop would handle it if we follow the logic carefully.\n    // However, the original code uses (output_len - 1) in denominator.\n    // If output_len is 1, the original code's behavior is technically undefined/NaN.\n    // Given the context of resampling, we assume output_len > 1.\n  } else {\n    const uint64_t scale = 1ULL << 48;\n    const uint64_t step = ((uint64_t)(input_len - 1) << 48) / (output_len - 1);\n\n    for (int iter = 0; iter < iters; ++iter) {\n      uint64_t current_pos_fp = 0;\n      for (int i = 0; i < output_len; ++i) {\n        // current_pos_fp represents 'pos' scaled by 2^48\n        uint64_t left = current_pos_fp >> 48;\n        uint64_t right = left + 1;\n        if (right >= (uint64_t)input_len) right = input_len - 1;\n        \n        uint64_t frac_fp = current_pos_fp & ((1ULL << 48) - 1);\n        \n        // Interpolation: sample = src[left] * (1 - frac) + src[right] * frac\n        // To match the original double precision rounding: \n        // sample = src[left] + frac * (src[right] - src[left])\n        int64_t s_left = src[left];\n        int64_t s_right = src[right];\n        \n        // We need to simulate: (double)sample + 0.5 (for positive) or - 0.5 (for negative)\n        // This is equivalent to rounding to nearest integer.\n        // Using fixed point: \n        // res = s_left + (frac_fp * (s_right - s_left)) / 2^48\n        // To handle rounding: add 0.5 (which is 2^47 in our scale) before dividing\n        \n        int64_t diff = s_right - s_left;\n        int64_t interpolated_scaled = (frac_fp * diff);\n        \n        // The original code uses: \n        // if (sample >= 0.0) out[i] = (int16_t)(sample + 0.5);\n        // else out[i] = (int16_t)(sample - 0.5);\n        // This is standard rounding.\n        \n        int64_t sample_val_scaled = (s_left << 48) + interpolated_scaled;\n        // Rounding: add 2^47 if positive, subtract 2^47 if negative\n        if (sample_val_scaled >= 0) {\n            sample_val_scaled += (1ULL << 47);\n        } else {\n            sample_val_scaled -= (1ULL << 47);\n        }\n        \n        out[i] = (int16_t)(sample_val_scaled >> 48);\n        \n        if (i < output_len - 1) {\n            current_pos_fp += step;\n        }\n      }\n      hash = checksum_i16(out, (size_t)output_len);\n    }\n  }\n\n  free(out);\n  return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_093",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 10747000,
+    "min_elapsed_ns": 10281000,
+    "max_elapsed_ns": 12071000,
+    "all_elapsed_ns": [
+      10281000,
+      12071000,
+      10747000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10281000,
+      "expected_checksum": 8046071866327690008,
+      "actual_checksum": 8046071866327690008
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_093",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 11488000,
+    "min_elapsed_ns": 10763000,
+    "max_elapsed_ns": 11738000,
+    "all_elapsed_ns": [
+      11488000,
+      11738000,
+      10763000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11488000,
+      "expected_checksum": 8046071866327690008,
+      "actual_checksum": 8046071866327690008
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_093",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 10696000,
+    "min_elapsed_ns": 10453000,
+    "max_elapsed_ns": 10820000,
+    "all_elapsed_ns": [
+      10820000,
+      10453000,
+      10696000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10820000,
+      "expected_checksum": 8046071866327690008,
+      "actual_checksum": 8046071866327690008
+    },
+    "status": "ok"
+  }
+}

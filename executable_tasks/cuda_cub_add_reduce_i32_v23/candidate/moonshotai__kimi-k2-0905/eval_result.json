@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v23",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v23/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cstdio>\n\nstatic const int BLOCK_SIZE = 256;\n\n// two-level hierarchical reduction kernel\n// grid-level outputs are written atomically into a host-mapped buffer so that\n// no device->device copy is needed.\nstatic __global__ void reduction_kernel(const int * __restrict__ d_in,\n                                        int * __restrict__ grid_out,\n                                        const int n)\n{\n    __shared__ int smem[BLOCK_SIZE];\n    int tid = threadIdx.x;\n    int64_t local = 0;\n    // first-level: warp-stride load with int64 accumulation to avoid overflow\n    for (int i = blockIdx.x * BLOCK_SIZE + tid; i < n; i += gridDim.x * BLOCK_SIZE)\n        local += d_in[i];\n    smem[tid] = (int)local;\n\n    // intra-block reduction\n    __syncthreads();\n    for (int off = BLOCK_SIZE/2; off >= 1; off /= 2) {\n        if (tid < off) smem[tid] += smem[tid + off];\n        __syncthreads();\n    }\n    // write one value per block to the host-mapped buffer\n    if (tid == 0) atomicAdd(grid_out, smem[0]);\n}\n\nvoid add_reduce_i32(const int *d_input, int *output, int n, int iters)\n{\n    // tiny pinned host buffer directly accessible from kernel (zero-copy)\n    int  *d_grid_sum = nullptr;\n    cudaHostAlloc(&d_grid_sum, sizeof(int), cudaHostAllocMapped);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        *d_grid_sum = 0;                    // reset the reduction accumulator\n\n        const int blocks = min((n + BLOCK_SIZE - 1) / BLOCK_SIZE, 2048);\n        reduction_kernel<<<blocks, BLOCK_SIZE>>>(d_input, d_grid_sum, n);\n        cudaDeviceSynchronize();\n\n        // exact int64 sum on CPU\n        int64_t cpu_sum = *d_grid_sum;\n        *output = (int)cpu_sum;\n    }\n    cudaFreeHost(d_grid_sum);\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v23",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 315008,
+    "min_elapsed_ns": 314815,
+    "max_elapsed_ns": 315647,
+    "all_elapsed_ns": [
+      314815,
+      315647,
+      315008
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 314815,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v23",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2504352,
+    "min_elapsed_ns": 2469536,
+    "max_elapsed_ns": 2531968,
+    "all_elapsed_ns": [
+      2504352,
+      2469536,
+      2531968
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2504352,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v23",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v23/candidate/bench']' died with <Signals.SIGSEGV: 11>."
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "task_id": "cuda_transpose_tiled_f32_v29",
+  "model": "qwen/qwen3.5-35b-a3b",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_transpose_tiled_f32_v29/candidate/qwen__qwen3.5-35b-a3b/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int kTileDim = 32;\n\n__global__ void transpose_tiled_kernel(const float* input, float* output, int width, int height) {\n    __shared__ float tile[32][32];\n    int x = blockIdx.x * kTileDim + threadIdx.x;\n    int y = blockIdx.y * kTileDim + threadIdx.y;\n\n    // Load input into shared memory\n    if (x < width && y < height) {\n        tile[threadIdx.y][threadIdx.x] = input[y * width + x];\n    }\n    __syncthreads();\n\n    // Transpose in shared memory\n    int tx = threadIdx.x;\n    int ty = threadIdx.y;\n    float val = tile[ty][tx];\n\n    // Write to output\n    if (x < width && y < height) {\n        output[x * height + y] = val;\n    }\n}\n\n}  // namespace\n\nvoid transpose_f32(const float* input, float* output, int width, int height, int iters) {\n    const dim3 block(kTileDim, kTileDim);\n    const dim3 grid((width + kTileDim - 1) / kTileDim, (height + kTileDim - 1) / kTileDim);\n    for (int iter = 0; iter < iters; ++iter) {\n        transpose_tiled_kernel<<<grid, block>>>(input, output, width, height);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_transpose_tiled_f32_v29",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 17398912,
+    "min_elapsed_ns": 14802816,
+    "max_elapsed_ns": 18882879,
+    "all_elapsed_ns": [
+      17398912,
+      18882879,
+      14802816
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 17398912,
+      "checksum": 589824000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_transpose_tiled_f32_v29",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1039423,
+    "min_elapsed_ns": 1036479,
+    "max_elapsed_ns": 1056383,
+    "all_elapsed_ns": [
+      1036479,
+      1039423,
+      1056383
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1036479,
+      "checksum": 589824000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_transpose_tiled_f32_v29",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 109372764,
+    "min_elapsed_ns": 73607933,
+    "max_elapsed_ns": 109837760,
+    "all_elapsed_ns": [
+      109837760,
+      109372764,
+      73607933
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 109837760,
+      "checksum": 589824000.0
+    },
+    "status": "ok"
+  }
+}

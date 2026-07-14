@@ -1,0 +1,33 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v31",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v31/candidate/google__gemma-4-31b-it/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cooperative_groups.h>\n\nnamespace {\n\n__global__ void reduce_i32_kernel(const int* __restrict__ input, int* __restrict__ output, int n) {\n    int tid = threadIdx.x;\n    int block_offset = blockIdx.x * blockDim.x;\n    \n    int local_sum = 0;\n    // Grid-stride loop for coalesced memory access\n    for (int i = block_offset + tid; i < n; i += gridDim.x * blockDim.x) {\n        local_sum += input[i];\n    }\n\n    // Warp-level reduction\n    for (int offset = 16; offset > 0; offset /= 2) {\n        local_sum += __shfl_down_sync(0xFFFFFFFF, local_sum, offset);\n    }\n\n    // Shared memory for block-level reduction\n    static __shared__ int shared_sums[32]; // Max 1024 threads / 32 = 32 warps\n    int warp_id = tid / 32;\n    if (tid % 32 == 0) {\n        shared_sums[warp_id] = local_sum;\n    }\n\n    __syncthreads();\n\n    // Final reduction of the 32 warp sums by the first warp\n    if (warp_id < 32 && tid < 32) {\n        int final_block_sum = shared_sums[tid];\n        for (int offset = 16; offset > 0; offset /= 2) {\n            final_block_sum += __shfl_down_sync(0xFFFFFFFF, final_block_sum, offset);\n        }\n        if (tid == 0) {\n            atomicAdd(output, final_block_sum);\n        }\n    }\n}\n\n} // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    // Use a reasonable number of blocks to saturate the GPU\n    int threads_per_block = 256;\n    int blocks_per_grid = (n + threads_per_block - 1) / threads_per_block;\n    if (blocks_per_grid > 1024) blocks_per_grid = 1024;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemsetAsync(output, 0, sizeof(int), 0);\n        reduce_i32_kernel<<<blocks_per_grid, threads_per_block>>>(input, output, n);\n    }\n    cudaDeviceSynchronize();\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v31",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v31/baseline/bench']' timed out after 5 seconds"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v31",
+    "variant": "reference",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v31/reference/bench']' timed out after 5 seconds"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v31",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v31/candidate/bench']' timed out after 5 seconds"
+  }
+}

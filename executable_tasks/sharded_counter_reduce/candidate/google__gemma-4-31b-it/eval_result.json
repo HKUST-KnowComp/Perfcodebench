@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 8,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <atomic>\n#include <thread>\n#include <vector>\n#include <algorithm>\n\nnamespace {\n\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  \n  // Use atomics to avoid global mutex contention\n  std::vector<std::atomic<uint64_t>> counts(static_cast<std::size_t>(key_space));\n  \n  // To avoid thread creation overhead inside the loop, we create threads once.\n  // However, the problem requires resetting counts and calculating checksum per iteration.\n  // We use a simple loop and join for clarity, but move the thread creation logic\n  // to be as efficient as possible. \n  \n  uint64_t final_hash = 0;\n  const std::size_t total_keys = keys.size();\n  const std::size_t chunk = total_keys / static_cast<std::size_t>(num_threads);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    // Reset counts\n    for (std::size_t i = 0; i < static_cast<std::size_t>(key_space); ++i) {\n      counts[i].store(0, std::memory_order_relaxed);\n    }\n\n    std::vector<std::thread> threads;\n    for (int t = 0; t < num_threads; ++t) {\n      const std::size_t begin = static_cast<std::size_t>(t) * chunk;\n      const std::size_t end = (t == num_threads - 1) ? total_keys : begin + chunk;\n      \n      threads.emplace_back([&, begin, end]() {\n        for (std::size_t i = begin; i < end; ++i) {\n          // Use relaxed memory order for maximum performance during the update phase\n          counts[static_cast<std::size_t>(keys[i])].fetch_add(static_cast<uint64_t>(values[i]), std::memory_order_relaxed);\n        }\n      });\n    }\n\n    for (std::thread& th : threads) {\n      th.join();\n    }\n\n    // Convert atomics to a standard vector for the checksum function\n    std::vector<uint64_t> snapshot(static_cast<std::size_t>(key_space));\n    for (std::size_t i = 0; i < static_cast<std::size_t>(key_space); ++i) {\n      snapshot[i] = counts[i].load(std::memory_order_relaxed);\n    }\n    final_hash = checksum_u64(snapshot);\n  }\n\n  return final_hash;\n}",
+  "baseline": {
+    "task_id": "sharded_counter_reduce",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4830631686,
+    "min_elapsed_ns": 4342993503,
+    "max_elapsed_ns": 6410939670,
+    "all_elapsed_ns": [
+      4830631686,
+      4342993503,
+      6410939670
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4830631686,
+      "expected_checksum": 9756277127520650115,
+      "actual_checksum": 9756277127520650115
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 20972500,
+    "min_elapsed_ns": 20533995,
+    "max_elapsed_ns": 24614890,
+    "all_elapsed_ns": [
+      20972500,
+      20533995,
+      24614890
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 20972500,
+      "expected_checksum": 9756277127520650115,
+      "actual_checksum": 9756277127520650115
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 319903405,
+    "min_elapsed_ns": 296644696,
+    "max_elapsed_ns": 326318927,
+    "all_elapsed_ns": [
+      319903405,
+      326318927,
+      296644696
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 319903405,
+      "expected_checksum": 9756277127520650115,
+      "actual_checksum": 9756277127520650115
+    },
+    "status": "ok"
+  }
+}

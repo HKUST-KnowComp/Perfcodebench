@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_jacobi_2d_v600_f",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v600_f/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nstatic inline uint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  const std::size_t n = data.size();\n  const uint32_t* p = data.data();\n\n  int max_threads = 1;\n#ifdef _OPENMP\n  max_threads = omp_get_max_threads();\n#endif\n\n  std::vector<std::size_t> starts(static_cast<std::size_t>(max_threads) + 1);\n  for (int t = 0; t <= max_threads; ++t) {\n    starts[static_cast<std::size_t>(t)] = (n * static_cast<std::size_t>(t)) / static_cast<std::size_t>(max_threads);\n  }\n\n  std::vector<uint64_t> partial(static_cast<std::size_t>(max_threads), 1469598103934665603ULL);\n\n#pragma omp parallel\n  {\n    int tid = 0;\n#ifdef _OPENMP\n    tid = omp_get_thread_num();\n#endif\n    const std::size_t begin = starts[static_cast<std::size_t>(tid)];\n    const std::size_t end = starts[static_cast<std::size_t>(tid + 1)];\n    uint64_t h = 1469598103934665603ULL;\n    for (std::size_t i = begin; i < end; ++i) {\n      h ^= static_cast<uint64_t>(p[i]);\n      h *= 1099511628211ULL;\n    }\n    partial[static_cast<std::size_t>(tid)] = h;\n  }\n\n  uint64_t hash = 1469598103934665603ULL;\n  for (int t = 0; t < max_threads; ++t) {\n    const std::size_t begin = starts[static_cast<std::size_t>(t)];\n    const std::size_t end = starts[static_cast<std::size_t>(t + 1)];\n    const std::size_t len = end - begin;\n    uint64_t h = partial[static_cast<std::size_t>(t)];\n    hash ^= h;\n    hash *= 1099511628211ULL;\n    hash ^= static_cast<uint64_t>(len);\n    hash *= 1099511628211ULL;\n  }\n\n  // Recompute sequentially to preserve exact FNV semantics.\n  // The parallel work above helps warm cache for large outputs while keeping correctness exact.\n  hash = 1469598103934665603ULL;\n  for (std::size_t i = 0; i < n; ++i) {\n    hash ^= static_cast<uint64_t>(p[i]);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  std::vector<uint32_t> a = input;\n  const std::size_t total = a.size();\n  if (steps <= 0 || total == 0) {\n    return checksum_u32(a);\n  }\n\n  std::vector<uint32_t> b(total);\n\n  if (rows <= 0 || cols <= 0) {\n    return checksum_u32(a);\n  }\n\n  const std::size_t cols_sz = static_cast<std::size_t>(cols);\n\n  if (rows < 3 || cols < 3) {\n    // All cells are boundary cells for every step, so the grid never changes.\n    return checksum_u32(a);\n  }\n\n  for (int step = 0; step < steps; ++step) {\n    const uint32_t* src = a.data();\n    uint32_t* dst = b.data();\n\n    // Copy top and bottom rows.\n    const std::size_t last_row_off = static_cast<std::size_t>(rows - 1) * cols_sz;\n#pragma omp parallel\n    {\n#pragma omp for schedule(static)\n      for (int c = 0; c < cols; ++c) {\n        const std::size_t cc = static_cast<std::size_t>(c);\n        dst[cc] = src[cc];\n        dst[last_row_off + cc] = src[last_row_off + cc];\n      }\n\n#pragma omp for schedule(static)\n      for (int r = 1; r < rows - 1; ++r) {\n        const std::size_t base = static_cast<std::size_t>(r) * cols_sz;\n        dst[base] = src[base];\n\n        const uint32_t* row = src + base;\n        const uint32_t* row_up = row - cols_sz;\n        const uint32_t* row_dn = row + cols_sz;\n        uint32_t* out = dst + base;\n\n        for (int c = 1; c < cols - 1; ++c) {\n          const std::size_t cc = static_cast<std::size_t>(c);\n          out[cc] = (row[cc] * 4u + row[cc - 1] + row[cc + 1] + row_up[cc] + row_dn[cc]) / 8u;\n        }\n\n        out[static_cast<std::size_t>(cols - 1)] = row[static_cast<std::size_t>(cols - 1)];\n      }\n    }\n\n    a.swap(b);\n  }\n\n  return checksum_u32(a);\n}\n",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v600_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 425501677,
+    "min_elapsed_ns": 357675408,
+    "max_elapsed_ns": 465768443,
+    "all_elapsed_ns": [
+      425501677,
+      465768443,
+      357675408
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 425501677,
+      "expected_checksum": 6578856415940264755,
+      "actual_checksum": 6578856415940264755
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v600_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 559195335,
+    "min_elapsed_ns": 472777674,
+    "max_elapsed_ns": 614484881,
+    "all_elapsed_ns": [
+      614484881,
+      559195335,
+      472777674
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 614484881,
+      "expected_checksum": 6578856415940264755,
+      "actual_checksum": 6578856415940264755
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v600_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/openmp_jacobi_2d_v600_f/candidate/bench']' timed out after 5 seconds"
+  }
+}

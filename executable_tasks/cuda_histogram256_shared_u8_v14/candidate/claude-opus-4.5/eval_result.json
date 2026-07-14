@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v14",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v14/candidate/claude-opus-4.5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int BLOCK_SIZE = 256;\nconstexpr int NUM_PARTS = 32;  // Number of sub-histograms per block to avoid bank conflicts\n\n__global__ void histogram_shared_kernel(const unsigned char* __restrict__ input,\n                                        unsigned int* __restrict__ output,\n                                        int n) {\n    // Shared memory: 32 sub-histograms of 256 bins each\n    // Using 32 parts ensures different threads in a warp access different banks\n    __shared__ unsigned int smem[NUM_PARTS * 256];\n    \n    // Initialize shared memory to zero\n    // Each thread clears multiple locations\n    for (int i = threadIdx.x; i < NUM_PARTS * 256; i += BLOCK_SIZE) {\n        smem[i] = 0;\n    }\n    __syncthreads();\n    \n    // Each thread uses a sub-histogram based on threadIdx.x % 32\n    // This ensures threads in the same warp use different sub-histograms\n    const int part = threadIdx.x % NUM_PARTS;\n    \n    // Process input using vectorized loads (16 bytes at a time)\n    const int tid = blockIdx.x * BLOCK_SIZE + threadIdx.x;\n    const int totalThreads = gridDim.x * BLOCK_SIZE;\n    \n    // Process 16 bytes per iteration using uint4\n    const int n16 = n / 16;\n    const uint4* input4 = reinterpret_cast<const uint4*>(input);\n    \n    for (int i = tid; i < n16; i += totalThreads) {\n        uint4 data = input4[i];\n        \n        // Extract and accumulate all 16 bytes\n        unsigned int v0 = data.x;\n        unsigned int v1 = data.y;\n        unsigned int v2 = data.z;\n        unsigned int v3 = data.w;\n        \n        // Process v0 (4 bytes)\n        atomicAdd(&smem[part * 256 + (v0 & 0xFF)], 1);\n        atomicAdd(&smem[part * 256 + ((v0 >> 8) & 0xFF)], 1);\n        atomicAdd(&smem[part * 256 + ((v0 >> 16) & 0xFF)], 1);\n        atomicAdd(&smem[part * 256 + (v0 >> 24)], 1);\n        \n        // Process v1 (4 bytes)\n        atomicAdd(&smem[part * 256 + (v1 & 0xFF)], 1);\n        atomicAdd(&smem[part * 256 + ((v1 >> 8) & 0xFF)], 1);\n        atomicAdd(&smem[part * 256 + ((v1 >> 16) & 0xFF)], 1);\n        atomicAdd(&smem[part * 256 + (v1 >> 24)], 1);\n        \n        // Process v2 (4 bytes)\n        atomicAdd(&smem[part * 256 + (v2 & 0xFF)], 1);\n        atomicAdd(&smem[part * 256 + ((v2 >> 8) & 0xFF)], 1);\n        atomicAdd(&smem[part * 256 + ((v2 >> 16) & 0xFF)], 1);\n        atomicAdd(&smem[part * 256 + (v2 >> 24)], 1);\n        \n        // Process v3 (4 bytes)\n        atomicAdd(&smem[part * 256 + (v3 & 0xFF)], 1);\n        atomicAdd(&smem[part * 256 + ((v3 >> 8) & 0xFF)], 1);\n        atomicAdd(&smem[part * 256 + ((v3 >> 16) & 0xFF)], 1);\n        atomicAdd(&smem[part * 256 + (v3 >> 24)], 1);\n    }\n    \n    // Handle remaining bytes\n    const int remainder_start = n16 * 16;\n    for (int i = remainder_start + tid; i < n; i += totalThreads) {\n        atomicAdd(&smem[part * 256 + input[i]], 1);\n    }\n    \n    __syncthreads();\n    \n    // Reduce sub-histograms and write to global memory\n    // Each thread handles multiple bins\n    for (int bin = threadIdx.x; bin < 256; bin += BLOCK_SIZE) {\n        unsigned int sum = 0;\n        for (int p = 0; p < NUM_PARTS; p++) {\n            sum += smem[p * 256 + bin];\n        }\n        if (sum > 0) {\n            atomicAdd(&output[bin], sum);\n        }\n    }\n}\n\n}  // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters) {\n    // Use fewer blocks since each block now does more work with shared memory\n    const int numSMs = 80;  // Typical for modern GPUs, will work on others too\n    const int blocksPerSM = 2;\n    const int grid = numSMs * blocksPerSM;\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemsetAsync(output, 0, 256 * sizeof(unsigned int));\n        histogram_shared_kernel<<<grid, BLOCK_SIZE>>>(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v14",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 103453826,
+    "min_elapsed_ns": 103450431,
+    "max_elapsed_ns": 103463615,
+    "all_elapsed_ns": [
+      103463615,
+      103450431,
+      103453826
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 103463615,
+      "checksum": 1077936128
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v14",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 739072,
+    "min_elapsed_ns": 738463,
+    "max_elapsed_ns": 739679,
+    "all_elapsed_ns": [
+      739072,
+      738463,
+      739679
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 739072,
+      "checksum": 1077936128
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v14",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_histogram256_shared_u8_v14/candidate/bench']' timed out after 5 seconds"
+  }
+}

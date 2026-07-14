@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_reduce_sum_cub_i32_v12",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_reduce_sum_cub_i32_v12/candidate/claude-opus-4.5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__device__ __forceinline__ int warp_reduce_sum(int val) {\n    #pragma unroll\n    for (int offset = 16; offset > 0; offset >>= 1) {\n        val += __shfl_down_sync(0xffffffff, val, offset);\n    }\n    return val;\n}\n\n__global__ void reduce_kernel(const int* __restrict__ input, int* __restrict__ output, int n) {\n    __shared__ int shared[32];\n    \n    int tid = threadIdx.x;\n    int lane = tid & 31;\n    int warp_id = tid >> 5;\n    \n    int sum = 0;\n    \n    // Vectorized load with int4\n    int idx4 = (blockIdx.x * blockDim.x + tid) * 4;\n    int stride4 = blockDim.x * gridDim.x * 4;\n    int n4 = n & ~3;\n    \n    const int4* input4 = reinterpret_cast<const int4*>(input);\n    int num_vec = n4 >> 2;\n    \n    for (int i = blockIdx.x * blockDim.x + tid; i < num_vec; i += blockDim.x * gridDim.x) {\n        int4 v = input4[i];\n        sum += v.x + v.y + v.z + v.w;\n    }\n    \n    // Handle tail elements\n    int base = n4;\n    for (int i = base + blockIdx.x * blockDim.x + tid; i < n; i += blockDim.x * gridDim.x) {\n        sum += input[i];\n    }\n    \n    // Warp-level reduction\n    sum = warp_reduce_sum(sum);\n    \n    // First thread of each warp writes to shared memory\n    if (lane == 0) {\n        shared[warp_id] = sum;\n    }\n    __syncthreads();\n    \n    // First warp reduces all warp sums\n    int num_warps = blockDim.x >> 5;\n    if (warp_id == 0) {\n        sum = (tid < num_warps) ? shared[tid] : 0;\n        sum = warp_reduce_sum(sum);\n        \n        if (tid == 0) {\n            atomicAdd(output, sum);\n        }\n    }\n}\n\n} // namespace\n\nvoid reduce_sum_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0) {\n        for (int iter = 0; iter < iters; ++iter) {\n            cudaMemsetAsync(output, 0, sizeof(int));\n        }\n        return;\n    }\n    \n    constexpr int kBlock = 256;\n    int num_blocks = (n + kBlock * 4 - 1) / (kBlock * 4);\n    num_blocks = min(num_blocks, 1024);\n    num_blocks = max(num_blocks, 1);\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemsetAsync(output, 0, sizeof(int));\n        reduce_kernel<<<num_blocks, kBlock>>>(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_reduce_sum_cub_i32_v12",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4167935,
+    "min_elapsed_ns": 4155744,
+    "max_elapsed_ns": 4168223,
+    "all_elapsed_ns": [
+      4167935,
+      4155744,
+      4168223
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4167935,
+      "expected_sum": 15728640,
+      "actual_sum": 15728640
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_reduce_sum_cub_i32_v12",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 706080,
+    "min_elapsed_ns": 608511,
+    "max_elapsed_ns": 739871,
+    "all_elapsed_ns": [
+      608511,
+      706080,
+      739871
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 608511,
+      "expected_sum": 15728640,
+      "actual_sum": 15728640
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_reduce_sum_cub_i32_v12",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_reduce_sum_cub_i32_v12/candidate/bench']' timed out after 5 seconds"
+  }
+}

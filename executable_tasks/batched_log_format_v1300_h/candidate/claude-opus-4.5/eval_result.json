@@ -1,0 +1,72 @@
+{
+  "task_id": "batched_log_format_v1300_h",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/batched_log_format_v1300_h/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstring>\n#include <string>\n#include <vector>\n\nnamespace {\n\n// Fast uint32 to decimal string, returns pointer to start of number\n// Buffer must have at least 10 bytes\ninline char* u32_to_str(uint32_t val, char* buf_end) {\n    char* p = buf_end;\n    if (val == 0) {\n        *--p = '0';\n        return p;\n    }\n    while (val > 0) {\n        *--p = '0' + (val % 10);\n        val /= 10;\n    }\n    return p;\n}\n\n// Fast uint16 to decimal string\ninline char* u16_to_str(uint16_t val, char* buf_end) {\n    char* p = buf_end;\n    if (val == 0) {\n        *--p = '0';\n        return p;\n    }\n    while (val > 0) {\n        *--p = '0' + (val % 10);\n        val /= 10;\n    }\n    return p;\n}\n\n// Count digits in uint32\ninline int count_digits_u32(uint32_t val) {\n    if (val == 0) return 1;\n    int count = 0;\n    while (val > 0) {\n        count++;\n        val /= 10;\n    }\n    return count;\n}\n\ninline int count_digits_u16(uint16_t val) {\n    if (val == 0) return 1;\n    int count = 0;\n    while (val > 0) {\n        count++;\n        val /= 10;\n    }\n    return count;\n}\n\n}  // namespace\n\nuint64_t batched_log_checksum(\n    const std::vector<uint32_t>& timestamps,\n    const std::vector<uint32_t>& ids,\n    const std::vector<uint16_t>& levels,\n    const std::vector<std::string>& messages,\n    int iters) {\n    \n    const size_t n = ids.size();\n    if (n == 0 || iters <= 0) {\n        // Empty input - hash of empty string\n        return 1469598103934665603ULL;\n    }\n    \n    // Pre-compute sizes and cache formatted numbers\n    std::vector<char> ts_buf(n * 11);  // max 10 digits + null per timestamp\n    std::vector<char> id_buf(n * 11);\n    std::vector<char> lv_buf(n * 6);   // max 5 digits for uint16\n    std::vector<const char*> ts_ptrs(n);\n    std::vector<const char*> id_ptrs(n);\n    std::vector<const char*> lv_ptrs(n);\n    std::vector<int> ts_lens(n);\n    std::vector<int> id_lens(n);\n    std::vector<int> lv_lens(n);\n    \n    size_t total_size = 0;\n    \n    for (size_t i = 0; i < n; ++i) {\n        // Format timestamp\n        char* ts_end = ts_buf.data() + (i + 1) * 11;\n        char* ts_start = u32_to_str(timestamps[i], ts_end);\n        ts_ptrs[i] = ts_start;\n        ts_lens[i] = static_cast<int>(ts_end - ts_start);\n        \n        // Format id\n        char* id_end = id_buf.data() + (i + 1) * 11;\n        char* id_start = u32_to_str(ids[i], id_end);\n        id_ptrs[i] = id_start;\n        id_lens[i] = static_cast<int>(id_end - id_start);\n        \n        // Format level\n        char* lv_end = lv_buf.data() + (i + 1) * 6;\n        char* lv_start = u16_to_str(levels[i], lv_end);\n        lv_ptrs[i] = lv_start;\n        lv_lens[i] = static_cast<int>(lv_end - lv_start);\n        \n        // timestamp|id|level|message\\n\n        total_size += ts_lens[i] + 1 + id_lens[i] + 1 + lv_lens[i] + 1 + messages[i].size() + 1;\n    }\n    \n    // Pre-allocate output buffer\n    std::string out;\n    out.resize(total_size);\n    \n    uint64_t hash = 0;\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        // Build output and compute hash incrementally\n        char* ptr = &out[0];\n        uint64_t h = 1469598103934665603ULL;\n        \n        for (size_t i = 0; i < n; ++i) {\n            // Copy timestamp\n            std::memcpy(ptr, ts_ptrs[i], ts_lens[i]);\n            for (int j = 0; j < ts_lens[i]; ++j) {\n                h ^= static_cast<uint64_t>(static_cast<unsigned char>(ptr[j]));\n                h *= 1099511628211ULL;\n            }\n            ptr += ts_lens[i];\n            \n            // Separator\n            *ptr++ = '|';\n            h ^= static_cast<uint64_t>('|');\n            h *= 1099511628211ULL;\n            \n            // Copy id\n            std::memcpy(ptr, id_ptrs[i], id_lens[i]);\n            for (int j = 0; j < id_lens[i]; ++j) {\n                h ^= static_cast<uint64_t>(static_cast<unsigned char>(ptr[j]));\n                h *= 1099511628211ULL;\n            }\n            ptr += id_lens[i];\n            \n            // Separator\n            *ptr++ = '|';\n            h ^= static_cast<uint64_t>('|');\n            h *= 1099511628211ULL;\n            \n            // Copy level\n            std::memcpy(ptr, lv_ptrs[i], lv_lens[i]);\n            for (int j = 0; j < lv_lens[i]; ++j) {\n                h ^= static_cast<uint64_t>(static_cast<unsigned char>(ptr[j]));\n                h *= 1099511628211ULL;\n            }\n            ptr += lv_lens[i];\n            \n            // Separator\n            *ptr++ = '|';\n            h ^= static_cast<uint64_t>('|');\n            h *= 1099511628211ULL;\n            \n            // Copy message\n            const std::string& msg = messages[i];\n            const size_t msg_len = msg.size();\n            std::memcpy(ptr, msg.data(), msg_len);\n            for (size_t j = 0; j < msg_len; ++j) {\n                h ^= static_cast<uint64_t>(static_cast<unsigned char>(ptr[j]));\n                h *= 1099511628211ULL;\n            }\n            ptr += msg_len;\n            \n            // Newline\n            *ptr++ = '\\n';\n            h ^= static_cast<uint64_t>('\\n');\n            h *= 1099511628211ULL;\n        }\n        \n        hash = h;\n    }\n    \n    return hash;\n}",
+  "baseline": {
+    "task_id": "batched_log_format_v1300_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1163261169,
+    "min_elapsed_ns": 1156984959,
+    "max_elapsed_ns": 1173818415,
+    "all_elapsed_ns": [
+      1163261169,
+      1173818415,
+      1156984959
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1163261169,
+      "expected_checksum": 10514431792886440863,
+      "actual_checksum": 10514431792886440863
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "batched_log_format_v1300_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 547859492,
+    "min_elapsed_ns": 527892705,
+    "max_elapsed_ns": 561786861,
+    "all_elapsed_ns": [
+      547859492,
+      561786861,
+      527892705
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 547859492,
+      "expected_checksum": 10514431792886440863,
+      "actual_checksum": 10514431792886440863
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "batched_log_format_v1300_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 323276911,
+    "min_elapsed_ns": 304865665,
+    "max_elapsed_ns": 327603689,
+    "all_elapsed_ns": [
+      327603689,
+      323276911,
+      304865665
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 327603689,
+      "expected_checksum": 10514431792886440863,
+      "actual_checksum": 10514431792886440863
+    },
+    "status": "ok"
+  }
+}

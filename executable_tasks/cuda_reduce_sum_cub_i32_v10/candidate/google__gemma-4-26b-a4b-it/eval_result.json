@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_reduce_sum_cub_i32_v10",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_reduce_sum_cub_i32_v10/candidate/google__gemma-4-26b-a4b-it/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void reduce_kernel(const int* __restrict__ input, int* __restrict__ partial_sums, int n) {\n    __shared__ int sdata[256];\n    int tid = threadIdx.x;\n    int i = blockIdx.x * blockDim.x + threadIdx.x;\n    int sum = 0;\n\n    // Grid-stride loop to handle large n\n    while (i < n) {\n        sum += input[i];\n        i += blockDim.x * gridDim.x;\n    }\n\n    sdata[tid] = sum;\n    __syncthreads();\n\n    // Warp-level reduction using shuffle\n    for (int offset = warpSize / 2; offset > 0; offset /= 2) {\n        if (tid < warpSize) {\n            sdata[tid] += __shfl_down_sync(0xFFFFFFFF, sdata[tid], offset);\n        }\n        __syncthreads();\n    }\n\n    // Write block result to partial_sums\n    if (tid == 0) {\n        partial_sums[blockIdx.x] = sdata[0];\n    }\n}\n\n__global__ void final_reduce_kernel(const int* partial_sums, int* output, int num_blocks) {\n    int tid = threadIdx.x;\n    int sum = 0;\n    for (int i = tid; i < num_blocks; i += blockDim.x) {\n        sum += partial_sums[i];\n    }\n\n    // Final warp reduction for the single block\n    for (int offset = warpSize / 2; offset > 0; offset /= 2) {\n        sum += __shfl_down_sync(0xFFFFFFFF, sum, offset);\n    }\n\n    if (tid == 0) {\n        atomicAdd(output, sum);\n    }\n}\n\n} // namespace\n\nvoid reduce_sum_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0) return;\n\n    const int threads_per_block = 256;\n    const int blocks_per_grid = 256; // Sufficient for most workloads\n    \n    // Allocate temporary buffer for partial sums\n    int* d_partial_sums;\n    cudaMalloc(&d_partial_sums, blocks_per_grid * sizeof(int));\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, sizeof(int));\n        cudaMemset(d_partial_sums, 0, blocks_per_grid * sizeof(int));\n\n        // Step 1: Block-level reduction\n        reduce_kernel<<<blocks_per_grid, threads_per_block>>>(input, d_partial_sums, n);\n\n        // Step 2: Final aggregation\n        final_reduce_kernel<<<1, threads_per_block>>>(d_partial_sums, output, blocks_per_grid);\n    }\n\n    cudaFree(d_partial_sums);\n}",
+  "baseline": {
+    "task_id": "cuda_reduce_sum_cub_i32_v10",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 10070176,
+    "min_elapsed_ns": 10064191,
+    "max_elapsed_ns": 10090623,
+    "all_elapsed_ns": [
+      10070176,
+      10064191,
+      10090623
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10070176,
+      "expected_sum": 31457280,
+      "actual_sum": 31457280
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_reduce_sum_cub_i32_v10",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1234048,
+    "min_elapsed_ns": 786207,
+    "max_elapsed_ns": 1420511,
+    "all_elapsed_ns": [
+      786207,
+      1420511,
+      1234048
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 786207,
+      "expected_sum": 31457280,
+      "actual_sum": 31457280
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_reduce_sum_cub_i32_v10",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_reduce_sum_cub_i32_v10/candidate/bench']' timed out after 5 seconds"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "is_utf8_batch_validate_sparse_xlarge",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/is_utf8_batch_validate_sparse_xlarge/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <cstring>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#define USE_AVX2 1\n#elif defined(__SSE4_2__) || defined(__SSE2__)\n#include <emmintrin.h>\n#include <tmmintrin.h>\n#define USE_SSE 1\n#endif\n\n#ifdef _OPENMP\n#include <omp.h>\n#endif\n\nnamespace {\n\ninline bool valid_scalar(const unsigned char* p, const unsigned char* end) {\n    while (p < end) {\n        const unsigned char c = *p++;\n        if (c <= 0x7F) continue;\n        if (c < 0xC2) return false;\n        if (c <= 0xDF) {\n            if (p >= end || (*p & 0xC0U) != 0x80U) return false;\n            ++p;\n            continue;\n        }\n        if (c <= 0xEF) {\n            if (end - p < 2) return false;\n            unsigned char c1 = p[0], c2 = p[1];\n            if ((c1 & 0xC0U) != 0x80U || (c2 & 0xC0U) != 0x80U) return false;\n            if (c == 0xE0 && c1 < 0xA0) return false;\n            if (c == 0xED && c1 > 0x9F) return false;\n            p += 2;\n            continue;\n        }\n        if (c <= 0xF4) {\n            if (end - p < 3) return false;\n            unsigned char c1 = p[0], c2 = p[1], c3 = p[2];\n            if ((c1 & 0xC0U) != 0x80U || (c2 & 0xC0U) != 0x80U || (c3 & 0xC0U) != 0x80U) return false;\n            if (c == 0xF0 && c1 < 0x90) return false;\n            if (c == 0xF4 && c1 > 0x8F) return false;\n            p += 3;\n            continue;\n        }\n        return false;\n    }\n    return true;\n}\n\n#if USE_AVX2\n\ninline bool validate_utf8_avx2(const char* data, std::size_t len) {\n    const unsigned char* p = reinterpret_cast<const unsigned char*>(data);\n    const unsigned char* end = p + len;\n    \n    // Process 32 bytes at a time for ASCII fast path\n    while (end - p >= 32) {\n        __m256i chunk = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(p));\n        // Check if all bytes are ASCII (high bit clear)\n        int mask = _mm256_movemask_epi8(chunk);\n        if (mask == 0) {\n            p += 32;\n            continue;\n        }\n        // Found non-ASCII, validate this chunk with scalar\n        // Find first non-ASCII byte\n        int first_non_ascii = __builtin_ctz(static_cast<unsigned>(mask));\n        p += first_non_ascii;\n        \n        // Validate from here with scalar until we're back to aligned ASCII\n        const unsigned char* chunk_end = p + (32 - first_non_ascii);\n        if (chunk_end > end) chunk_end = end;\n        \n        while (p < chunk_end) {\n            unsigned char c = *p;\n            if (c <= 0x7F) { ++p; continue; }\n            if (c < 0xC2) return false;\n            if (c <= 0xDF) {\n                if (p + 1 >= end || (p[1] & 0xC0U) != 0x80U) return false;\n                p += 2;\n            } else if (c <= 0xEF) {\n                if (p + 2 >= end) return false;\n                unsigned char c1 = p[1], c2 = p[2];\n                if ((c1 & 0xC0U) != 0x80U || (c2 & 0xC0U) != 0x80U) return false;\n                if (c == 0xE0 && c1 < 0xA0) return false;\n                if (c == 0xED && c1 > 0x9F) return false;\n                p += 3;\n            } else if (c <= 0xF4) {\n                if (p + 3 >= end) return false;\n                unsigned char c1 = p[1], c2 = p[2], c3 = p[3];\n                if ((c1 & 0xC0U) != 0x80U || (c2 & 0xC0U) != 0x80U || (c3 & 0xC0U) != 0x80U) return false;\n                if (c == 0xF0 && c1 < 0x90) return false;\n                if (c == 0xF4 && c1 > 0x8F) return false;\n                p += 4;\n            } else {\n                return false;\n            }\n        }\n    }\n    \n    return valid_scalar(p, end);\n}\n\n#elif USE_SSE\n\ninline bool validate_utf8_sse(const char* data, std::size_t len) {\n    const unsigned char* p = reinterpret_cast<const unsigned char*>(data);\n    const unsigned char* end = p + len;\n    \n    while (end - p >= 16) {\n        __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(p));\n        int mask = _mm_movemask_epi8(chunk);\n        if (mask == 0) {\n            p += 16;\n            continue;\n        }\n        int first_non_ascii = __builtin_ctz(static_cast<unsigned>(mask));\n        p += first_non_ascii;\n        \n        const unsigned char* chunk_end = p + (16 - first_non_ascii);\n        if (chunk_end > end) chunk_end = end;\n        \n        while (p < chunk_end) {\n            unsigned char c = *p;\n            if (c <= 0x7F) { ++p; continue; }\n            if (c < 0xC2) return false;\n            if (c <= 0xDF) {\n                if (p + 1 >= end || (p[1] & 0xC0U) != 0x80U) return false;\n                p += 2;\n            } else if (c <= 0xEF) {\n                if (p + 2 >= end) return false;\n                unsigned char c1 = p[1], c2 = p[2];\n                if ((c1 & 0xC0U) != 0x80U || (c2 & 0xC0U) != 0x80U) return false;\n                if (c == 0xE0 && c1 < 0xA0) return false;\n                if (c == 0xED && c1 > 0x9F) return false;\n                p += 3;\n            } else if (c <= 0xF4) {\n                if (p + 3 >= end) return false;\n                unsigned char c1 = p[1], c2 = p[2], c3 = p[3];\n                if ((c1 & 0xC0U) != 0x80U || (c2 & 0xC0U) != 0x80U || (c3 & 0xC0U) != 0x80U) return false;\n                if (c == 0xF0 && c1 < 0x90) return false;\n                if (c == 0xF4 && c1 > 0x8F) return false;\n                p += 4;\n            } else {\n                return false;\n            }\n        }\n    }\n    \n    return valid_scalar(p, end);\n}\n\n#endif\n\ninline bool validate_string(const std::string& s) {\n    if (s.empty()) return true;\n    \n#if USE_AVX2\n    return validate_utf8_avx2(s.data(), s.size());\n#elif USE_SSE\n    return validate_utf8_sse(s.data(), s.size());\n#else\n    return valid_scalar(reinterpret_cast<const unsigned char*>(s.data()),\n                        reinterpret_cast<const unsigned char*>(s.data() + s.size()));\n#endif\n}\n\n} // namespace\n\nstd::size_t count_valid_strings(const std::vector<std::string>& inputs) {\n    std::size_t count = 0;\n    const std::size_t n = inputs.size();\n    \n#ifdef _OPENMP\n    if (n > 100) {\n        #pragma omp parallel for reduction(+:count) schedule(dynamic, 64)\n        for (std::size_t i = 0; i < n; ++i) {\n            count += validate_string(inputs[i]) ? 1U : 0U;\n        }\n        return count;\n    }\n#endif\n    \n    for (std::size_t i = 0; i < n; ++i) {\n        count += validate_string(inputs[i]) ? 1U : 0U;\n    }\n    return count;\n}",
+  "baseline": {
+    "task_id": "is_utf8_batch_validate_sparse_xlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 14199417,
+    "min_elapsed_ns": 14176239,
+    "max_elapsed_ns": 14231640,
+    "all_elapsed_ns": [
+      14231640,
+      14176239,
+      14199417
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 14231640,
+      "expected_count": 89291,
+      "actual_count": 89291
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "is_utf8_batch_validate_sparse_xlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3000850,
+    "min_elapsed_ns": 2944210,
+    "max_elapsed_ns": 3116853,
+    "all_elapsed_ns": [
+      2944210,
+      3000850,
+      3116853
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2944210,
+      "expected_count": 89291,
+      "actual_count": 89291
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "is_utf8_batch_validate_sparse_xlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 15157490,
+    "min_elapsed_ns": 15121147,
+    "max_elapsed_ns": 15162861,
+    "all_elapsed_ns": [
+      15121147,
+      15162861,
+      15157490
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15121147,
+      "expected_count": 89291,
+      "actual_count": 89291
+    },
+    "status": "ok"
+  }
+}

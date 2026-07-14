@@ -1,0 +1,59 @@
+{
+  "task_id": "genomic_kmer_histogram_checksum_v2600_c",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/genomic_kmer_histogram_checksum_v2600_c/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <string>\n#include <cstring>\n\nnamespace {\n\ninline uint32_t encode_base(char c) noexcept {\n    return (c >> 1) & 3;   // A(0x41)->0, C(0x43)->1, G(0x47)->2, T(0x54)->3\n}\n\n// 64-bit FNV-1a checksum\nuint64_t checksum_counts(const uint32_t* counts, std::size_t bins) {\n    uint64_t h = 1469598103934665603ULL;\n    const uint64_t prime = 1099511628211ULL;\n    for (std::size_t i = 0; i < bins; ++i) {\n        h ^= counts[i];\n        h *= prime;\n    }\n    return h;\n}\n\n} // namespace\n\nuint64_t kmer_histogram_checksum(const std::string& dna, int k, int iters) {\n    const std::size_t bins = 1ULL << (k * 2);\n    if (bins == 0) return 0; // defensive\n\n    alignas(64) static thread_local uint32_t dense[1 << 16]; // 2^16 = 65536 max for k=8\n\n    const std::size_t len = dna.size();\n    const int k1 = k - 1;\n\n    uint64_t final_hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        std::memset(dense, 0, bins * sizeof(uint32_t));\n\n        if (len < static_cast<std::size_t>(k)) {\n            final_hash = checksum_counts(dense, bins);\n            continue;\n        }\n\n        // Prime the first k-mer\n        uint32_t key = 0;\n        const char* s = dna.data();\n        for (int i = 0; i < k; ++i) {\n            key = (key << 2) | encode_base(s[i]);\n        }\n        ++dense[key];\n\n        const std::size_t last = len - k;\n        for (std::size_t i = 1; i <= last; ++i) {\n            key = ((key << 2) | encode_base(s[i + k1])) & (bins - 1);\n            ++dense[key];\n        }\n\n        final_hash = checksum_counts(dense, bins);\n    }\n    return final_hash;\n}",
+  "baseline": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 188434643,
+    "min_elapsed_ns": 175496053,
+    "max_elapsed_ns": 191532195,
+    "all_elapsed_ns": [
+      188434643,
+      191532195,
+      175496053
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 188434643,
+      "expected_checksum": 17179985695023231718,
+      "actual_checksum": 17179985695023231718
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 17386079,
+    "min_elapsed_ns": 16721213,
+    "max_elapsed_ns": 17725622,
+    "all_elapsed_ns": [
+      16721213,
+      17725622,
+      17386079
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 16721213,
+      "expected_checksum": 17179985695023231718,
+      "actual_checksum": 17179985695023231718
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_c",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/genomic_kmer_histogram_checksum_v2600_c/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "bitmap_filter_sum_v600_i",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/bitmap_filter_sum_v600_i/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <cstdint>\n#include <cstring>\n\n/**\n * Optimized bitmap-based filter aggregation.\n * \n * Performance improvements:\n * 1. Replaced std::unordered_set with a bitset (vector of uint64_t) for O(1) lookups with low constant factors.\n * 2. Moved the bitmap construction outside the 'iters' loop, as the enabled_keys are invariant.\n * 3. Used a compact bit representation to improve cache efficiency and reduce memory footprint.\n * 4. Ensured the summation logic matches the baseline's behavior (returning the sum of the last iteration).\n */\nuint64_t bitmap_filter_sum(\n    const std::vector<uint32_t>& enabled_keys,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int iters) {\n    \n    if (iters <= 0) return 0;\n\n    // Allocate bitmap. key_space is the upper bound for keys.\n    // Using uint64_t blocks for efficient bit manipulation.\n    size_t num_blocks = (static_cast<size_t>(key_space) + 63) / 64;\n    std::vector<uint64_t> bitmap(num_blocks, 0);\n\n    // Populate the bitmap once outside the loop.\n    for (uint32_t key : enabled_keys) {\n        if (key < key_space) {\n            bitmap[key >> 6] |= (1ULL << (key & 63));\n        }\n    }\n\n    uint64_t final_sum = 0;\n    const size_t n = probe_keys.size();\n    const uint32_t* p_keys = probe_keys.data();\n    const uint32_t* p_vals = values.data();\n    const uint64_t* p_bitmap = bitmap.data();\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t current_sum = 0;\n        // The core hot loop: check bitmap and accumulate values.\n        for (size_t i = 0; i < n; ++i) {\n            uint32_t key = p_keys[i];\n            // Check if key is within bounds and bit is set.\n            // Note: key_space check is technically required if probe_keys can exceed key_space.\n            if (key < key_space) {\n                if ((p_bitmap[key >> 6] >> (key & 63)) & 1ULL) {\n                    current_sum += static_cast<uint64_t>(p_vals[i]);\n                }\n            }\n        }\n        final_sum = current_sum;\n    }\n\n    return final_sum;\n}\n",
+  "baseline": {
+    "task_id": "bitmap_filter_sum_v600_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2525814209,
+    "min_elapsed_ns": 2433008096,
+    "max_elapsed_ns": 2969504960,
+    "all_elapsed_ns": [
+      2969504960,
+      2525814209,
+      2433008096
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2969504960,
+      "expected_sum": 1075838976,
+      "actual_sum": 1075838976
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "bitmap_filter_sum_v600_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 513847677,
+    "min_elapsed_ns": 491858761,
+    "max_elapsed_ns": 528789637,
+    "all_elapsed_ns": [
+      513847677,
+      491858761,
+      528789637
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 513847677,
+      "expected_sum": 1075838976,
+      "actual_sum": 1075838976
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "bitmap_filter_sum_v600_i",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 476917708,
+    "min_elapsed_ns": 421424904,
+    "max_elapsed_ns": 500359537,
+    "all_elapsed_ns": [
+      421424904,
+      500359537,
+      476917708
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 421424904,
+      "expected_sum": 1075838976,
+      "actual_sum": 1075838976
+    },
+    "status": "ok"
+  }
+}

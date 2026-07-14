@@ -1,0 +1,33 @@
+{
+  "task_id": "cuda_transpose_tiled_f32_v25",
+  "model": "qwen/qwen3.5-35b-a3b",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_transpose_tiled_f32_v25/candidate/qwen__qwen3.5-35b-a3b/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int kTileDim = 16;\n\n__global__ void transpose_tiled_kernel(const float* input, float* output, int width, int height) {\n    extern __shared__ float shared_mem[];\n    \n    int tx = threadIdx.x;\n    int ty = threadIdx.y;\n    int block_x = blockIdx.x * kTileDim;\n    int block_y = blockIdx.y * kTileDim;\n    \n    // Load tile from global memory to shared memory\n    int in_x = block_x + tx;\n    int in_y = block_y + ty;\n    if (in_x < width && in_y < height) {\n        shared_mem[ty * kTileDim + tx] = input[in_y * width + in_x];\n    }\n    \n    __syncthreads();\n    \n    // Transpose in shared memory and write to global memory\n    int out_x = block_y + ty;\n    int out_y = block_x + tx;\n    if (out_x < height && out_y < width) {\n        output[out_x * height + out_y] = shared_mem[tx * kTileDim + ty];\n    }\n}\n\n}  // namespace\n\nvoid transpose_f32(const float* input, float* output, int width, int height, int iters) {\n    const dim3 block(kTileDim, kTileDim);\n    const dim3 grid((width + kTileDim - 1) / kTileDim, (height + kTileDim - 1) / kTileDim);\n    const size_t shared_mem_size = kTileDim * kTileDim * sizeof(float);\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        transpose_tiled_kernel<<<grid, block, shared_mem_size>>>(input, output, width, height);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_transpose_tiled_f32_v25",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_transpose_tiled_f32_v25/baseline/bench']' timed out after 5 seconds"
+  },
+  "reference": {
+    "task_id": "cuda_transpose_tiled_f32_v25",
+    "variant": "reference",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_transpose_tiled_f32_v25/reference/bench']' timed out after 5 seconds"
+  },
+  "candidate": {
+    "task_id": "cuda_transpose_tiled_f32_v25",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_transpose_tiled_f32_v25/candidate/bench']' returned non-zero exit status 2."
+  }
+}

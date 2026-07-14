@@ -1,0 +1,1 @@
+Optimized solution using numpy for vectorized operations.

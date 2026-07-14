@@ -1,0 +1,57 @@
+{
+  "task_id": "lz4_medium_chunk_compress",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/lz4_medium_chunk_compress/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include \"lz4.h\"\n\n#include <algorithm>\n\nnamespace {\nconstexpr std::size_t kChunkSize = 1 << 16;  // 64KB chunks for better throughput\n}\n\nint compress_chunks(const std::string& input, std::vector<std::string>& chunks) {\n  chunks.clear();\n  const std::size_t num_chunks = (input.size() + kChunkSize - 1) / kChunkSize;\n  chunks.resize(num_chunks);\n  \n  int total = 0;\n  std::size_t chunk_idx = 0;\n  \n  for (std::size_t offset = 0; offset < input.size(); offset += kChunkSize, ++chunk_idx) {\n    const std::size_t take = std::min(kChunkSize, input.size() - offset);\n    std::string& compressed = chunks[chunk_idx];\n    const int max_compressed = LZ4_compressBound(static_cast<int>(take));\n    compressed.resize(static_cast<std::size_t>(max_compressed));\n    \n    const int n = LZ4_compress_fast(\n        input.data() + offset,\n        compressed.data(),\n        static_cast<int>(take),\n        max_compressed,\n        2);  // acceleration factor for faster compression\n    \n    if (n <= 0) {\n      return -1;\n    }\n    compressed.resize(static_cast<std::size_t>(n));\n    total += n;\n  }\n  return total;\n}",
+  "baseline": {
+    "task_id": "lz4_medium_chunk_compress",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 18914795,
+    "min_elapsed_ns": 18809393,
+    "max_elapsed_ns": 19573277,
+    "all_elapsed_ns": [
+      18914795,
+      18809393,
+      19573277
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 18914795,
+      "compressed_size": 3237289
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "lz4_medium_chunk_compress",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 11013566,
+    "min_elapsed_ns": 10947399,
+    "max_elapsed_ns": 11057440,
+    "all_elapsed_ns": [
+      11057440,
+      11013566,
+      10947399
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11057440,
+      "compressed_size": 3816844
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "lz4_medium_chunk_compress",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/lz4_medium_chunk_compress/candidate/bench']' returned non-zero exit status 1."
+  }
+}

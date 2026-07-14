@@ -1,0 +1,72 @@
+{
+  "task_id": "croaring_many_union_cardinality_v1900_d",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/croaring_many_union_cardinality_v1900_d/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <queue>\n#include <cstddef>\n\nstruct HeapNode {\n  uint32_t value;\n  uint32_t shard;\n};\n\nstruct MinByValue {\n  bool operator()(const HeapNode& a, const HeapNode& b) const {\n    if (a.value != b.value) return a.value > b.value; // min-heap by value\n    return a.shard > b.shard; // tie-breaker for determinism\n  }\n};\n\nuint64_t many_union_cardinality(\n    const std::vector<uint32_t>& offsets,\n    const std::vector<uint32_t>& values) {\n  const size_t shard_count = offsets.size() == 0 ? 0 : (offsets.size() - 1);\n  if (shard_count == 0) return 0;\n\n  // Fast path for a single shard: count unique in a sorted array\n  if (shard_count == 1) {\n    const uint32_t begin = offsets[0];\n    const uint32_t end = offsets[1];\n    if (begin >= end) return 0;\n    const uint32_t* data = values.data();\n    uint64_t cnt = 1; // at least one element\n    uint32_t prev = data[begin];\n    for (uint32_t i = begin + 1; i < end; ++i) {\n      uint32_t v = data[i];\n      if (v != prev) {\n        ++cnt;\n        prev = v;\n      }\n    }\n    return cnt;\n  }\n\n  const uint32_t* data = values.data();\n\n  // Maintain per-shard indices and ends\n  std::vector<uint32_t> idx(shard_count);\n  std::vector<uint32_t> end(shard_count);\n\n  std::priority_queue<HeapNode, std::vector<HeapNode>, MinByValue> heap;\n  heap = std::priority_queue<HeapNode, std::vector<HeapNode>, MinByValue>(MinByValue(), {});\n  // Initialize heap with the first distinct value from each shard\n  for (size_t s = 0; s < shard_count; ++s) {\n    uint32_t b = offsets[s];\n    uint32_t e = offsets[s + 1];\n    idx[s] = b;\n    end[s] = e;\n    if (b < e) {\n      uint32_t v = data[b];\n      // Skip duplicates within the shard for this starting value\n      uint32_t j = b + 1;\n      while (j < e && data[j] == v) {\n        ++j;\n      }\n      idx[s] = j; // next candidate index for this shard\n      heap.push(HeapNode{v, static_cast<uint32_t>(s)});\n    }\n  }\n\n  uint64_t count = 0;\n  uint32_t last = 0;\n  bool have_last = false;\n\n  while (!heap.empty()) {\n    HeapNode node = heap.top();\n    heap.pop();\n    uint32_t v = node.value;\n    if (!have_last || v != last) {\n      ++count;\n      last = v;\n      have_last = true;\n    }\n    // Advance this shard to its next distinct value and push if available\n    uint32_t s = node.shard;\n    uint32_t i = idx[s];\n    uint32_t e = end[s];\n    if (i < e) {\n      uint32_t nv = data[i];\n      uint32_t j = i + 1;\n      while (j < e && data[j] == nv) {\n        ++j;\n      }\n      idx[s] = j;\n      heap.push(HeapNode{nv, s});\n    }\n  }\n\n  return count;\n}\n",
+  "baseline": {
+    "task_id": "croaring_many_union_cardinality_v1900_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 239584779,
+    "min_elapsed_ns": 235277719,
+    "max_elapsed_ns": 242253304,
+    "all_elapsed_ns": [
+      242253304,
+      235277719,
+      239584779
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 242253304,
+      "expected_cardinality": 881369,
+      "actual_cardinality": 881369
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "croaring_many_union_cardinality_v1900_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 12785327,
+    "min_elapsed_ns": 12721080,
+    "max_elapsed_ns": 13146543,
+    "all_elapsed_ns": [
+      13146543,
+      12721080,
+      12785327
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 13146543,
+      "expected_cardinality": 881369,
+      "actual_cardinality": 881369
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "croaring_many_union_cardinality_v1900_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 104040325,
+    "min_elapsed_ns": 103994478,
+    "max_elapsed_ns": 104267778,
+    "all_elapsed_ns": [
+      104040325,
+      103994478,
+      104267778
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 104040325,
+      "expected_cardinality": 881369,
+      "actual_cardinality": 881369
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "nibble_decode_filter_sum_v1300_i",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/nibble_decode_filter_sum_v1300_i/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstdint>\n\n#if defined(__x86_64__) || defined(_M_X64)\n#include <immintrin.h>\n#endif\n\nuint64_t nibble_filter_sum(const std::vector<uint8_t>& packed, uint8_t threshold, int iters) {\n  uint64_t sum = 0;\n  const std::size_t size = packed.size();\n  const uint8_t* data = packed.data();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    \n#if defined(__AVX2__)\n    // SIMD path: process 16 bytes (32 nibbles) at a time\n    const std::size_t simd_end = size & ~15ULL;\n    const __m256i threshold_vec = _mm256_set1_epi8(threshold);\n    const __m256i mask_low = _mm256_set1_epi8(0x0F);\n    __m256i sum_vec = _mm256_setzero_si256();\n    \n    for (std::size_t i = 0; i < simd_end; i += 16) {\n      // Load 16 bytes\n      __m128i packed_128 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + i));\n      __m256i packed_256 = _mm256_cvtepu8_epi16(packed_128);\n      \n      // Extract low and high nibbles\n      __m256i low_nibbles = _mm256_and_si256(packed_256, mask_low);\n      __m256i high_nibbles = _mm256_srli_epi16(packed_256, 4);\n      high_nibbles = _mm256_and_si256(high_nibbles, mask_low);\n      \n      // Compare with threshold (result is 0xFF if greater, 0x00 otherwise)\n      __m256i low_mask = _mm256_cmpgt_epi16(low_nibbles, _mm256_cvtepu8_epi16(_mm256_castsi256_si128(threshold_vec)));\n      __m256i high_mask = _mm256_cmpgt_epi16(high_nibbles, _mm256_cvtepu8_epi16(_mm256_castsi256_si128(threshold_vec)));\n      \n      // Mask and accumulate\n      low_nibbles = _mm256_and_si256(low_nibbles, low_mask);\n      high_nibbles = _mm256_and_si256(high_nibbles, high_mask);\n      \n      sum_vec = _mm256_add_epi16(sum_vec, low_nibbles);\n      sum_vec = _mm256_add_epi16(sum_vec, high_nibbles);\n    }\n    \n    // Horizontal sum of SIMD accumulator\n    __m128i sum_low = _mm256_castsi256_si128(sum_vec);\n    __m128i sum_high = _mm256_extracti128_si256(sum_vec, 1);\n    __m128i sum_128 = _mm_add_epi16(sum_low, sum_high);\n    \n    // Further reduce to 64-bit\n    __m128i sum_64 = _mm_sad_epu8(sum_128, _mm_setzero_si128());\n    sum += _mm_extract_epi64(sum_64, 0) + _mm_extract_epi64(sum_64, 1);\n    \n    // Scalar remainder\n    for (std::size_t i = simd_end; i < size; ++i) {\n      uint8_t byte = data[i];\n      uint8_t low = byte & 15u;\n      uint8_t high = byte >> 4u;\n      if (low > threshold) sum += low;\n      if (high > threshold) sum += high;\n    }\n#else\n    // Scalar path with unrolling\n    std::size_t i = 0;\n    const std::size_t unroll_end = size & ~3ULL;\n    \n    for (; i < unroll_end; i += 4) {\n      uint8_t b0 = data[i];\n      uint8_t b1 = data[i + 1];\n      uint8_t b2 = data[i + 2];\n      uint8_t b3 = data[i + 3];\n      \n      uint8_t low0 = b0 & 15u, high0 = b0 >> 4u;\n      uint8_t low1 = b1 & 15u, high1 = b1 >> 4u;\n      uint8_t low2 = b2 & 15u, high2 = b2 >> 4u;\n      uint8_t low3 = b3 & 15u, high3 = b3 >> 4u;\n      \n      if (low0 > threshold) sum += low0;\n      if (high0 > threshold) sum += high0;\n      if (low1 > threshold) sum += low1;\n      if (high1 > threshold) sum += high1;\n      if (low2 > threshold) sum += low2;\n      if (high2 > threshold) sum += high2;\n      if (low3 > threshold) sum += low3;\n      if (high3 > threshold) sum += high3;\n    }\n    \n    for (; i < size; ++i) {\n      uint8_t byte = data[i];\n      uint8_t low = byte & 15u;\n      uint8_t high = byte >> 4u;\n      if (low > threshold) sum += low;\n      if (high > threshold) sum += high;\n    }\n#endif\n  }\n  \n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "nibble_decode_filter_sum_v1300_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 243871573,
+    "min_elapsed_ns": 239568700,
+    "max_elapsed_ns": 258470452,
+    "all_elapsed_ns": [
+      258470452,
+      239568700,
+      243871573
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 258470452,
+      "expected_sum": 25559040,
+      "actual_sum": 25559040
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "nibble_decode_filter_sum_v1300_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 103473537,
+    "min_elapsed_ns": 97932566,
+    "max_elapsed_ns": 118885604,
+    "all_elapsed_ns": [
+      103473537,
+      118885604,
+      97932566
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 103473537,
+      "expected_sum": 25559040,
+      "actual_sum": 25559040
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "nibble_decode_filter_sum_v1300_i",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 88368670,
+    "min_elapsed_ns": 87296561,
+    "max_elapsed_ns": 90087374,
+    "all_elapsed_ns": [
+      87296561,
+      88368670,
+      90087374
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 87296561,
+      "expected_sum": 25559040,
+      "actual_sum": 25559040
+    },
+    "status": "ok"
+  }
+}

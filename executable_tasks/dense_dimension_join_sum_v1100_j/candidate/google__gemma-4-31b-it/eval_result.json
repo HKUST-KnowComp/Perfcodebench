@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_dimension_join_sum_v1100_j",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_dimension_join_sum_v1100_j/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 17,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n\nuint64_t join_sum(\n    const std::vector<uint32_t>& dim_keys,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n    if (dim_keys.empty() || probe_keys.empty()) return 0;\n\n    // Find the range of keys to determine if we can use a direct map\n    uint32_t min_key = dim_keys.front();\n    uint32_t max_key = dim_keys.back();\n    \n    // For dense dimensions, a lookup table is significantly faster than binary search.\n    // We check if the range is reasonable to allocate. \n    // If the range is too large, we'd fall back to binary search, but the task \n    // specifies 'dense dimension', implying a compact key range.\n    size_t range = static_cast<size_t>(max_key) - min_key + 1;\n    \n    // Heuristic: if range is within a reasonable memory limit (e.g., 256MB), use lookup table\n    if (range < 64 * 1024 * 1024) {\n        std::vector<uint32_t> lookup(range);\n        for (size_t i = 0; i < dim_keys.size(); ++i) {\n            lookup[dim_keys[i] - min_key] = dim_values[i];\n        }\n\n        uint64_t total_sum = 0;\n        const uint32_t* p_keys = probe_keys.data();\n        const uint32_t* p_weights = probe_weights.data();\n        const uint32_t* l_table = lookup.data();\n        size_t probe_size = probe_keys.size();\n\n        for (int iter = 0; iter < iters; ++iter) {\n            uint64_t iter_sum = 0;\n            for (size_t i = 0; i < probe_size; ++i) {\n                uint32_t key = p_keys[i];\n                // Assuming probe_keys are within the range of dim_keys based on 'join' context\n                iter_sum += static_cast<uint64_t>(l_table[key - min_key]) * p_weights[i];\n            }\n            total_sum = iter_sum;\n        }\n        return total_sum;\n    } else {\n        // Fallback to optimized binary search if range is too sparse/large\n        uint64_t total_sum = 0;\n        size_t probe_size = probe_keys.size();\n        for (int iter = 0; iter < iters; ++iter) {\n            uint64_t iter_sum = 0;\n            for (size_t i = 0; i < probe_size; ++i) {\n                auto it = std::lower_bound(dim_keys.begin(), dim_keys.end(), probe_keys[i]);\n                size_t idx = std::distance(dim_keys.begin(), it);\n                iter_sum += static_cast<uint64_t>(dim_values[idx]) * probe_weights[i];\n            }\n            total_sum = iter_sum;\n        }\n        return total_sum;\n    }\n}",
+  "baseline": {
+    "task_id": "dense_dimension_join_sum_v1100_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 11262548966,
+    "min_elapsed_ns": 10890096390,
+    "max_elapsed_ns": 11585483188,
+    "all_elapsed_ns": [
+      10890096390,
+      11262548966,
+      11585483188
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10890096390,
+      "expected_sum": 146414764032,
+      "actual_sum": 146414764032
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_dimension_join_sum_v1100_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 113845102,
+    "min_elapsed_ns": 82626647,
+    "max_elapsed_ns": 127319029,
+    "all_elapsed_ns": [
+      82626647,
+      113845102,
+      127319029
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 82626647,
+      "expected_sum": 146414764032,
+      "actual_sum": 146414764032
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_dimension_join_sum_v1100_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 87230446,
+    "min_elapsed_ns": 85903309,
+    "max_elapsed_ns": 99198573,
+    "all_elapsed_ns": [
+      87230446,
+      99198573,
+      85903309
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 87230446,
+      "expected_sum": 146414764032,
+      "actual_sum": 146414764032
+    },
+    "status": "ok"
+  }
+}

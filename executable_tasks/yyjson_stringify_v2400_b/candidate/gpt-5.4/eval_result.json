@@ -1,0 +1,72 @@
+{
+  "task_id": "yyjson_stringify_v2400_b",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/yyjson_stringify_v2400_b/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <string>\n#include <vector>\n\nstd::string build_json(\n    const std::vector<uint32_t>& ids,\n    const std::vector<uint32_t>& values,\n    const std::vector<std::string>& names) {\n  const std::size_t n = ids.size();\n\n  // Fast path for empty input.\n  if (n == 0) return \"[]\";\n\n  // Conservative pre-reservation to minimize reallocations.\n  // Per object fixed syntax is about 39 chars plus digits and name bytes:\n  // {\"id\":,\"flag\":,\"value\":,\"name\":\"\"}\n  std::size_t reserve_size = 2;  // [ ]\n  reserve_size += n > 0 ? (n - 1) : 0;  // commas between objects\n  for (std::size_t i = 0; i < n; ++i) {\n    reserve_size += 39;\n    reserve_size += names[i].size();\n    reserve_size += 10;  // id digits max for uint32_t\n    reserve_size += 10;  // value digits max for uint32_t\n    // Extra room for escaping in names.\n    reserve_size += names[i].size() / 8 + 8;\n  }\n\n  std::string out;\n  out.reserve(reserve_size);\n\n  auto append_u32 = [&](uint32_t v) {\n    char buf[10];\n    int pos = 10;\n    do {\n      buf[--pos] = static_cast<char>('0' + (v % 10));\n      v /= 10;\n    } while (v != 0);\n    out.append(buf + pos, static_cast<std::size_t>(10 - pos));\n  };\n\n  auto append_escaped_json_string = [&](const std::string& s) {\n    out.push_back('\"');\n    std::size_t start = 0;\n    const std::size_t len = s.size();\n    for (std::size_t i = 0; i < len; ++i) {\n      const unsigned char c = static_cast<unsigned char>(s[i]);\n      bool needs_escape = false;\n      switch (c) {\n        case '\"':\n        case '\\\\':\n        case '\\b':\n        case '\\f':\n        case '\\n':\n        case '\\r':\n        case '\\t':\n          needs_escape = true;\n          break;\n        default:\n          needs_escape = (c < 0x20);\n          break;\n      }\n      if (!needs_escape) continue;\n\n      if (i > start) out.append(s.data() + start, i - start);\n      switch (c) {\n        case '\"': out += \"\\\\\\\"\"; break;\n        case '\\\\': out += \"\\\\\\\\\"; break;\n        case '\\b': out += \"\\\\b\"; break;\n        case '\\f': out += \"\\\\f\"; break;\n        case '\\n': out += \"\\\\n\"; break;\n        case '\\r': out += \"\\\\r\"; break;\n        case '\\t': out += \"\\\\t\"; break;\n        default: {\n          static constexpr char hex[] = \"0123456789abcdef\";\n          char esc[6] = {'\\\\', 'u', '0', '0', hex[c >> 4], hex[c & 0x0F]};\n          out.append(esc, 6);\n          break;\n        }\n      }\n      start = i + 1;\n    }\n    if (start < len) out.append(s.data() + start, len - start);\n    out.push_back('\"');\n  };\n\n  out.push_back('[');\n  for (std::size_t i = 0; i < n; ++i) {\n    if (i != 0) out.push_back(',');\n    out += \"{\\\"id\\\":\";\n    append_u32(ids[i]);\n    out += \",\\\"flag\\\":\";\n    out += ((ids[i] % 3U) == 0U) ? \"true\" : \"false\";\n    out += \",\\\"value\\\":\";\n    append_u32(values[i]);\n    out += \",\\\"name\\\":\";\n    append_escaped_json_string(names[i]);\n    out.push_back('}');\n  }\n  out.push_back(']');\n\n  return out;\n}\n",
+  "baseline": {
+    "task_id": "yyjson_stringify_v2400_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5344631,
+    "min_elapsed_ns": 5344505,
+    "max_elapsed_ns": 5438965,
+    "all_elapsed_ns": [
+      5438965,
+      5344505,
+      5344631
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5438965,
+      "expected_size": 469523,
+      "actual_size": 469523
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "yyjson_stringify_v2400_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1226831,
+    "min_elapsed_ns": 1165940,
+    "max_elapsed_ns": 1237227,
+    "all_elapsed_ns": [
+      1237227,
+      1226831,
+      1165940
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1237227,
+      "expected_size": 469523,
+      "actual_size": 469523
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "yyjson_stringify_v2400_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 748385,
+    "min_elapsed_ns": 715175,
+    "max_elapsed_ns": 774016,
+    "all_elapsed_ns": [
+      774016,
+      715175,
+      748385
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 774016,
+      "expected_size": 469523,
+      "actual_size": 469523
+    },
+    "status": "ok"
+  }
+}

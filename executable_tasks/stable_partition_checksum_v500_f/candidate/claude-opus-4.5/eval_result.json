@@ -1,0 +1,72 @@
+{
+  "task_id": "stable_partition_checksum_v500_f",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/stable_partition_checksum_v500_f/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 8,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstddef>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t stable_partition_hash(\n    const std::vector<uint8_t>& flags,\n    const std::vector<uint32_t>& values,\n    int iters) {\n  const size_t n = values.size();\n  if (n == 0) {\n    uint64_t hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n      hash = 1469598103934665603ULL;\n    }\n    return hash;\n  }\n\n  // Pre-allocate output buffer once\n  std::vector<uint32_t> out(n);\n  \n  // Pre-compute prefix sums for left indices and right indices\n  // left_prefix[i] = number of flags[j]==1 for j < i\n  // right_prefix[i] = number of flags[j]==0 for j < i\n  std::vector<uint32_t> left_prefix(n + 1);\n  std::vector<uint32_t> right_prefix(n + 1);\n  \n  const uint8_t* __restrict fp = flags.data();\n  const uint32_t* __restrict vp = values.data();\n  uint32_t* __restrict op = out.data();\n  \n  // Compute total count of 1s (left partition size)\n  uint32_t left_count = 0;\n  for (size_t i = 0; i < n; ++i) {\n    left_count += fp[i];\n  }\n  \n  const uint32_t right_start = left_count;\n  \n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    // Build prefix sums\n    uint32_t lp = 0;\n    uint32_t rp = 0;\n    \n    // Single pass: scatter values directly to output positions\n    // For flag=1: position = left_prefix[i]\n    // For flag=0: position = right_start + right_prefix[i]\n    uint32_t left_idx = 0;\n    uint32_t right_idx = right_start;\n    \n    for (size_t i = 0; i < n; ++i) {\n      if (fp[i]) {\n        op[left_idx++] = vp[i];\n      } else {\n        op[right_idx++] = vp[i];\n      }\n    }\n    \n    // Compute hash\n    hash = 1469598103934665603ULL;\n    \n    // Unroll hash computation for better performance\n    size_t i = 0;\n    const size_t unroll_end = n - (n % 4);\n    for (; i < unroll_end; i += 4) {\n      hash = mix(hash, op[i]);\n      hash = mix(hash, op[i + 1]);\n      hash = mix(hash, op[i + 2]);\n      hash = mix(hash, op[i + 3]);\n    }\n    for (; i < n; ++i) {\n      hash = mix(hash, op[i]);\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "stable_partition_checksum_v500_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3779372715,
+    "min_elapsed_ns": 3770822892,
+    "max_elapsed_ns": 3800609614,
+    "all_elapsed_ns": [
+      3779372715,
+      3770822892,
+      3800609614
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3779372715,
+      "expected_checksum": 3163085764436240883,
+      "actual_checksum": 3163085764436240883
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "stable_partition_checksum_v500_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2822936525,
+    "min_elapsed_ns": 2802149764,
+    "max_elapsed_ns": 3369929742,
+    "all_elapsed_ns": [
+      2802149764,
+      3369929742,
+      2822936525
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2802149764,
+      "expected_checksum": 3163085764436240883,
+      "actual_checksum": 3163085764436240883
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "stable_partition_checksum_v500_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 3124463703,
+    "min_elapsed_ns": 3109528372,
+    "max_elapsed_ns": 3179161336,
+    "all_elapsed_ns": [
+      3109528372,
+      3124463703,
+      3179161336
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3109528372,
+      "expected_checksum": 3163085764436240883,
+      "actual_checksum": 3163085764436240883
+    },
+    "status": "ok"
+  }
+}

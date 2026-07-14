@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_allpairs_l1_v1400_f",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_allpairs_l1_v1400_f/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <algorithm>\n#include <omp.h>\n\n/**\n * Computes the sum of all pairwise L1 distances: sum_{i < j} (|xs[i] - xs[j]| + |ys[i] - ys[j]|).\n * The L1 distance sum is separable: sum_{i < j} |xs[i] - xs[j]| + sum_{i < j} |ys[i] - ys[j]|.\n * For a sorted sequence a_0 <= a_1 <= ... <= a_{N-1}, the sum of absolute differences is:\n * sum_{i=0}^{N-1} a_i * (2*i - N + 1).\n */\nstatic int64_t compute_sorted_l1_sum(std::vector<int32_t>& vals) {\n    size_t n = vals.size();\n    if (n < 2) return 0;\n\n    // Sort the values to eliminate the absolute value operator\n    std::sort(vals.begin(), vals.end());\n\n    int64_t sum = 0;\n    // Parallelize the linear summation using OpenMP reduction\n    #pragma omp parallel for reduction(+:sum)\n    for (int64_t i = 0; i < static_cast<int64_t>(n); ++i) {\n        // Coefficient is (i) - (n - 1 - i) = 2*i - n + 1\n        sum += static_cast<int64_t>(vals[i]) * (2 * i - static_cast<int64_t>(n) + 1);\n    }\n    return sum;\n}\n\nint64_t allpairs_l1_sum(const std::vector<int32_t>& xs, const std::vector<int32_t>& ys, int iters) {\n    if (xs.empty()) return 0;\n\n    int64_t total = 0;\n    // The result is the same for every iteration as inputs are constant.\n    // We perform the calculation inside the loop to satisfy the 'iters' requirement,\n    // though in a real-world scenario we would cache the result.\n    for (int iter = 0; iter < iters; ++iter) {\n        std::vector<int32_t> x_coords = xs;\n        std::vector<int32_t> y_coords = ys;\n\n        int64_t x_sum = 0;\n        int64_t y_sum = 0;\n\n        // Use sections to potentially sort x and y in parallel if threads are available\n        #pragma omp parallel sections\n        {\n            #pragma omp section\n            {\n                x_sum = compute_sorted_l1_sum(x_coords);\n            }\n            #pragma omp section\n            {\n                y_sum = compute_sorted_l1_sum(y_coords);\n            }\n        }\n\n        total = x_sum + y_sum;\n    }\n\n    return total;\n}",
+  "baseline": {
+    "task_id": "openmp_allpairs_l1_v1400_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 19994572,
+    "min_elapsed_ns": 19870368,
+    "max_elapsed_ns": 20143574,
+    "all_elapsed_ns": [
+      19870368,
+      19994572,
+      20143574
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 19870368,
+      "expected_sum": 35075532800,
+      "actual_sum": 35075532800
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_allpairs_l1_v1400_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5013880,
+    "min_elapsed_ns": 5009542,
+    "max_elapsed_ns": 5075144,
+    "all_elapsed_ns": [
+      5075144,
+      5009542,
+      5013880
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5075144,
+      "expected_sum": 35075532800,
+      "actual_sum": 35075532800
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_allpairs_l1_v1400_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 36657602,
+    "min_elapsed_ns": 33660805,
+    "max_elapsed_ns": 77734724,
+    "all_elapsed_ns": [
+      77734724,
+      36657602,
+      33660805
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 77734724,
+      "expected_sum": 35075532800,
+      "actual_sum": 35075532800
+    },
+    "status": "ok"
+  }
+}

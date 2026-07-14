@@ -1,0 +1,72 @@
+{
+  "task_id": "batched_log_format_v2300_d",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/batched_log_format_v2300_d/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstring>\n#include <string>\n#include <vector>\n\nnamespace {\n\n// Fast integer to string conversion, returns pointer to start of number in buffer\n// Buffer must have at least 10 bytes for uint32_t\ninline char* u32_to_str(uint32_t val, char* buf_end) {\n    char* p = buf_end;\n    if (val == 0) {\n        *--p = '0';\n        return p;\n    }\n    while (val > 0) {\n        *--p = '0' + (val % 10);\n        val /= 10;\n    }\n    return p;\n}\n\ninline char* u16_to_str(uint16_t val, char* buf_end) {\n    char* p = buf_end;\n    if (val == 0) {\n        *--p = '0';\n        return p;\n    }\n    while (val > 0) {\n        *--p = '0' + (val % 10);\n        val /= 10;\n    }\n    return p;\n}\n\n// Estimate max digits needed: uint32_t max is 10 digits, uint16_t max is 5 digits\nconstexpr size_t MAX_U32_DIGITS = 10;\nconstexpr size_t MAX_U16_DIGITS = 5;\n\n}  // namespace\n\nuint64_t batched_log_checksum(\n    const std::vector<uint32_t>& timestamps,\n    const std::vector<uint32_t>& ids,\n    const std::vector<uint16_t>& levels,\n    const std::vector<std::string>& messages,\n    int iters) {\n    \n    const size_t n = ids.size();\n    if (n == 0) {\n        // Empty input - hash of empty string\n        uint64_t hash = 1469598103934665603ULL;\n        return hash;\n    }\n    \n    // Calculate total message length\n    size_t total_msg_len = 0;\n    for (size_t i = 0; i < n; ++i) {\n        total_msg_len += messages[i].size();\n    }\n    \n    // Max size per line: timestamp(10) + | + id(10) + | + level(5) + | + msg + \\n\n    // = 10 + 1 + 10 + 1 + 5 + 1 + msg_len + 1 = 29 + msg_len\n    const size_t max_size = n * 29 + total_msg_len;\n    \n    std::string out;\n    out.reserve(max_size);\n    \n    char num_buf[MAX_U32_DIGITS];\n    uint64_t hash = 0;\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        out.clear();\n        \n        // Build output and compute hash incrementally\n        hash = 1469598103934665603ULL;\n        \n        for (size_t i = 0; i < n; ++i) {\n            // Timestamp\n            char* start = u32_to_str(timestamps[i], num_buf + MAX_U32_DIGITS);\n            size_t len = (num_buf + MAX_U32_DIGITS) - start;\n            for (size_t j = 0; j < len; ++j) {\n                hash ^= static_cast<uint64_t>(static_cast<unsigned char>(start[j]));\n                hash *= 1099511628211ULL;\n            }\n            out.append(start, len);\n            \n            // Separator |\n            hash ^= static_cast<uint64_t>('|');\n            hash *= 1099511628211ULL;\n            out += '|';\n            \n            // ID\n            start = u32_to_str(ids[i], num_buf + MAX_U32_DIGITS);\n            len = (num_buf + MAX_U32_DIGITS) - start;\n            for (size_t j = 0; j < len; ++j) {\n                hash ^= static_cast<uint64_t>(static_cast<unsigned char>(start[j]));\n                hash *= 1099511628211ULL;\n            }\n            out.append(start, len);\n            \n            // Separator |\n            hash ^= static_cast<uint64_t>('|');\n            hash *= 1099511628211ULL;\n            out += '|';\n            \n            // Level\n            start = u16_to_str(levels[i], num_buf + MAX_U16_DIGITS);\n            len = (num_buf + MAX_U16_DIGITS) - start;\n            for (size_t j = 0; j < len; ++j) {\n                hash ^= static_cast<uint64_t>(static_cast<unsigned char>(start[j]));\n                hash *= 1099511628211ULL;\n            }\n            out.append(start, len);\n            \n            // Separator |\n            hash ^= static_cast<uint64_t>('|');\n            hash *= 1099511628211ULL;\n            out += '|';\n            \n            // Message\n            const std::string& msg = messages[i];\n            const char* msg_data = msg.data();\n            size_t msg_len = msg.size();\n            for (size_t j = 0; j < msg_len; ++j) {\n                hash ^= static_cast<uint64_t>(static_cast<unsigned char>(msg_data[j]));\n                hash *= 1099511628211ULL;\n            }\n            out.append(msg_data, msg_len);\n            \n            // Newline\n            hash ^= static_cast<uint64_t>('\\n');\n            hash *= 1099511628211ULL;\n            out += '\\n';\n        }\n    }\n    \n    return hash;\n}",
+  "baseline": {
+    "task_id": "batched_log_format_v2300_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1223455576,
+    "min_elapsed_ns": 1216738152,
+    "max_elapsed_ns": 1664684316,
+    "all_elapsed_ns": [
+      1223455576,
+      1216738152,
+      1664684316
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1223455576,
+      "expected_checksum": 1481436141625552306,
+      "actual_checksum": 1481436141625552306
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "batched_log_format_v2300_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 578144597,
+    "min_elapsed_ns": 561611581,
+    "max_elapsed_ns": 586776875,
+    "all_elapsed_ns": [
+      561611581,
+      578144597,
+      586776875
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 561611581,
+      "expected_checksum": 1481436141625552306,
+      "actual_checksum": 1481436141625552306
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "batched_log_format_v2300_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 350496236,
+    "min_elapsed_ns": 349033024,
+    "max_elapsed_ns": 365643981,
+    "all_elapsed_ns": [
+      350496236,
+      365643981,
+      349033024
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 350496236,
+      "expected_checksum": 1481436141625552306,
+      "actual_checksum": 1481436141625552306
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_reduce_sum_cub_i32_v14",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_reduce_sum_cub_i32_v14/candidate/claude-opus-4.5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\ntemplate <int BLOCK_SIZE>\n__global__ void reduce_sum_kernel(const int* __restrict__ input, int* __restrict__ output, int n) {\n    // Each thread accumulates a local sum\n    long long local_sum = 0;\n    \n    // Vectorized loads: process 4 ints at a time\n    const int4* input4 = reinterpret_cast<const int4*>(input);\n    int n4 = n / 4;\n    int tid = blockIdx.x * BLOCK_SIZE + threadIdx.x;\n    int stride = BLOCK_SIZE * gridDim.x;\n    \n    // Process vectorized portion\n    for (int i = tid; i < n4; i += stride) {\n        int4 v = input4[i];\n        local_sum += v.x;\n        local_sum += v.y;\n        local_sum += v.z;\n        local_sum += v.w;\n    }\n    \n    // Process remaining elements\n    int base = n4 * 4;\n    for (int i = base + tid; i < n; i += stride) {\n        local_sum += input[i];\n    }\n    \n    // Warp-level reduction using shuffle\n    unsigned int mask = 0xffffffff;\n    #pragma unroll\n    for (int offset = 16; offset > 0; offset >>= 1) {\n        local_sum += __shfl_down_sync(mask, local_sum, offset);\n    }\n    \n    // First thread in each warp writes to shared memory\n    __shared__ long long warp_sums[BLOCK_SIZE / 32];\n    int lane = threadIdx.x & 31;\n    int warp_id = threadIdx.x >> 5;\n    \n    if (lane == 0) {\n        warp_sums[warp_id] = local_sum;\n    }\n    __syncthreads();\n    \n    // First warp reduces all warp sums\n    if (warp_id == 0) {\n        local_sum = (lane < (BLOCK_SIZE / 32)) ? warp_sums[lane] : 0;\n        #pragma unroll\n        for (int offset = (BLOCK_SIZE / 64); offset > 0; offset >>= 1) {\n            local_sum += __shfl_down_sync(mask, local_sum, offset);\n        }\n        \n        // Thread 0 does atomic add to global output\n        if (lane == 0) {\n            atomicAdd(output, static_cast<int>(local_sum));\n        }\n    }\n}\n\n}  // namespace\n\nvoid reduce_sum_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0) {\n        for (int iter = 0; iter < iters; ++iter) {\n            cudaMemsetAsync(output, 0, sizeof(int));\n        }\n        return;\n    }\n    \n    constexpr int BLOCK_SIZE = 256;\n    // Use enough blocks to saturate the GPU but not too many to cause excessive atomics\n    int num_blocks = min(1024, (n + BLOCK_SIZE * 4 - 1) / (BLOCK_SIZE * 4));\n    num_blocks = max(num_blocks, 1);\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemsetAsync(output, 0, sizeof(int));\n        reduce_sum_kernel<BLOCK_SIZE><<<num_blocks, BLOCK_SIZE>>>(input, output, n);\n    }\n}\n",
+  "baseline": {
+    "task_id": "cuda_reduce_sum_cub_i32_v14",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6588672,
+    "min_elapsed_ns": 6559423,
+    "max_elapsed_ns": 6599775,
+    "all_elapsed_ns": [
+      6588672,
+      6599775,
+      6559423
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6588672,
+      "expected_sum": 31457280,
+      "actual_sum": 31457280
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_reduce_sum_cub_i32_v14",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 879263,
+    "min_elapsed_ns": 570111,
+    "max_elapsed_ns": 1232064,
+    "all_elapsed_ns": [
+      879263,
+      570111,
+      1232064
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 879263,
+      "expected_sum": 31457280,
+      "actual_sum": 31457280
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_reduce_sum_cub_i32_v14",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_reduce_sum_cub_i32_v14/candidate/bench']' timed out after 5 seconds"
+  }
+}

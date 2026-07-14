@@ -1,0 +1,59 @@
+{
+  "task_id": "beam_search_topk_v1900_h",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v1900_h/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <utility>\n#include <vector>\n\nnamespace {\n\nstruct Entry {\n    int32_t logit;\n    int      idx;\n};\n\ninline bool better(const Entry& a, const Entry& b) {\n    return (a.logit > b.logit) || (a.logit == b.logit && a.idx < b.idx);\n}\n\ninline void insert(Entry* heap, int k, Entry val) {\n    if (better(val, heap[0])) {\n        heap[0] = val;\n        int i = 0;\n        while (true) {\n            int l = (i << 1) + 1;\n            int r = l + 1;\n            int worst = i;\n            if (l < k && better(heap[worst], heap[l])) worst = l;\n            if (r < k && better(heap[worst], heap[r])) worst = r;\n            if (worst == i) break;\n            std::swap(heap[i], heap[worst]);\n            i = worst;\n        }\n    }\n}\n\n}  // namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits,\n                            int beams, int vocab, int topk, int iters) {\n    std::vector<Entry> heap_storage(static_cast<size_t>(topk));\n    uint64_t hash = 1469598103934665603ULL;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        hash = 1469598103934665603ULL;\n        for (int b = 0; b < beams; ++b) {\n            const int32_t* row = &logits[static_cast<size_t>(b) * static_cast<size_t>(vocab)];\n\n            // initialise min-heap with first k elements\n            for (int i = 0; i < topk; ++i) {\n                heap_storage[i] = Entry{row[i], i};\n            }\n            for (int i = topk / 2 - 1; i >= 0; --i) {\n                int root = i;\n                while (true) {\n                    int l = (root << 1) + 1;\n                    int r = l + 1;\n                    int worst = root;\n                    if (l < topk && better(heap_storage[worst], heap_storage[l])) worst = l;\n                    if (r < topk && better(heap_storage[worst], heap_storage[r])) worst = r;\n                    if (worst == root) break;\n                    std::swap(heap_storage[root], heap_storage[worst]);\n                    root = worst;\n                }\n            }\n\n            // process remaining elements\n            for (int v = topk; v < vocab; ++v) {\n                insert(heap_storage.data(), topk, Entry{row[v], v});\n            }\n\n            // extract sorted order\n            for (int k = topk - 1; k >= 0; --k) {\n                std::swap(heap_storage[0], heap_storage[k]);\n                int i = 0;\n                while (true) {\n                    int l = (i << 1) + 1;\n                    int r = l + 1;\n                    int worst = i;\n                    if (l < k && better(heap_storage[worst], heap_storage[l])) worst = l;\n                    if (r < k && better(heap_storage[worst], heap_storage[r])) worst = r;\n                    if (worst == i) break;\n                    std::swap(heap_storage[i], heap_storage[worst]);\n                    i = worst;\n                }\n            }\n\n            // hash results\n            for (int k = 0; k < topk; ++k) {\n                const Entry& e = heap_storage[k];\n                hash ^= static_cast<uint64_t>(static_cast<uint32_t>(e.logit));\n                hash *= 1099511628211ULL;\n                hash ^= static_cast<uint64_t>(e.idx);\n                hash *= 1099511628211ULL;\n            }\n        }\n    }\n    return hash;\n}",
+  "baseline": {
+    "task_id": "beam_search_topk_v1900_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 636938648,
+    "min_elapsed_ns": 632347521,
+    "max_elapsed_ns": 649999288,
+    "all_elapsed_ns": [
+      649999288,
+      632347521,
+      636938648
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 649999288,
+      "expected_checksum": 13712881921448822774,
+      "actual_checksum": 13712881921448822774
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v1900_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 10601426,
+    "min_elapsed_ns": 10441835,
+    "max_elapsed_ns": 11215908,
+    "all_elapsed_ns": [
+      11215908,
+      10601426,
+      10441835
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11215908,
+      "expected_checksum": 13712881921448822774,
+      "actual_checksum": 13712881921448822774
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v1900_h",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/beam_search_topk_v1900_h/harness', 'executable_tasks/beam_search_topk_v1900_h/harness/benchmark_main.cpp', 'executable_tasks/beam_search_topk_v1900_h/candidate/moonshotai__kimi-k2-0905/solution.cpp', '-o', 'build/beam_search_topk_v1900_h/candidate/bench']' returned non-zero exit status 1."
+  }
+}

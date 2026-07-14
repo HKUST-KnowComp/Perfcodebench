@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_120",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_120/candidate/google__gemini-3.1-pro-preview/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <stdint.h>\n#include <stdlib.h>\n#include <math.h>\n\n/**\n * Optimized linear audio resampling and checksum calculation.\n * \n * Key optimizations:\n * 1. Removed malloc/free inside the iteration loop.\n * 2. Merged the resampling and checksum loops to reduce memory traffic and improve cache locality.\n * 3. Pre-calculated the resampling step to avoid repeated divisions.\n * 4. Optimized the rounding logic for int16_t conversion.\n */\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n    if (output_len <= 0) return 0;\n\n    uint64_t hash = 0;\n    const double step = (output_len > 1) \n        ? (double)(input_len - 1) / (double)(output_len - 1) \n        : 0.0;\n    const uint64_t fnv_prime = 1099511628211ULL;\n    const uint64_t fnv_offset = 1469598103934665603ULL;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t current_hash = fnv_offset;\n\n        for (int i = 0; i < output_len; ++i) {\n            double pos = (double)i * step;\n            int left = (int)pos;\n            int right = left + 1;\n            if (right >= input_len) right = input_len - 1;\n            \n            double frac = pos - (double)left;\n            double s_left = (double)src[left];\n            double s_right = (double)src[right];\n            double sample = s_left + (s_right - s_left) * frac;\n\n            int16_t rounded_sample;\n            if (sample >= 0.0) {\n                rounded_sample = (int16_t)(sample + 0.5);\n            } else {\n                rounded_sample = (int16_t)(sample - 0.5);\n            }\n\n            // FNV-1a checksum update\n            current_hash ^= (uint16_t)rounded_sample;\n            current_hash *= fnv_prime;\n        }\n        hash = current_hash;\n    }\n\n    return hash;\n}\n",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_120",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5995000,
+    "min_elapsed_ns": 5442000,
+    "max_elapsed_ns": 6148000,
+    "all_elapsed_ns": [
+      5442000,
+      6148000,
+      5995000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5442000,
+      "expected_checksum": 2294548428485069063,
+      "actual_checksum": 2294548428485069063
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_120",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4957000,
+    "min_elapsed_ns": 4934000,
+    "max_elapsed_ns": 5942000,
+    "all_elapsed_ns": [
+      4934000,
+      5942000,
+      4957000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4934000,
+      "expected_checksum": 2294548428485069063,
+      "actual_checksum": 2294548428485069063
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_120",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 4136000,
+    "min_elapsed_ns": 4035000,
+    "max_elapsed_ns": 4143000,
+    "all_elapsed_ns": [
+      4143000,
+      4136000,
+      4035000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4143000,
+      "expected_checksum": 2294548428485069063,
+      "actual_checksum": 2294548428485069063
+    },
+    "status": "ok"
+  }
+}

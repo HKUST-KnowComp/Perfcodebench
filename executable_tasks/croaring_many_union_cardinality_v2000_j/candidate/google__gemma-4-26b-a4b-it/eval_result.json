@@ -1,0 +1,59 @@
+{
+  "task_id": "croaring_many_union_cardinality_v2000_j",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/croaring_many_union_cardinality_v2000_j/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"roaring.h\"\n#include <vector>\n\nuint64_t many_union_cardinality(\n    const std::vector<uint32_t>& offsets,\n    const std::vector<uint32_t>& values) {\n  if (offsets.size() < 2) {\n    return 0;\n  }\n\n  std::vector<RoaringBitmap*> bitmaps;\n  bitmaps.reserve(offsets.size() - 1);\n\n  for (std::size_t shard = 0; shard + 1 < offsets.size(); ++shard) {\n    const uint32_t begin = offsets[shard];\n    const uint32_t end = offsets[shard + 1];\n    \n    if (begin >= end) continue;\n\n    RoaringBitmap* rb = new RoaringBitmap();\n    // We use add_many if available or a loop to populate the bitmap.\n    // Since the input is sorted within shards (implied by 'sorted shards' in title),\n    // we can optimize, but standard add is safe.\n    for (uint32_t i = begin; i < end; ++i) {\n      rb->add(values[i]);\n    }\n    bitmaps.push_back(rb);\n  }\n\n  if (bitmaps.empty()) {\n    return 0;\n  }\n\n  RoaringBitmap* result = nullptr;\n  if (bitmaps.size() == 1) {\n    result = bitmaps[0];\n  } else {\n    // roaring_bitmap_union is highly optimized for multiple bitmaps\n    result = roaring_bitmap_union(bitmaps.size(), bitmaps.data());\n  }\n\n  uint64_t cardinality = result->cardinality();\n\n  // Cleanup\n  if (bitmaps.size() > 1) {\n    // If we created a new bitmap via union, we must delete it\n    // Note: roaring_bitmap_union returns a new pointer.\n    // We also need to delete the individual bitmaps.\n    for (auto rb : bitmaps) {\n      delete rb;\n    }\n    delete result;\n  } else {\n    // If only one bitmap, result is just the pointer in the vector\n    delete bitmaps[0];\n  }\n\n  return cardinality;\n}",
+  "baseline": {
+    "task_id": "croaring_many_union_cardinality_v2000_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 325099365,
+    "min_elapsed_ns": 309500657,
+    "max_elapsed_ns": 325333839,
+    "all_elapsed_ns": [
+      325099365,
+      325333839,
+      309500657
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 325099365,
+      "expected_cardinality": 1049935,
+      "actual_cardinality": 1049935
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "croaring_many_union_cardinality_v2000_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 93450025,
+    "min_elapsed_ns": 93281620,
+    "max_elapsed_ns": 99149727,
+    "all_elapsed_ns": [
+      93281620,
+      93450025,
+      99149727
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 93281620,
+      "expected_cardinality": 1049935,
+      "actual_cardinality": 1049935
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "croaring_many_union_cardinality_v2000_j",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/croaring_many_union_cardinality_v2000_j/harness', '-Iexternal/croaring_amalg', 'executable_tasks/croaring_many_union_cardinality_v2000_j/harness/benchmark_main.cpp', 'executable_tasks/croaring_many_union_cardinality_v2000_j/candidate/google__gemma-4-26b-a4b-it/solution.cpp', 'external/croaring_amalg/roaring.c', '-o', 'build/croaring_many_union_cardinality_v2000_j/candidate/bench']' returned non-zero exit status 1."
+  }
+}

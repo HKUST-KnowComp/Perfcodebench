@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_jacobi_2d_v900_j",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v900_j/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nstatic inline uint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  const std::size_t n = data.size();\n  const uint32_t* p = data.data();\n  for (std::size_t i = 0; i < n; ++i) {\n    hash ^= static_cast<uint64_t>(p[i]);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  const std::size_t total = static_cast<std::size_t>(rows) * static_cast<std::size_t>(cols);\n  if (total == 0) {\n    return checksum_u32(input);\n  }\n\n  std::vector<uint32_t> a = input;\n  std::vector<uint32_t> b(total);\n\n  if (steps <= 0) {\n    return checksum_u32(a);\n  }\n\n  const int last_row = rows - 1;\n  const int last_col = cols - 1;\n\n  for (int step = 0; step < steps; ++step) {\n    if (rows <= 2 || cols <= 2) {\n#pragma omp parallel for schedule(static)\n      for (int r = 0; r < rows; ++r) {\n        const std::size_t base = static_cast<std::size_t>(r) * static_cast<std::size_t>(cols);\n        for (int c = 0; c < cols; ++c) {\n          b[base + static_cast<std::size_t>(c)] = a[base + static_cast<std::size_t>(c)];\n        }\n      }\n      a.swap(b);\n      continue;\n    }\n\n    const uint32_t* __restrict src = a.data();\n    uint32_t* __restrict dst = b.data();\n    const std::size_t scols = static_cast<std::size_t>(cols);\n\n#pragma omp parallel\n    {\n#pragma omp for schedule(static)\n      for (int c = 0; c < cols; ++c) {\n        const std::size_t idx_top = static_cast<std::size_t>(c);\n        const std::size_t idx_bottom = static_cast<std::size_t>(last_row) * scols + static_cast<std::size_t>(c);\n        dst[idx_top] = src[idx_top];\n        dst[idx_bottom] = src[idx_bottom];\n      }\n\n#pragma omp for schedule(static)\n      for (int r = 1; r < last_row; ++r) {\n        const std::size_t base = static_cast<std::size_t>(r) * scols;\n        dst[base] = src[base];\n        dst[base + static_cast<std::size_t>(last_col)] = src[base + static_cast<std::size_t>(last_col)];\n      }\n\n#pragma omp for schedule(static)\n      for (int r = 1; r < last_row; ++r) {\n        const std::size_t base = static_cast<std::size_t>(r) * scols;\n        const std::size_t up = base - scols;\n        const std::size_t down = base + scols;\n        for (int c = 1; c < last_col; ++c) {\n          const std::size_t idx = base + static_cast<std::size_t>(c);\n          dst[idx] = (src[idx] * 4u + src[idx - 1] + src[idx + 1] + src[up + static_cast<std::size_t>(c)] +\n                      src[down + static_cast<std::size_t>(c)]) /\n                     8u;\n        }\n      }\n    }\n\n    a.swap(b);\n  }\n\n  return checksum_u32(a);\n}\n",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v900_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 515859840,
+    "min_elapsed_ns": 243409700,
+    "max_elapsed_ns": 707430930,
+    "all_elapsed_ns": [
+      243409700,
+      707430930,
+      515859840
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 243409700,
+      "expected_checksum": 12158263322720824940,
+      "actual_checksum": 12158263322720824940
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v900_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 353665680,
+    "min_elapsed_ns": 322822001,
+    "max_elapsed_ns": 419392469,
+    "all_elapsed_ns": [
+      353665680,
+      322822001,
+      419392469
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 353665680,
+      "expected_checksum": 12158263322720824940,
+      "actual_checksum": 12158263322720824940
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v900_j",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/openmp_jacobi_2d_v900_j/candidate/bench']' timed out after 5 seconds"
+  }
+}

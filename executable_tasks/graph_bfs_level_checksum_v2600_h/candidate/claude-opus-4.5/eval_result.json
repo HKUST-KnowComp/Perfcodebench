@@ -1,0 +1,72 @@
+{
+  "task_id": "graph_bfs_level_checksum_v2600_h",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/graph_bfs_level_checksum_v2600_h/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <cstring>\n#include <vector>\n\nnamespace {\n\ninline uint64_t checksum_levels(const int32_t* levels, uint32_t n) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (uint32_t i = 0; i < n; ++i) {\n        hash ^= static_cast<uint64_t>(static_cast<uint32_t>(levels[i] + 1));\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\n}  // namespace\n\nuint64_t bfs_level_checksum(\n    const std::vector<uint32_t>& offsets,\n    const std::vector<uint32_t>& edges,\n    uint32_t source,\n    int iters) {\n    \n    const uint32_t n = static_cast<uint32_t>(offsets.size() - 1u);\n    if (n == 0) return 1469598103934665603ULL;\n    \n    const uint32_t m = static_cast<uint32_t>(edges.size());\n    const uint32_t* __restrict off_ptr = offsets.data();\n    const uint32_t* __restrict edge_ptr = edges.data();\n    \n    std::vector<int32_t> levels(n);\n    int32_t* __restrict lev_ptr = levels.data();\n    \n    std::vector<uint32_t> frontier;\n    std::vector<uint32_t> next_frontier;\n    frontier.reserve(n);\n    next_frontier.reserve(n);\n    \n    // Bit vector for frontier membership (for bottom-up)\n    const uint32_t bv_size = (n + 63) / 64;\n    std::vector<uint64_t> frontier_bits(bv_size);\n    uint64_t* __restrict fb_ptr = frontier_bits.data();\n    \n    uint64_t hash = 0;\n    \n    // Threshold for switching to bottom-up\n    const uint32_t bu_threshold = n / 16;\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        std::memset(lev_ptr, 0xFF, n * sizeof(int32_t)); // -1\n        std::memset(fb_ptr, 0, bv_size * sizeof(uint64_t));\n        \n        frontier.clear();\n        frontier.push_back(source);\n        lev_ptr[source] = 0;\n        fb_ptr[source >> 6] |= (1ULL << (source & 63));\n        \n        int32_t depth = 0;\n        uint64_t edges_in_frontier = off_ptr[source + 1] - off_ptr[source];\n        \n        while (!frontier.empty()) {\n            next_frontier.clear();\n            int32_t next_depth = depth + 1;\n            \n            // Decide direction based on frontier size\n            bool use_bottom_up = (frontier.size() > bu_threshold) && (edges_in_frontier > m / 8);\n            \n            if (!use_bottom_up) {\n                // Top-down BFS\n                for (uint32_t u : frontier) {\n                    uint32_t start = off_ptr[u];\n                    uint32_t end = off_ptr[u + 1];\n                    for (uint32_t idx = start; idx < end; ++idx) {\n                        uint32_t v = edge_ptr[idx];\n                        if (lev_ptr[v] == -1) {\n                            lev_ptr[v] = next_depth;\n                            next_frontier.push_back(v);\n                        }\n                    }\n                }\n            } else {\n                // Bottom-up BFS\n                for (uint32_t v = 0; v < n; ++v) {\n                    if (lev_ptr[v] != -1) continue;\n                    uint32_t start = off_ptr[v];\n                    uint32_t end = off_ptr[v + 1];\n                    for (uint32_t idx = start; idx < end; ++idx) {\n                        uint32_t u = edge_ptr[idx];\n                        if (fb_ptr[u >> 6] & (1ULL << (u & 63))) {\n                            lev_ptr[v] = next_depth;\n                            next_frontier.push_back(v);\n                            break;\n                        }\n                    }\n                }\n            }\n            \n            // Update frontier bits for next iteration\n            std::memset(fb_ptr, 0, bv_size * sizeof(uint64_t));\n            edges_in_frontier = 0;\n            for (uint32_t v : next_frontier) {\n                fb_ptr[v >> 6] |= (1ULL << (v & 63));\n                edges_in_frontier += off_ptr[v + 1] - off_ptr[v];\n            }\n            \n            frontier.swap(next_frontier);\n            ++depth;\n        }\n        \n        hash = checksum_levels(lev_ptr, n);\n    }\n    \n    return hash;\n}",
+  "baseline": {
+    "task_id": "graph_bfs_level_checksum_v2600_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 66623490,
+    "min_elapsed_ns": 66514250,
+    "max_elapsed_ns": 72709346,
+    "all_elapsed_ns": [
+      66623490,
+      66514250,
+      72709346
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 66623490,
+      "expected_checksum": 6637683531541138136,
+      "actual_checksum": 6637683531541138136
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "graph_bfs_level_checksum_v2600_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8122966,
+    "min_elapsed_ns": 7365442,
+    "max_elapsed_ns": 8722300,
+    "all_elapsed_ns": [
+      8722300,
+      8122966,
+      7365442
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8722300,
+      "expected_checksum": 6637683531541138136,
+      "actual_checksum": 6637683531541138136
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "graph_bfs_level_checksum_v2600_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 5930969,
+    "min_elapsed_ns": 5849515,
+    "max_elapsed_ns": 5953807,
+    "all_elapsed_ns": [
+      5930969,
+      5953807,
+      5849515
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5930969,
+      "expected_checksum": 6637683531541138136,
+      "actual_checksum": 6637683531541138136
+    },
+    "status": "ok"
+  }
+}

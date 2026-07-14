@@ -1,0 +1,72 @@
+{
+  "task_id": "paged_kv_cache_gather_v2100_b",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/paged_kv_cache_gather_v2100_b/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstddef>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#endif\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t paged_kv_checksum(\n    const std::vector<uint32_t>& cache,\n    const std::vector<uint32_t>& page_ids,\n    const std::vector<uint32_t>& slot_offsets,\n    int num_pages,\n    int page_size,\n    int iters) {\n  (void)num_pages;\n  \n  const uint32_t* __restrict__ cache_ptr = cache.data();\n  const uint32_t* __restrict__ pids = page_ids.data();\n  const uint32_t* __restrict__ soffs = slot_offsets.data();\n  const std::size_t n = page_ids.size();\n  const uint64_t ps = static_cast<uint64_t>(page_size);\n  \n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    \n#if defined(__AVX2__)\n    // Process 8 elements at a time using AVX2 gather\n    const __m256i vps = _mm256_set1_epi32(page_size);\n    std::size_t i = 0;\n    \n    // Unroll by processing 8 at a time\n    for (; i + 8 <= n; i += 8) {\n      // Load page_ids and slot_offsets\n      __m256i vpids = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(pids + i));\n      __m256i vsoffs = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(soffs + i));\n      \n      // Compute indices: page_id * page_size + slot_offset\n      __m256i vidx = _mm256_add_epi32(_mm256_mullo_epi32(vpids, vps), vsoffs);\n      \n      // Gather values from cache\n      __m256i vvals = _mm256_i32gather_epi32(reinterpret_cast<const int*>(cache_ptr), vidx, 4);\n      \n      // Extract and hash sequentially (must maintain order for correctness)\n      alignas(32) uint32_t vals[8];\n      _mm256_store_si256(reinterpret_cast<__m256i*>(vals), vvals);\n      \n      hash = mix(hash, vals[0]);\n      hash = mix(hash, vals[1]);\n      hash = mix(hash, vals[2]);\n      hash = mix(hash, vals[3]);\n      hash = mix(hash, vals[4]);\n      hash = mix(hash, vals[5]);\n      hash = mix(hash, vals[6]);\n      hash = mix(hash, vals[7]);\n    }\n    \n    // Handle remaining elements\n    for (; i < n; ++i) {\n      uint64_t idx = static_cast<uint64_t>(pids[i]) * ps + static_cast<uint64_t>(soffs[i]);\n      hash = mix(hash, cache_ptr[idx]);\n    }\n#else\n    // Scalar fallback with manual unrolling\n    std::size_t i = 0;\n    for (; i + 4 <= n; i += 4) {\n      uint64_t idx0 = static_cast<uint64_t>(pids[i]) * ps + static_cast<uint64_t>(soffs[i]);\n      uint64_t idx1 = static_cast<uint64_t>(pids[i+1]) * ps + static_cast<uint64_t>(soffs[i+1]);\n      uint64_t idx2 = static_cast<uint64_t>(pids[i+2]) * ps + static_cast<uint64_t>(soffs[i+2]);\n      uint64_t idx3 = static_cast<uint64_t>(pids[i+3]) * ps + static_cast<uint64_t>(soffs[i+3]);\n      \n      uint32_t v0 = cache_ptr[idx0];\n      uint32_t v1 = cache_ptr[idx1];\n      uint32_t v2 = cache_ptr[idx2];\n      uint32_t v3 = cache_ptr[idx3];\n      \n      hash = mix(hash, v0);\n      hash = mix(hash, v1);\n      hash = mix(hash, v2);\n      hash = mix(hash, v3);\n    }\n    \n    for (; i < n; ++i) {\n      uint64_t idx = static_cast<uint64_t>(pids[i]) * ps + static_cast<uint64_t>(soffs[i]);\n      hash = mix(hash, cache_ptr[idx]);\n    }\n#endif\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "paged_kv_cache_gather_v2100_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 179226815,
+    "min_elapsed_ns": 166970489,
+    "max_elapsed_ns": 214952411,
+    "all_elapsed_ns": [
+      214952411,
+      166970489,
+      179226815
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 214952411,
+      "expected_checksum": 5374401203677234051,
+      "actual_checksum": 5374401203677234051
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "paged_kv_cache_gather_v2100_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 100646551,
+    "min_elapsed_ns": 98052578,
+    "max_elapsed_ns": 105081610,
+    "all_elapsed_ns": [
+      98052578,
+      105081610,
+      100646551
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 98052578,
+      "expected_checksum": 5374401203677234051,
+      "actual_checksum": 5374401203677234051
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "paged_kv_cache_gather_v2100_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 97052656,
+    "min_elapsed_ns": 93585056,
+    "max_elapsed_ns": 118663131,
+    "all_elapsed_ns": [
+      97052656,
+      93585056,
+      118663131
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 97052656,
+      "expected_checksum": 5374401203677234051,
+      "actual_checksum": 5374401203677234051
+    },
+    "status": "ok"
+  }
+}

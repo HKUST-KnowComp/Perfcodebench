@@ -1,0 +1,59 @@
+{
+  "task_id": "beam_search_topk_v1900_d",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v1900_d/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <algorithm>\n#include <climits>\n#include <cstdint>\n#include <utility>\n#include <vector>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n} // namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits,\n                            int beams,\n                            int vocab,\n                            int topk,\n                            int iters) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (int iter = 0; iter < iters; ++iter) {\n        for (int b = 0; b < beams; ++b) {\n            const int32_t* ptr = &logits[static_cast<size_t>(b) * static_cast<size_t>(vocab)];\n\n            struct Entry { int32_t score; int idx; };\n            Entry top[16]; // support up to topk==16\n            int len = 0;\n\n            for (int v = 0; v < vocab; ++v) {\n                int32_t s = ptr[v];\n                if (len < topk) {\n                    top[len].score = s;\n                    top[len].idx   = v;\n                    ++len;\n                    if (len == topk) {\n                        // build min-heap on first topk\n                        std::make_heap(top, top + topk, [](const Entry& a, const Entry& b) {\n                            return a.score > b.score || (a.score == b.score && a.idx < b.idx);\n                        });\n                    }\n                } else {\n                    // compare to heap root\n                    if (s > top[0].score || (s == top[0].score && v < top[0].idx)) {\n                        std::pop_heap(top, top + topk, [](const Entry& a, const Entry& b) {\n                            return a.score > b.score || (a.score == b.score && a.idx < b.idx);\n                        });\n                        top[topk - 1].score = s;\n                        top[topk - 1].idx   = v;\n                        std::push_heap(top, top + topk, [](const Entry& a, const Entry& b) {\n                            return a.score > b.score || (a.score == b.score && a.idx < b.idx);\n                        });\n                    }\n                }\n            }\n\n            if (len == topk) {\n                std::sort_heap(top, top + topk, [](const Entry& a, const Entry& b) {\n                    return a.score > b.score || (a.score == b.score && a.idx < b.idx);\n                });\n            }\n\n            for (int k = 0; k < topk; ++k) {\n                hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(top[k].score)));\n                hash = mix(hash, static_cast<uint64_t>(top[k].idx));\n            }\n        }\n    }\n    return hash;\n}",
+  "baseline": {
+    "task_id": "beam_search_topk_v1900_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 454282541,
+    "min_elapsed_ns": 383534680,
+    "max_elapsed_ns": 467114006,
+    "all_elapsed_ns": [
+      383534680,
+      454282541,
+      467114006
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 383534680,
+      "expected_checksum": 8167306754033871358,
+      "actual_checksum": 8167306754033871358
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v1900_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 11682466,
+    "min_elapsed_ns": 11423679,
+    "max_elapsed_ns": 12334072,
+    "all_elapsed_ns": [
+      11423679,
+      12334072,
+      11682466
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11423679,
+      "expected_checksum": 8167306754033871358,
+      "actual_checksum": 8167306754033871358
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v1900_d",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/beam_search_topk_v1900_d/candidate/bench']' died with <Signals.SIGSEGV: 11>."
+  }
+}

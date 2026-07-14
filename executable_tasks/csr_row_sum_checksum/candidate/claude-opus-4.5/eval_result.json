@@ -1,0 +1,72 @@
+{
+  "task_id": "csr_row_sum_checksum",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/csr_row_sum_checksum/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#endif\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\ninline uint64_t row_sum(const uint32_t* __restrict__ data, std::size_t len) {\n  uint64_t sum = 0;\n#if defined(__AVX2__)\n  if (len >= 8) {\n    __m256i vsum = _mm256_setzero_si256();\n    std::size_t i = 0;\n    std::size_t vec_end = len - (len & 7);\n    for (; i < vec_end; i += 8) {\n      __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(data + i));\n      // Zero-extend 32-bit to 64-bit and accumulate\n      __m256i lo = _mm256_cvtepu32_epi64(_mm256_castsi256_si128(v));\n      __m256i hi = _mm256_cvtepu32_epi64(_mm256_extracti128_si256(v, 1));\n      vsum = _mm256_add_epi64(vsum, lo);\n      vsum = _mm256_add_epi64(vsum, hi);\n    }\n    // Horizontal sum of 4 x 64-bit\n    __m128i lo128 = _mm256_castsi256_si128(vsum);\n    __m128i hi128 = _mm256_extracti128_si256(vsum, 1);\n    __m128i sum128 = _mm_add_epi64(lo128, hi128);\n    sum = static_cast<uint64_t>(_mm_extract_epi64(sum128, 0)) +\n          static_cast<uint64_t>(_mm_extract_epi64(sum128, 1));\n    for (; i < len; ++i) {\n      sum += data[i];\n    }\n  } else {\n    for (std::size_t i = 0; i < len; ++i) {\n      sum += data[i];\n    }\n  }\n#else\n  for (std::size_t i = 0; i < len; ++i) {\n    sum += data[i];\n  }\n#endif\n  return sum;\n}\n\n}  // namespace\n\nuint64_t csr_row_hash(const std::vector<uint32_t>& row_ptr, const std::vector<uint32_t>& values, int iters) {\n  uint64_t hash = 0;\n  const std::size_t num_rows = row_ptr.size() > 0 ? row_ptr.size() - 1 : 0;\n  const uint32_t* __restrict__ rp = row_ptr.data();\n  const uint32_t* __restrict__ vals = values.data();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    for (std::size_t r = 0; r < num_rows; ++r) {\n      std::size_t start = rp[r];\n      std::size_t end = rp[r + 1];\n      uint64_t sum = row_sum(vals + start, end - start);\n      hash = mix(hash, sum);\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "csr_row_sum_checksum",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 197443182,
+    "min_elapsed_ns": 191036605,
+    "max_elapsed_ns": 273026616,
+    "all_elapsed_ns": [
+      197443182,
+      273026616,
+      191036605
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 197443182,
+      "expected_checksum": 16805963127334527411,
+      "actual_checksum": 16805963127334527411
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "csr_row_sum_checksum",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 40098516,
+    "min_elapsed_ns": 33285413,
+    "max_elapsed_ns": 48540005,
+    "all_elapsed_ns": [
+      48540005,
+      40098516,
+      33285413
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 48540005,
+      "expected_checksum": 16805963127334527411,
+      "actual_checksum": 16805963127334527411
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "csr_row_sum_checksum",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 24355510,
+    "min_elapsed_ns": 23616523,
+    "max_elapsed_ns": 24440448,
+    "all_elapsed_ns": [
+      23616523,
+      24355510,
+      24440448
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 23616523,
+      "expected_checksum": 16805963127334527411,
+      "actual_checksum": 16805963127334527411
+    },
+    "status": "ok"
+  }
+}

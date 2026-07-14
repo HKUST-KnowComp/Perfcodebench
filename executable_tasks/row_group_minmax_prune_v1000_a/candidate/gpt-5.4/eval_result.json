@@ -1,0 +1,72 @@
+{
+  "task_id": "row_group_minmax_prune_v1000_a",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/row_group_minmax_prune_v1000_a/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstddef>\n#include <cstdint>\n#include <vector>\n\nuint64_t row_group_range_sum(\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& mins,\n    const std::vector<uint32_t>& maxs,\n    uint32_t low,\n    uint32_t high,\n    uint32_t block_size,\n    int iters) {\n  if (iters <= 0) return 0;\n  if (values.empty()) return 0;\n  if (low > high) return 0;\n\n  const std::size_t n = values.size();\n  const uint32_t* vals = values.data();\n\n  uint64_t sum = 0;\n\n  // Fast path when metadata is unusable.\n  if (block_size == 0 || mins.empty() || maxs.empty()) {\n    for (int iter = 0; iter < iters; ++iter) {\n      uint64_t s = 0;\n      std::size_t i = 0;\n      const std::size_t unroll_end = n & ~std::size_t(3);\n      for (; i < unroll_end; i += 4) {\n        const uint32_t v0 = vals[i + 0];\n        const uint32_t v1 = vals[i + 1];\n        const uint32_t v2 = vals[i + 2];\n        const uint32_t v3 = vals[i + 3];\n        if (v0 >= low && v0 <= high) s += static_cast<uint64_t>(v0);\n        if (v1 >= low && v1 <= high) s += static_cast<uint64_t>(v1);\n        if (v2 >= low && v2 <= high) s += static_cast<uint64_t>(v2);\n        if (v3 >= low && v3 <= high) s += static_cast<uint64_t>(v3);\n      }\n      for (; i < n; ++i) {\n        const uint32_t v = vals[i];\n        if (v >= low && v <= high) s += static_cast<uint64_t>(v);\n      }\n      sum = s;\n    }\n    return sum;\n  }\n\n  const std::size_t num_blocks_by_size = (n + static_cast<std::size_t>(block_size) - 1) / static_cast<std::size_t>(block_size);\n  std::size_t num_blocks = mins.size();\n  if (maxs.size() < num_blocks) num_blocks = maxs.size();\n  if (num_blocks_by_size < num_blocks) num_blocks = num_blocks_by_size;\n\n  if (num_blocks == 0) {\n    for (int iter = 0; iter < iters; ++iter) {\n      uint64_t s = 0;\n      std::size_t i = 0;\n      const std::size_t unroll_end = n & ~std::size_t(3);\n      for (; i < unroll_end; i += 4) {\n        const uint32_t v0 = vals[i + 0];\n        const uint32_t v1 = vals[i + 1];\n        const uint32_t v2 = vals[i + 2];\n        const uint32_t v3 = vals[i + 3];\n        if (v0 >= low && v0 <= high) s += static_cast<uint64_t>(v0);\n        if (v1 >= low && v1 <= high) s += static_cast<uint64_t>(v1);\n        if (v2 >= low && v2 <= high) s += static_cast<uint64_t>(v2);\n        if (v3 >= low && v3 <= high) s += static_cast<uint64_t>(v3);\n      }\n      for (; i < n; ++i) {\n        const uint32_t v = vals[i];\n        if (v >= low && v <= high) s += static_cast<uint64_t>(v);\n      }\n      sum = s;\n    }\n    return sum;\n  }\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t s = 0;\n    std::size_t base = 0;\n\n    for (std::size_t b = 0; b < num_blocks; ++b) {\n      const uint32_t bmin = mins[b];\n      const uint32_t bmax = maxs[b];\n\n      if (bmax < low || bmin > high) {\n        base += block_size;\n        continue;\n      }\n\n      std::size_t end = base + block_size;\n      if (end > n) end = n;\n\n      std::size_t i = base;\n      const std::size_t len = end - base;\n      const std::size_t unroll_end = base + (len & ~std::size_t(3));\n      for (; i < unroll_end; i += 4) {\n        const uint32_t v0 = vals[i + 0];\n        const uint32_t v1 = vals[i + 1];\n        const uint32_t v2 = vals[i + 2];\n        const uint32_t v3 = vals[i + 3];\n        if (v0 >= low && v0 <= high) s += static_cast<uint64_t>(v0);\n        if (v1 >= low && v1 <= high) s += static_cast<uint64_t>(v1);\n        if (v2 >= low && v2 <= high) s += static_cast<uint64_t>(v2);\n        if (v3 >= low && v3 <= high) s += static_cast<uint64_t>(v3);\n      }\n      for (; i < end; ++i) {\n        const uint32_t v = vals[i];\n        if (v >= low && v <= high) s += static_cast<uint64_t>(v);\n      }\n\n      base = end;\n    }\n\n    // If metadata covered fewer blocks than implied by values size, scan the tail.\n    for (std::size_t i = base; i < n; ++i) {\n      const uint32_t v = vals[i];\n      if (v >= low && v <= high) s += static_cast<uint64_t>(v);\n    }\n\n    sum = s;\n  }\n\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "row_group_minmax_prune_v1000_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 54091035,
+    "min_elapsed_ns": 52693789,
+    "max_elapsed_ns": 61676071,
+    "all_elapsed_ns": [
+      52693789,
+      54091035,
+      61676071
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 52693789,
+      "expected_sum": 27615140,
+      "actual_sum": 27615140
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "row_group_minmax_prune_v1000_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 898360,
+    "min_elapsed_ns": 841844,
+    "max_elapsed_ns": 1019962,
+    "all_elapsed_ns": [
+      841844,
+      1019962,
+      898360
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 841844,
+      "expected_sum": 27615140,
+      "actual_sum": 27615140
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "row_group_minmax_prune_v1000_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 833875,
+    "min_elapsed_ns": 816094,
+    "max_elapsed_ns": 841338,
+    "all_elapsed_ns": [
+      816094,
+      833875,
+      841338
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 816094,
+      "expected_sum": 27615140,
+      "actual_sum": 27615140
+    },
+    "status": "ok"
+  }
+}

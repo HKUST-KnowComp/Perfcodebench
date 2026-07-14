@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v23",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v23/candidate/google__gemma-4-26b-a4b-it/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void optimized_reduce_kernel(const int* __restrict__ input, int* output, int n) {\n    // Shared memory for block-level reduction\n    extern __shared__ int sdata[];\n\n    int tid = threadIdx.x;\n    int i = blockIdx.x * blockDim.x + threadIdx.x;\n    int stride = blockDim.x * gridDim.x;\n\n    int local_sum = 0;\n\n    // Grid-stride loop to handle arbitrary n and ensure all elements are processed\n    while (i < n) {\n        local_sum += input[i];\n        i += stride;\n    }\n\n    sdata[tid] = local_sum;\n    __syncthreads();\n\n    // In-block reduction using warp shuffles\n    for (int s = blockDim.x / 2; s > 0; s >>= 1) {\n        if (tid < s) {\n            sdata[tid] += sdata[tid + s];\n        }\n        __syncthreads();\n    }\n\n    // Only the first thread in the block writes to global memory via atomicAdd\n    if (tid == 0) {\n        atomicAdd(output, sdata[0]);\n    }\n}\n\n} // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0) return;\n\n    // Determine optimal block and grid dimensions\n    // 256 threads per block is a good balance for occupancy and shuffle efficiency\n    const int threads_per_block = 256;\n    // Limit grid size to prevent excessive atomic contention on the single output address\n    const int blocks_per_grid = (n + threads_per_block - 1) / threads_per_block;\n    const int optimized_grid = (blocks_per_grid > 1024) ? 1024 : blocks_per_grid;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        // Reset output\n        cudaMemset(output, 0, sizeof(int));\n        \n        // Launch kernel with shared memory size\n        optimized_reduce_kernel<<<optimized_grid, threads_per_block, threads_per_block * sizeof(int)>>>(\n            input, \n            output, \n            n\n        );\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v23",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 315008,
+    "min_elapsed_ns": 314815,
+    "max_elapsed_ns": 315647,
+    "all_elapsed_ns": [
+      314815,
+      315647,
+      315008
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 314815,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v23",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2504352,
+    "min_elapsed_ns": 2469536,
+    "max_elapsed_ns": 2531968,
+    "all_elapsed_ns": [
+      2504352,
+      2469536,
+      2531968
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2504352,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v23",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v23/candidate/bench']' timed out after 5 seconds"
+  }
+}

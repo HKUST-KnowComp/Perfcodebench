@@ -1,0 +1,59 @@
+{
+  "task_id": "row_group_minmax_prune_v1000_i",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/row_group_minmax_prune_v1000_i/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <immintrin.h>\n#include <cstdint>\n#include <cstring>\n\nnamespace {\n\n// ---------- SIMD helpers ----------\n\ninline uint64_t sum_u32_in_range_avx512(const uint32_t* ptr, size_t n,\n                                         uint32_t low, uint32_t high) {\n    __m512i vlow  = _mm512_set1_epi32(static_cast<int32_t>(low));\n    __m512i vhigh = _mm512_set1_epi32(static_cast<int32_t>(high));\n    __m512i acc   = _mm512_setzero_si512();\n    size_t i = 0;\n    for (; i + 16 <= n; i += 16) {\n        __m512i v = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(ptr + i));\n        __mmask16 m = _mm512_and_epi32(\n                        _mm512_cmpge_epu32_mask(v, vlow),\n                        _mm512_cmple_epu32_mask(v, vhigh));\n        __m512i msk = _mm512_maskz_set1_epi32(m, 1);\n        __m512i add = _mm512_and_si512(v, msk);\n        acc = _mm512_add_epi64(acc, _mm512_unpacklo_epi32(add, _mm512_setzero_si512()));\n        acc = _mm512_add_epi64(acc, _mm512_unpackhi_epi32(add, _mm512_setzero_si512()));\n    }\n    __m256i lo = _mm512_extracti64x4_epi64(acc, 0);\n    __m256i hi = _mm512_extracti64x4_epi64(acc, 1);\n    lo = _mm256_add_epi64(lo, hi);\n    uint64_t tmp[4];\n    _mm256_storeu_si256(reinterpret_cast<__m256i*>(tmp), lo);\n    uint64_t sum = tmp[0] + tmp[1] + tmp[2] + tmp[3];\n    // scalar tail\n    for (; i < n; ++i) {\n        uint32_t v = ptr[i];\n        if (v >= low && v <= high) sum += v;\n    }\n    return sum;\n}\n\ninline uint64_t sum_u32_in_range_avx2(const uint32_t* ptr, size_t n,\n                                      uint32_t low, uint32_t high) {\n    __m256i vlow  = _mm256_set1_epi32(static_cast<int32_t>(low));\n    __m256i vhigh = _mm256_set1_epi32(static_cast<int32_t>(high));\n    __m256i acc   = _mm256_setzero_si256();\n    size_t i = 0;\n    for (; i + 8 <= n; i += 8) {\n        __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(ptr + i));\n        __m256i cmp_lo = _mm256_cmpgt_epi32(vlow, v);\n        __m256i cmp_hi = _mm256_cmpgt_epi32(v, vhigh);\n        __m256i m = _mm256_or_si256(cmp_lo, cmp_hi);  // 0xFFFFFFFF where out of range\n        __m256i zero = _mm256_setzero_si256();\n        __m256i add = _mm256_blendv_epi8(v, zero, m);\n        // horizontal add to 64-bit accumulators\n        __m256i t1 = _mm256_unpacklo_epi32(add, zero);\n        __m256i t2 = _mm256_unpackhi_epi32(add, zero);\n        acc = _mm256_add_epi64(acc, t1);\n        acc = _mm256_add_epi64(acc, t2);\n    }\n    // horizontal sum of acc\n    __m256i sh = _mm256_shuffle_epi32(acc, 0x0E);\n    acc = _mm256_add_epi64(acc, sh);\n    uint64_t tmp[4];\n    _mm256_storeu_si256(reinterpret_cast<__m256i*>(tmp), acc);\n    uint64_t sum = tmp[0] + tmp[1];\n    // scalar tail\n    for (; i < n; ++i) {\n        uint32_t v = ptr[i];\n        if (v >= low && v <= high) sum += v;\n    }\n    return sum;\n}\n\ninline uint64_t sum_u32_in_range_scalar(const uint32_t* ptr, size_t n,\n                                        uint32_t low, uint32_t high) {\n    uint64_t sum = 0;\n    for (size_t i = 0; i < n; ++i) {\n        uint32_t v = ptr[i];\n        if (v >= low && v <= high) sum += v;\n    }\n    return sum;\n}\n\ninline uint64_t sum_u32_in_range(const uint32_t* ptr, size_t n,\n                               uint32_t low, uint32_t high) {\n#if defined(__AVX512F__)\n    return sum_u32_in_range_avx512(ptr, n, low, high);\n#elif defined(__AVX2__)\n    return sum_u32_in_range_avx2(ptr, n, low, high);\n#else\n    return sum_u32_in_range_scalar(ptr, n, low, high);\n#endif\n}\n\n} // anonymous namespace\n\nuint64_t row_group_range_sum(\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& mins,\n    const std::vector<uint32_t>& maxs,\n    uint32_t low,\n    uint32_t high,\n    uint32_t block_size,\n    int iters) {\n    const size_t n = values.size();\n    const size_t num_blocks = (n + block_size - 1) / block_size;\n    uint64_t total = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        total = 0;\n        for (size_t b = 0; b < num_blocks; ++b) {\n            uint32_t bmin = mins[b];\n            uint32_t bmax = maxs[b];\n            if (bmax < low || bmin > high) continue; // prune block\n            size_t start = b * block_size;\n            size_t end   = start + block_size;\n            if (end > n) end = n;\n            total += sum_u32_in_range(values.data() + start, end - start, low, high);\n        }\n    }\n    return total;\n}",
+  "baseline": {
+    "task_id": "row_group_minmax_prune_v1000_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 34114226,
+    "min_elapsed_ns": 33937393,
+    "max_elapsed_ns": 34483745,
+    "all_elapsed_ns": [
+      34483745,
+      34114226,
+      33937393
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 34483745,
+      "expected_sum": 55291932,
+      "actual_sum": 55291932
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "row_group_minmax_prune_v1000_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 585824,
+    "min_elapsed_ns": 578830,
+    "max_elapsed_ns": 627083,
+    "all_elapsed_ns": [
+      578830,
+      585824,
+      627083
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 578830,
+      "expected_sum": 55291932,
+      "actual_sum": 55291932
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "row_group_minmax_prune_v1000_i",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/row_group_minmax_prune_v1000_i/harness', 'executable_tasks/row_group_minmax_prune_v1000_i/harness/benchmark_main.cpp', 'executable_tasks/row_group_minmax_prune_v1000_i/candidate/moonshotai__kimi-k2-0905/solution.cpp', '-o', 'build/row_group_minmax_prune_v1000_i/candidate/bench']' returned non-zero exit status 1."
+  }
+}

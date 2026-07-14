@@ -1,0 +1,24 @@
+package main
+
+func run(left, right []uint64, iters int) uint64 {
+	var total uint64
+	for iter := 0; iter < iters; iter++ {
+		total = 0
+		for i := range left {
+			word := left[i] & right[i]
+			total += popcnt(word)
+		}
+	}
+	return total
+}
+
+func popcnt(x uint64) uint64 {
+	// Using SWAR (SIMD Within A Register) technique
+	x -= (x >> 1) & 0x5555555555555555
+	x = (x & 0x3333333333333333) + ((x >> 2) & 0x3333333333333333)
+	x = (x + (x >> 4)) & 0x0f0f0f0f0f0f0f0f
+	x += x >> 8
+	x += x >> 16
+	x += x >> 32
+	return x & 0x7f
+}

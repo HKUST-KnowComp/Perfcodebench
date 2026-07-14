@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v08",
+  "model": "bytedance-seed/seed-2.0-lite",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v08/candidate/bytedance-seed__seed-2.0-lite/solution.cu",
+  "benchmark_timeout_sec": 6,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void histogram_shared_optimized_kernel(const unsigned char* input, unsigned int* output, int n) {\n    // Per-block private histogram in low-latency shared memory\n    __shared__ unsigned int s_hist[256];\n    \n    // Initialize shared histogram to zero\n    if (threadIdx.x < 256) {\n        s_hist[threadIdx.x] = 0U;\n    }\n    __syncthreads();\n\n    const int total_threads = blockDim.x * gridDim.x;\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    const int n4 = n / 4;\n\n    // Process input in 4-byte chunks for maximum memory throughput\n    for (; idx < n4; idx += total_threads) {\n        const unsigned int chunk = reinterpret_cast<const unsigned int*>(input)[idx];\n        // Extract all 4 bytes from the 32-bit load\n        const unsigned char b0 = chunk & 0xFF;\n        const unsigned char b1 = (chunk >> 8) & 0xFF;\n        const unsigned char b2 = (chunk >> 16) & 0xFF;\n        const unsigned char b3 = (chunk >> 24) & 0xFF;\n        // Update shared histogram with fast on-chip atomics\n        atomicAdd(&s_hist[b0], 1U);\n        atomicAdd(&s_hist[b1], 1U);\n        atomicAdd(&s_hist[b2], 1U);\n        atomicAdd(&s_hist[b3], 1U);\n    }\n\n    // Process remaining 0-3 input bytes to cover full input range\n    const int remainder_start = n4 * 4;\n    idx = remainder_start + threadIdx.x;\n    for (; idx < n; idx += blockDim.x) {\n        const unsigned char b = input[idx];\n        atomicAdd(&s_hist[b], 1U);\n    }\n\n    // Wait for all block threads to finish accumulation before merging to global memory\n    __syncthreads();\n\n    // Merge block's local histogram into global output with minimal global atomics\n    if (threadIdx.x < 256) {\n        atomicAdd(&output[threadIdx.x], s_hist[threadIdx.x]);\n    }\n}\n\n}  // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters) {\n  constexpr int kBlock = 256;\n  const int grid = 1024;\n  for (int iter = 0; iter < iters; ++iter) {\n    cudaMemset(output, 0, 256 * sizeof(unsigned int));\n    histogram_shared_optimized_kernel<<<grid, kBlock>>>(input, output, n);\n  }\n}",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v08",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1033982421,
+    "min_elapsed_ns": 1033971557,
+    "max_elapsed_ns": 1034044311,
+    "all_elapsed_ns": [
+      1033971557,
+      1033982421,
+      1034044311
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1033971557,
+      "checksum": 8623489024
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v08",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 9977408,
+    "min_elapsed_ns": 9960384,
+    "max_elapsed_ns": 9978688,
+    "all_elapsed_ns": [
+      9978688,
+      9960384,
+      9977408
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9978688,
+      "checksum": 8623489024
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v08",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_histogram256_shared_u8_v08/candidate/bench']' timed out after 6 seconds"
+  }
+}

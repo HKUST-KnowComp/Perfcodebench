@@ -1,0 +1,72 @@
+{
+  "task_id": "prefix_cache_block_lookup_v2100_a",
+  "model": "deepseek-v4-flash",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup_v2100_a/candidate/deepseek-v4-flash/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <cstddef>\n\nnamespace {\n\nuint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n// Simple open-addressing hash set with power-of-two size\nclass FastSet {\n public:\n  explicit FastSet(const std::vector<uint32_t>& keys) {\n    std::size_t cap = 8;\n    while (cap < 2 * keys.size()) cap <<= 1;\n    mask_ = cap - 1;\n    keys_.assign(cap, UINT32_MAX);\n    occupied_.assign(cap, 0);\n    for (auto k : keys) {\n      std::size_t idx = k & mask_;\n      while (occupied_[idx]) {\n        idx = (idx + 1) & mask_;\n      }\n      keys_[idx] = k;\n      occupied_[idx] = 1;\n    }\n  }\n\n  bool contains(uint32_t key) const noexcept {\n    std::size_t idx = key & mask_;\n    while (occupied_[idx]) {\n      if (keys_[idx] == key) return true;\n      idx = (idx + 1) & mask_;\n    }\n    return false;\n  }\n\n private:\n  std::vector<uint32_t> keys_;\n  std::vector<char> occupied_;\n  std::size_t mask_;\n};\n\n}  // namespace\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t hash_space,\n    int iters) {\n  (void)hash_space;\n  FastSet cache_set(sorted_cache_keys);\n\n  uint64_t hash = 0;\n  const std::size_t num_requests = request_offsets.size() - 1;\n  const auto* offsets = request_offsets.data();\n  const auto* blocks = request_blocks.data();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    for (std::size_t r = 0; r < num_requests; ++r) {\n      std::size_t start = static_cast<std::size_t>(offsets[r]);\n      std::size_t end = static_cast<std::size_t>(offsets[r + 1]);\n      uint64_t prefix = 0;\n      for (std::size_t i = start; i < end; ++i) {\n        if (!cache_set.contains(blocks[i])) break;\n        ++prefix;\n      }\n      hash = mix(hash, prefix);\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup_v2100_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 35259716,
+    "min_elapsed_ns": 34808873,
+    "max_elapsed_ns": 35412898,
+    "all_elapsed_ns": [
+      34808873,
+      35259716,
+      35412898
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 34808873,
+      "expected_checksum": 11230702571878552977,
+      "actual_checksum": 11230702571878552977
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup_v2100_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1118342,
+    "min_elapsed_ns": 1107268,
+    "max_elapsed_ns": 1127592,
+    "all_elapsed_ns": [
+      1118342,
+      1107268,
+      1127592
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1118342,
+      "expected_checksum": 11230702571878552977,
+      "actual_checksum": 11230702571878552977
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup_v2100_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 5398758,
+    "min_elapsed_ns": 4402301,
+    "max_elapsed_ns": 5561749,
+    "all_elapsed_ns": [
+      4402301,
+      5398758,
+      5561749
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4402301,
+      "expected_checksum": 11230702571878552977,
+      "actual_checksum": 11230702571878552977
+    },
+    "status": "ok"
+  }
+}

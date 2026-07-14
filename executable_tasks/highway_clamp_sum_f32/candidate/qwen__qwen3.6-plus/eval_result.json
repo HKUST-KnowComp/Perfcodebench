@@ -1,0 +1,59 @@
+{
+  "task_id": "highway_clamp_sum_f32",
+  "model": "qwen/qwen3.6-plus",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_clamp_sum_f32/candidate/qwen__qwen3.6-plus/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"hwy/highway.h\"\n\nHWY_BEFORE_NAMESPACE();\nnamespace hwy_clamp {\nnamespace HWY_NAMESPACE {\n\nfloat ClampSumImpl(const float* data, std::size_t n) {\n    const hwy::ScalableTag<float> d;\n    const auto zero = hwy::Zero(d);\n    auto sum = hwy::Zero(d);\n    size_t i = 0;\n    for (; i + hwy::Lanes(d) <= n; i += hwy::Lanes(d)) {\n        auto v = hwy::Load(d, data + i);\n        v = hwy::Max(v, zero);\n        sum = hwy::Add(sum, v);\n    }\n    float total = hwy::ReduceSum(d, sum);\n    for (; i < n; ++i) {\n        total += data[i] > 0.0f ? data[i] : 0.0f;\n    }\n    return total;\n}\n\n} // namespace HWY_NAMESPACE\n} // namespace hwy_clamp\nHWY_AFTER_NAMESPACE();\n\n#if HWY_ONCE\nnamespace hwy_clamp {\nHWY_EXPORT(ClampSumImpl);\n}\n\nfloat clamp_sum(const float* data, std::size_t n) {\n    return HWY_DYNAMIC_DISPATCH(hwy_clamp::ClampSumImpl)(data, n);\n}\n#endif",
+  "baseline": {
+    "task_id": "highway_clamp_sum_f32",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 724895,
+    "min_elapsed_ns": 724532,
+    "max_elapsed_ns": 732678,
+    "all_elapsed_ns": [
+      724532,
+      724895,
+      732678
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 724532,
+      "expected_sum": 52565500.0,
+      "actual_sum": 52565500.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_clamp_sum_f32",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 210353,
+    "min_elapsed_ns": 190631,
+    "max_elapsed_ns": 219643,
+    "all_elapsed_ns": [
+      190631,
+      210353,
+      219643
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 190631,
+      "expected_sum": 52565500.0,
+      "actual_sum": 52565600.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_clamp_sum_f32",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/highway_clamp_sum_f32/harness', '-Iexternal/highway', 'executable_tasks/highway_clamp_sum_f32/harness/benchmark_main.cpp', 'executable_tasks/highway_clamp_sum_f32/candidate/qwen__qwen3.6-plus/solution.cpp', 'external/highway/hwy/abort.cc', 'external/highway/hwy/targets.cc', 'external/highway/hwy/aligned_allocator.cc', 'external/highway/hwy/per_target.cc', '-o', 'build/highway_clamp_sum_f32/candidate/bench']' returned non-zero exit status 1."
+  }
+}

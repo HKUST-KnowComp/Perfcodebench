@@ -1,0 +1,72 @@
+{
+  "task_id": "cuda_thrust_reduce_f32_v27",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_thrust_reduce_f32_v27/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cub/cub.cuh>\n\nnamespace {\n__global__ void reduce_kernel(const float* __restrict__ in,\n                              float* __restrict__ out,\n                              int num_items)\n{\n    using BlockReduce = cub::BlockReduce<float, 256>;\n    __shared__ typename BlockReduce::TempStorage temp;\n\n    int tid = blockIdx.x * blockDim.x + threadIdx.x;\n    float partial = 0.0f;\n    for (int i = tid; i < num_items; i += blockDim.x * gridDim.x)\n        partial += in[i];\n\n    partial = BlockReduce(temp).Sum(partial);\n\n    if (threadIdx.x == 0)\n        atomicAdd(out, partial);\n}\n\n__global__ void final_reduce_kernel(float* partial, int blocks)\n{\n    using BlockReduce = cub::BlockReduce<float, 256>;\n    __shared__ typename BlockReduce::TempStorage temp;\n\n    float sum = 0.0f;\n    for (int i = threadIdx.x; i < blocks; i += blockDim.x)\n        sum += partial[i];\n\n    sum = BlockReduce(temp).Sum(sum);\n    if (threadIdx.x == 0)\n        partial[0] = sum;\n}\n\nint div_up(int a, int b) { return (a + b - 1) / b; }\n\n} // anonymous\n\nfloat reduce_f32(const float* input, int n, int iters)\n{\n    float* d_out = nullptr;\n    const int blocks = 1024;\n    const int threads = 256;\n    cudaMalloc(&d_out, (blocks + 1) * sizeof(float));\n\n    float result = 0.0f;\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(d_out, 0, sizeof(float));          // clear accumulator\n        reduce_kernel<<<blocks, threads>>>(input, d_out, n);\n        final_reduce_kernel<<<1, threads>>>(d_out, blocks);\n    }\n    cudaMemcpy(&result, d_out, sizeof(float), cudaMemcpyDeviceToHost);\n    cudaFree(d_out);\n    return result;\n}",
+  "baseline": {
+    "task_id": "cuda_thrust_reduce_f32_v27",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 370177673,
+    "min_elapsed_ns": 369187774,
+    "max_elapsed_ns": 375510772,
+    "all_elapsed_ns": [
+      370177673,
+      375510772,
+      369187774
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 370177673,
+      "expected_sum": 12582800.0,
+      "actual_sum": 12496400.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_thrust_reduce_f32_v27",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4923423,
+    "min_elapsed_ns": 966400,
+    "max_elapsed_ns": 7234496,
+    "all_elapsed_ns": [
+      4923423,
+      7234496,
+      966400
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4923423,
+      "expected_sum": 12582800.0,
+      "actual_sum": 12582800.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_thrust_reduce_f32_v27",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 78627906,
+    "min_elapsed_ns": 25350112,
+    "max_elapsed_ns": 88885536,
+    "all_elapsed_ns": [
+      25350112,
+      78627906,
+      88885536
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 25350112,
+      "expected_sum": 12582800.0,
+      "actual_sum": 12582800.0
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "python_fixed_record_serialize_v3100_120",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/python_fixed_record_serialize_v3100_120/candidate/claude-opus-4.5/solution.py",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "import struct\nimport numpy as np\n\ndef run(ids, ts, levels, lens, iters: int) -> int:\n    n = len(ids)\n    if n == 0:\n        # Empty case: checksum of empty bytes\n        return 1469598103934665603\n\n    # Convert inputs to numpy arrays for vectorized packing\n    ids_arr = np.asarray(ids, dtype=np.uint32)\n    ts_arr = np.asarray(ts, dtype=np.uint32)\n    levels_arr = np.asarray(levels, dtype=np.uint16)\n    lens_arr = np.asarray(lens, dtype=np.uint16)\n\n    # Build the binary buffer using struct for all records at once\n    # Each record: 4 bytes (id) + 4 bytes (ts) + 2 bytes (level) + 2 bytes (len) = 12 bytes\n    record_size = 12\n    total_size = n * record_size\n    \n    # Precompile struct format for all records\n    fmt = '<' + 'IIHH' * n\n    \n    # Interleave the arrays for struct.pack\n    # Create a flat sequence: id0, ts0, level0, len0, id1, ts1, level1, len1, ...\n    values = []\n    for i in range(n):\n        values.extend([int(ids_arr[i]), int(ts_arr[i]), int(levels_arr[i]), int(lens_arr[i])])\n    \n    # Actually, let's use a more efficient approach with numpy structured array\n    # Create a structured array and get its bytes directly\n    dtype = np.dtype([('id', '<u4'), ('ts', '<u4'), ('level', '<u2'), ('len', '<u2')])\n    records = np.empty(n, dtype=dtype)\n    records['id'] = ids_arr\n    records['ts'] = ts_arr\n    records['level'] = levels_arr\n    records['len'] = lens_arr\n    \n    out = records.tobytes()\n    \n    # Vectorized FNV-1a checksum\n    # FNV-1a: for each byte b: h ^= b; h *= 1099511628211; h &= mask\n    # We need to process byte by byte but can use numpy for speed\n    \n    h = np.uint64(1469598103934665603)\n    prime = np.uint64(1099511628211)\n    \n    # Process as numpy array of bytes\n    data = np.frombuffer(out, dtype=np.uint8)\n    \n    # Unfortunately FNV-1a is inherently sequential, but numpy loop is faster than pure Python\n    for b in data:\n        h ^= np.uint64(b)\n        h *= prime\n    \n    # For iterations > 1, we just repeat (buffer is same each time)\n    for _ in range(iters - 1):\n        h = np.uint64(1469598103934665603)\n        for b in data:\n            h ^= np.uint64(b)\n            h *= prime\n    \n    return int(h)\n",
+  "baseline": {
+    "task_id": "python_fixed_record_serialize_v3100_120",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 183899800,
+    "min_elapsed_ns": 180761753,
+    "max_elapsed_ns": 224296244,
+    "all_elapsed_ns": [
+      180761753,
+      183899800,
+      224296244
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 180761753,
+      "expected_checksum": 9902462853512764561,
+      "actual_checksum": 9902462853512764561
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "python_fixed_record_serialize_v3100_120",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 226309059,
+    "min_elapsed_ns": 226152585,
+    "max_elapsed_ns": 270267649,
+    "all_elapsed_ns": [
+      270267649,
+      226309059,
+      226152585
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 270267649,
+      "expected_checksum": 9902462853512764561,
+      "actual_checksum": 9902462853512764561
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "python_fixed_record_serialize_v3100_120",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 3372502212,
+    "min_elapsed_ns": 2648108924,
+    "max_elapsed_ns": 4391316463,
+    "all_elapsed_ns": [
+      3372502212,
+      2648108924,
+      4391316463
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3372502212,
+      "expected_checksum": 9902462853512764561,
+      "actual_checksum": 9902462853512764561
+    },
+    "status": "ok"
+  }
+}

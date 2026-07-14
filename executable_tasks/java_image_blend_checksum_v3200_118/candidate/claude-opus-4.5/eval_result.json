@@ -1,0 +1,72 @@
+{
+  "task_id": "java_image_blend_checksum_v3200_118",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/java_image_blend_checksum_v3200_118/candidate/claude-opus-4.5/Solution.java",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "import java.util.*;\n\npublic class Solution {\n\n  public static long run(byte[] src, byte[] dst, int width, int height, int iters) {\n    int pixels = width * height;\n    int len = pixels * 4;\n\n    // Pre-compute blend table: blend[s][a] = (s * a + 127) / 255\n    // We'll compute: blended = blend[s][a] + blend[255-d][a] approximation won't work directly\n    // Actually: result = (s*a + d*(255-a) + 127)/255\n    // Let's precompute two tables: mulTable[v][a] = v * a  (needs 256*256 = 64K entries)\n    // Then result = (mulTable[s][a] + mulTable[d][255-a] + 127) / 255\n    // But division is slow. Let's precompute full blend: blendTable[s_minus_d + 255][a] * factor + d\n    // Simpler: precompute blend[a][s] = s * a, blend[a][d] = d * (255-a), sum + 127, /255\n    // Best: precompute result directly for all (s,d,a) is 16M entries - too large\n    // Use: result = d + ((s - d) * a + 127) / 255  when s >= d\n    //      result = d - ((d - s) * a + 127) / 255  when s < d\n    // Precompute: divTable[x] = (x + 127) / 255 for x in 0..255*255\n    \n    // Actually simplest optimization: use int array, inline everything, avoid ArrayList\n    \n    byte[] out = new byte[len];\n    long hash = 0;\n    \n    // Precompute: for blend, result = (s*a + d*(255-a) + 127) / 255\n    // = (s*a + d*255 - d*a + 127) / 255\n    // = d + (a*(s-d) + 127) / 255   [when s >= d, need signed handling]\n    // Use lookup: mult[a][delta+255] where delta = s - d in [-255, 255]\n    // mult[a][delta+255] = (a * delta + 127) / 255  with rounding toward zero for negative\n    // Actually (a * delta + 127) / 255 doesn't work for negative delta\n    // For negative: (a * delta - 127) / 255 ? No, let's just compute directly.\n    \n    // Simplest fast approach: inline and use primitives\n    final long FNV_OFFSET = 1469598103934665603L;\n    final long FNV_PRIME = 1099511628211L;\n    \n    for (int iter = 0; iter < iters; iter++) {\n      hash = FNV_OFFSET;\n      for (int i = 0; i < pixels; i++) {\n        int base = i << 2;\n        int a = src[base + 3] & 0xFF;\n        int invA = 255 - a;\n        \n        int s0 = src[base] & 0xFF;\n        int d0 = dst[base] & 0xFF;\n        int r0 = (s0 * a + d0 * invA + 127) / 255;\n        \n        int s1 = src[base + 1] & 0xFF;\n        int d1 = dst[base + 1] & 0xFF;\n        int r1 = (s1 * a + d1 * invA + 127) / 255;\n        \n        int s2 = src[base + 2] & 0xFF;\n        int d2 = dst[base + 2] & 0xFF;\n        int r2 = (s2 * a + d2 * invA + 127) / 255;\n        \n        // Inline checksum for these 4 bytes\n        hash ^= r0;\n        hash *= FNV_PRIME;\n        hash ^= r1;\n        hash *= FNV_PRIME;\n        hash ^= r2;\n        hash *= FNV_PRIME;\n        hash ^= 255;\n        hash *= FNV_PRIME;\n      }\n    }\n    return hash;\n  }\n}",
+  "baseline": {
+    "task_id": "java_image_blend_checksum_v3200_118",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 85893662,
+    "min_elapsed_ns": 75677428,
+    "max_elapsed_ns": 86756800,
+    "all_elapsed_ns": [
+      85893662,
+      75677428,
+      86756800
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 85893662,
+      "expected_checksum": 2982178325609967479,
+      "actual_checksum": 2982178325609967479
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "java_image_blend_checksum_v3200_118",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 27739777,
+    "min_elapsed_ns": 23698085,
+    "max_elapsed_ns": 30678056,
+    "all_elapsed_ns": [
+      27739777,
+      30678056,
+      23698085
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 27739777,
+      "expected_checksum": 2982178325609967479,
+      "actual_checksum": 2982178325609967479
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "java_image_blend_checksum_v3200_118",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 14926677,
+    "min_elapsed_ns": 14786882,
+    "max_elapsed_ns": 15020729,
+    "all_elapsed_ns": [
+      15020729,
+      14786882,
+      14926677
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15020729,
+      "expected_checksum": 2982178325609967479,
+      "actual_checksum": 2982178325609967479
+    },
+    "status": "ok"
+  }
+}

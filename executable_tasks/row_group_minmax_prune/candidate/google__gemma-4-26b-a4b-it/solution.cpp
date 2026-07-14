@@ -1,0 +1,1 @@
+The solution uses a block-based approach to leverage the 'mins' and 'maxs' vectors, which represent the metadata for each row group. By comparing the query range [low, high] against the block range [mins[i], maxs[i]], we can skip entire segments of the 'values' vector, drastically improving performance in scenarios where data is clustered or sparse.

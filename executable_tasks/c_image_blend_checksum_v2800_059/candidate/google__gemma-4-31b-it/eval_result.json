@@ -1,0 +1,72 @@
+{
+  "task_id": "c_image_blend_checksum_v2800_059",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_image_blend_checksum_v2800_059/candidate/google__gemma-4-31b-it/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\n/**\n * The original blend formula: ((s * a + d * (255 - a) + 127) / 255)\n * can be approximated as: ((s * a + d * (255 - a) + 127) + ((s * a + d * (255 - a) + 127) >> 8)) >> 8\n * However, for exactness with the provided baseline's rounding, we use the standard fast \n * integer division by 255: (val + 1 + (val >> 8)) >> 8 is a common approximation,\n * but the baseline uses (val + 127) / 255. \n * \n * Let's use the property: (x + 127) / 255 is equivalent to (x + 127) * 0x01010101 >> 24 (approx).\n * Actually, the most performant way to maintain exact correctness for (x + 127) / 255 \n * is to use the formula: ((x + 127) + ((x + 127) >> 8)) >> 8 is not quite right.\n * \n * Given the constraints and the need for speed, we will use a pre-allocated buffer \n * to avoid malloc/free in the loop and process the checksum on the fly.\n */\n\nuint64_t run(const uint8_t* src, const uint8_t* dst, int width, int height, int iters) {\n    size_t pixels = (size_t)width * (size_t)height;\n    size_t total_bytes = pixels * 4u;\n    uint8_t* out = (uint8_t*)malloc(total_bytes);\n    if (!out) return 0;\n\n    uint64_t hash = 0;\n    const uint64_t FNV_OFFSET_BASIS = 1469598103934665603ULL;\n    const uint64_t FNV_PRIME = 1099511628211ULL;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        size_t i = 0;\n        while (i < pixels) {\n            size_t idx = i * 4u;\n            uint32_t a = src[idx + 3u];\n            uint32_t inv_a = 255u - a;\n\n            // Blend R, G, B\n            for (int c = 0; c < 3; ++c) {\n                uint32_t val = (uint32_t)src[idx + c] * a + (uint32_t)dst[idx + c] * inv_a;\n                out[idx + c] = (uint8_t)((val + 127u) / 255u);\n            }\n            out[idx + 3u] = 255u;\n            i++;\n        }\n\n        // Checksum pass\n        uint64_t current_hash = FNV_OFFSET_BASIS;\n        for (size_t j = 0; j < total_bytes; ++j) {\n            current_hash ^= (uint64_t)out[j];\n            current_hash *= FNV_PRIME;\n        }\n        hash = current_hash;\n    }\n\n    free(out);\n    return hash;\n}",
+  "baseline": {
+    "task_id": "c_image_blend_checksum_v2800_059",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5918000,
+    "min_elapsed_ns": 5820000,
+    "max_elapsed_ns": 6430000,
+    "all_elapsed_ns": [
+      6430000,
+      5918000,
+      5820000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6430000,
+      "expected_checksum": 11778862965675144077,
+      "actual_checksum": 11778862965675144077
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_image_blend_checksum_v2800_059",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5821000,
+    "min_elapsed_ns": 5817000,
+    "max_elapsed_ns": 6243000,
+    "all_elapsed_ns": [
+      5817000,
+      6243000,
+      5821000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5817000,
+      "expected_checksum": 11778862965675144077,
+      "actual_checksum": 11778862965675144077
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_image_blend_checksum_v2800_059",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 6153000,
+    "min_elapsed_ns": 6065000,
+    "max_elapsed_ns": 6186000,
+    "all_elapsed_ns": [
+      6153000,
+      6186000,
+      6065000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6153000,
+      "expected_checksum": 11778862965675144077,
+      "actual_checksum": 11778862965675144077
+    },
+    "status": "ok"
+  }
+}

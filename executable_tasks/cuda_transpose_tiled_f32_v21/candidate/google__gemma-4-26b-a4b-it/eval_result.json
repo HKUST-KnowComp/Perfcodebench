@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_transpose_tiled_f32_v21",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_transpose_tiled_f32_v21/candidate/google__gemma-4-26b-a4b-it/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int kTileDim = 32;\n\n__global__ void transpose_tiled_kernel(const float* __restrict__ input, float* __restrict__ output, int width, int height) {\n    // Shared memory tile with padding to avoid bank conflicts\n    __shared__ float tile[kTileDim][kTileDim + 1];\n\n    int tx = threadIdx.x;\n    int ty = threadIdx.y;\n    int col = blockIdx.x * kTileDim + tx;\n    int row = blockIdx.y * kTileDim + ty;\n\n    // Read from input into shared memory\n    if (row < height && col < width) {\n        tile[ty][tx] = input[row * width + col];\n    } else {\n        tile[ty][tx] = 0.0f;\n    }\n\n    __syncthreads();\n\n    // Calculate new coordinates for transposed output\n    // The output index is (col, row) in the transposed matrix\n    // Transposed width is the original height\n    int out_col = blockIdx.y * kTileDim + ty;\n    int out_row = blockIdx.x * kTileDim + tx;\n\n    if (out_row < width && out_col < height) {\n        // Write from shared memory to output (coalesced)\n        output[out_row * height + out_col] = tile[tx][ty];\n    }\n}\n\n} // namespace\n\nvoid transpose_f32(const float* input, float* output, int width, int height, int iters) {\n    // We use a 32x32 block to match the tile dimension\n    // The grid dimensions are calculated to cover the entire input matrix\n    dim3 block(kTileDim, kTileDim);\n    dim3 grid((width + kTileDim - 1) / kTileDim, (height + kTileDim - 1) / kTileDim);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        transpose_tiled_kernel<<<grid, block>>>(input, output, width, height);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_transpose_tiled_f32_v21",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4888927,
+    "min_elapsed_ns": 3191679,
+    "max_elapsed_ns": 4925824,
+    "all_elapsed_ns": [
+      4925824,
+      4888927,
+      3191679
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4925824,
+      "checksum": 147456000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_transpose_tiled_f32_v21",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 442496,
+    "min_elapsed_ns": 421952,
+    "max_elapsed_ns": 445919,
+    "all_elapsed_ns": [
+      442496,
+      445919,
+      421952
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 442496,
+      "checksum": 147456000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_transpose_tiled_f32_v21",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_transpose_tiled_f32_v21/candidate/bench']' timed out after 5 seconds"
+  }
+}

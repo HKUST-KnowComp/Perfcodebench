@@ -1,0 +1,72 @@
+{
+  "task_id": "delta_decode_prefix_sum_v1000_f",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/delta_decode_prefix_sum_v1000_f/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nuint64_t delta_prefix_sum(const std::vector<uint32_t>& deltas, uint32_t base, int iters) {\n    const std::size_t n = deltas.size();\n    const uint32_t* __restrict d = deltas.data();\n    \n    // Compute the sum once using the closed-form formula:\n    // decoded[i] = base + deltas[0] + deltas[1] + ... + deltas[i]\n    // sum of decoded = n*base + sum_{i=0}^{n-1} (n - i) * deltas[i]\n    //                = n*base + n*sum(deltas) - sum_{i=0}^{n-1} i * deltas[i]\n    \n    uint64_t sum_deltas = 0;\n    uint64_t weighted_sum = 0;\n    \n    // Process in chunks for better instruction-level parallelism\n    std::size_t i = 0;\n    const std::size_t unroll = 4;\n    const std::size_t limit = n - (n % unroll);\n    \n    uint64_t s0 = 0, s1 = 0, s2 = 0, s3 = 0;\n    uint64_t w0 = 0, w1 = 0, w2 = 0, w3 = 0;\n    \n    for (; i < limit; i += unroll) {\n        uint64_t d0 = d[i];\n        uint64_t d1 = d[i + 1];\n        uint64_t d2 = d[i + 2];\n        uint64_t d3 = d[i + 3];\n        \n        s0 += d0;\n        s1 += d1;\n        s2 += d2;\n        s3 += d3;\n        \n        w0 += i * d0;\n        w1 += (i + 1) * d1;\n        w2 += (i + 2) * d2;\n        w3 += (i + 3) * d3;\n    }\n    \n    sum_deltas = s0 + s1 + s2 + s3;\n    weighted_sum = w0 + w1 + w2 + w3;\n    \n    for (; i < n; ++i) {\n        uint64_t di = d[i];\n        sum_deltas += di;\n        weighted_sum += i * di;\n    }\n    \n    // sum = n * base + n * sum_deltas - weighted_sum\n    uint64_t result = static_cast<uint64_t>(n) * base + \n                      static_cast<uint64_t>(n) * sum_deltas - weighted_sum;\n    \n    // For multiple iterations, the result is the same each time\n    // We need to \"compute\" it iters times for the benchmark, but return the same value\n    // Use a volatile or asm to prevent the compiler from optimizing away the loop\n    if (iters > 1) {\n        for (int iter = 1; iter < iters; ++iter) {\n            uint64_t s = 0, w = 0;\n            for (std::size_t j = 0; j < n; ++j) {\n                uint64_t dj = d[j];\n                s += dj;\n                w += j * dj;\n            }\n            // Use the computed values to prevent optimization\n            result = static_cast<uint64_t>(n) * base + \n                     static_cast<uint64_t>(n) * s - w;\n        }\n    }\n    \n    return result;\n}",
+  "baseline": {
+    "task_id": "delta_decode_prefix_sum_v1000_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 149901654,
+    "min_elapsed_ns": 147366766,
+    "max_elapsed_ns": 155038847,
+    "all_elapsed_ns": [
+      155038847,
+      149901654,
+      147366766
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 155038847,
+      "expected_sum": 74766778105856,
+      "actual_sum": 74766778105856
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "delta_decode_prefix_sum_v1000_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 33168677,
+    "min_elapsed_ns": 31783776,
+    "max_elapsed_ns": 40385875,
+    "all_elapsed_ns": [
+      33168677,
+      40385875,
+      31783776
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 33168677,
+      "expected_sum": 74766778105856,
+      "actual_sum": 74766778105856
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "delta_decode_prefix_sum_v1000_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 36423492,
+    "min_elapsed_ns": 35947925,
+    "max_elapsed_ns": 39934323,
+    "all_elapsed_ns": [
+      35947925,
+      36423492,
+      39934323
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 35947925,
+      "expected_sum": 74766778105856,
+      "actual_sum": 74766778105856
+    },
+    "status": "ok"
+  }
+}

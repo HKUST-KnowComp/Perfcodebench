@@ -1,0 +1,59 @@
+{
+  "task_id": "segment_id_expand_checksum_v1200_g",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/segment_id_expand_checksum_v1200_g/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nstatic constexpr uint64_t FNV_PRIME = 1099511628211ULL;\nstatic constexpr uint64_t FNV_OFFSET = 1469598103934665603ULL;\n\n// Modular inverse of (FNV_PRIME - 1) mod 2^64\n// (FNV_PRIME - 1) * INV_PRIME_M1 \u2261 1 (mod 2^64)\nstatic constexpr uint64_t INV_PRIME_M1 = 0x56CE5D8DFFFFFFFDULL;\n\n// Fast exponentiation: base^exp mod 2^64\ninline uint64_t power(uint64_t base, uint32_t exp) {\n    uint64_t result = 1;\n    while (exp > 0) {\n        if (exp & 1) {\n            result *= base;\n        }\n        base *= base;\n        exp >>= 1;\n    }\n    return result;\n}\n\n}  // namespace\n\nuint64_t segment_expand_hash(const std::vector<uint32_t>& offsets, int iters) {\n    const std::size_t n = offsets.size();\n    if (n <= 1) {\n        return FNV_OFFSET;\n    }\n\n    // Precompute segment lengths\n    const std::size_t num_segments = n - 1;\n    std::vector<uint32_t> lengths(num_segments);\n    for (std::size_t s = 0; s < num_segments; ++s) {\n        lengths[s] = offsets[s + 1] - offsets[s];\n    }\n\n    uint64_t hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        hash = FNV_OFFSET;\n        \n        // For each segment s with length len, we need to apply:\n        // hash = mix(hash, s) repeated len times\n        // mix(h, s) = (h ^ s) * FNV_PRIME\n        //\n        // After len iterations starting from hash h with value s:\n        // h_new = h * c^len + s * c * (c^len - 1) / (c - 1)\n        // where c = FNV_PRIME\n        //\n        // Let g = (c^len - 1) / (c - 1) = 1 + c + c^2 + ... + c^(len-1)\n        // Then: h_new = h * c^len + s * c * g\n        //             = h * c^len + s * (c^len - 1) * INV_PRIME_M1 * c\n        //             = h * c^len + s * (c^(len+1) - c) * INV_PRIME_M1\n        \n        for (std::size_t s = 0; s < num_segments; ++s) {\n            const uint32_t len = lengths[s];\n            if (len == 0) continue;\n            \n            const uint64_t seg_id = static_cast<uint64_t>(s);\n            const uint64_t c_len = power(FNV_PRIME, len);\n            \n            // g = (c^len - 1) / (c - 1) mod 2^64\n            // Using modular inverse: g = (c^len - 1) * INV_PRIME_M1\n            const uint64_t g = (c_len - 1) * INV_PRIME_M1;\n            \n            // h_new = h * c^len + s * c * g\n            hash = hash * c_len + seg_id * FNV_PRIME * g;\n        }\n    }\n    return hash;\n}",
+  "baseline": {
+    "task_id": "segment_id_expand_checksum_v1200_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 755312148,
+    "min_elapsed_ns": 754683592,
+    "max_elapsed_ns": 762768513,
+    "all_elapsed_ns": [
+      754683592,
+      755312148,
+      762768513
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 754683592,
+      "expected_checksum": 5807824277300118403,
+      "actual_checksum": 5807824277300118403
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "segment_id_expand_checksum_v1200_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 192089955,
+    "min_elapsed_ns": 191479886,
+    "max_elapsed_ns": 201039808,
+    "all_elapsed_ns": [
+      192089955,
+      191479886,
+      201039808
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 192089955,
+      "expected_checksum": 5807824277300118403,
+      "actual_checksum": 5807824277300118403
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "segment_id_expand_checksum_v1200_g",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/segment_id_expand_checksum_v1200_g/candidate/bench']' returned non-zero exit status 1."
+  }
+}

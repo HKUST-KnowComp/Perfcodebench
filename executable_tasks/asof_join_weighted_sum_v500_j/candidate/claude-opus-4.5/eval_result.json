@@ -1,0 +1,72 @@
+{
+  "task_id": "asof_join_weighted_sum_v500_j",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/asof_join_weighted_sum_v500_j/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstddef>\n\nuint64_t asof_join_sum(\n    const std::vector<uint32_t>& dim_ts,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_ts,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n\n  const std::size_t probe_n = probe_ts.size();\n  const std::size_t dim_n = dim_ts.size();\n\n  if (probe_n == 0 || dim_n == 0) {\n    return 0;\n  }\n\n  const uint32_t* __restrict__ p_ts = probe_ts.data();\n  const uint32_t* __restrict__ p_wt = probe_weights.data();\n  const uint32_t* __restrict__ d_ts = dim_ts.data();\n  const uint32_t* __restrict__ d_val = dim_values.data();\n\n  uint64_t sum = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    std::size_t dim_idx = 0;\n\n    // Advance dim_idx so that dim_ts[dim_idx] <= probe_ts[0] and dim_ts[dim_idx+1] > probe_ts[0]\n    // i.e., find the largest dim_idx where dim_ts[dim_idx] <= probe_ts[0]\n    // Since probe_ts is sorted, we can do a merge-style scan.\n\n    std::size_t i = 0;\n\n    // Process in chunks for better ILP\n    constexpr std::size_t UNROLL = 4;\n    const std::size_t probe_end4 = (probe_n / UNROLL) * UNROLL;\n\n    uint64_t s0 = 0, s1 = 0, s2 = 0, s3 = 0;\n\n    while (i < probe_end4) {\n      // Prefetch ahead\n      __builtin_prefetch(p_ts + i + 64, 0, 0);\n      __builtin_prefetch(p_wt + i + 64, 0, 0);\n\n      // Process 4 probes\n      for (std::size_t k = 0; k < UNROLL; ++k) {\n        const uint32_t pts = p_ts[i + k];\n        // Advance dim_idx while next dim timestamp is still <= probe timestamp\n        while (dim_idx + 1 < dim_n && d_ts[dim_idx + 1] <= pts) {\n          ++dim_idx;\n        }\n        const uint64_t val = d_val[dim_idx];\n        const uint64_t wt = p_wt[i + k];\n        switch (k) {\n          case 0: s0 += val * wt; break;\n          case 1: s1 += val * wt; break;\n          case 2: s2 += val * wt; break;\n          case 3: s3 += val * wt; break;\n        }\n      }\n      i += UNROLL;\n    }\n\n    sum = s0 + s1 + s2 + s3;\n\n    // Handle remaining probes\n    while (i < probe_n) {\n      const uint32_t pts = p_ts[i];\n      while (dim_idx + 1 < dim_n && d_ts[dim_idx + 1] <= pts) {\n        ++dim_idx;\n      }\n      sum += static_cast<uint64_t>(d_val[dim_idx]) * static_cast<uint64_t>(p_wt[i]);\n      ++i;\n    }\n  }\n\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "asof_join_weighted_sum_v500_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 520846238,
+    "min_elapsed_ns": 515364171,
+    "max_elapsed_ns": 542883805,
+    "all_elapsed_ns": [
+      542883805,
+      520846238,
+      515364171
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 542883805,
+      "expected_sum": 36791321936,
+      "actual_sum": 36791321936
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "asof_join_weighted_sum_v500_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 69213230,
+    "min_elapsed_ns": 57445484,
+    "max_elapsed_ns": 72242783,
+    "all_elapsed_ns": [
+      72242783,
+      69213230,
+      57445484
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 72242783,
+      "expected_sum": 36791321936,
+      "actual_sum": 36791321936
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "asof_join_weighted_sum_v500_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 96729877,
+    "min_elapsed_ns": 96210704,
+    "max_elapsed_ns": 108435895,
+    "all_elapsed_ns": [
+      108435895,
+      96729877,
+      96210704
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 108435895,
+      "expected_sum": 36791321936,
+      "actual_sum": 36791321936
+    },
+    "status": "ok"
+  }
+}

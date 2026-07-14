@@ -1,0 +1,59 @@
+{
+  "task_id": "sorted_interval_lookup_sum_small",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sorted_interval_lookup_sum_small/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <algorithm>\n\nuint64_t interval_lookup_sum(\n    const std::vector<uint32_t>& starts,\n    const std::vector<uint32_t>& ends,\n    const std::vector<uint32_t>& payloads,\n    const std::vector<uint32_t>& probes,\n    const std::vector<uint32_t>& weights,\n    int iters)\n{\n    (void)ends;  // unused in the problem contract\n\n    const size_t n = probes.size();\n    const size_t m = starts.size();\n\n    // pair probe-idx -> weight so we can reorder both arrays together while keeping correspondence\n    struct Pw { uint32_t probe; uint32_t weight; };\n    std::vector<Pw> pw(n);\n    for (size_t i = 0; i < n; ++i) {\n        pw[i].probe = probes[i];\n        pw[i].weight = weights[i];\n    }\n    // sort pairs ascending by probe\n    std::sort(pw.begin(), pw.end(), [](const Pw& a, const Pw& b){ return a.probe < b.probe; });\n\n    // reusable arrays: probes sorted, weights in same order\n    std::vector<uint32_t> sprobes(n);\n    std::vector<uint32_t> sweights(n);\n    for (size_t i = 0; i < n; ++i) {\n        sprobes[i] = pw[i].probe;\n        sweights[i] = pw[i].weight;\n    }\n\n    uint64_t sum = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        size_t i = 0;      // index into intervals\n        size_t j = 0;      // index into sprobes/sweights\n        while (j < n) {\n            uint32_t p = sprobes[j];\n            // advance to the interval whose start <= p (intervals are non-overlapping and sorted, so exact hit)\n            while (i < m && starts[i] > p) ++i;\n            // accumulate all probes that fall into this same interval without branching inside\n            size_t jfirst = j;\n            while (j < n && sprobes[j] < starts[i+1]) {\n                sum += uint64_t(payloads[i]) * uint64_t(sweights[j]);\n                ++j;\n            }\n        }\n    }\n\n    return sum;\n}",
+  "baseline": {
+    "task_id": "sorted_interval_lookup_sum_small",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 187682112,
+    "min_elapsed_ns": 186803090,
+    "max_elapsed_ns": 190673186,
+    "all_elapsed_ns": [
+      190673186,
+      186803090,
+      187682112
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 190673186,
+      "expected_sum": 42910313448,
+      "actual_sum": 42910313448
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sorted_interval_lookup_sum_small",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 23027343,
+    "min_elapsed_ns": 22876927,
+    "max_elapsed_ns": 23091605,
+    "all_elapsed_ns": [
+      22876927,
+      23091605,
+      23027343
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 22876927,
+      "expected_sum": 42910313448,
+      "actual_sum": 42910313448
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sorted_interval_lookup_sum_small",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/sorted_interval_lookup_sum_small/candidate/bench']' timed out after 5 seconds"
+  }
+}

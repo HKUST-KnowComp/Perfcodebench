@@ -1,0 +1,59 @@
+{
+  "task_id": "image_rgba_blend_checksum_v2600_e",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/image_rgba_blend_checksum_v2600_e/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <emmintrin.h>\n\nnamespace {\n\ninline uint64_t checksum_bytes_fast(const uint8_t* data, std::size_t len) {\n    uint64_t hash = 1469598103934665603ULL;\n    const uint64_t prime = 1099511628211ULL;\n    \n    std::size_t i = 0;\n    std::size_t len8 = len & ~7ULL;\n    \n    for (; i < len8; i += 8) {\n        hash ^= static_cast<uint64_t>(data[i]);\n        hash *= prime;\n        hash ^= static_cast<uint64_t>(data[i + 1]);\n        hash *= prime;\n        hash ^= static_cast<uint64_t>(data[i + 2]);\n        hash *= prime;\n        hash ^= static_cast<uint64_t>(data[i + 3]);\n        hash *= prime;\n        hash ^= static_cast<uint64_t>(data[i + 4]);\n        hash *= prime;\n        hash ^= static_cast<uint64_t>(data[i + 5]);\n        hash *= prime;\n        hash ^= static_cast<uint64_t>(data[i + 6]);\n        hash *= prime;\n        hash ^= static_cast<uint64_t>(data[i + 7]);\n        hash *= prime;\n    }\n    \n    for (; i < len; ++i) {\n        hash ^= static_cast<uint64_t>(data[i]);\n        hash *= prime;\n    }\n    \n    return hash;\n}\n\n}  // namespace\n\nuint64_t blend_checksum(\n    const std::vector<uint8_t>& src,\n    const std::vector<uint8_t>& dst,\n    int width,\n    int height,\n    int iters) {\n    (void)width;\n    (void)height;\n    \n    const std::size_t total_bytes = src.size();\n    const std::size_t pixels = total_bytes / 4u;\n    \n    std::vector<uint8_t> out(total_bytes);\n    uint64_t hash = 0;\n    \n    const uint8_t* src_ptr = src.data();\n    const uint8_t* dst_ptr = dst.data();\n    uint8_t* out_ptr = out.data();\n    \n    const __m128i v127 = _mm_set1_epi16(127);\n    const __m128i v255_16 = _mm_set1_epi16(255);\n    const __m128i zero = _mm_setzero_si128();\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        std::size_t i = 0;\n        std::size_t pixels4 = (pixels / 4) * 4;\n        \n        for (; i < pixels4; i += 4) {\n            std::size_t idx = i * 4;\n            \n            // Load 4 pixels (16 bytes) from src and dst\n            __m128i src_bytes = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src_ptr + idx));\n            __m128i dst_bytes = _mm_loadu_si128(reinterpret_cast<const __m128i*>(dst_ptr + idx));\n            \n            // Extract alpha values for each pixel\n            uint8_t a0 = src_ptr[idx + 3];\n            uint8_t a1 = src_ptr[idx + 7];\n            uint8_t a2 = src_ptr[idx + 11];\n            uint8_t a3 = src_ptr[idx + 15];\n            \n            // Create alpha vector: [a0,a0,a0,255, a1,a1,a1,255, a2,a2,a2,255, a3,a3,a3,255]\n            __m128i alpha = _mm_set_epi8(\n                (char)255, (char)a3, (char)a3, (char)a3,\n                (char)255, (char)a2, (char)a2, (char)a2,\n                (char)255, (char)a1, (char)a1, (char)a1,\n                (char)255, (char)a0, (char)a0, (char)a0\n            );\n            \n            // 255 - alpha\n            __m128i inv_alpha = _mm_sub_epi8(_mm_set1_epi8((char)255), alpha);\n            \n            // Unpack to 16-bit for multiplication\n            __m128i src_lo = _mm_unpacklo_epi8(src_bytes, zero);\n            __m128i src_hi = _mm_unpackhi_epi8(src_bytes, zero);\n            __m128i dst_lo = _mm_unpacklo_epi8(dst_bytes, zero);\n            __m128i dst_hi = _mm_unpackhi_epi8(dst_bytes, zero);\n            __m128i alpha_lo = _mm_unpacklo_epi8(alpha, zero);\n            __m128i alpha_hi = _mm_unpackhi_epi8(alpha, zero);\n            __m128i inv_alpha_lo = _mm_unpacklo_epi8(inv_alpha, zero);\n            __m128i inv_alpha_hi = _mm_unpackhi_epi8(inv_alpha, zero);\n            \n            // Compute s*a + d*(255-a) + 127\n            __m128i prod_lo = _mm_add_epi16(_mm_mullo_epi16(src_lo, alpha_lo), \n                                           _mm_mullo_epi16(dst_lo, inv_alpha_lo));\n            __m128i prod_hi = _mm_add_epi16(_mm_mullo_epi16(src_hi, alpha_hi), \n                                           _mm_mullo_epi16(dst_hi, inv_alpha_hi));\n            prod_lo = _mm_add_epi16(prod_lo, v127);\n            prod_hi = _mm_add_epi16(prod_hi, v127);\n            \n            // Divide by 255: (x + 1 + (x >> 8)) >> 8 is a good approximation\n            // But for exact: we need (x * 0x8081) >> 23 or similar\n            // Simpler exact: ((x + 1) + ((x + 1) >> 8)) >> 8\n            // Let's use: (x + 128) / 255 ~ (x * 257 + 257) >> 16 for 16-bit\n            // Actually for exact division by 255: result = (x * 0x8081) >> 23\n            // But we need exact match, so let's do scalar for now or use lookup\n            \n            // For exact division by 255 in 16-bit: ((val + 1) + ((val + 1) >> 8)) >> 8\n            __m128i t_lo = _mm_add_epi16(prod_lo, _mm_set1_epi16(1));\n            __m128i t_hi = _mm_add_epi16(prod_hi, _mm_set1_epi16(1));\n            __m128i res_lo = _mm_srli_epi16(_mm_add_epi16(t_lo, _mm_srli_epi16(t_lo, 8)), 8);\n            __m128i res_hi = _mm_srli_epi16(_mm_add_epi16(t_hi, _mm_srli_epi16(t_hi, 8)), 8);\n            \n            // Pack back to 8-bit\n            __m128i result = _mm_packus_epi16(res_lo, res_hi);\n            \n            _mm_storeu_si128(reinterpret_cast<__m128i*>(out_ptr + idx), result);\n        }\n        \n        // Handle remaining pixels\n        for (; i < pixels; ++i) {\n            std::size_t idx = i * 4;\n            uint8_t a = src_ptr[idx + 3];\n            uint32_t inv_a = 255u - a;\n            \n            for (int c = 0; c < 3; ++c) {\n                uint32_t val = static_cast<uint32_t>(src_ptr[idx + c]) * a +\n                               static_cast<uint32_t>(dst_ptr[idx + c]) * inv_a + 127u;\n                out_ptr[idx + c] = static_cast<uint8_t>(val / 255u);\n            }\n            out_ptr[idx + 3] = 255u;\n        }\n        \n        hash = checksum_bytes_fast(out_ptr, total_bytes);\n    }\n    \n    return hash;\n}",
+  "baseline": {
+    "task_id": "image_rgba_blend_checksum_v2600_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 36703771,
+    "min_elapsed_ns": 35620473,
+    "max_elapsed_ns": 45059409,
+    "all_elapsed_ns": [
+      45059409,
+      36703771,
+      35620473
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 45059409,
+      "expected_checksum": 10114672101496441780,
+      "actual_checksum": 10114672101496441780
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "image_rgba_blend_checksum_v2600_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 27833491,
+    "min_elapsed_ns": 26638926,
+    "max_elapsed_ns": 29984417,
+    "all_elapsed_ns": [
+      27833491,
+      26638926,
+      29984417
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 27833491,
+      "expected_checksum": 10114672101496441780,
+      "actual_checksum": 10114672101496441780
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "image_rgba_blend_checksum_v2600_e",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/image_rgba_blend_checksum_v2600_e/candidate/bench']' returned non-zero exit status 1."
+  }
+}

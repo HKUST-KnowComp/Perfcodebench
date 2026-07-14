@@ -1,0 +1,72 @@
+{
+  "task_id": "rapidjson_ondemand_parse_v2400_h",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/rapidjson_ondemand_parse_v2400_h/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <rapidjson/reader.h>\n#include <rapidjson/stringbuffer.h>\n\nusing namespace rapidjson;\n\nstruct ChecksumHandler : public BaseReaderHandler<UTF8<>, ChecksumHandler> {\n    uint64_t sum = 0;\n    \n    enum State {\n        ROOT,\n        IN_ARRAY,\n        IN_OBJECT,\n        IN_NESTED\n    };\n\n    enum Expecting {\n        NOTHING,\n        ID,\n        NESTED,\n        A,\n        B\n    };\n\n    State state = ROOT;\n    Expecting expecting = NOTHING;\n\n    bool StartArray() {\n        if (state == ROOT) {\n            state = IN_ARRAY;\n            return true;\n        }\n        return true;\n    }\n\n    bool EndArray(SizeType) {\n        return true;\n    }\n\n    bool StartObject() {\n        if (state == IN_ARRAY) {\n            state = IN_OBJECT;\n        } else if (state == IN_OBJECT && expecting == NESTED) {\n            state = IN_NESTED;\n        }\n        return true;\n    }\n\n    bool EndObject(SizeType) {\n        if (state == IN_NESTED) {\n            state = IN_OBJECT;\n            expecting = NOTHING;\n        } else if (state == IN_OBJECT) {\n            state = IN_ARRAY;\n            expecting = NOTHING;\n        }\n        return true;\n    }\n\n    bool Key(const char* str, SizeType length, bool) {\n        if (state == IN_OBJECT) {\n            if (length == 2 && str[0] == 'i' && str[1] == 'd') {\n                expecting = ID;\n            } else if (length == 6 && str[0] == 'n' && str[1] == 'e' && str[2] == 's' && str[3] == 't' && str[4] == 'e' && str[5] == 'd') {\n                expecting = NESTED;\n            } else {\n                expecting = NOTHING;\n            }\n        } else if (state == IN_NESTED) {\n            if (length == 1) {\n                if (str[0] == 'a') expecting = A;\n                else if (str[0] == 'b') expecting = B;\n                else expecting = NOTHING;\n            } else {\n                expecting = NOTHING;\n            }\n        }\n        return true;\n    }\n\n    bool Uint(unsigned i) {\n        if (expecting == ID || expecting == A || expecting == B) {\n            sum += i;\n        }\n        return true;\n    }\n\n    bool Uint64(uint64_t i) {\n        if (expecting == ID || expecting == A || expecting == B) {\n            sum += i;\n        }\n        return true;\n    }\n\n    bool Int(int i) {\n        if (i >= 0 && (expecting == ID || expecting == A || expecting == B)) {\n            sum += static_cast<uint64_t>(i);\n        }\n        return true;\n    }\n\n    bool Int64(int64_t i) {\n        if (i >= 0 && (expecting == ID || expecting == A || expecting == B)) {\n            sum += static_cast<uint64_t>(i);\n        }\n        return true;\n    }\n};\n\nuint64_t compute_checksum(const std::string& json_input) {\n    Reader reader;\n    StringStream ss(json_input.c_str());\n    ChecksumHandler handler;\n    reader.Parse(ss, handler);\n    return handler.sum;\n}",
+  "baseline": {
+    "task_id": "rapidjson_ondemand_parse_v2400_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 948696,
+    "min_elapsed_ns": 887490,
+    "max_elapsed_ns": 958533,
+    "all_elapsed_ns": [
+      958533,
+      887490,
+      948696
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 958533,
+      "expected_checksum": 919296,
+      "actual_checksum": 919296
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "rapidjson_ondemand_parse_v2400_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 169519,
+    "min_elapsed_ns": 161616,
+    "max_elapsed_ns": 238126,
+    "all_elapsed_ns": [
+      238126,
+      169519,
+      161616
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 238126,
+      "expected_checksum": 919296,
+      "actual_checksum": 919296
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "rapidjson_ondemand_parse_v2400_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 45710,
+    "min_elapsed_ns": 44487,
+    "max_elapsed_ns": 84533,
+    "all_elapsed_ns": [
+      44487,
+      45710,
+      84533
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 44487,
+      "expected_checksum": 919296,
+      "actual_checksum": 919296
+    },
+    "status": "ok"
+  }
+}

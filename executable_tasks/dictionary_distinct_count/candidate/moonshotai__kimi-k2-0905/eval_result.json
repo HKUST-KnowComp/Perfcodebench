@@ -1,0 +1,59 @@
+{
+  "task_id": "dictionary_distinct_count",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dictionary_distinct_count/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstring>\n#include <vector>\n\nuint64_t dictionary_distinct(\n    const std::vector<std::string>& dictionary,\n    const std::vector<uint16_t>& codes,\n    int iters) {\n  const size_t dict_size = dictionary.size();\n  const size_t n_codes   = codes.size();\n\n  // 1. Pre-compute 64-bit hash and pointer for every dictionary string.\n  struct Entry { uint64_t hash; const char* data; size_t len; };\n  std::vector<Entry> entries(dict_size);\n  for (size_t i = 0; i < dict_size; ++i) {\n    const std::string& s = dictionary[i];\n    const size_t len = s.size();\n    uint64_t h = 0xcbf29ce484222325ULL; // FNV-1a offset\n    for (size_t j = 0; j < len; ++j) {\n      h ^= static_cast<unsigned char>(s[j]);\n      h *= 0x100000001b3ULL;\n    }\n    entries[i].hash = h;\n    entries[i].data = s.data();\n    entries[i].len  = len;\n  }\n\n  // 2. Small closed-addressing hash set (linear probing inside 64-byte cache line).\n  //    We store hashes only; on collision we compare the actual string bytes via pointer+len.\n  struct Slot { uint64_t hash; uint32_t idx; };\n  alignas(64) Slot table[16]; // 16*8=128 bytes, fits two cache lines, power-of-two\n  constexpr size_t mask = 15;\n\n  uint64_t count = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    // clear table\n    for (size_t i = 0; i <= mask; ++i) table[i].idx = 0xFFFFFFFFU;\n    uint32_t next_idx = 0;\n\n    for (size_t k = 0; k < n_codes; ++k) {\n      const uint16_t code = codes[k];\n      const Entry& e = entries[code];\n      const uint64_t h = e.hash;\n      size_t pos = h & mask;\n      while (true) {\n        if (table[pos].idx == 0xFFFFFFFFU) { // empty\n          table[pos].hash = h;\n          table[pos].idx  = next_idx++;\n          break;\n        }\n        if (table[pos].hash == h) { // possible hit\n          const Entry& prev = entries[table[pos].idx];\n          if (prev.len == e.len && std::memcmp(prev.data, e.data, e.len) == 0)\n            break; // truly equal\n        }\n        pos = (pos + 1) & mask; // linear probe\n      }\n    }\n    count = next_idx;\n  }\n  return count;\n}",
+  "baseline": {
+    "task_id": "dictionary_distinct_count",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1554103631,
+    "min_elapsed_ns": 1531464836,
+    "max_elapsed_ns": 1626637772,
+    "all_elapsed_ns": [
+      1626637772,
+      1531464836,
+      1554103631
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1626637772,
+      "expected_count": 4096,
+      "actual_count": 4096
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dictionary_distinct_count",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 44595597,
+    "min_elapsed_ns": 40553920,
+    "max_elapsed_ns": 49551773,
+    "all_elapsed_ns": [
+      40553920,
+      44595597,
+      49551773
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 40553920,
+      "expected_count": 4096,
+      "actual_count": 4096
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dictionary_distinct_count",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/dictionary_distinct_count/candidate/bench']' timed out after 5 seconds"
+  }
+}

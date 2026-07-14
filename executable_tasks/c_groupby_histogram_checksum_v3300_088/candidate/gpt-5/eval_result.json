@@ -1,0 +1,59 @@
+{
+  "task_id": "c_groupby_histogram_checksum_v3300_088",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_groupby_histogram_checksum_v3300_088/candidate/gpt-5/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include <stdint.h>\n#include <stdlib.h>\n\nuint64_t run(const uint32_t* keys, const uint32_t* vals, size_t n, uint32_t buckets, int iters) {\n  uint64_t hash = 0;\n\n  uint64_t* hist = NULL;\n  uint32_t* gen = NULL;\n\n  if (buckets > 0) {\n    hist = (uint64_t*)malloc((size_t)buckets * sizeof(uint64_t));\n    gen  = (uint32_t*)malloc((size_t)buckets * sizeof(uint32_t));\n    if (!hist || !gen) {\n      free(hist);\n      free(gen);\n      return 0;\n    }\n    for (uint32_t i = 0; i < buckets; ++i) gen[i] = 0;\n  }\n\n  uint32_t cur = 1; // current generation marker (0 means \"not current\")\n\n  for (int iter = 0; iter < iters; ++iter) {\n    // accumulate values into histogram for this iteration\n    if (buckets > 0) {\n      const uint32_t* k = keys;\n      const uint32_t* v = vals;\n      for (size_t i = 0; i < n; ++i) {\n        uint32_t idx = k[i];\n        // assume idx < buckets per problem contract\n        if (gen[idx] != cur) { // first touch in this iteration\n          hist[idx] = 0;\n          gen[idx] = cur;\n        }\n        hist[idx] += (uint64_t)v[i];\n      }\n    }\n\n    // compute checksum over all buckets\n    uint64_t h = 1469598103934665603ULL; // FNV offset basis\n    if (buckets > 0) {\n      for (uint32_t i = 0; i < buckets; ++i) {\n        uint64_t v = (gen[i] == cur) ? hist[i] : 0ULL;\n        h ^= (v + 1ULL);\n        h *= 1099511628211ULL; // FNV prime\n      }\n    }\n    hash = h;\n\n    // advance generation, handle wrap\n    cur += 1;\n    if (cur == 0) { // wrapped to 0; reset markers to avoid false matches\n      if (buckets > 0) {\n        for (uint32_t i = 0; i < buckets; ++i) gen[i] = 0;\n      }\n      cur = 1;\n    }\n  }\n\n  free(hist);\n  free(gen);\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "c_groupby_histogram_checksum_v3300_088",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5892000,
+    "min_elapsed_ns": 5888000,
+    "max_elapsed_ns": 5898000,
+    "all_elapsed_ns": [
+      5888000,
+      5892000,
+      5898000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5888000,
+      "expected_checksum": 8363758396264133600,
+      "actual_checksum": 8363758396264133600
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_groupby_histogram_checksum_v3300_088",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5979000,
+    "min_elapsed_ns": 5917000,
+    "max_elapsed_ns": 8555000,
+    "all_elapsed_ns": [
+      5979000,
+      5917000,
+      8555000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5979000,
+      "expected_checksum": 8363758396264133600,
+      "actual_checksum": 8363758396264133600
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_groupby_histogram_checksum_v3300_088",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/c_groupby_histogram_checksum_v3300_088/candidate/bench']' returned non-zero exit status 1."
+  }
+}

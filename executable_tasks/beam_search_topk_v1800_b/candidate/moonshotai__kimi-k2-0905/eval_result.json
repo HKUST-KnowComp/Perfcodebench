@@ -1,0 +1,59 @@
+{
+  "task_id": "beam_search_topk_v1800_b",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v1800_b/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <utility>\n#include <vector>\n\nnamespace {\n\ninline bool better(int32_t va, int ia, int32_t vb, int ib) {\n    return (va > vb) || (va == vb && ia < ib);\n}\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n}  // namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits,\n                            int beams, int vocab, int topk, int iters) {\n    std::vector<std::pair<int32_t, int>> top(topk);\n    uint64_t hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        hash = 1469598103934665603ULL;\n        for (int b = 0; b < beams; ++b) {\n            const int base = b * vocab;\n\n            // --- fill with first topk items ---\n            for (int i = 0; i < topk; ++i) {\n                top[i].first  = logits[base + i];\n                top[i].second = i;\n            }\n\n            // --- deterministic min-heap of size <= topk ---\n            // heap property: top[0] is the smallest among the k kept so far\n            for (int i = 1; i < topk; ++i) {\n                int pos = i;\n                while (pos > 0) {\n                    int parent = (pos - 1) >> 1;\n                    if (better(top[parent].first,  top[parent].second,\n                               top[pos].first,     top[pos].second)) break;\n                    std::swap(top[parent], top[pos]);\n                    pos = parent;\n                }\n            }\n\n            // --- scan remaining vocabulary ---\n            for (int v = topk; v < vocab; ++v) {\n                int32_t val = logits[base + v];\n                if (better(top[0].first,  top[0].second,\n                        val,           v)) continue;\n\n                // replace root\n                top[0].first  = val;\n                top[0].second = v;\n\n                // sift-down\n                int pos = 0;\n                for (;;) {\n                    int left  = (pos << 1) + 1;\n                    if (left >= topk) break;\n                    int right = left + 1;\n                    int smallest = left;\n                    if (right < topk &&\n                        better(top[right].first, top[right].second,\n                               top[left].first,   top[left].second))\n                        smallest = right;\n                    if (better(top[pos].first, top[pos].second,\n                               top[smallest].first, top[smallest].second)) break;\n                    std::swap(top[pos], top[smallest]);\n                    pos = smallest;\n                }\n            }\n\n            // --- deterministic sort of the k selected items ---\n            // insertion sort is fastest for tiny k (<=20 in practice)\n            for (int i = 1; i < topk; ++i) {\n                auto key = top[i];\n                int j = i - 1;\n                while (j >= 0 && better(key.first, key.second,\n                                        top[j].first, top[j].second)) {\n                    top[j + 1] = top[j];\n                    --j;\n                }\n                top[j + 1] = key;\n            }\n\n            // --- accumulate checksum ---\n            for (int k = 0; k < topk; ++k) {\n                hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(top[k].first)));\n                hash = mix(hash, static_cast<uint64_t>(top[k].second));\n            }\n        }\n    }\n    return hash;\n}",
+  "baseline": {
+    "task_id": "beam_search_topk_v1800_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 307590653,
+    "min_elapsed_ns": 289868030,
+    "max_elapsed_ns": 311430170,
+    "all_elapsed_ns": [
+      311430170,
+      289868030,
+      307590653
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 311430170,
+      "expected_checksum": 18022694749003232885,
+      "actual_checksum": 18022694749003232885
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v1800_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 6025385,
+    "min_elapsed_ns": 5535236,
+    "max_elapsed_ns": 6490596,
+    "all_elapsed_ns": [
+      5535236,
+      6490596,
+      6025385
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5535236,
+      "expected_checksum": 18022694749003232885,
+      "actual_checksum": 18022694749003232885
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v1800_b",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/beam_search_topk_v1800_b/candidate/bench']' returned non-zero exit status 1."
+  }
+}

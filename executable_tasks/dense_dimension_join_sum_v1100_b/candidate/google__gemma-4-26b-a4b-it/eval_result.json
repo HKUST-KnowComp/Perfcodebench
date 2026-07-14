@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_dimension_join_sum_v1100_b",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_dimension_join_sum_v1100_b/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 10,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n#include <cstdint>\n\n// Optimized implementation using a direct lookup table for O(1) access.\n// This assumes the dim_keys represent a dense or near-dense range.\n// If the range is too large for a direct array, a hash table would be used,\n// but for 'dense dimension' tasks, a direct mapping is the standard optimization.\n\nuint64_t join_sum(\n    const std::vector<uint32_t>& dim_keys,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n    \n    if (dim_keys.empty()) return 0;\n\n    // Find the range of keys to build a dense lookup table\n    uint32_t max_key = 0;\n    for (uint32_t k : dim_keys) {\n        if (k > max_key) max_key = k;\n    }\n\n    // Create a lookup table. We use a vector to handle memory safely.\n    // We initialize with 0. Note: if dim_keys are not contiguous, \n    // the lower_bound logic in the original code might have been handling \n    // non-existent keys by returning the next available key. \n    // However, in a 'dense dimension join', it is implied that keys are valid.\n    // To preserve exact correctness of the original 'lower_bound' logic:\n    // The original code: idx = lower_bound(probe_key). \n    // If probe_key is not in dim_keys, it picks the next larger key.\n    // To perfectly replicate that, we must pre-process the dim_keys.\n\n    std::vector<uint32_t> lookup(max_key + 1, 0);\n    \n    // To replicate std::lower_bound behavior for any arbitrary probe_key:\n    // We need to map every possible key to the value of the smallest dim_key >= key.\n    // Since the dimension is 'dense', we can fill the gaps.\n    \n    // 1. Fill the lookup with values from dim_keys\n    // We use a temporary array to store the 'next' value for gaps.\n    // Because dim_keys is sorted (implied by lower_bound usage),\n    // we can propagate values backwards.\n    \n    // First, map existing keys\n    for (size_t i = 0; i < dim_keys.size(); ++i) {\n        lookup[dim_keys[i]] = dim_values[i];\n    }\n\n    // To handle the 'lower_bound' logic: if a key is not present, \n    // it should return the value of the next available key in dim_keys.\n    // We iterate backwards from max_key to 0 to fill gaps.\n    uint32_t last_val = 0;\n    // We need to find the value for the 'next' key. \n    // This is slightly tricky with a direct array if the probe_key > max_key.\n    // But the original code would return dim_keys.end(), which is UB or out of bounds.\n    // Assuming probe_keys <= max_key based on typical join constraints.\n    \n    // Correct way to replicate lower_bound via array:\n    // We need lookup[i] to be dim_values[idx] where dim_keys[idx] is the first key >= i.\n    // We can do this by iterating backwards through the sorted dim_keys.\n    \n    // Re-initialize lookup to handle the 'next larger' logic\n    std::fill(lookup.begin(), lookup.end(), 0);\n    \n    // We use a pointer-based approach to fill the lookup table to match lower_bound\n    // For a key 'k', lookup[k] = dim_values[index of first dim_key >= k]\n    // We can populate this in O(max_key) time.\n    \n    // Start from the largest possible key and work downwards\n    // If a key is in dim_keys, its value is dim_values[i].\n    // If not, its value is the value of the next key in dim_keys.\n    \n    // Let's use a more robust approach for the lookup table:\n    // We'll use the fact that dim_keys is sorted.\n    size_t dim_idx = dim_keys.size();\n    uint32_t current_val = 0;\n    \n    // We need to handle the case where probe_key > max_key. \n    // The original code: it = lower_bound(dim_keys.end(), probe_key) -> it = dim_keys.end().\n    // idx = dim_keys.size(). dim_values[idx] is out of bounds. \n    // This implies probe_keys are always within the range of dim_keys.\n\n    // Fill lookup table to mimic lower_bound\n    // We iterate from max_key down to 0.\n    // If i is a dim_key, current_val = dim_value.\n    // lookup[i] = current_val.\n    \n    // To do this efficiently, we can use the sorted dim_keys.\n    // We'll use a reverse loop.\n    std::vector<uint32_t> fast_lookup(max_key + 1, 0);\n    \n    // We need to handle the 'next larger' logic. \n    // For any k, lookup[k] = dim_values[lower_bound(k)]\n    // We can pre-calculate this by iterating through dim_keys backwards.\n    \n    // First, find the value for the largest possible key (which would be the last dim_key)\n    // Actually, the original code's 'idx' could be dim_keys.size() if probe_key > max_key.\n    // But dim_values[dim_keys.size()] is an error. \n    // We assume probe_key <= max_key.\n    \n    // Correct logic to fill fast_lookup to match lower_bound:\n    // 1. Fill with 0\n    // 2. For each i from max_key down to 0:\n    //    If i is in dim_keys, current_val = dim_value[i]\n    //    fast_lookup[i] = current_val\n    \n    // Since we don't have a map, we use the sorted dim_keys to fill.\n    size_t d_ptr = dim_keys.size();\n    uint32_t running_val = 0;\n    \n    // We need to handle the case where the probe_key is larger than any dim_key.\n    // But the original code would crash. We'll assume probe_key <= max_key.\n    \n    // We'll use a simple array-based approach. \n    // To handle the 'lower_bound' requirement: \n    // if probe_key is 5 and dim_keys are [2, 7, 10], lower_bound(5) is 7.\n    // So lookup[5] should be dim_values[index of 7].\n    \n    // We can achieve this by iterating backwards from max_key.\n    // We'll use a temporary array to mark which indices are actual dim_keys.\n    // But we can just use the sorted dim_keys directly.\n    \n    // Let's use a simpler, highly performant approach: \n    // Since it's a 'dense dimension', we can assume dim_keys are mostly contiguous.\n    // If they aren't, the 'lower_bound' is the bottleneck. \n    // Let's build the lookup table such that lookup[i] = dim_values[lower_bound(i)].\n    \n    // Step 1: Fill lookup with 0\n    // Step 2: For each dim_key, lookup[dim_key] = dim_value\n    // Step 3: For i from max_key-1 down to 0: if lookup[i] == 0, lookup[i] = lookup[i+1]\n    \n    // Wait, the 'lower_bound' logic: if probe_key is 5 and dim_keys are [2, 7], \n    // lower_bound is 7. So lookup[5] = value of 7. \n    // If probe_key is 2, lower_bound is 2. So lookup[2] = value of 2.\n    // If probe_key is 1, lower_bound is 2. So lookup[1] = value of 2.\n    \n    // Correct algorithm for lookup table:\n    // 1. Initialize lookup[0...max_key] = 0\n    // 2. For i = 0 to dim_keys.size() - 1: lookup[dim_keys[i]] = dim_values[i]\n    // 3. For i = max_key - 1 down to 0:\n    //    if (lookup[i] == 0) lookup[i] = lookup[i+1]\n    // This way, if a key is missing, it takes the value of the next available key.\n    \n    // However, there's a catch: if the probe_key is 0 and dim_keys start at 10,\n    // lookup[0] will be the value of dim_keys[0]. This matches lower_bound.\n    \n    // Let's implement this.\n    for (size_t i = 0; i < dim_keys.size(); ++i) {\n        lookup[dim_keys[i]] = dim_values[i];\n    }\n    \n    // We need to be careful. If dim_keys[0] is 10, then lookup[0...9] should be dim_values[0].\n    // The backward loop handles this: \n    // If we start from max_key and go down, we need to know the 'next' value.\n    // Let's find the first dim_key.\n    uint32_t first_key = dim_keys[0];\n    uint32_t first_val = dim_values[0];\n    \n    // Fill from max_key down to first_key\n    uint32_t last_seen_val = 0;\n    // We need to find the value for the largest key first.\n    // Actually, the backward loop should start from the largest dim_key.\n    \n    // Let's refine: \n    // 1. Fill lookup with 0.\n    // 2. For i = 0 to dim_keys.size() - 1: lookup[dim_keys[i]] = dim_values[i]\n    // 3. For i = max_key - 1 down to 0:\n    //    if (lookup[i] == 0) lookup[i] = lookup[i+1]\n    // This works! If lookup[i+1] is 0, it means no key exists >= i+1. \n    // But we know at least one key exists (the max_key).\n    \n    // One edge case: if probe_key > max_key, the original code would access dim_values[dim_keys.size()].\n    // We will assume probe_key <= max_key to avoid UB.\n    \n    for (int i = (int)max_key - 1; i >= 0; --i) {\n        if (lookup[i] == 0) {\n            lookup[i] = lookup[i+1];\n        }\n    }\n    // Special case: if the probe_key is less than the first dim_key, \n    // lower_bound returns dim_keys[0]. Our loop handles this.\n    // If the probe_key is exactly a dim_key, it returns that dim_key. Our loop handles this.\n\n    uint64_t total_sum = 0;\n    const uint32_t* p_keys = probe_keys.data();\n    const uint32_t* p_weights = probe_weights.data();\n    const uint32_t* l_vals = lookup.data();\n    const size_t n = probe_keys.size();\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t current_iter_sum = 0;\n        // Unroll loop for performance\n        size_t i = 0;\n        for (; i + 3 < n; i += 4) {\n            current_iter_sum += static_cast<uint64_t>(l_vals[p_keys[i]]) * p_weights[i];\n            current_iter_sum += static_cast<uint64_t>(l_vals[p_keys[i+1]]) * p_weights[i+1];\n            current_iter_sum += static_cast<uint64_t>(l_vals[p_keys[i+2]]) * p_weights[i+2];\n            current_iter_sum += static_cast<uint64_t>(l_vals[p_keys[i+3]]) * p_weights[i+3];\n        }\n        for (; i < n; ++i) {\n            current_iter_sum += static_cast<uint64_t>(l_vals[p_keys[i]]) * p_weights[i];\n        }\n        total_sum += current_iter_sum;\n    }\n\n    // The original code returns the sum of the LAST iteration if it was just 'sum = 0' inside the loop.\n    // Wait, the original code: \n    // for (int iter = 0; iter < iters; ++iter) { sum = 0; ... sum += ... } \n    // return sum;\n    // This means it returns the sum of the VERY LAST iteration only.\n    // Let me re-read: 'sum = 0' is INSIDE the loop. \n    // So it's not accumulating across iterations, it's just running the loop 'iters' times.\n    // The return value is the result of the last iteration.\n    \n    // Let's correct the loop to match the original behavior exactly.\n    // The original code: \n    // uint64_t sum = 0;\n    // for (int iter = 0; iter < iters; ++iter) {\n    //   sum = 0;\n    //   for (...) { sum += ... }\n    // }\n    // return sum;\n    \n    // This is equivalent to just running it once, but the 'iters' parameter \n    // is likely there to measure performance (warmup/averaging).\n    // To be safe and match the exact return value:\n    \n    uint64_t final_sum = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        final_sum = 0;\n        size_t i = 0;\n        for (; i + 3 < n; i += 4) {\n            final_sum += static_cast<uint64_t>(l_vals[p_keys[i]]) * p_weights[i];\n            final_sum += static_cast<uint64_t>(l_vals[p_keys[i+1]]) * p_weights[i+1];\n            final_sum += static_cast<uint64_t>(l_vals[p_keys[i+2]]) * p_weights[i+2];\n            final_sum += static_cast<uint64_t>(l_vals[p_keys[i+3]]) * p_weights[i+3];\n        }\n        for (; i < n; ++i) {\n            final_sum += static_cast<uint64_t>(l_vals[p_keys[i]]) * p_weights[i];\n        }\n    }\n    return final_sum;\n}\n",
+  "baseline": {
+    "task_id": "dense_dimension_join_sum_v1100_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5560088829,
+    "min_elapsed_ns": 5341195735,
+    "max_elapsed_ns": 5650260668,
+    "all_elapsed_ns": [
+      5341195735,
+      5560088829,
+      5650260668
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5341195735,
+      "expected_sum": 36603691008,
+      "actual_sum": 36603691008
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_dimension_join_sum_v1100_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 48092703,
+    "min_elapsed_ns": 44103086,
+    "max_elapsed_ns": 54650858,
+    "all_elapsed_ns": [
+      44103086,
+      54650858,
+      48092703
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 44103086,
+      "expected_sum": 36603691008,
+      "actual_sum": 36603691008
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_dimension_join_sum_v1100_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 40744983,
+    "min_elapsed_ns": 37699710,
+    "max_elapsed_ns": 42030423,
+    "all_elapsed_ns": [
+      42030423,
+      37699710,
+      40744983
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 42030423,
+      "expected_sum": 36603691008,
+      "actual_sum": 36603691008
+    },
+    "status": "ok"
+  }
+}

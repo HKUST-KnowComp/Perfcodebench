@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_reduce_sum_cub_i32_v25",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_reduce_sum_cub_i32_v25/candidate/claude-sonnet-4-5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\ntemplate<int BLOCK_SIZE>\n__device__ void warp_reduce(volatile int* sdata, int tid) {\n  if (BLOCK_SIZE >= 64) sdata[tid] += sdata[tid + 32];\n  if (BLOCK_SIZE >= 32) sdata[tid] += sdata[tid + 16];\n  if (BLOCK_SIZE >= 16) sdata[tid] += sdata[tid + 8];\n  if (BLOCK_SIZE >= 8) sdata[tid] += sdata[tid + 4];\n  if (BLOCK_SIZE >= 4) sdata[tid] += sdata[tid + 2];\n  if (BLOCK_SIZE >= 2) sdata[tid] += sdata[tid + 1];\n}\n\ntemplate<int BLOCK_SIZE>\n__global__ void reduce_kernel(const int* input, int* output, int n) {\n  __shared__ int sdata[BLOCK_SIZE];\n  \n  int tid = threadIdx.x;\n  int idx = blockIdx.x * (BLOCK_SIZE * 2) + threadIdx.x;\n  int grid_size = BLOCK_SIZE * 2 * gridDim.x;\n  \n  int sum = 0;\n  while (idx < n) {\n    sum += input[idx];\n    if (idx + BLOCK_SIZE < n) {\n      sum += input[idx + BLOCK_SIZE];\n    }\n    idx += grid_size;\n  }\n  sdata[tid] = sum;\n  __syncthreads();\n  \n  if (BLOCK_SIZE >= 512) { if (tid < 256) { sdata[tid] += sdata[tid + 256]; } __syncthreads(); }\n  if (BLOCK_SIZE >= 256) { if (tid < 128) { sdata[tid] += sdata[tid + 128]; } __syncthreads(); }\n  if (BLOCK_SIZE >= 128) { if (tid < 64) { sdata[tid] += sdata[tid + 64]; } __syncthreads(); }\n  \n  if (tid < 32) warp_reduce<BLOCK_SIZE>(sdata, tid);\n  \n  if (tid == 0) atomicAdd(output, sdata[0]);\n}\n\n}  // namespace\n\nvoid reduce_sum_i32(const int* input, int* output, int n, int iters) {\n  constexpr int kBlock = 256;\n  const int grid = min(1024, (n + kBlock * 2 - 1) / (kBlock * 2));\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    cudaMemset(output, 0, sizeof(int));\n    reduce_kernel<kBlock><<<grid, kBlock>>>(input, output, n);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_reduce_sum_cub_i32_v25",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 946111,
+    "min_elapsed_ns": 936352,
+    "max_elapsed_ns": 948351,
+    "all_elapsed_ns": [
+      936352,
+      946111,
+      948351
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 936352,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_reduce_sum_cub_i32_v25",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 395103,
+    "min_elapsed_ns": 383648,
+    "max_elapsed_ns": 555455,
+    "all_elapsed_ns": [
+      555455,
+      395103,
+      383648
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 555455,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_reduce_sum_cub_i32_v25",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_reduce_sum_cub_i32_v25/candidate/bench']' timed out after 5 seconds"
+  }
+}

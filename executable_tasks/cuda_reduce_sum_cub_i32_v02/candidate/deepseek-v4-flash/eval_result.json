@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_reduce_sum_cub_i32_v02",
+  "model": "deepseek-v4-flash",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_reduce_sum_cub_i32_v02/candidate/deepseek-v4-flash/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "// interface.h is expected to declare:\n// void reduce_sum_i32(const int* input, int* output, int n, int iters);\n\n#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n// Block size can be tuned; 256 is a common choice.\nconstexpr int kBlockSize = 256;\n\n// Maximum number of blocks to launch. Sufficient to saturate SMs without excessive atomicAdd.\nconstexpr int kMaxBlocks = 1024;\n\n// Kernel: each block reduces its assigned portion of the input, then does a single atomicAdd.\n__global__ void reduce_sum_kernel(const int* input, int* output, int n) {\n    __shared__ int sdata[kBlockSize];\n\n    int tid = threadIdx.x;\n    int block_start = blockIdx.x * blockDim.x;\n    int global_stride = gridDim.x * blockDim.x;\n\n    // Each thread accumulates multiple elements with a stride loop.\n    int sum = 0;\n    for (int idx = block_start + tid; idx < n; idx += global_stride) {\n        sum += input[idx];\n    }\n\n    // Store the partial sum in shared memory.\n    sdata[tid] = sum;\n    __syncthreads();\n\n    // Reduction in shared memory.\n    // We assume blockDim.x is a power of two (which it is).\n    for (int offset = blockDim.x / 2; offset > 0; offset >>= 1) {\n        if (tid < offset) {\n            sdata[tid] += sdata[tid + offset];\n        }\n        __syncthreads();\n    }\n\n    // Thread 0 writes the block sum to output using atomicAdd.\n    if (tid == 0) {\n        atomicAdd(output, sdata[0]);\n    }\n}\n\n}  // anonymous namespace\n\nvoid reduce_sum_i32(const int* input, int* output, int n, int iters) {\n    // Compute grid size: enough blocks to cover n, but cap to avoid overhead.\n    int required_blocks = (n + kBlockSize - 1) / kBlockSize;\n    int grid = min(required_blocks, kMaxBlocks);\n    if (grid < 1) grid = 1;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, sizeof(int));\n        reduce_sum_kernel<<<grid, kBlockSize>>>(input, output, n);\n    }\n}\n",
+  "baseline": {
+    "task_id": "cuda_reduce_sum_cub_i32_v02",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 11968480,
+    "min_elapsed_ns": 11962592,
+    "max_elapsed_ns": 11970368,
+    "all_elapsed_ns": [
+      11970368,
+      11968480,
+      11962592
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11970368,
+      "expected_sum": 62914560,
+      "actual_sum": 62914560
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_reduce_sum_cub_i32_v02",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 645151,
+    "min_elapsed_ns": 639584,
+    "max_elapsed_ns": 661311,
+    "all_elapsed_ns": [
+      639584,
+      645151,
+      661311
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 639584,
+      "expected_sum": 62914560,
+      "actual_sum": 62914560
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_reduce_sum_cub_i32_v02",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_reduce_sum_cub_i32_v02/candidate/bench']' timed out after 5 seconds"
+  }
+}

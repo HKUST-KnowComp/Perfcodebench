@@ -1,0 +1,72 @@
+{
+  "task_id": "packet_ipv4_classify_checksum_v2600_f",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/packet_ipv4_classify_checksum_v2600_f/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstddef>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nconstexpr std::size_t kPacketSize = 64;\n\n// Branchless private IP lookup for first octet\nstatic const uint8_t kPrivateFirstOctet[256] = {\n  0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,  // 10.x.x.x\n  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n  0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,  // 172.x.x.x (partial)\n  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  // 192.x.x.x (partial)\n  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0\n};\n\ninline bool is_private_ip_fast(const uint8_t* ip) {\n  const uint8_t first = ip[0];\n  if (!kPrivateFirstOctet[first]) return false;\n  if (first == 10u) return true;\n  if (first == 172u) return ip[1] >= 16u && ip[1] < 32u;\n  return ip[1] == 168u;  // first == 192\n}\n\n}  // namespace\n\nuint64_t classify_packets_checksum(\n    const std::vector<uint8_t>& packets,\n    std::size_t packet_count,\n    int iters) {\n  uint64_t hash = 0;\n  const uint8_t* data = packets.data();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    \n    for (std::size_t i = 0; i < packet_count; ++i) {\n      const uint8_t* pkt = data + i * kPacketSize;\n      \n      const uint8_t ttl = pkt[8];\n      const uint8_t protocol = pkt[9];\n      const uint8_t* src = pkt + 12;\n      \n      // Read dst_port in big-endian (network byte order)\n      const uint16_t dst_port = static_cast<uint16_t>(\n          (static_cast<uint16_t>(pkt[22]) << 8) | pkt[23]);\n      \n      const uint32_t ttl_bucket = static_cast<uint32_t>(ttl >> 6);\n      \n      uint32_t port_bucket;\n      if (protocol == 6u || protocol == 17u) {\n        port_bucket = (dst_port < 1024u) ? 0u : ((dst_port < 8192u) ? 1u : 2u);\n      } else {\n        port_bucket = 3u;\n      }\n      \n      const uint32_t src_class = is_private_ip_fast(src) ? 5u : 11u;\n      \n      const uint32_t key = static_cast<uint32_t>(protocol) * 131u + \n                           ttl_bucket * 17u + \n                           src_class + \n                           port_bucket * 23u;\n      \n      hash ^= static_cast<uint64_t>(key);\n      hash *= 1099511628211ULL;\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 8645895,
+    "min_elapsed_ns": 8504269,
+    "max_elapsed_ns": 8868296,
+    "all_elapsed_ns": [
+      8868296,
+      8645895,
+      8504269
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8868296,
+      "expected_checksum": 16848120379964828775,
+      "actual_checksum": 16848120379964828775
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 7788895,
+    "min_elapsed_ns": 7621211,
+    "max_elapsed_ns": 8777232,
+    "all_elapsed_ns": [
+      7788895,
+      7621211,
+      8777232
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7788895,
+      "expected_checksum": 16848120379964828775,
+      "actual_checksum": 16848120379964828775
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 9010143,
+    "min_elapsed_ns": 7639105,
+    "max_elapsed_ns": 25136923,
+    "all_elapsed_ns": [
+      7639105,
+      25136923,
+      9010143
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7639105,
+      "expected_checksum": 16848120379964828775,
+      "actual_checksum": 16848120379964828775
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "prefix_cache_block_lookup_v2100_a",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup_v2100_a/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nstatic inline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t hash_space,\n    int iters) {\n  const std::size_t num_requests = request_offsets.size() > 0 ? request_offsets.size() - 1 : 0;\n  if (iters <= 0) return 0;\n\n  // Build a compact membership structure once, then reuse across iterations.\n  // For small enough hash spaces, a direct bitmap is typically fastest.\n  const bool use_bitmap =\n      hash_space != 0 &&\n      static_cast<uint64_t>(hash_space) <= (1ULL << 27);  // ~16 MiB as bytes\n\n  uint64_t hash = 0;\n\n  if (use_bitmap) {\n    std::vector<uint8_t> present(static_cast<std::size_t>(hash_space), 0);\n    for (uint32_t k : sorted_cache_keys) {\n      if (k < hash_space) present[static_cast<std::size_t>(k)] = 1;\n    }\n\n    for (int iter = 0; iter < iters; ++iter) {\n      hash = 1469598103934665603ULL;\n      for (std::size_t r = 0; r < num_requests; ++r) {\n        const int begin = request_offsets[r];\n        const int end = request_offsets[r + 1];\n        uint64_t prefix = 0;\n        for (int i = begin; i < end; ++i) {\n          const uint32_t key = request_blocks[static_cast<std::size_t>(i)];\n          if (key >= hash_space || !present[static_cast<std::size_t>(key)]) break;\n          ++prefix;\n        }\n        hash = mix(hash, prefix);\n      }\n    }\n    return hash;\n  }\n\n  // Fallback: custom lower_bound on the sorted cache keys.\n  const uint32_t* cache = sorted_cache_keys.empty() ? nullptr : sorted_cache_keys.data();\n  const std::size_t cache_size = sorted_cache_keys.size();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    for (std::size_t r = 0; r < num_requests; ++r) {\n      const int begin = request_offsets[r];\n      const int end = request_offsets[r + 1];\n      uint64_t prefix = 0;\n      for (int i = begin; i < end; ++i) {\n        const uint32_t key = request_blocks[static_cast<std::size_t>(i)];\n\n        std::size_t lo = 0;\n        std::size_t hi = cache_size;\n        while (lo < hi) {\n          const std::size_t mid = lo + ((hi - lo) >> 1);\n          const uint32_t v = cache[mid];\n          if (v < key) {\n            lo = mid + 1;\n          } else {\n            hi = mid;\n          }\n        }\n        if (lo == cache_size || cache[lo] != key) break;\n        ++prefix;\n      }\n      hash = mix(hash, prefix);\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup_v2100_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 35259716,
+    "min_elapsed_ns": 34808873,
+    "max_elapsed_ns": 35412898,
+    "all_elapsed_ns": [
+      34808873,
+      35259716,
+      35412898
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 34808873,
+      "expected_checksum": 11230702571878552977,
+      "actual_checksum": 11230702571878552977
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup_v2100_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1118342,
+    "min_elapsed_ns": 1107268,
+    "max_elapsed_ns": 1127592,
+    "all_elapsed_ns": [
+      1118342,
+      1107268,
+      1127592
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1118342,
+      "expected_checksum": 11230702571878552977,
+      "actual_checksum": 11230702571878552977
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup_v2100_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1089837,
+    "min_elapsed_ns": 1086436,
+    "max_elapsed_ns": 1618405,
+    "all_elapsed_ns": [
+      1618405,
+      1089837,
+      1086436
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1618405,
+      "expected_checksum": 11230702571878552977,
+      "actual_checksum": 11230702571878552977
+    },
+    "status": "ok"
+  }
+}

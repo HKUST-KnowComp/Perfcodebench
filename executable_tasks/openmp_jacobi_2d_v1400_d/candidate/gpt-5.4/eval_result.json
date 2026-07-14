@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_jacobi_2d_v1400_d",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v1400_d/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nstatic inline uint64_t checksum_u32_ptr(const uint32_t* data, std::size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (std::size_t i = 0; i < n; ++i) {\n    hash ^= static_cast<uint64_t>(data[i]);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  const std::size_t total = input.size();\n  if (total == 0) {\n    return checksum_u32_ptr(nullptr, 0);\n  }\n\n  std::vector<uint32_t> a = input;\n  if (steps <= 0 || rows <= 0 || cols <= 0) {\n    return checksum_u32_ptr(a.data(), a.size());\n  }\n\n  std::vector<uint32_t> b(total);\n\n  const int r = rows;\n  const int c = cols;\n\n  if (r <= 2 || c <= 2) {\n    for (int step = 0; step < steps; ++step) {\n      a.swap(b);\n    }\n    return checksum_u32_ptr((steps & 1) ? b.data() : a.data(), total);\n  }\n\n  uint32_t* ap = a.data();\n  uint32_t* bp = b.data();\n\n  for (int step = 0; step < steps; ++step) {\n    const std::size_t cols_sz = static_cast<std::size_t>(c);\n    const std::size_t last_row = static_cast<std::size_t>(r - 1) * cols_sz;\n\n    for (int j = 0; j < c; ++j) {\n      const std::size_t idx = static_cast<std::size_t>(j);\n      bp[idx] = ap[idx];\n      bp[last_row + idx] = ap[last_row + idx];\n    }\n\n    #pragma omp parallel for schedule(static)\n    for (int i = 1; i < r - 1; ++i) {\n      const std::size_t base = static_cast<std::size_t>(i) * cols_sz;\n      const std::size_t up = base - cols_sz;\n      const std::size_t down = base + cols_sz;\n\n      bp[base] = ap[base];\n      for (int j = 1; j < c - 1; ++j) {\n        const std::size_t idx = base + static_cast<std::size_t>(j);\n        bp[idx] = (ap[idx] * 4u + ap[idx - 1] + ap[idx + 1] + ap[up + static_cast<std::size_t>(j)] + ap[down + static_cast<std::size_t>(j)]) / 8u;\n      }\n      bp[base + static_cast<std::size_t>(c - 1)] = ap[base + static_cast<std::size_t>(c - 1)];\n    }\n\n    uint32_t* tmp = ap;\n    ap = bp;\n    bp = tmp;\n  }\n\n  return checksum_u32_ptr(ap, total);\n}\n",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v1400_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 261314787,
+    "min_elapsed_ns": 230233929,
+    "max_elapsed_ns": 325282050,
+    "all_elapsed_ns": [
+      261314787,
+      230233929,
+      325282050
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 261314787,
+      "expected_checksum": 7542740740511110783,
+      "actual_checksum": 7542740740511110783
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v1400_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 295493210,
+    "min_elapsed_ns": 205825109,
+    "max_elapsed_ns": 328952045,
+    "all_elapsed_ns": [
+      328952045,
+      205825109,
+      295493210
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 328952045,
+      "expected_checksum": 7542740740511110783,
+      "actual_checksum": 7542740740511110783
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v1400_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 2789718543,
+    "min_elapsed_ns": 2428593940,
+    "max_elapsed_ns": 4020483326,
+    "all_elapsed_ns": [
+      4020483326,
+      2789718543,
+      2428593940
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4020483326,
+      "expected_checksum": 7542740740511110783,
+      "actual_checksum": 7542740740511110783
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_matmul_tiled_f32_v12",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_matmul_tiled_f32_v12/candidate/gpt-5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\n#ifndef TILE_SIZE\n#define TILE_SIZE 32\n#endif\n\n// Read-only cached load helper (falls back to normal load on older arch)\nstatic __device__ __forceinline__ float ldgf(const float* ptr) {\n#if __CUDA_ARCH__ >= 350\n  return __ldg(ptr);\n#else\n  return *ptr;\n#endif\n}\n\n__global__ void matmul_tiled_kernel(const float* __restrict__ a,\n                                    const float* __restrict__ b,\n                                    float* __restrict__ c,\n                                    int n) {\n  const int tx = threadIdx.x;\n  const int ty = threadIdx.y;\n  const int col = blockIdx.x * blockDim.x + tx;\n  const int row = blockIdx.y * blockDim.y + ty;\n\n  __shared__ float As[TILE_SIZE][TILE_SIZE];\n  __shared__ float Bs[TILE_SIZE][TILE_SIZE];\n\n  float sum = 0.0f;\n\n  const int tiles = (n + TILE_SIZE - 1) / TILE_SIZE;\n\n#pragma unroll\n  for (int t = 0; t < tiles; ++t) {\n    const int a_col = t * TILE_SIZE + tx;\n    const int b_row = t * TILE_SIZE + ty;\n\n    // Load A tile element if in bounds, else 0\n    if (row < n && a_col < n) {\n      As[ty][tx] = ldgf(a + row * n + a_col);\n    } else {\n      As[ty][tx] = 0.0f;\n    }\n\n    // Load B tile element if in bounds, else 0\n    if (b_row < n && col < n) {\n      Bs[ty][tx] = ldgf(b + b_row * n + col);\n    } else {\n      Bs[ty][tx] = 0.0f;\n    }\n\n    __syncthreads();\n\n#pragma unroll\n    for (int k = 0; k < TILE_SIZE; ++k) {\n      sum += As[ty][k] * Bs[k][tx];\n    }\n\n    __syncthreads();\n  }\n\n  if (row < n && col < n) {\n    c[row * n + col] = sum;\n  }\n}\n\n}  // namespace\n\nvoid matmul_f32(const float* a, const float* b, float* c, int n, int iters) {\n  const dim3 block(TILE_SIZE, TILE_SIZE);\n  const dim3 grid((n + block.x - 1) / block.x, (n + block.y - 1) / block.y);\n  for (int iter = 0; iter < iters; ++iter) {\n    matmul_tiled_kernel<<<grid, block>>>(a, b, c, n);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_matmul_tiled_f32_v12",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 567936,
+    "min_elapsed_ns": 565280,
+    "max_elapsed_ns": 569855,
+    "all_elapsed_ns": [
+      567936,
+      569855,
+      565280
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 567936,
+      "max_abs_error": 0,
+      "checksum": 1947170000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_matmul_tiled_f32_v12",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 423936,
+    "min_elapsed_ns": 423135,
+    "max_elapsed_ns": 424351,
+    "all_elapsed_ns": [
+      423936,
+      423135,
+      424351
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 423936,
+      "max_abs_error": 0,
+      "checksum": 1947170000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_matmul_tiled_f32_v12",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_matmul_tiled_f32_v12/candidate/bench']' timed out after 5 seconds"
+  }
+}

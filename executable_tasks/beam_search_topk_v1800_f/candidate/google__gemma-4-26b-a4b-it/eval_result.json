@@ -1,0 +1,72 @@
+{
+  "task_id": "beam_search_topk_v1800_f",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v1800_f/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <utility>\n#include <vector>\n#include <cstdint>\n\nnamespace {\n\nstruct Entry {\n    int32_t score;\n    int32_t id;\n\n    // Tie-breaking: higher score first, then lower id first\n    bool operator<(const Entry& other) const {\n        if (score != other.score) {\n            return score > other.score;\n        }\n        return id < other.id;\n    }\n};\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n} // namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits, int beams, int vocab, int topk, int iters) {\n    if (beams <= 0 || vocab <= 0 || topk <= 0) return 0;\n    int actual_topk = std::min(topk, vocab);\n\n    // Pre-allocate buffer to avoid repeated allocations\n    std::vector<Entry> row(static_cast<size_t>(vocab));\n    uint64_t hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        hash = 1469598103934665603ULL;\n        for (int b = 0; b < beams; ++b) {\n            const size_t base = static_cast<size_t>(b) * static_cast<size_t>(vocab);\n            \n            // Load data into the entry buffer\n            for (int v = 0; v < vocab; ++v) {\n                row[v] = {logits[base + v], v};\n            }\n\n            // Use nth_element to find the top-k elements in O(V) average time\n            std::nth_element(row.begin(), row.begin() + actual_topk, row.end(), std::less<Entry>());\n            \n            // Sort only the top-k elements to ensure deterministic order for checksum\n            std::sort(row.begin(), row.begin() + actual_topk, std::less<Entry>());\n\n            for (int k = 0; k < actual_topk; ++k) {\n                hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(row[k].score)));\n                hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(row[k].id)));\n            }\n        }\n    }\n    return hash;\n}\n",
+  "baseline": {
+    "task_id": "beam_search_topk_v1800_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 177572892,
+    "min_elapsed_ns": 163240813,
+    "max_elapsed_ns": 202693272,
+    "all_elapsed_ns": [
+      202693272,
+      177572892,
+      163240813
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 202693272,
+      "expected_checksum": 10132284384874256058,
+      "actual_checksum": 10132284384874256058
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v1800_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4938358,
+    "min_elapsed_ns": 4853624,
+    "max_elapsed_ns": 6120993,
+    "all_elapsed_ns": [
+      6120993,
+      4853624,
+      4938358
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6120993,
+      "expected_checksum": 10132284384874256058,
+      "actual_checksum": 10132284384874256058
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v1800_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 26408787,
+    "min_elapsed_ns": 25492360,
+    "max_elapsed_ns": 26757232,
+    "all_elapsed_ns": [
+      25492360,
+      26757232,
+      26408787
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 25492360,
+      "expected_checksum": 10132284384874256058,
+      "actual_checksum": 10132284384874256058
+    },
+    "status": "ok"
+  }
+}

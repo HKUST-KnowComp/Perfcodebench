@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_id_remap_checksum_v500_e",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_id_remap_checksum_v500_e/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 6,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <algorithm>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t remap_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& probes,\n    int iters) {\n  \n  if (keys.empty() || probes.empty() || iters <= 0) {\n    return 0;\n  }\n\n  // Find min and max keys to build direct lookup table\n  uint32_t min_key = keys.front();\n  uint32_t max_key = keys.back();\n  \n  // Build direct-access remap table\n  // Index: key - min_key -> value\n  const size_t table_size = static_cast<size_t>(max_key - min_key) + 1;\n  std::vector<uint32_t> remap(table_size);\n  \n  const size_t n_keys = keys.size();\n  for (size_t i = 0; i < n_keys; ++i) {\n    remap[keys[i] - min_key] = values[i];\n  }\n  \n  const uint32_t* __restrict remap_ptr = remap.data();\n  const uint32_t* __restrict probes_ptr = probes.data();\n  const size_t n_probes = probes.size();\n  \n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    \n    size_t i = 0;\n    const size_t unroll_limit = n_probes & ~size_t(3);\n    \n    // Process 4 probes at a time\n    for (; i < unroll_limit; i += 4) {\n      uint32_t p0 = probes_ptr[i];\n      uint32_t p1 = probes_ptr[i + 1];\n      uint32_t p2 = probes_ptr[i + 2];\n      uint32_t p3 = probes_ptr[i + 3];\n      \n      uint32_t v0 = remap_ptr[p0 - min_key];\n      uint32_t v1 = remap_ptr[p1 - min_key];\n      uint32_t v2 = remap_ptr[p2 - min_key];\n      uint32_t v3 = remap_ptr[p3 - min_key];\n      \n      hash = mix(hash, v0);\n      hash = mix(hash, v1);\n      hash = mix(hash, v2);\n      hash = mix(hash, v3);\n    }\n    \n    // Handle remaining probes\n    for (; i < n_probes; ++i) {\n      uint32_t p = probes_ptr[i];\n      hash = mix(hash, remap_ptr[p - min_key]);\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "dense_id_remap_checksum_v500_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4049566325,
+    "min_elapsed_ns": 3924813168,
+    "max_elapsed_ns": 4163224036,
+    "all_elapsed_ns": [
+      3924813168,
+      4163224036,
+      4049566325
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3924813168,
+      "expected_checksum": 13640320782262141827,
+      "actual_checksum": 13640320782262141827
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_id_remap_checksum_v500_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 50478675,
+    "min_elapsed_ns": 47718841,
+    "max_elapsed_ns": 51230745,
+    "all_elapsed_ns": [
+      51230745,
+      50478675,
+      47718841
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 51230745,
+      "expected_checksum": 13640320782262141827,
+      "actual_checksum": 13640320782262141827
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_id_remap_checksum_v500_e",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 46705560,
+    "min_elapsed_ns": 46644919,
+    "max_elapsed_ns": 46719356,
+    "all_elapsed_ns": [
+      46644919,
+      46705560,
+      46719356
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 46644919,
+      "expected_checksum": 13640320782262141827,
+      "actual_checksum": 13640320782262141827
+    },
+    "status": "ok"
+  }
+}

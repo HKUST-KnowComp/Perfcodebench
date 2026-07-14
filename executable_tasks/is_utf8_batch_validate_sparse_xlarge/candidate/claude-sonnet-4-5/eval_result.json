@@ -1,0 +1,72 @@
+{
+  "task_id": "is_utf8_batch_validate_sparse_xlarge",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/is_utf8_batch_validate_sparse_xlarge/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n\n#ifdef __SSE4_2__\n#include <emmintrin.h>\n#include <smmintrin.h>\n#endif\n\nstd::size_t count_valid_strings(const std::vector<std::string>& inputs) {\n  // Lookup table for UTF-8 sequence lengths based on first byte\n  static const uint8_t utf8_length[256] = {\n    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 0x00-0x0F\n    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 0x10-0x1F\n    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 0x20-0x2F\n    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 0x30-0x3F\n    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 0x40-0x4F\n    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 0x50-0x5F\n    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 0x60-0x6F\n    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 0x70-0x7F\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x80-0x8F (invalid)\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x90-0x9F (invalid)\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0xA0-0xAF (invalid)\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0xB0-0xBF (invalid)\n    0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2, // 0xC0-0xCF\n    2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, // 0xD0-0xDF\n    3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3, // 0xE0-0xEF\n    4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0  // 0xF0-0xFF\n  };\n\n  auto valid_optimized = [&](const std::string& s) -> bool {\n    const uint8_t* p = reinterpret_cast<const uint8_t*>(s.data());\n    const uint8_t* end = p + s.size();\n    \n#ifdef __SSE4_2__\n    // Fast path: process ASCII in 16-byte chunks using SIMD\n    while (end - p >= 16) {\n      __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(p));\n      int mask = _mm_movemask_epi8(chunk);\n      if (mask == 0) {\n        p += 16;\n        continue;\n      }\n      // Found non-ASCII, process byte by byte from here\n      break;\n    }\n#else\n    // Scalar fast path: process 8 bytes at a time for ASCII\n    while (end - p >= 8) {\n      uint64_t chunk;\n      __builtin_memcpy(&chunk, p, 8);\n      if ((chunk & 0x8080808080808080ULL) == 0) {\n        p += 8;\n        continue;\n      }\n      break;\n    }\n#endif\n\n    // Process remaining bytes\n    while (p < end) {\n      uint8_t c = *p;\n      uint8_t len = utf8_length[c];\n      \n      if (len == 0) return false;\n      if (len == 1) {\n        ++p;\n        continue;\n      }\n      \n      if (end - p < len) return false;\n      \n      if (len == 2) {\n        if ((p[1] & 0xC0) != 0x80) return false;\n        p += 2;\n      } else if (len == 3) {\n        uint8_t b1 = p[1], b2 = p[2];\n        if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80) return false;\n        \n        if (c == 0xE0) {\n          if (b1 < 0xA0 || b1 > 0xBF) return false;\n        } else if (c == 0xED) {\n          if (b1 < 0x80 || b1 > 0x9F) return false;\n        }\n        p += 3;\n      } else { // len == 4\n        uint8_t b1 = p[1], b2 = p[2], b3 = p[3];\n        if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80 || (b3 & 0xC0) != 0x80) return false;\n        \n        if (c == 0xF0) {\n          if (b1 < 0x90 || b1 > 0xBF) return false;\n        } else if (c == 0xF4) {\n          if (b1 < 0x80 || b1 > 0x8F) return false;\n        }\n        p += 4;\n      }\n    }\n    return true;\n  };\n\n  std::size_t count = 0;\n  for (const auto& s : inputs) {\n    count += valid_optimized(s);\n  }\n  return count;\n}\n",
+  "baseline": {
+    "task_id": "is_utf8_batch_validate_sparse_xlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 14199417,
+    "min_elapsed_ns": 14176239,
+    "max_elapsed_ns": 14231640,
+    "all_elapsed_ns": [
+      14231640,
+      14176239,
+      14199417
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 14231640,
+      "expected_count": 89291,
+      "actual_count": 89291
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "is_utf8_batch_validate_sparse_xlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3000850,
+    "min_elapsed_ns": 2944210,
+    "max_elapsed_ns": 3116853,
+    "all_elapsed_ns": [
+      2944210,
+      3000850,
+      3116853
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2944210,
+      "expected_count": 89291,
+      "actual_count": 89291
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "is_utf8_batch_validate_sparse_xlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 10904038,
+    "min_elapsed_ns": 10845116,
+    "max_elapsed_ns": 10950241,
+    "all_elapsed_ns": [
+      10950241,
+      10904038,
+      10845116
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10950241,
+      "expected_count": 89291,
+      "actual_count": 89291
+    },
+    "status": "ok"
+  }
+}

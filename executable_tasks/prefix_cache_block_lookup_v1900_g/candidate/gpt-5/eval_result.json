@@ -1,0 +1,72 @@
+{
+  "task_id": "prefix_cache_block_lookup_v1900_g",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup_v1900_g/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\n// FNV-1a style mix retained from baseline\nstatic inline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n// Lightweight open-addressing hash set for uint32_t keys\nclass Uint32HashSet {\n public:\n  Uint32HashSet() : mask_(0) {}\n\n  void build(const std::vector<uint32_t>& keys_in) {\n    const std::size_t n = keys_in.size();\n    // Choose capacity as power of two >= 2*n (load factor <= 0.5 for speed)\n    std::size_t cap = 1;\n    while (cap < (n << 1)) cap <<= 1;\n    if (cap == 0) cap = 1;  // safety for n == 0 overflow (though unlikely)\n    keys_.assign(cap, 0u);\n    used_.assign(cap, 0u);\n    mask_ = static_cast<uint32_t>(cap - 1);\n\n    for (uint32_t k : keys_in) {\n      insert(k);\n    }\n  }\n\n  inline bool contains(uint32_t key) const {\n    if (used_.empty()) return false;\n    uint32_t idx = hash(key) & mask_;\n    // Linear probing; stop on first empty slot\n    while (used_[idx]) {\n      if (keys_[idx] == key) return true;\n      idx = (idx + 1) & mask_;\n    }\n    return false;\n  }\n\n private:\n  inline void insert(uint32_t key) {\n    uint32_t idx = hash(key) & mask_;\n    while (used_[idx]) {\n      if (keys_[idx] == key) return;  // avoid duplicates (input is sorted but safe)\n      idx = (idx + 1) & mask_;\n    }\n    used_[idx] = 1;\n    keys_[idx] = key;\n  }\n\n  // 32-bit mix to distribute lower bits well for power-of-two tables\n  static inline uint32_t hash(uint32_t x) {\n    x ^= x >> 16;\n    x *= 0x7feb352dU;\n    x ^= x >> 15;\n    x *= 0x846ca68bU;\n    x ^= x >> 16;\n    return x;\n  }\n\n  std::vector<uint32_t> keys_;\n  std::vector<uint8_t> used_;\n  uint32_t mask_;\n};\n\n}  // namespace\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t /*hash_space*/,\n    int iters) {\n  // Build hash set once for fast membership checks\n  Uint32HashSet set;\n  set.build(sorted_cache_keys);\n\n  uint64_t hash = 0;\n  const std::size_t num_reqs = (request_offsets.size() > 0) ? (request_offsets.size() - 1) : 0;\n  const uint32_t* blocks = request_blocks.data();\n  const int* offs = request_offsets.data();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;  // FNV offset basis\n    for (std::size_t r = 0; r < num_reqs; ++r) {\n      uint64_t prefix = 0;\n      int start = offs[r];\n      int end = offs[r + 1];\n      // Iterate through the blocks of this request until a miss\n      for (int i = start; i < end; ++i) {\n        uint32_t key = blocks[static_cast<std::size_t>(i)];\n        if (!set.contains(key)) {\n          break;\n        }\n        ++prefix;\n      }\n      hash = mix(hash, prefix);\n    }\n  }\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup_v1900_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 288795426,
+    "min_elapsed_ns": 282251915,
+    "max_elapsed_ns": 365259913,
+    "all_elapsed_ns": [
+      288795426,
+      282251915,
+      365259913
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 288795426,
+      "expected_checksum": 7101476347665877140,
+      "actual_checksum": 7101476347665877140
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup_v1900_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2320672,
+    "min_elapsed_ns": 2304232,
+    "max_elapsed_ns": 2836287,
+    "all_elapsed_ns": [
+      2836287,
+      2304232,
+      2320672
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2836287,
+      "expected_checksum": 7101476347665877140,
+      "actual_checksum": 7101476347665877140
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup_v1900_g",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 27761816,
+    "min_elapsed_ns": 24265317,
+    "max_elapsed_ns": 31758587,
+    "all_elapsed_ns": [
+      31758587,
+      27761816,
+      24265317
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 31758587,
+      "expected_checksum": 7101476347665877140,
+      "actual_checksum": 7101476347665877140
+    },
+    "status": "ok"
+  }
+}

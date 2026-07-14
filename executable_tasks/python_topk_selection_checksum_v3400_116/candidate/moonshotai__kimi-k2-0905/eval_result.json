@@ -1,0 +1,59 @@
+{
+  "task_id": "python_topk_selection_checksum_v3400_116",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/python_topk_selection_checksum_v3400_116/candidate/moonshotai__kimi-k2-0905/solution.py",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "import numpy as np\n\n_FNV64_OFFSET = np.uint64(14695981039346656037)\n_FNV64_PRIME  = np.uint64(1099511628211)\n\n_CHUNK = 8192\n\n@np.errstate(all='ignore')\ndef run(scores: list[int], k: int, iters: int) -> int:\n    # convert once; the list is not mutated\n    scores_arr = np.frombuffer(bytearray(scores), dtype=np.int32).copy()\n    n = scores_arr.size\n    h = np.uint64(14695981039346656037)\n\n    scratch = np.empty(k, dtype=np.int32)\n\n    for _ in range(iters):\n        # indices of the k largest values\n        k_idx = np.argpartition(-scores_arr, k)[:k]\n\n        # order them by descending score, then by ascending original index\n        k_scores = scores_arr[k_idx]\n        order = np.lexsort((k_idx, -k_scores))\n        top_k_idx = k_idx[order]\n\n        h_cur = _FNV64_OFFSET\n\n        # hash everything in large chunks to stay in C for longer\n        for start in range(0, k, _CHUNK):\n            end = min(start + _CHUNK, k)\n            chunk_idx = top_k_idx[start:end]\n            chunk_val = scores_arr[chunk_idx]\n            # combine into a single 64-bit quantity:  (score << 32) | index\n            combined = np.bitwise_or(\n                np.left_shift(chunk_val.astype(np.uint64), 32),\n                chunk_idx.astype(np.uint64)\n            )\n            # vectorised FNV-1a update\n            for x in combined:\n                h_cur ^= x\n                h_cur = (h_cur * _FNV64_PRIME) & np.uint64(0xFFFFFFFFFFFFFFFF)\n\n        h = h_cur\n\n    return int(h)",
+  "baseline": {
+    "task_id": "python_topk_selection_checksum_v3400_116",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1944774567,
+    "min_elapsed_ns": 1838187522,
+    "max_elapsed_ns": 2133714909,
+    "all_elapsed_ns": [
+      2133714909,
+      1944774567,
+      1838187522
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2133714909,
+      "expected_checksum": 7913556046173407029,
+      "actual_checksum": 7913556046173407029
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "python_topk_selection_checksum_v3400_116",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 237341523,
+    "min_elapsed_ns": 234293868,
+    "max_elapsed_ns": 239780199,
+    "all_elapsed_ns": [
+      234293868,
+      239780199,
+      237341523
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 234293868,
+      "expected_checksum": 7913556046173407029,
+      "actual_checksum": 7913556046173407029
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "python_topk_selection_checksum_v3400_116",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['env', 'PERFCODEBENCH_SOLUTION=executable_tasks/python_topk_selection_checksum_v3400_116/candidate/moonshotai__kimi-k2-0905/solution.py', 'python3', 'executable_tasks/python_topk_selection_checksum_v3400_116/harness/benchmark_main.py']' returned non-zero exit status 1."
+  }
+}

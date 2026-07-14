@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_reduce_sum_cub_i32_v19",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_reduce_sum_cub_i32_v19/candidate/google__gemini-3.1-pro-preview/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cub/cub.hpp>\n#include <cuda_runtime.h>\n\n/**\n * Optimized CUDA int32 reduction using CUB.\n * CUB's DeviceReduce::Sum is highly tuned for various GPU architectures and input sizes,\n * utilizing efficient block-level reductions and global synchronization strategies.\n */\n\nvoid reduce_sum_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0) {\n        for (int iter = 0; iter < iters; ++iter) {\n            cudaMemset(output, 0, sizeof(int));\n        }\n        return;\n    }\n\n    // Determine temporary device storage requirements\n    void* d_temp_storage = nullptr;\n    size_t temp_storage_bytes = 0;\n    cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, input, output, n);\n\n    // Allocate temporary storage\n    cudaMalloc(&d_temp_storage, temp_storage_bytes);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        // CUB's DeviceReduce::Sum handles the initialization of the output internally\n        // if we provide it as the destination, but it actually overwrites it.\n        // However, the task requires the sum of the array. \n        // cub::DeviceReduce::Sum computes the sum and stores it in output.\n        cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, input, output, n);\n    }\n\n    cudaFree(d_temp_storage);\n}",
+  "baseline": {
+    "task_id": "cuda_reduce_sum_cub_i32_v19",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 7987936,
+    "min_elapsed_ns": 7985184,
+    "max_elapsed_ns": 7991231,
+    "all_elapsed_ns": [
+      7987936,
+      7985184,
+      7991231
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7987936,
+      "expected_sum": 62914560,
+      "actual_sum": 62914560
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_reduce_sum_cub_i32_v19",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 437279,
+    "min_elapsed_ns": 429823,
+    "max_elapsed_ns": 444191,
+    "all_elapsed_ns": [
+      437279,
+      429823,
+      444191
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 437279,
+      "expected_sum": 62914560,
+      "actual_sum": 62914560
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_reduce_sum_cub_i32_v19",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['nvcc', '-O3', '-std=c++17', '-Iexecutable_tasks/cuda_reduce_sum_cub_i32_v19/harness', '-gencode=arch=compute_80,code=sm_80', '-gencode=arch=compute_80,code=compute_80', 'executable_tasks/cuda_reduce_sum_cub_i32_v19/harness/benchmark_main.cu', 'executable_tasks/cuda_reduce_sum_cub_i32_v19/candidate/google__gemini-3.1-pro-preview/solution.cu', '-o', 'build/cuda_reduce_sum_cub_i32_v19/candidate/bench']' returned non-zero exit status 1."
+  }
+}

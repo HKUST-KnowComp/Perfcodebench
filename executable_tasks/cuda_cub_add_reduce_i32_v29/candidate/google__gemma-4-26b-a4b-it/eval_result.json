@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v29",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v29/candidate/google__gemma-4-26b-a4b-it/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <device_launch_parameters.h>\n\nnamespace {\n\n__global__ void optimized_reduce_kernel(const int* __restrict__ input, int* output, int n) {\n    // Shared memory for block-level reduction\n    extern __shared__ int sdata[];\n\n    int tid = threadIdx.x;\n    int i = blockIdx.x * blockDim.x + threadIdx.x;\n    int stride = blockDim.x * gridDim.x;\n\n    int local_sum = 0;\n\n    // Grid-stride loop to handle arbitrary n and ensure all elements are processed\n    while (i < n) {\n        local_sum += input[i];\n        i += stride;\n    }\n\n    sdata[tid] = local_sum;\n    __syncthreads();\n\n    // In-block reduction using shared memory\n    for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) {\n        if (tid < s) {\n            sdata[tid] += sdata[tid + s];\n        }\n        __syncthreads();\n    }\n\n    // Single atomic add per block to the global output\n    if (tid == 0) {\n        atomicAdd(output, sdata[0]);\n    }\n}\n\n} // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0) return;\n\n    // Determine optimal block and grid dimensions\n    // Using 256 threads per block is a good balance for most architectures\n    const int threads_per_block = 256;\n    // Limit grid size to prevent excessive overhead, but enough to saturate SMs\n    const int blocks_per_grid = 256;\n    const size_t shared_mem_size = threads_per_block * sizeof(int);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        // Reset output to 0\n        cudaMemset(output, 0, sizeof(int));\n        \n        // Launch kernel\n        optimized_reduce_kernel<><<<blocks_per_grid, threads_per_block, shared_mem_size>>>(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v29",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5737535,
+    "min_elapsed_ns": 3645215,
+    "max_elapsed_ns": 5753600,
+    "all_elapsed_ns": [
+      3645215,
+      5737535,
+      5753600
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3645215,
+      "expected_sum": 7864320,
+      "actual_sum": 7864320
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v29",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3025696,
+    "min_elapsed_ns": 3018304,
+    "max_elapsed_ns": 3069279,
+    "all_elapsed_ns": [
+      3025696,
+      3069279,
+      3018304
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3025696,
+      "expected_sum": 7864320,
+      "actual_sum": 7864320
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v29",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['nvcc', '-O3', '-std=c++17', '-Iexecutable_tasks/cuda_cub_add_reduce_i32_v29/harness', '-gencode=arch=compute_80,code=sm_80', '-gencode=arch=compute_80,code=compute_80', 'executable_tasks/cuda_cub_add_reduce_i32_v29/harness/benchmark_main.cu', 'executable_tasks/cuda_cub_add_reduce_i32_v29/candidate/google__gemma-4-26b-a4b-it/solution.cu', '-o', 'build/cuda_cub_add_reduce_i32_v29/candidate/bench']' returned non-zero exit status 2."
+  }
+}

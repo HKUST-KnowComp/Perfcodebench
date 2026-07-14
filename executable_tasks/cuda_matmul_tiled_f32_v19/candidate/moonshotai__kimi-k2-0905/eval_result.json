@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_matmul_tiled_f32_v19",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_matmul_tiled_f32_v19/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int BM = 128;\nconstexpr int BN = 128;\nconstexpr int BK = 8;\nconstexpr int TM = 8;\nconstexpr int TN = 8;\n\n__global__ void matmul_kernel(const float* __restrict__ A,\n                              const float* __restrict__ B,\n                              float*       __restrict__ C,\n                              int n) {\n  __shared__ float As[BM * BK];\n  __shared__ float Bs[BK * BN];\n\n  int tx = threadIdx.x & 31;            // warp lane\n  int ty = threadIdx.x >> 5;            // warp id (0..3)\n  int tid = threadIdx.x;\n\n  int rowA = tid >> 2;\n  int colA = (tid & 3) << 2;\n\n  int rowB = tid >> 5;\n  int colB = (tid & 31);\n\n  int blockRow = blockIdx.y * BM;\n  int blockCol = blockIdx.x * BN;\n\n  float accum[TM * TN] = {0.0f};\n\n  for (int k = 0; k < n; k += BK) {\n    #pragma unroll\n    for (int i = 0; i < 4; ++i) {\n      if (blockRow + rowA + i * 32 < n && k + colA + i < n) {\n        As[(rowA + i * 32) * BK + colA + i] =\n            A[(blockRow + rowA + i * 32) * n + k + colA + i];\n      } else {\n        As[(rowA + i * 32) * BK + colA + i] = 0.f;\n      }\n    }\n\n    #pragma unroll\n    for (int i = 0; i < 4; ++i) {\n      if (k + rowB + i * 32 < n && blockCol + colB < n) {\n        Bs[(rowB + i * 32) * BN + colB] =\n            B[(k + rowB + i * 32) * n + blockCol + colB];\n      } else {\n        Bs[(rowB + i * 32) * BN + colB] = 0.0f;\n      }\n    }\n    __syncthreads();\n\n    #pragma unroll\n    for (int kk = 0; kk < BK; ++kk) {\n      #pragma unroll\n      for (int i = 0; i < TM; ++i) {\n        float a = As[(ty * TM + i) * BK + kk];\n        #pragma unroll\n        for (int j = 0; j < TN; ++j) {\n          float b = Bs[kk * BN + tx * TN + j];\n          accum[i * TN + j] += a * b;\n        }\n      }\n    }\n    __syncthreads();\n  }\n\n  #pragma unroll\n  for (int i = 0; i < TM; ++i) {\n    int globalRow = blockRow + ty * TM + i;\n    if (globalRow >= n) continue;\n    #pragma unroll\n    for (int j = 0; j < TN; ++j) {\n      int globalCol = blockCol + tx * TN + j;\n      if (globalCol >= n) continue;\n      C[globalRow * n + globalCol] = accum[i * TN + j];\n    }\n  }\n}\n\n}  // namespace\n\nvoid matmul_f32(const float* a, const float* b, float* c, int n, int iters) {\n  dim3 blockDim(128);\n  dim3 gridDim((n + 127) / 128, (n + 127) / 128);\n  for (int i = 0; i < iters; ++i) {\n    matmul_kernel<<<gridDim, blockDim>>>(a, b, c, n);\n  }\n}",
+  "baseline": {
+    "task_id": "cuda_matmul_tiled_f32_v19",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 485983,
+    "min_elapsed_ns": 484672,
+    "max_elapsed_ns": 487040,
+    "all_elapsed_ns": [
+      487040,
+      485983,
+      484672
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 487040,
+      "max_abs_error": 0,
+      "checksum": 1947170000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_matmul_tiled_f32_v19",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 362208,
+    "min_elapsed_ns": 360960,
+    "max_elapsed_ns": 362879,
+    "all_elapsed_ns": [
+      362879,
+      360960,
+      362208
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 362879,
+      "max_abs_error": 0,
+      "checksum": 1947170000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_matmul_tiled_f32_v19",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_matmul_tiled_f32_v19/candidate/bench']' timed out after 5 seconds"
+  }
+}

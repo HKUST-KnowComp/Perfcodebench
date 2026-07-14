@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_thrust_reduce_f32_v02",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_thrust_reduce_f32_v02/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cstdio>\n\n#define BLOCK_SIZE 256\n#define MAX_BLOCKS 1024\n\n__global__ void reduce_kernel(const float * __restrict__ input,\n                              float * __restrict__ blockSums,\n                              int n)\n{\n    __shared__ float smem[BLOCK_SIZE];\n    int tid = threadIdx.x;\n    int idx = blockIdx.x * blockDim.x + tid;\n\n    // grid-stride load\n    float sum = 0.0f;\n    for (int i = idx; i < n; i += blockDim.x * gridDim.x)\n        sum += input[i];\n    smem[tid] = sum;\n    __syncthreads();\n\n    // warp-level reduction\n    for (int offset = warpSize/2; offset > 0; offset /= 2)\n        smem[tid] += __shfl_down_sync(0xFFFFFFFF, smem[tid], offset);\n\n    // write warp 0 result to shared\n    if (tid % warpSize == 0)\n        smem[tid / warpSize] = smem[tid];\n    __syncthreads();\n\n    // final reduction in warp 0\n    if (tid < warpSize)\n    {\n        float val = (tid < (BLOCK_SIZE/warpSize)) ? smem[tid] : 0.0f;\n        for (int offset = warpSize/2; offset > 0; offset /= 2)\n            val += __shfl_down_sync(0xFFFFFFFF, val, offset);\n        if (tid == 0)\n            blockSums[blockIdx.x] = val;\n    }\n}\n\n__global__ void reduce_single_block(const float * __restrict__ partials,\n                                    float * __restrict__ out,\n                                    int numParts)\n{\n    __shared__ float smem[BLOCK_SIZE];\n    int tid = threadIdx.x;\n    float sum = 0.0f;\n    for (int i = tid; i < numParts; i += blockDim.x)\n        sum += partials[i];\n    smem[tid] = sum;\n    __syncthreads();\n\n    for (int offset = blockDim.x/2; offset > 0; offset /= 2)\n    {\n        if (tid < offset)\n            smem[tid] += smem[tid + offset];\n        __syncthreads();\n    }\n    if (tid == 0)\n        *out = smem[0];\n}\n\nfloat reduce_f32(const float *input, int n, int iters)\n{\n    static float *d_blockSums = nullptr;\n    static float *d_out = nullptr;\n    static int allocatedMaxBlocks = 0;\n\n    int numBlocks = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;\n    if (numBlocks > MAX_BLOCKS) numBlocks = MAX_BLOCKS;\n\n    if (allocatedMaxBlocks < numBlocks)\n    {\n        if (d_blockSums) cudaFree(d_blockSums);\n        if (d_out) cudaFree(d_out);\n        cudaMalloc(&d_blockSums, numBlocks * sizeof(float));\n        cudaMalloc(&d_out, sizeof(float));\n        allocatedMaxBlocks = numBlocks;\n    }\n\n    float result = 0.0f;\n    for (int iter = 0; iter < iters; ++iter)\n    {\n        reduce_kernel<<<numBlocks, BLOCK_SIZE>>>(input, d_blockSums, n);\n        reduce_single_block<<<1, BLOCK_SIZE>>>(d_blockSums, d_out, numBlocks);\n        if (iter == iters - 1)\n            cudaMemcpy(&result, d_out, sizeof(float), cudaMemcpyDeviceToHost);\n    }\n    return result;\n}",
+  "baseline": {
+    "task_id": "cuda_thrust_reduce_f32_v02",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 156377792,
+    "min_elapsed_ns": 155226425,
+    "max_elapsed_ns": 168606246,
+    "all_elapsed_ns": [
+      155226425,
+      156377792,
+      168606246
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 155226425,
+      "expected_sum": 6291420.0,
+      "actual_sum": 6269800.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_thrust_reduce_f32_v02",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1017920,
+    "min_elapsed_ns": 973439,
+    "max_elapsed_ns": 1034719,
+    "all_elapsed_ns": [
+      973439,
+      1034719,
+      1017920
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 973439,
+      "expected_sum": 6291420.0,
+      "actual_sum": 6291420.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_thrust_reduce_f32_v02",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_thrust_reduce_f32_v02/candidate/bench']' timed out after 5 seconds"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "sorted_interval_lookup_sum_v500_c",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sorted_interval_lookup_sum_v500_c/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <algorithm>\n#include <vector>\n\nuint64_t interval_lookup_sum(\n    const std::vector<uint32_t>& starts,\n    const std::vector<uint32_t>& ends,\n    const std::vector<uint32_t>& payloads,\n    const std::vector<uint32_t>& probes,\n    const std::vector<uint32_t>& weights,\n    int iters) {\n    if (probes.empty() || starts.empty()) return 0;\n\n    // Pre-calculate the mapping to avoid repeated binary searches if probes are sorted.\n    // However, the task implies we must handle the probes as provided. \n    // If probes are sorted, we use two pointers. If not, we use binary search.\n    // To be safe and highly performant, we check if probes are sorted.\n    \n    bool probes_sorted = true;\n    for (size_t i = 1; i < probes.size(); ++i) {\n        if (probes[i] < probes[i-1]) {\n            probes_sorted = false;\n            break;\n        }\n    }\n\n    uint64_t total_sum = 0;\n    size_t n_probes = probes.size();\n    size_t n_intervals = starts.size();\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t current_iter_sum = 0;\n        if (probes_sorted) {\n            size_t interval_idx = 0;\n            for (size_t i = 0; i < n_probes; ++i) {\n                uint32_t p = probes[i];\n                // Move interval_idx to the largest index such that starts[idx] <= p\n                // We need to find the interval where starts[idx] <= p < ends[idx]\n                // The baseline logic used: idx = upper_bound(starts, p) - 1\n                // This assumes intervals are non-overlapping and cover the range.\n                \n                // Optimization: Since probes are sorted, we don't reset interval_idx\n                // But we must ensure we find the correct interval. \n                // The baseline logic: idx = upper_bound(starts, p) - 1\n                // This is equivalent to finding the largest idx where starts[idx] <= p.\n                \n                while (interval_idx + 1 < n_intervals && starts[interval_idx + 1] <= p) {\n                    interval_idx++;\n                }\n                \n                // Check if the current interval actually contains the probe\n                // The baseline didn't check 'ends', it just took the payload of the interval \n                // whose start is the largest value <= probe.\n                // To preserve correctness with the baseline, we follow its logic exactly.\n                if (starts[interval_idx] <= p) {\n                    current_iter_sum += static_cast<uint64_t>(payloads[interval_idx]) * weights[i];\n                }\n            }\n        } else {\n            for (size_t i = 0; i < n_probes; ++i) {\n                auto it = std::upper_bound(starts.begin(), starts.end(), probes[i]);\n                if (it != starts.begin()) {\n                    size_t idx = std::distance(starts.begin(), it) - 1;\n                    current_iter_sum += static_cast<uint64_t>(payloads[idx]) * weights[i];\n                }\n            }\n        }\n        total_sum += current_iter_sum;\n    }\n\n    // The baseline returns the sum of the LAST iteration if it were to overwrite, \n    // but it actually accumulates 'sum = 0' inside the loop and returns 'sum'.\n    // Wait, looking at baseline: 'sum = 0' is inside the loop, so it returns the sum of the LAST iteration.\n    // Let's re-read: 'sum = 0;' is inside 'for (int iter = 0; iter < iters; ++iter)'.\n    // So it returns the sum of the final iteration.\n    \n    // Re-implementing to match baseline behavior exactly:\n    uint64_t final_sum = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        final_sum = 0;\n        if (probes_sorted) {\n            size_t interval_idx = 0;\n            for (size_t i = 0; i < n_probes; ++i) {\n                uint32_t p = probes[i];\n                while (interval_idx + 1 < n_intervals && starts[interval_idx + 1] <= p) {\n                    interval_idx++;\n                }\n                if (starts[interval_idx] <= p) {\n                    final_sum += static_cast<uint64_t>(payloads[interval_idx]) * weights[i];\n                }\n            }\n        } else {\n            for (size_t i = 0; i < n_probes; ++i) {\n                auto it = std::upper_bound(starts.begin(), starts.end(), probes[i]);\n                if (it != starts.begin()) {\n                    size_t idx = std::distance(starts.begin(), it) - 1;\n                    final_sum += static_cast<uint64_t>(payloads[idx]) * weights[i];\n                }\n            }\n        }\n    }\n    return final_sum;\n}",
+  "baseline": {
+    "task_id": "sorted_interval_lookup_sum_v500_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 644070183,
+    "min_elapsed_ns": 643570422,
+    "max_elapsed_ns": 644620600,
+    "all_elapsed_ns": [
+      643570422,
+      644070183,
+      644620600
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 643570422,
+      "expected_sum": 171652150376,
+      "actual_sum": 171652150376
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sorted_interval_lookup_sum_v500_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 76579940,
+    "min_elapsed_ns": 72956771,
+    "max_elapsed_ns": 78646604,
+    "all_elapsed_ns": [
+      76579940,
+      72956771,
+      78646604
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 76579940,
+      "expected_sum": 171652150376,
+      "actual_sum": 171652150376
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sorted_interval_lookup_sum_v500_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 77448703,
+    "min_elapsed_ns": 76724436,
+    "max_elapsed_ns": 118713874,
+    "all_elapsed_ns": [
+      76724436,
+      118713874,
+      77448703
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 76724436,
+      "expected_sum": 171652150376,
+      "actual_sum": 171652150376
+    },
+    "status": "ok"
+  }
+}

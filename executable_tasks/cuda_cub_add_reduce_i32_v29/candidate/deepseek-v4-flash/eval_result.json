@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v29",
+  "model": "deepseek-v4-flash",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v29/candidate/deepseek-v4-flash/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\ntemplate <int blockSize>\n__global__ void reduce_kernel(const int* input, int* output, int n) {\n    // Shared memory for per-warp partial sums\n    __shared__ int shared[blockSize / 32];\n    \n    int tid = threadIdx.x;\n    int idx = blockIdx.x * blockSize + tid;\n    \n    // Grid-stride loop to accumulate multiple elements per thread\n    int sum = 0;\n    int stride = gridDim.x * blockSize;\n    for (int i = idx; i < n; i += stride) {\n        sum += input[i];\n    }\n    \n    // Warp-level reduction using __shfl_down_sync\n    #pragma unroll\n    for (int offset = 16; offset > 0; offset >>= 1) {\n        sum += __shfl_down_sync(0xffffffff, sum, offset);\n    }\n    \n    // First lane of each warp writes to shared memory\n    if (tid % 32 == 0) {\n        shared[tid / 32] = sum;\n    }\n    __syncthreads();\n    \n    // Second-level reduction in first warp\n    if (tid < (blockSize / 32)) {\n        int val = shared[tid];\n        #pragma unroll\n        for (int offset = (blockSize / 32) / 2; offset > 0; offset >>= 1) {\n            if (tid < offset) {\n                val += shared[tid + offset];\n                shared[tid] = val;\n            }\n            __syncthreads();\n        }\n        if (tid == 0) {\n            atomicAdd(output, shared[0]);\n        }\n    }\n}\n\n} // anonymous namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    const int blockSize = 256;\n    const int gridSize = (n + blockSize - 1) / blockSize;\n    \n    // Zero output once before all iterations\n    cudaMemset(output, 0, sizeof(int));\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        reduce_kernel<blockSize><<<gridSize, blockSize>>>(input, output, n);\n    }\n}\n",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v29",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5737535,
+    "min_elapsed_ns": 3645215,
+    "max_elapsed_ns": 5753600,
+    "all_elapsed_ns": [
+      3645215,
+      5737535,
+      5753600
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3645215,
+      "expected_sum": 7864320,
+      "actual_sum": 7864320
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v29",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3025696,
+    "min_elapsed_ns": 3018304,
+    "max_elapsed_ns": 3069279,
+    "all_elapsed_ns": [
+      3025696,
+      3069279,
+      3018304
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3025696,
+      "expected_sum": 7864320,
+      "actual_sum": 7864320
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v29",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v29/candidate/bench']' timed out after 5 seconds"
+  }
+}

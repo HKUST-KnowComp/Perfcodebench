@@ -1,0 +1,72 @@
+{
+  "task_id": "selection_vector_gather_sum_v500_c",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/selection_vector_gather_sum_v500_c/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n\nuint64_t selection_gather_sum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint8_t>& flags,\n    const std::vector<uint32_t>& payloads,\n    uint32_t threshold,\n    int iters) {\n  const std::size_t n = keys.size();\n  const uint32_t* __restrict__ keys_ptr = keys.data();\n  const uint8_t* __restrict__ flags_ptr = flags.data();\n  const uint32_t* __restrict__ payloads_ptr = payloads.data();\n  \n  uint64_t sum = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    \n    // Fused selection and accumulation with manual unrolling\n    std::size_t i = 0;\n    const std::size_t n_unroll = n - (n % 4);\n    \n    // Unrolled loop for better ILP and reduced branch overhead\n    for (; i < n_unroll; i += 4) {\n      uint32_t k0 = keys_ptr[i];\n      uint32_t k1 = keys_ptr[i + 1];\n      uint32_t k2 = keys_ptr[i + 2];\n      uint32_t k3 = keys_ptr[i + 3];\n      \n      uint8_t f0 = flags_ptr[i];\n      uint8_t f1 = flags_ptr[i + 1];\n      uint8_t f2 = flags_ptr[i + 2];\n      uint8_t f3 = flags_ptr[i + 3];\n      \n      // Branchless selection using conditional moves\n      bool cond0 = f0 && (k0 < threshold) && ((k0 & 7u) == 0u);\n      bool cond1 = f1 && (k1 < threshold) && ((k1 & 7u) == 0u);\n      bool cond2 = f2 && (k2 < threshold) && ((k2 & 7u) == 0u);\n      bool cond3 = f3 && (k3 < threshold) && ((k3 & 7u) == 0u);\n      \n      sum += cond0 ? static_cast<uint64_t>(payloads_ptr[i]) : 0;\n      sum += cond1 ? static_cast<uint64_t>(payloads_ptr[i + 1]) : 0;\n      sum += cond2 ? static_cast<uint64_t>(payloads_ptr[i + 2]) : 0;\n      sum += cond3 ? static_cast<uint64_t>(payloads_ptr[i + 3]) : 0;\n    }\n    \n    // Handle remaining elements\n    for (; i < n; ++i) {\n      uint32_t k = keys_ptr[i];\n      uint8_t f = flags_ptr[i];\n      bool cond = f && (k < threshold) && ((k & 7u) == 0u);\n      sum += cond ? static_cast<uint64_t>(payloads_ptr[i]) : 0;\n    }\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "selection_vector_gather_sum_v500_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1400113775,
+    "min_elapsed_ns": 1236020428,
+    "max_elapsed_ns": 1507547381,
+    "all_elapsed_ns": [
+      1400113775,
+      1236020428,
+      1507547381
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1400113775,
+      "expected_sum": 17175148990,
+      "actual_sum": 17175148990
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "selection_vector_gather_sum_v500_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1096489842,
+    "min_elapsed_ns": 1095773607,
+    "max_elapsed_ns": 1101969047,
+    "all_elapsed_ns": [
+      1095773607,
+      1096489842,
+      1101969047
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1095773607,
+      "expected_sum": 17175148990,
+      "actual_sum": 17175148990
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "selection_vector_gather_sum_v500_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 655106757,
+    "min_elapsed_ns": 651055662,
+    "max_elapsed_ns": 688963789,
+    "all_elapsed_ns": [
+      655106757,
+      688963789,
+      651055662
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 655106757,
+      "expected_sum": 17175148990,
+      "actual_sum": 17175148990
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "croaring_many_union_cardinality_v2100_d",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/croaring_many_union_cardinality_v2100_d/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nuint64_t many_union_cardinality(\n    const std::vector<uint32_t>& offsets,\n    const std::vector<uint32_t>& values) {\n  const std::size_t shard_count = offsets.size();\n  if (shard_count <= 1) return 0;\n\n  struct Cursor {\n    const uint32_t* ptr;\n    const uint32_t* end;\n  };\n\n  std::vector<Cursor> cursors;\n  cursors.reserve(shard_count - 1);\n\n  for (std::size_t shard = 0; shard + 1 < shard_count; ++shard) {\n    uint32_t begin = offsets[shard];\n    uint32_t end = offsets[shard + 1];\n    if (begin < end) {\n      cursors.push_back(Cursor{values.data() + begin, values.data() + end});\n    }\n  }\n\n  if (cursors.empty()) return 0;\n\n  uint64_t cardinality = 0;\n\n  while (true) {\n    uint32_t min_value = cursors[0].ptr[0];\n    for (std::size_t i = 1; i < cursors.size(); ++i) {\n      const uint32_t v = cursors[i].ptr[0];\n      if (v < min_value) min_value = v;\n    }\n\n    ++cardinality;\n\n    std::size_t write = 0;\n    for (std::size_t i = 0; i < cursors.size(); ++i) {\n      const uint32_t* p = cursors[i].ptr;\n      const uint32_t* e = cursors[i].end;\n      while (p != e && *p == min_value) {\n        ++p;\n      }\n      if (p != e) {\n        cursors[write++] = Cursor{p, e};\n      }\n    }\n    cursors.resize(write);\n    if (cursors.empty()) break;\n  }\n\n  return cardinality;\n}\n",
+  "baseline": {
+    "task_id": "croaring_many_union_cardinality_v2100_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 238655479,
+    "min_elapsed_ns": 226732166,
+    "max_elapsed_ns": 284583968,
+    "all_elapsed_ns": [
+      238655479,
+      226732166,
+      284583968
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 238655479,
+      "expected_cardinality": 881369,
+      "actual_cardinality": 881369
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "croaring_many_union_cardinality_v2100_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 17831680,
+    "min_elapsed_ns": 16850622,
+    "max_elapsed_ns": 21500192,
+    "all_elapsed_ns": [
+      21500192,
+      16850622,
+      17831680
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 21500192,
+      "expected_cardinality": 881369,
+      "actual_cardinality": 881369
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "croaring_many_union_cardinality_v2100_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 65942451,
+    "min_elapsed_ns": 65911651,
+    "max_elapsed_ns": 65980500,
+    "all_elapsed_ns": [
+      65942451,
+      65911651,
+      65980500
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 65942451,
+      "expected_cardinality": 881369,
+      "actual_cardinality": 881369
+    },
+    "status": "ok"
+  }
+}

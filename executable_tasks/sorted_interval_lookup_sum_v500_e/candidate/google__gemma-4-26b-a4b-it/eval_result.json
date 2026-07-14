@@ -1,0 +1,59 @@
+{
+  "task_id": "sorted_interval_lookup_sum_v500_e",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sorted_interval_lookup_sum_v500_e/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n\nuint64_t interval_lookup_sum(\n    const std::vector<uint32_t>& starts,\n    const std::vector<uint32_t>& ends,\n    const std::vector<uint32_t>& payloads,\n    const std::vector<uint32_t>& probes,\n    const std::vector<uint32_t>& weights,\n    int iters) {\n  if (probes.empty() || starts.empty()) {\n    return 0;\n  }\n\n  uint64_t total_sum = 0;\n  const size_t num_probes = probes.size();\n  const size_t num_intervals = starts.size();\n\n  // Pre-calculate the mapping of probes to interval indices using a two-pointer approach.\n  // This is valid because both starts and probes are sorted.\n  std::vector<uint32_t> probe_to_payload_idx(num_probes);\n  size_t interval_idx = 0;\n  for (size_t i = 0; i < num_probes; ++i) {\n    uint32_t probe_val = probes[i];\n    // Move interval_idx to the largest index such that starts[interval_idx] <= probe_val\n    while (interval_idx + 1 < num_intervals && starts[interval_idx + 1] <= probe_val) {\n      interval_idx++;\n    }\n\n    if (starts[interval_idx] <= probe_val) {\n      probe_to_payload_idx[i] = static_cast<uint32_t>(interval_idx);\n    } else {\n      // This case handles if the probe is smaller than the very first start\n      // We use a sentinel or handle it via a flag. \n      // However, the problem implies valid lookups. Let's use a sentinel value.\n      probe_to_payload_idx[i] = static_cast<uint32_t>(-1);\n    }\n  }\n\n  // Pre-calculate the payload values to avoid repeated indexing in the hot loop\n  // and to handle the 'not found' case efficiently.\n  // We'll use a temporary vector of payloads where index -1 is 0.\n  // To avoid extra allocation, we can just check the sentinel in the loop.\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t current_iter_sum = 0;\n    for (size_t i = 0; i < num_probes; ++i) {\n      uint32_t p_idx = probe_to_payload_idx[i];\n      if (p_idx != static_cast<uint32_t>(-1)) {\n        current_iter_sum += static_cast<uint64_t>(payloads[p_idx]) * static_cast<uint64_t>(weights[i]);\n      }\n    }\n    total_sum += current_iter_sum;\n  }\n\n  // The original code returns the sum of the LAST iteration if it were just 'sum = 0' inside the loop.\n  // Wait, looking at the baseline: 'sum = 0' is inside the 'iters' loop, but 'sum' is returned outside.\n  // This means the baseline actually returns the sum of the LAST iteration only.\n  // Let's re-read: 'sum = 0;' is inside 'for (int iter = 0; iter < iters; ++iter)'.\n  // So the baseline returns the sum of the final iteration.\n  \n  // Re-implementing to match baseline behavior exactly:\n  uint64_t final_sum = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    final_sum = 0;\n    for (size_t i = 0; i < num_probes; ++i) {\n      uint32_t p_idx = probe_to_payload_idx[i];\n      if (p_idx != static_cast<uint32_t>(-1)) {\n        final_sum += static_cast<uint64_t>(payloads[p_idx]) * static_cast<uint64_t>(weights[i]);\n      }\n    }\n  }\n  return final_sum;\n}",
+  "baseline": {
+    "task_id": "sorted_interval_lookup_sum_v500_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1848888752,
+    "min_elapsed_ns": 1845992078,
+    "max_elapsed_ns": 1878214321,
+    "all_elapsed_ns": [
+      1845992078,
+      1848888752,
+      1878214321
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1845992078,
+      "expected_sum": 171651232440,
+      "actual_sum": 171651232440
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sorted_interval_lookup_sum_v500_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 195654639,
+    "min_elapsed_ns": 192699185,
+    "max_elapsed_ns": 201399032,
+    "all_elapsed_ns": [
+      201399032,
+      195654639,
+      192699185
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 201399032,
+      "expected_sum": 171651232440,
+      "actual_sum": 171651232440
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sorted_interval_lookup_sum_v500_e",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/sorted_interval_lookup_sum_v500_e/harness', 'executable_tasks/sorted_interval_lookup_sum_v500_e/harness/benchmark_main.cpp', 'executable_tasks/sorted_interval_lookup_sum_v500_e/candidate/google__gemma-4-26b-a4b-it/solution.cpp', '-o', 'build/sorted_interval_lookup_sum_v500_e/candidate/bench']' returned non-zero exit status 1."
+  }
+}

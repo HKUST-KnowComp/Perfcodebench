@@ -1,0 +1,59 @@
+{
+  "task_id": "simdutf_base64_decode_v2500_h",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdutf_base64_decode_v2500_h/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"simdutf.h\"\n#include <vector>\n#include <string>\n\nuint64_t decode_checksum(const std::string& input) {\n    if (input.empty()) return 1469598103934665603ULL;\n\n    // Calculate the maximum possible decoded size\n    size_t max_decoded_size = (input.size() * 3) / 4;\n    \n    // Use a stack buffer for small inputs to avoid heap allocation\n    uint8_t stack_buf[1024];\n    uint8_t* buffer = stack_buf;\n    std::vector<uint8_t> heap_buf;\n    \n    if (max_decoded_size > 1024) {\n        heap_buf.resize(max_decoded_size);\n        buffer = heap_buf.data();\n    }\n\n    // Use simdutf for high-performance base64 decoding\n    auto result = simdutf::base64::decode(input.data(), input.size(), buffer);\n    \n    if (result.error) {\n        // In case of decoding error, the contract implies we should handle it.\n        // Based on the baseline, we assume valid base64 or return 0/current hash.\n        return 0;\n    }\n\n    // Calculate FNV-1a style checksum over the decoded bytes\n    uint64_t hash = 1469598103934665603ULL;\n    const uint8_t* data = buffer;\n    size_t len = result.length;\n    \n    // Unroll loop for performance\n    while (len >= 8) {\n        hash ^= static_cast<uint64_t>(data[0]); hash *= 1099511628211ULL;\n        hash ^= static_cast<uint64_t>(data[1]); hash *= 1099511628211ULL;\n        hash ^= static_cast<uint64_t>(data[2]); hash *= 1099511628211ULL;\n        hash ^= static_cast<uint64_t>(data[3]); hash *= 1099511628211ULL;\n        hash ^= static_cast<uint64_t>(data[4]); hash *= 1099511628211ULL;\n        hash ^= static_cast<uint64_t>(data[5]); hash *= 1099511628211ULL;\n        hash ^= static_cast<uint64_t>(data[6]); hash *= 1099511628211ULL;\n        hash ^= static_cast<uint64_t>(data[7]); hash *= 1099511628211ULL;\n        data += 8;\n        len -= 8;\n    }\n    while (len--) {\n        hash ^= static_cast<uint64_t>(*data++);\n        hash *= 1099511628211ULL;\n    }\n\n    return hash;\n}",
+  "baseline": {
+    "task_id": "simdutf_base64_decode_v2500_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 44151,
+    "min_elapsed_ns": 44128,
+    "max_elapsed_ns": 44547,
+    "all_elapsed_ns": [
+      44151,
+      44128,
+      44547
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 44151,
+      "expected_checksum": 15585477267746685673,
+      "actual_checksum": 15585477267746685673
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdutf_base64_decode_v2500_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 27003,
+    "min_elapsed_ns": 24868,
+    "max_elapsed_ns": 58491,
+    "all_elapsed_ns": [
+      58491,
+      27003,
+      24868
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 58491,
+      "expected_checksum": 15585477267746685673,
+      "actual_checksum": 15585477267746685673
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdutf_base64_decode_v2500_h",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/simdutf_base64_decode_v2500_h/harness', '-Iexternal/simdutf/singleheader', 'executable_tasks/simdutf_base64_decode_v2500_h/harness/benchmark_main.cpp', 'executable_tasks/simdutf_base64_decode_v2500_h/candidate/google__gemma-4-31b-it/solution.cpp', 'external/simdutf/singleheader/simdutf.cpp', '-o', 'build/simdutf_base64_decode_v2500_h/candidate/bench']' returned non-zero exit status 1."
+  }
+}

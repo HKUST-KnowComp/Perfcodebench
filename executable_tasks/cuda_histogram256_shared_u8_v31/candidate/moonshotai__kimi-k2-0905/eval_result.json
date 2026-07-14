@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v31",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v31/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void histogram_shared_kernel(const unsigned char* __restrict__ input,\n                                        unsigned int* __restrict__ blockOut,\n                                        int n)\n{\n    __shared__ unsigned int warpHist[256];\n    const int warpId   = threadIdx.x >> 5;\n    const int laneId   = threadIdx.x & 31;\n    const int warpsPerBlock = blockDim.x >> 5;\n\n    // initialise shared memory\n    for (int i = threadIdx.x; i < 256; i += blockDim.x)\n        warpHist[i] = 0;\n    __syncthreads();\n\n    // each thread processes multiple elements\n    for (int idx = blockIdx.x * blockDim.x + threadIdx.x;\n         idx < n;\n         idx += gridDim.x * blockDim.x)\n    {\n        unsigned char val = input[idx];\n        // warp-aggregated increment: elect one lane to do the update\n        unsigned mask = __activemask();\n        unsigned ballot = __ballot_sync(mask, val == val); // all lanes participate\n        int leader = __ffs(mask) - 1;\n        if (laneId == leader)\n            warpHist[val] += __popc(ballot);\n    }\n    __syncthreads();\n\n    // write per-warp partial histogram to global memory\n    for (int i = threadIdx.x; i < 256; i += blockDim.x)\n        blockOut[blockIdx.x * 256 + i] = warpHist[i];\n}\n\n__global__ void reduce_blocks_kernel(const unsigned int* __restrict__ blockHist,\n                                     unsigned int* __restrict__ out,\n                                     int numBlocks)\n{\n    int bin = threadIdx.x + blockIdx.x * blockDim.x;\n    if (bin >= 256) return;\n\n    unsigned int sum = 0;\n    for (int b = 0; b < numBlocks; ++b)\n        sum += blockHist[b * 256 + bin];\n    out[bin] = sum;\n}\n\n} // anonymous namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters)\n{\n    const int threadsPerBlock = 256;\n    const int warpsPerBlock   = threadsPerBlock / 32;\n    // choose grid size to keep all SMs busy and provide enough parallelism\n    int blocks = (n + threadsPerBlock - 1) / threadsPerBlock;\n    const int maxBlocks = 1024;\n    if (blocks > maxBlocks) blocks = maxBlocks;\n\n    unsigned int* dBlockHist;\n    cudaMalloc(&dBlockHist, blocks * 256 * sizeof(unsigned int));\n\n    for (int iter = 0; iter < iters; ++iter)\n    {\n        histogram_shared_kernel<<<blocks, threadsPerBlock>>>(input, dBlockHist, n);\n        reduce_blocks_kernel<<<1, 256>>>(dBlockHist, output, blocks);\n    }\n    cudaFree(dBlockHist);\n}",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v31",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 518213989,
+    "min_elapsed_ns": 518179992,
+    "max_elapsed_ns": 518247497,
+    "all_elapsed_ns": [
+      518247497,
+      518179992,
+      518213989
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 518247497,
+      "checksum": 8623489024
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v31",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4977344,
+    "min_elapsed_ns": 4975200,
+    "max_elapsed_ns": 4991168,
+    "all_elapsed_ns": [
+      4977344,
+      4991168,
+      4975200
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4977344,
+      "checksum": 8623489024
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v31",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_histogram256_shared_u8_v31/candidate/bench']' timed out after 5 seconds"
+  }
+}

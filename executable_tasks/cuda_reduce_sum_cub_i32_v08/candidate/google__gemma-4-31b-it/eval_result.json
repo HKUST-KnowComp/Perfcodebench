@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_reduce_sum_cub_i32_v08",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_reduce_sum_cub_i32_v08/candidate/google__gemma-4-31b-it/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void reduce_sum_kernel(const int* __restrict__ input, int* __restrict__ output, int n) {\n    // Use shared memory for block-level reduction\n    extern __shared__ int sdata[];\n\n    int tid = threadIdx.x;\n    int block_sum = 0;\n\n    // Grid-stride loop to process all elements\n    for (int i = blockIdx.x * blockDim.x + tid; i < n; i += blockDim.x * gridDim.x) {\n        block_sum += input[i];\n    }\n\n    // Warp-level reduction\n    for (int offset = 16; offset > 0; offset /= 2) {\n        block_sum += __shfl_down_sync(0xFFFFFFFF, block_sum, offset);\n    }\n\n    // Store warp results in shared memory\n    if ((tid & 31) == 0) {\n        sdata[tid / 32] = block_sum;\n    }\n\n    __syncthreads();\n\n    // Final reduction of the shared memory results by the first warp\n    if (tid < 32) {\n        int final_block_sum = (tid < (blockDim.x / 32)) ? sdata[tid] : 0;\n        for (int offset = 16; offset > 0; offset /= 2) {\n            final_block_sum += __shfl_down_sync(0xFFFFFFFF, final_block_sum, offset);\n        }\n        if (tid == 0) {\n            atomicAdd(output, final_block_sum);\n        }\n    }\n}\n\n} // namespace\n\nvoid reduce_sum_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0) return;\n\n    const int block_size = 256;\n    // Calculate grid size to saturate GPU (approx 2-4 blocks per SM)\n    int grid_size = (n + block_size - 1) / block_size;\n    if (grid_size > 1024) grid_size = 1024;\n\n    // Shared memory size: one int per warp\n    size_t shared_mem_size = (block_size / 32) * sizeof(int);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemsetAsync(output, 0, sizeof(int), 0);\n        reduce_sum_kernel<<<grid_size, block_size, shared_mem_size>>>(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_reduce_sum_cub_i32_v08",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 32290622,
+    "min_elapsed_ns": 32272254,
+    "max_elapsed_ns": 32308769,
+    "all_elapsed_ns": [
+      32272254,
+      32290622,
+      32308769
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 32272254,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_reduce_sum_cub_i32_v08",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2191103,
+    "min_elapsed_ns": 2141920,
+    "max_elapsed_ns": 3004832,
+    "all_elapsed_ns": [
+      2141920,
+      3004832,
+      2191103
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2141920,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_reduce_sum_cub_i32_v08",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_reduce_sum_cub_i32_v08/candidate/bench']' timed out after 5 seconds"
+  }
+}

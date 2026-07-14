@@ -1,0 +1,72 @@
+{
+  "task_id": "beam_search_topk_v1800_b",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v1800_b/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <vector>\n\nnamespace {\n\nstruct Item {\n    int32_t score;\n    int index;\n\n    // Deterministic tie-breaking: higher score first, then lower index\n    bool operator>(const Item& other) const {\n        if (score != other.score) return score > other.score;\n        return index < other.index;\n    }\n};\n\nuint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n} // namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits, int beams, int vocab, int topk, int iters) {\n    std::vector<Item> row(vocab);\n    uint64_t hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        hash = 1469598103934665603ULL;\n        for (int b = 0; b < beams; ++b) {\n            const size_t base = static_cast<size_t>(b) * vocab;\n            \n            // Fill row buffer\n            for (int v = 0; v < vocab; ++v) {\n                row[v] = {logits[base + v], v};\n            }\n\n            // Use nth_element to partition the top-k elements\n            // We want the first 'topk' elements to be the largest\n            std::nth_element(row.begin(), row.begin() + topk, row.end(), [](const Item& a, const Item& b) {\n                return a > b; // a is \"better\" than b\n            });\n\n            // The first topk elements are now the top-k, but not necessarily sorted\n            // The reference implementation uses std::sort, so we must sort the top-k subset\n            std::sort(row.begin(), row.begin() + topk, [](const Item& a, const Item& b) {\n                return a > b;\n            });\n\n            for (int k = 0; k < topk; ++k) {\n                hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(row[k].score)));\n                hash = mix(hash, static_cast<uint64_t>(row[k].index));\n            }\n        }\n    }\n    return hash;\n}",
+  "baseline": {
+    "task_id": "beam_search_topk_v1800_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 307590653,
+    "min_elapsed_ns": 289868030,
+    "max_elapsed_ns": 311430170,
+    "all_elapsed_ns": [
+      311430170,
+      289868030,
+      307590653
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 311430170,
+      "expected_checksum": 18022694749003232885,
+      "actual_checksum": 18022694749003232885
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v1800_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 6025385,
+    "min_elapsed_ns": 5535236,
+    "max_elapsed_ns": 6490596,
+    "all_elapsed_ns": [
+      5535236,
+      6490596,
+      6025385
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5535236,
+      "expected_checksum": 18022694749003232885,
+      "actual_checksum": 18022694749003232885
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v1800_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 44543129,
+    "min_elapsed_ns": 43692644,
+    "max_elapsed_ns": 51637677,
+    "all_elapsed_ns": [
+      43692644,
+      44543129,
+      51637677
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 43692644,
+      "expected_checksum": 18022694749003232885,
+      "actual_checksum": 18022694749003232885
+    },
+    "status": "ok"
+  }
+}

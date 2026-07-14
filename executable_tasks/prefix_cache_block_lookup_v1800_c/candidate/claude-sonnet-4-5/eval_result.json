@@ -1,0 +1,59 @@
+{
+  "task_id": "prefix_cache_block_lookup_v1800_c",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup_v1800_c/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n\n#ifdef __SSE2__\n#include <emmintrin.h>\n#endif\n\nnamespace {\n\nuint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n// Galloping search: exponential search followed by binary search\ninline const uint32_t* galloping_search(\n    const uint32_t* begin,\n    const uint32_t* end,\n    uint32_t value) {\n  const uint32_t* base = begin;\n  std::size_t size = end - begin;\n  \n  if (size == 0 || value < *base) return end;\n  \n  // Exponential search phase\n  std::size_t step = 1;\n  while (step < size && base[step] < value) {\n    step <<= 1;\n  }\n  \n  // Binary search in the bounded range\n  std::size_t left = step >> 1;\n  std::size_t right = (step < size) ? step : size - 1;\n  \n  while (left <= right) {\n    std::size_t mid = left + ((right - left) >> 1);\n    if (base[mid] < value) {\n      left = mid + 1;\n    } else if (base[mid] > value) {\n      if (mid == 0) break;\n      right = mid - 1;\n    } else {\n      return base + mid;\n    }\n  }\n  \n  return (left < size && base[left] == value) ? (base + left) : end;\n}\n\n// SIMD-accelerated linear search for small arrays\ninline bool simd_contains(const uint32_t* data, std::size_t size, uint32_t value) {\n#ifdef __SSE2__\n  if (size >= 4) {\n    __m128i target = _mm_set1_epi32(value);\n    std::size_t i = 0;\n    for (; i + 4 <= size; i += 4) {\n      __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + i));\n      __m128i cmp = _mm_cmpeq_epi32(chunk, target);\n      if (_mm_movemask_epi8(cmp) != 0) {\n        return true;\n      }\n    }\n    // Check remaining elements\n    for (; i < size; ++i) {\n      if (data[i] == value) return true;\n    }\n    return false;\n  }\n#endif\n  // Fallback for small sizes or no SSE2\n  for (std::size_t i = 0; i < size; ++i) {\n    if (data[i] == value) return true;\n  }\n  return false;\n}\n\n}  // namespace\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t hash_space,\n    int iters) {\n  (void)hash_space;\n  \n  const uint32_t* cache_begin = sorted_cache_keys.data();\n  const uint32_t* cache_end = cache_begin + sorted_cache_keys.size();\n  const std::size_t cache_size = sorted_cache_keys.size();\n  const uint32_t* req_data = request_blocks.data();\n  \n  // Use linear/SIMD search for small caches\n  const bool use_linear = cache_size < 64;\n  \n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    \n    for (std::size_t r = 0; r + 1 < request_offsets.size(); ++r) {\n      const int start = request_offsets[r];\n      const int end = request_offsets[r + 1];\n      uint64_t prefix = 0;\n      \n      const uint32_t* search_start = cache_begin;\n      \n      for (int i = start; i < end; ++i) {\n        const uint32_t block = req_data[i];\n        \n        // Prefetch next block\n        if (i + 1 < end) {\n          __builtin_prefetch(&req_data[i + 1], 0, 3);\n        }\n        \n        bool found;\n        if (use_linear) {\n          found = simd_contains(cache_begin, cache_size, block);\n        } else {\n          // Use galloping search with hint from previous position\n          const uint32_t* result = galloping_search(search_start, cache_end, block);\n          found = (result != cache_end && *result == block);\n          if (found) {\n            search_start = result;\n          }\n        }\n        \n        if (!found) break;\n        ++prefix;\n      }\n      \n      hash = mix(hash, prefix);\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup_v1800_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1052360788,
+    "min_elapsed_ns": 1051266302,
+    "max_elapsed_ns": 1102572145,
+    "all_elapsed_ns": [
+      1052360788,
+      1051266302,
+      1102572145
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1052360788,
+      "expected_checksum": 11113062817540119305,
+      "actual_checksum": 11113062817540119305
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup_v1800_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8804401,
+    "min_elapsed_ns": 7540996,
+    "max_elapsed_ns": 10122560,
+    "all_elapsed_ns": [
+      8804401,
+      7540996,
+      10122560
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8804401,
+      "expected_checksum": 11113062817540119305,
+      "actual_checksum": 11113062817540119305
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup_v1800_c",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/prefix_cache_block_lookup_v1800_c/candidate/bench']' returned non-zero exit status 1."
+  }
+}

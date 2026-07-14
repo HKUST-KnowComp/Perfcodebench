@@ -1,0 +1,72 @@
+{
+  "task_id": "top1_per_group_checksum_v500_a",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/top1_per_group_checksum_v500_a/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstring>\n#include <immintrin.h>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t top1_group_hash(\n    const std::vector<uint32_t>& groups,\n    const std::vector<uint32_t>& values,\n    uint32_t group_count,\n    int iters) {\n  \n  std::vector<uint32_t> best(group_count, 0);\n  uint64_t hash = 0;\n  const size_t n = groups.size();\n  const uint32_t* __restrict g_ptr = groups.data();\n  const uint32_t* __restrict v_ptr = values.data();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    std::memset(best.data(), 0, group_count * sizeof(uint32_t));\n    uint32_t* __restrict b_ptr = best.data();\n    \n    size_t i = 0;\n    \n#if defined(__AVX2__)\n    // Process 8 elements at a time using AVX2 gather\n    const size_t simd_end = (n / 8) * 8;\n    for (; i < simd_end; i += 8) {\n      __m256i grp = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(g_ptr + i));\n      __m256i val = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(v_ptr + i));\n      __m256i cur = _mm256_i32gather_epi32(reinterpret_cast<const int*>(b_ptr), grp, 4);\n      __m256i new_max = _mm256_max_epu32(cur, val);\n      \n      // Check if any updates needed\n      __m256i changed = _mm256_xor_si256(cur, new_max);\n      if (!_mm256_testz_si256(changed, changed)) {\n        // Scalar fallback for scatter (AVX2 doesn't have scatter)\n        alignas(32) uint32_t grp_arr[8];\n        alignas(32) uint32_t max_arr[8];\n        _mm256_store_si256(reinterpret_cast<__m256i*>(grp_arr), grp);\n        _mm256_store_si256(reinterpret_cast<__m256i*>(max_arr), new_max);\n        \n        for (int j = 0; j < 8; ++j) {\n          uint32_t g = grp_arr[j];\n          uint32_t v = max_arr[j];\n          if (v > b_ptr[g]) b_ptr[g] = v;\n        }\n      }\n    }\n#endif\n    \n    // Scalar remainder\n    for (; i < n; ++i) {\n      uint32_t g = g_ptr[i];\n      uint32_t v = v_ptr[i];\n      if (v > b_ptr[g]) {\n        b_ptr[g] = v;\n      }\n    }\n    \n    // Compute hash\n    hash = 1469598103934665603ULL;\n    for (uint32_t g = 0; g < group_count; ++g) {\n      hash = mix(hash, b_ptr[g]);\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "top1_per_group_checksum_v500_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 387693835,
+    "min_elapsed_ns": 364591818,
+    "max_elapsed_ns": 460390575,
+    "all_elapsed_ns": [
+      387693835,
+      364591818,
+      460390575
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 387693835,
+      "expected_checksum": 17113875191048831977,
+      "actual_checksum": 17113875191048831977
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "top1_per_group_checksum_v500_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 99422660,
+    "min_elapsed_ns": 93241181,
+    "max_elapsed_ns": 99777160,
+    "all_elapsed_ns": [
+      93241181,
+      99777160,
+      99422660
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 93241181,
+      "expected_checksum": 17113875191048831977,
+      "actual_checksum": 17113875191048831977
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "top1_per_group_checksum_v500_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 83566429,
+    "min_elapsed_ns": 81572011,
+    "max_elapsed_ns": 85809926,
+    "all_elapsed_ns": [
+      83566429,
+      81572011,
+      85809926
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 83566429,
+      "expected_checksum": 17113875191048831977,
+      "actual_checksum": 17113875191048831977
+    },
+    "status": "ok"
+  }
+}

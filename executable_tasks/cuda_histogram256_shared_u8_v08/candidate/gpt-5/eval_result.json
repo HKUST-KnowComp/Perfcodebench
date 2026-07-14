@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v08",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v08/candidate/gpt-5/solution.cu",
+  "benchmark_timeout_sec": 6,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void histogram_shared_warp_kernel(const unsigned char* __restrict__ input,\n                                             unsigned int* __restrict__ output,\n                                             int n) {\n  extern __shared__ unsigned int s_hist[];  // size: 256 * warp_count\n\n  const int tid = threadIdx.x;\n  const int block_threads = blockDim.x;\n  const int warp_count = (block_threads + 31) >> 5;  // number of warps in block\n\n  // Zero shared histograms (per-warp privatized)\n  for (int i = tid; i < 256 * warp_count; i += block_threads) {\n    s_hist[i] = 0u;\n  }\n  __syncthreads();\n\n  // Accumulate into per-warp shared histograms\n  const int warp_id = tid >> 5;  // 0..warp_count-1\n  unsigned int* warp_hist = s_hist + warp_id * 256;\n\n  int idx = blockIdx.x * block_threads + tid;\n  const int stride = block_threads * gridDim.x;\n\n  while (idx < n) {\n    unsigned char v = input[idx];\n    atomicAdd(&warp_hist[(int)v], 1u);\n    idx += stride;\n  }\n\n  __syncthreads();\n\n  // Reduce per-warp histograms and update global output\n  for (int bin = tid; bin < 256; bin += block_threads) {\n    unsigned int sum = 0u;\n#pragma unroll\n    for (int w = 0; w < 32; ++w) {  // unroll upper bound; condition guards excess\n      if (w < warp_count) {\n        sum += s_hist[w * 256 + bin];\n      }\n    }\n    if (sum) {\n      atomicAdd(&output[bin], sum);\n    }\n  }\n}\n\n}  // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters) {\n  constexpr int kBlock = 256;\n  // Scale grid with problem size but cap to limit end-of-kernel atomic traffic\n  int grid = (n + kBlock - 1) / kBlock;\n  if (grid <= 0) grid = 1;\n  if (grid > 1024) grid = 1024;\n\n  const int warp_count = (kBlock + 31) / 32;\n  const size_t shmem_bytes = static_cast<size_t>(256 * warp_count) * sizeof(unsigned int);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    cudaMemset(output, 0, 256 * sizeof(unsigned int));\n    histogram_shared_warp_kernel<<<grid, kBlock, shmem_bytes>>>(input, output, n);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v08",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1033982421,
+    "min_elapsed_ns": 1033971557,
+    "max_elapsed_ns": 1034044311,
+    "all_elapsed_ns": [
+      1033971557,
+      1033982421,
+      1034044311
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1033971557,
+      "checksum": 8623489024
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v08",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 9977408,
+    "min_elapsed_ns": 9960384,
+    "max_elapsed_ns": 9978688,
+    "all_elapsed_ns": [
+      9978688,
+      9960384,
+      9977408
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9978688,
+      "checksum": 8623489024
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v08",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_histogram256_shared_u8_v08/candidate/bench']' timed out after 6 seconds"
+  }
+}

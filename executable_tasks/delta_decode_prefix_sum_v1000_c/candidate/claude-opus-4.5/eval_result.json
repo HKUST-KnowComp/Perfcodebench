@@ -1,0 +1,72 @@
+{
+  "task_id": "delta_decode_prefix_sum_v1000_c",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/delta_decode_prefix_sum_v1000_c/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nuint64_t delta_prefix_sum(const std::vector<uint32_t>& deltas, uint32_t base, int iters) {\n    const std::size_t n = deltas.size();\n    const uint32_t* __restrict data = deltas.data();\n    \n    // Compute the sum once using closed-form:\n    // prefix[i] = base + delta[0] + delta[1] + ... + delta[i]\n    // sum of all prefix[i] = n*base + sum_{i=0}^{n-1} delta[i]*(n-i)\n    //                      = n*base + sum_{i=0}^{n-1} delta[i]*n - sum_{i=0}^{n-1} delta[i]*i\n    // Let S = sum of deltas, W = sum of delta[i]*i\n    // Result = n*base + n*S - W = n*(base + S) - W\n    \n    uint64_t S = 0;  // sum of deltas\n    uint64_t W = 0;  // weighted sum: sum of delta[i] * i\n    \n    std::size_t i = 0;\n    const std::size_t unroll = 4;\n    const std::size_t limit = n - (n % unroll);\n    \n    // Unrolled loop for better ILP\n    for (; i < limit; i += unroll) {\n        uint64_t d0 = data[i];\n        uint64_t d1 = data[i + 1];\n        uint64_t d2 = data[i + 2];\n        uint64_t d3 = data[i + 3];\n        \n        S += d0 + d1 + d2 + d3;\n        W += d0 * i + d1 * (i + 1) + d2 * (i + 2) + d3 * (i + 3);\n    }\n    \n    // Handle remainder\n    for (; i < n; ++i) {\n        uint64_t d = data[i];\n        S += d;\n        W += d * i;\n    }\n    \n    uint64_t result = n * (static_cast<uint64_t>(base) + S) - W;\n    \n    // The iters parameter requires us to \"run\" the computation iters times.\n    // Since the result is deterministic, we can just return it.\n    // But we need to ensure the compiler doesn't optimize away the iters requirement.\n    // Looking at the baseline, it recomputes sum each iteration and returns the last.\n    // Since result is the same each time, we just return it.\n    // To honor the contract and ensure timing reflects iters iterations:\n    \n    if (iters <= 0) return 0;\n    \n    // For iters > 1, we need to actually iterate to match timing expectations\n    // But mathematically the result is always the same\n    // The baseline overwrites sum each iteration, so final result = single iteration result\n    \n    // To ensure the loop isn't optimized away while keeping it fast:\n    uint64_t final_result = result;\n    for (int iter = 1; iter < iters; ++iter) {\n        // Recompute to prevent optimization, but use the fast method\n        uint64_t s = 0, w = 0;\n        std::size_t j = 0;\n        for (; j < limit; j += unroll) {\n            uint64_t d0 = data[j];\n            uint64_t d1 = data[j + 1];\n            uint64_t d2 = data[j + 2];\n            uint64_t d3 = data[j + 3];\n            s += d0 + d1 + d2 + d3;\n            w += d0 * j + d1 * (j + 1) + d2 * (j + 2) + d3 * (j + 3);\n        }\n        for (; j < n; ++j) {\n            uint64_t d = data[j];\n            s += d;\n            w += d * j;\n        }\n        final_result = n * (static_cast<uint64_t>(base) + s) - w;\n    }\n    \n    return final_result;\n}",
+  "baseline": {
+    "task_id": "delta_decode_prefix_sum_v1000_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 145695407,
+    "min_elapsed_ns": 108501045,
+    "max_elapsed_ns": 146565372,
+    "all_elapsed_ns": [
+      145695407,
+      108501045,
+      146565372
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 145695407,
+      "expected_sum": 21990312247296,
+      "actual_sum": 21990312247296
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "delta_decode_prefix_sum_v1000_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 50630881,
+    "min_elapsed_ns": 43939981,
+    "max_elapsed_ns": 55501618,
+    "all_elapsed_ns": [
+      55501618,
+      50630881,
+      43939981
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 55501618,
+      "expected_sum": 21990312247296,
+      "actual_sum": 21990312247296
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "delta_decode_prefix_sum_v1000_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 30438185,
+    "min_elapsed_ns": 26880228,
+    "max_elapsed_ns": 33861721,
+    "all_elapsed_ns": [
+      26880228,
+      30438185,
+      33861721
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 26880228,
+      "expected_sum": 21990312247296,
+      "actual_sum": 21990312247296
+    },
+    "status": "ok"
+  }
+}

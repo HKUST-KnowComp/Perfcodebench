@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_id_remap_checksum_v500_g",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_id_remap_checksum_v500_g/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 6,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t remap_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& probes,\n    int iters) {\n  if (keys.empty()) return 0;\n\n  // Find the range of keys to build a lookup table\n  uint32_t max_key = keys.back();\n  std::vector<uint32_t> lookup(max_key + 1);\n\n  // Fill the lookup table. Since keys are sorted (implied by lower_bound usage),\n  // we can fill the gaps to simulate lower_bound behavior.\n  size_t current_val_idx = 0;\n  for (uint32_t i = 0; i <= max_key; ++i) {\n    if (current_val_idx < keys.size() && keys[current_val_idx] == i) {\n      lookup[i] = values[current_val_idx];\n      current_val_idx++;\n    } else if (current_val_idx < keys.size()) {\n      // This part handles the 'lower_bound' logic: \n      // if i is not in keys, it should map to the value of the first key > i\n      lookup[i] = values[current_val_idx];\n    } else {\n      // If i > all keys, lower_bound returns keys.end(), which is index keys.size()\n      // The original code accessed values[keys.size()], which is UB unless values is larger.\n      // However, based on the baseline, we assume values[idx] is valid.\n      lookup[i] = values[keys.size()];\n    }\n  }\n\n  uint64_t final_hash = 0;\n  const uint32_t* probe_ptr = probes.data();\n  size_t probe_size = probes.size();\n  const uint32_t* lookup_ptr = lookup.data();\n  uint32_t lookup_limit = (uint32_t)lookup.size();\n  uint32_t fallback_val = values[keys.size()];\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (size_t i = 0; i < probe_size; ++i) {\n      uint32_t p = probe_ptr[i];\n      uint32_t val = (p < lookup_limit) ? lookup_ptr[p] : fallback_val;\n      hash = mix(hash, val);\n    }\n    final_hash = hash;\n  }\n  return final_hash;\n}",
+  "baseline": {
+    "task_id": "dense_id_remap_checksum_v500_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3262545271,
+    "min_elapsed_ns": 3111421053,
+    "max_elapsed_ns": 3291147157,
+    "all_elapsed_ns": [
+      3111421053,
+      3262545271,
+      3291147157
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3111421053,
+      "expected_checksum": 1205880907917755267,
+      "actual_checksum": 1205880907917755267
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_id_remap_checksum_v500_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 48351225,
+    "min_elapsed_ns": 47052637,
+    "max_elapsed_ns": 49045199,
+    "all_elapsed_ns": [
+      47052637,
+      49045199,
+      48351225
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 47052637,
+      "expected_checksum": 1205880907917755267,
+      "actual_checksum": 1205880907917755267
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_id_remap_checksum_v500_g",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 48046315,
+    "min_elapsed_ns": 47621743,
+    "max_elapsed_ns": 49345584,
+    "all_elapsed_ns": [
+      47621743,
+      48046315,
+      49345584
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 47621743,
+      "expected_checksum": 1205880907917755267,
+      "actual_checksum": 1205880907917755267
+    },
+    "status": "ok"
+  }
+}

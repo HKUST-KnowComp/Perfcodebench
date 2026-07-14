@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v21",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v21/candidate/google__gemini-3.1-pro-preview/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void histogram_shared_kernel(const unsigned char* __restrict__ input, unsigned int* __restrict__ output, int n) {\n    // Use shared memory for local histogram to reduce global atomic contention\n    __shared__ unsigned int local_hist[256];\n\n    // Initialize shared memory\n    local_hist[threadIdx.x] = 0;\n    __syncthreads();\n\n    const int tid = blockIdx.x * blockDim.x + threadIdx.x;\n    const int stride = blockDim.x * gridDim.x;\n\n    // Vectorized processing: read 4 bytes at a time to maximize memory throughput\n    const uint4* input_v4 = reinterpret_cast<const uint4*>(input);\n    int n_v4 = n / 16;\n    \n    for (int i = tid; i < n_v4; i += stride) {\n        uint4 data = input_v4[i];\n        \n        // Process 16 bytes per iteration\n        atomicAdd(&local_hist[(data.x >> 0) & 0xFF], 1);\n        atomicAdd(&local_hist[(data.x >> 8) & 0xFF], 1);\n        atomicAdd(&local_hist[(data.x >> 16) & 0xFF], 1);\n        atomicAdd(&local_hist[(data.x >> 24) & 0xFF], 1);\n\n        atomicAdd(&local_hist[(data.y >> 0) & 0xFF], 1);\n        atomicAdd(&local_hist[(data.y >> 8) & 0xFF], 1);\n        atomicAdd(&local_hist[(data.y >> 16) & 0xFF], 1);\n        atomicAdd(&local_hist[(data.y >> 24) & 0xFF], 1);\n\n        atomicAdd(&local_hist[(data.z >> 0) & 0xFF], 1);\n        atomicAdd(&local_hist[(data.z >> 8) & 0xFF], 1);\n        atomicAdd(&local_hist[(data.z >> 16) & 0xFF], 1);\n        atomicAdd(&local_hist[(data.z >> 24) & 0xFF], 1);\n\n        atomicAdd(&local_hist[(data.w >> 0) & 0xFF], 1);\n        atomicAdd(&local_hist[(data.w >> 8) & 0xFF], 1);\n        atomicAdd(&local_hist[(data.w >> 16) & 0xFF], 1);\n        atomicAdd(&local_hist[(data.w >> 24) & 0xFF], 1);\n    }\n\n    // Handle remaining bytes if n is not a multiple of 16\n    int processed = n_v4 * 16;\n    for (int i = processed + tid; i < n; i += stride) {\n        atomicAdd(&local_hist[input[i]], 1);\n    }\n\n    __syncthreads();\n\n    // Merge local histogram into global memory\n    atomicAdd(&output[threadIdx.x], local_hist[threadIdx.x]);\n}\n\n} // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters) {\n    const int threads = 256;\n    // Heuristic for grid size based on occupancy and input size\n    const int blocks = (n + (threads * 16) - 1) / (threads * 16);\n    const int grid = (blocks > 1024) ? 1024 : (blocks < 1 ? 1 : blocks);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, 256 * sizeof(unsigned int));\n        histogram_shared_kernel<<<grid, threads>>>(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v21",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 64656066,
+    "min_elapsed_ns": 64652832,
+    "max_elapsed_ns": 64656478,
+    "all_elapsed_ns": [
+      64656478,
+      64656066,
+      64652832
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 64656478,
+      "checksum": 1077936128
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v21",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 463712,
+    "min_elapsed_ns": 462687,
+    "max_elapsed_ns": 465312,
+    "all_elapsed_ns": [
+      462687,
+      463712,
+      465312
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 462687,
+      "checksum": 1077936128
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v21",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_histogram256_shared_u8_v21/candidate/bench']' timed out after 5 seconds"
+  }
+}

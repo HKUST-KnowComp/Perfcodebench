@@ -1,0 +1,72 @@
+{
+  "task_id": "prefix_cache_block_lookup_v2000_f",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup_v2000_f/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <cstring>\n#include <vector>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t hash_space,\n    int iters) {\n\n  // Build a bitmap for O(1) lookup if hash_space is reasonable\n  // Use 64-bit words for the bitmap\n  const uint64_t bitmap_bits = static_cast<uint64_t>(hash_space);\n  const std::size_t bitmap_words = (bitmap_bits + 63) / 64;\n  \n  // Threshold: if bitmap would be too large (>64MB), fall back to binary search\n  // But typically hash_space should be manageable\n  const std::size_t max_bitmap_bytes = 64ULL * 1024 * 1024;\n  \n  std::vector<uint64_t> bitmap;\n  bool use_bitmap = (bitmap_words * sizeof(uint64_t) <= max_bitmap_bytes);\n  \n  if (use_bitmap) {\n    bitmap.resize(bitmap_words, 0);\n    for (uint32_t key : sorted_cache_keys) {\n      if (key < hash_space) {\n        bitmap[key >> 6] |= (1ULL << (key & 63));\n      }\n    }\n  }\n\n  const std::size_t num_requests = request_offsets.size() > 0 ? request_offsets.size() - 1 : 0;\n  const uint32_t* blocks_ptr = request_blocks.data();\n  const int* offsets_ptr = request_offsets.data();\n  const uint64_t* bitmap_ptr = use_bitmap ? bitmap.data() : nullptr;\n  const uint32_t* cache_begin = sorted_cache_keys.data();\n  const uint32_t* cache_end = cache_begin + sorted_cache_keys.size();\n\n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    \n    if (use_bitmap) {\n      for (std::size_t r = 0; r < num_requests; ++r) {\n        int start = offsets_ptr[r];\n        int end = offsets_ptr[r + 1];\n        uint64_t prefix = 0;\n        \n        for (int i = start; i < end; ++i) {\n          uint32_t key = blocks_ptr[static_cast<std::size_t>(i)];\n          // Check bitmap\n          uint64_t word_idx = key >> 6;\n          uint64_t bit_mask = 1ULL << (key & 63);\n          if ((bitmap_ptr[word_idx] & bit_mask) == 0) {\n            break;\n          }\n          ++prefix;\n        }\n        \n        hash = mix(hash, prefix);\n      }\n    } else {\n      // Fallback to binary search for very large hash spaces\n      for (std::size_t r = 0; r < num_requests; ++r) {\n        int start = offsets_ptr[r];\n        int end = offsets_ptr[r + 1];\n        uint64_t prefix = 0;\n        \n        for (int i = start; i < end; ++i) {\n          uint32_t key = blocks_ptr[static_cast<std::size_t>(i)];\n          if (!std::binary_search(cache_begin, cache_end, key)) {\n            break;\n          }\n          ++prefix;\n        }\n        \n        hash = mix(hash, prefix);\n      }\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup_v2000_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 157110397,
+    "min_elapsed_ns": 156032549,
+    "max_elapsed_ns": 166683324,
+    "all_elapsed_ns": [
+      157110397,
+      156032549,
+      166683324
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 157110397,
+      "expected_checksum": 11548637948046092892,
+      "actual_checksum": 11548637948046092892
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup_v2000_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5136391,
+    "min_elapsed_ns": 5079776,
+    "max_elapsed_ns": 7723725,
+    "all_elapsed_ns": [
+      7723725,
+      5136391,
+      5079776
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7723725,
+      "expected_checksum": 11548637948046092892,
+      "actual_checksum": 11548637948046092892
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup_v2000_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 5875650,
+    "min_elapsed_ns": 4670127,
+    "max_elapsed_ns": 6674795,
+    "all_elapsed_ns": [
+      4670127,
+      6674795,
+      5875650
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4670127,
+      "expected_checksum": 11548637948046092892,
+      "actual_checksum": 11548637948046092892
+    },
+    "status": "ok"
+  }
+}

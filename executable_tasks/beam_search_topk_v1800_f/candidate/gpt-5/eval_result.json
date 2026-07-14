@@ -1,0 +1,72 @@
+{
+  "task_id": "beam_search_topk_v1800_f",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v1800_f/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nstruct BetterIdx {\n  const int32_t* row;\n  inline bool operator()(int a, int b) const noexcept {\n    const int32_t va = row[a];\n    const int32_t vb = row[b];\n    return (va > vb) || (va == vb && a < b);\n  }\n};\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits, int beams, int vocab, int topk, int iters) {\n  const std::size_t s_beams = static_cast<std::size_t>(beams);\n  const std::size_t s_vocab = static_cast<std::size_t>(vocab);\n  const std::size_t row_stride = s_vocab;\n\n  uint64_t hash = 0;\n\n  // Preallocate index buffer once; reused per beam\n  std::vector<int> idx;\n  idx.resize(s_vocab);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL; // FNV-1a offset basis\n\n    if (topk == 1) {\n      // Fast path for top-1: single pass argmax with deterministic tie-breaking\n      for (std::size_t b = 0; b < s_beams; ++b) {\n        const int32_t* row = logits.data() + b * row_stride;\n        int best_i = 0;\n        int32_t best_v = row[0];\n        for (std::size_t v = 1; v < s_vocab; ++v) {\n          const int32_t val = row[v];\n          if (val > best_v) {\n            best_v = val;\n            best_i = static_cast<int>(v);\n          }\n          // On ties (val == best_v), smaller index wins; since v increases, do nothing\n        }\n        hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(best_v)));\n        hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(best_i)));\n      }\n      continue;\n    }\n\n    const int use_topk = topk; // assume valid input (topk <= vocab)\n\n    for (std::size_t b = 0; b < s_beams; ++b) {\n      // Initialize indices 0..vocab-1\n      for (std::size_t v = 0; v < s_vocab; ++v) idx[v] = static_cast<int>(v);\n\n      const int32_t* row = logits.data() + b * row_stride;\n      BetterIdx comp{row};\n\n      // Place the top-k best (by comp) at the beginning in sorted order\n      std::partial_sort(idx.begin(), idx.begin() + use_topk, idx.end(), comp);\n\n      for (int k = 0; k < use_topk; ++k) {\n        const int id = idx[static_cast<std::size_t>(k)];\n        const int32_t score = row[id];\n        hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(score)));\n        hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(id)));\n      }\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "beam_search_topk_v1800_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 177572892,
+    "min_elapsed_ns": 163240813,
+    "max_elapsed_ns": 202693272,
+    "all_elapsed_ns": [
+      202693272,
+      177572892,
+      163240813
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 202693272,
+      "expected_checksum": 10132284384874256058,
+      "actual_checksum": 10132284384874256058
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v1800_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4938358,
+    "min_elapsed_ns": 4853624,
+    "max_elapsed_ns": 6120993,
+    "all_elapsed_ns": [
+      6120993,
+      4853624,
+      4938358
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6120993,
+      "expected_checksum": 10132284384874256058,
+      "actual_checksum": 10132284384874256058
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v1800_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 5836771,
+    "min_elapsed_ns": 5798403,
+    "max_elapsed_ns": 6038345,
+    "all_elapsed_ns": [
+      6038345,
+      5798403,
+      5836771
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6038345,
+      "expected_checksum": 10132284384874256058,
+      "actual_checksum": 10132284384874256058
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "selection_vector_gather_sum_v1000_b",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/selection_vector_gather_sum_v1000_b/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n\nuint64_t selection_gather_sum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint8_t>& flags,\n    const std::vector<uint32_t>& payloads,\n    uint32_t threshold,\n    int iters) {\n  const std::size_t n = keys.size();\n  uint64_t sum = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    \n    // Process in blocks of 4 for better instruction-level parallelism\n    std::size_t i = 0;\n    const std::size_t block_end = n - (n % 4);\n    \n    for (; i < block_end; i += 4) {\n      // Prefetch next cache lines\n      __builtin_prefetch(&keys[i + 64], 0, 0);\n      __builtin_prefetch(&flags[i + 64], 0, 0);\n      __builtin_prefetch(&payloads[i + 64], 0, 0);\n      \n      // Unroll 4 iterations\n      uint32_t k0 = keys[i];\n      uint32_t k1 = keys[i + 1];\n      uint32_t k2 = keys[i + 2];\n      uint32_t k3 = keys[i + 3];\n      \n      uint8_t f0 = flags[i];\n      uint8_t f1 = flags[i + 1];\n      uint8_t f2 = flags[i + 2];\n      uint8_t f3 = flags[i + 3];\n      \n      // Branchless predicate evaluation using bitwise operations\n      // Convert boolean conditions to 0 or 1, then multiply\n      uint32_t mask0 = (f0 != 0) & (k0 < threshold) & ((k0 & 7u) == 0u);\n      uint32_t mask1 = (f1 != 0) & (k1 < threshold) & ((k1 & 7u) == 0u);\n      uint32_t mask2 = (f2 != 0) & (k2 < threshold) & ((k2 & 7u) == 0u);\n      uint32_t mask3 = (f3 != 0) & (k3 < threshold) & ((k3 & 7u) == 0u);\n      \n      // Conditional accumulation using mask (0 or 0xFFFFFFFF)\n      mask0 = -mask0;\n      mask1 = -mask1;\n      mask2 = -mask2;\n      mask3 = -mask3;\n      \n      sum += (static_cast<uint64_t>(payloads[i]) & mask0);\n      sum += (static_cast<uint64_t>(payloads[i + 1]) & mask1);\n      sum += (static_cast<uint64_t>(payloads[i + 2]) & mask2);\n      sum += (static_cast<uint64_t>(payloads[i + 3]) & mask3);\n    }\n    \n    // Handle remaining elements\n    for (; i < n; ++i) {\n      uint32_t k = keys[i];\n      uint8_t f = flags[i];\n      uint32_t mask = (f != 0) & (k < threshold) & ((k & 7u) == 0u);\n      mask = -mask;\n      sum += (static_cast<uint64_t>(payloads[i]) & mask);\n    }\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "selection_vector_gather_sum_v1000_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2597951990,
+    "min_elapsed_ns": 2477570170,
+    "max_elapsed_ns": 3126105115,
+    "all_elapsed_ns": [
+      2597951990,
+      3126105115,
+      2477570170
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2597951990,
+      "expected_sum": 34359077208,
+      "actual_sum": 34359077208
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "selection_vector_gather_sum_v1000_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2464868951,
+    "min_elapsed_ns": 2237162802,
+    "max_elapsed_ns": 2689240396,
+    "all_elapsed_ns": [
+      2464868951,
+      2689240396,
+      2237162802
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2464868951,
+      "expected_sum": 34359077208,
+      "actual_sum": 34359077208
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "selection_vector_gather_sum_v1000_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 335593423,
+    "min_elapsed_ns": 334825515,
+    "max_elapsed_ns": 337064991,
+    "all_elapsed_ns": [
+      337064991,
+      334825515,
+      335593423
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 337064991,
+      "expected_sum": 34359077208,
+      "actual_sum": 34359077208
+    },
+    "status": "ok"
+  }
+}

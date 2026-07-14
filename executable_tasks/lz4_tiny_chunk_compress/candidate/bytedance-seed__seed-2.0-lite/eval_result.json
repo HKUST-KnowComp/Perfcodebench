@@ -1,0 +1,69 @@
+{
+  "task_id": "lz4_tiny_chunk_compress",
+  "model": "bytedance-seed/seed-2.0-lite",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/lz4_tiny_chunk_compress/candidate/bytedance-seed__seed-2.0-lite/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"lz4hc.h\"\n#include <algorithm>\n\nnamespace {\nconstexpr std::size_t kChunkSize = 1 << 12;\n}\n\nint compress_chunks(const std::string& input, std::vector<std::string>& chunks) {\n  chunks.clear();\n  const std::size_t input_size = input.size();\n  if (input_size == 0) return 0;\n  \n  // Precompute chunk count to reserve vector capacity and avoid reallocations\n  const std::size_t num_chunks = (input_size + kChunkSize - 1) / kChunkSize;\n  chunks.reserve(num_chunks);\n  \n  // Stack-allocated temp buffer sized to LZ4's max bound for 4KB input, avoids per-chunk heap allocations\n  char temp_buf[LZ4_COMPRESSBOUND(kChunkSize)];\n  int total_compressed = 0;\n  \n  const char* input_base = input.data();\n  for (std::size_t offset = 0; offset < input_size; offset += kChunkSize) {\n    const std::size_t take = std::min(kChunkSize, input_size - offset);\n    // Compress directly from original input memory, eliminate redundant chunk copy\n    const int compressed_size = LZ4_compress_HC(\n      input_base + offset,\n      temp_buf,\n      static_cast<int>(take),\n      static_cast<int>(sizeof(temp_buf)),\n      12\n    );\n    if (compressed_size <= 0) return -1;\n    // Emplace compressed string directly into output vector with single allocation\n    chunks.emplace_back(temp_buf, static_cast<std::size_t>(compressed_size));\n    total_compressed += compressed_size;\n  }\n  return total_compressed;\n}",
+  "baseline": {
+    "task_id": "lz4_tiny_chunk_compress",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 104343251,
+    "min_elapsed_ns": 103536914,
+    "max_elapsed_ns": 107473038,
+    "all_elapsed_ns": [
+      107473038,
+      103536914,
+      104343251
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 107473038,
+      "compressed_size": 3424642
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "lz4_tiny_chunk_compress",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3948942,
+    "min_elapsed_ns": 3890379,
+    "max_elapsed_ns": 4170512,
+    "all_elapsed_ns": [
+      3948942,
+      3890379,
+      4170512
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3948942,
+      "compressed_size": 4176289
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "lz4_tiny_chunk_compress",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 102746962,
+    "min_elapsed_ns": 102404195,
+    "max_elapsed_ns": 119968146,
+    "all_elapsed_ns": [
+      102746962,
+      102404195,
+      119968146
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 102746962,
+      "compressed_size": 3424642
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "c_delta_decode_prefix_sum_v2900_043",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_delta_decode_prefix_sum_v2900_043/candidate/google__gemini-3.1-pro-preview/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <stdint.h>\n#include <immintrin.h>\n\nuint64_t run(const int32_t* deltas, size_t count, int iters) {\n    if (count == 0) return 0;\n\n    const uint64_t constant_offset = 0x9E3779B1LL;\n    uint64_t final_total = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t total = 0;\n        size_t i = 0;\n\n        // Use SIMD to calculate sum((count - i) * deltas[i])\n        // We process 8 elements at a time using AVX2.\n        __m256i total_vec = _mm256_setzero_si256();\n        \n        for (; i + 7 < count; i += 8) {\n            // Load 8 int32_t deltas\n            __m256i d_32 = _mm256_loadu_si256((const __m256i*)&deltas[i]);\n\n            // Prepare weights (count - i, count - i - 1, ...)\n            __m256i weights_low = _mm256_set_epi64x(\n                (int64_t)(count - (i + 3)),\n                (int64_t)(count - (i + 2)),\n                (int64_t)(count - (i + 1)),\n                (int64_t)(count - i)\n            );\n            __m256i weights_high = _mm256_set_epi64x(\n                (int64_t)(count - (i + 7)),\n                (int64_t)(count - (i + 6)),\n                (int64_t)(count - (i + 5)),\n                (int64_t)(count - (i + 4))\n            );\n\n            // Sign-extend 32-bit deltas to 64-bit\n            __m256i d_64_low = _mm256_cvtepi32_epi64(_mm256_castsi256_si128(d_32));\n            __m256i d_64_high = _mm256_cvtepi32_epi64(_mm256_extracti128_si256(d_32, 1));\n\n            // Multiply weights by deltas and accumulate\n            __m256i prod_low = _mm256_mul_epi32(d_64_low, weights_low);\n            __m256i prod_high = _mm256_mul_epi32(d_64_high, weights_high);\n            \n            // Note: _mm256_mul_epi32 only multiplies the lower 32 bits of each 64-bit lane.\n            // Since our deltas are sign-extended to 64-bit, the values are in the lower 32 bits.\n            // However, for negative numbers, we need full 64-bit multiplication or careful handling.\n            // A safer way for signed 64-bit multiplication in AVX2 is not direct, \n            // but since deltas are 32-bit, we can use _mm256_mul_epi32 if we ensure the sign extension is handled.\n            // Actually, for signed 32-bit * 64-bit, we can just use the fact that deltas fit in 32 bits.\n            \n            // Correcting to full 64-bit multiplication logic:\n            // Since weights can be large, we use the property that deltas are 32-bit.\n            // _mm256_mul_epi32 is perfect here because it takes the bottom 32 bits of each 64-bit lane.\n            total_vec = _mm256_add_epi64(total_vec, prod_low);\n            total_vec = _mm256_add_epi64(total_vec, prod_high);\n        }\n\n        // Horizontal sum of the SIMD register\n        uint64_t temp_sums[4];\n        _mm256_storeu_si256((__m256i*)temp_sums, total_vec);\n        total = temp_sums[0] + temp_sums[1] + temp_sums[2] + temp_sums[3];\n\n        // Handle remaining elements\n        for (; i < count; ++i) {\n            total += (uint64_t)((int64_t)deltas[i] * (int64_t)(count - i));\n        }\n\n        // Add the constant offset part: sum_{i=0}^{count-1} constant_offset\n        total += (uint64_t)count * constant_offset;\n        final_total = total;\n    }\n\n    return final_total;\n}",
+  "baseline": {
+    "task_id": "c_delta_decode_prefix_sum_v2900_043",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4819000,
+    "min_elapsed_ns": 4663000,
+    "max_elapsed_ns": 5108000,
+    "all_elapsed_ns": [
+      4819000,
+      5108000,
+      4663000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4819000,
+      "expected_checksum": 469661673033360,
+      "actual_checksum": 469661673033360
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_delta_decode_prefix_sum_v2900_043",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2968000,
+    "min_elapsed_ns": 2949000,
+    "max_elapsed_ns": 2984000,
+    "all_elapsed_ns": [
+      2968000,
+      2984000,
+      2949000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2968000,
+      "expected_checksum": 469661673033360,
+      "actual_checksum": 469661673033360
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_delta_decode_prefix_sum_v2900_043",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/c_delta_decode_prefix_sum_v2900_043/candidate/bench']' returned non-zero exit status 1."
+  }
+}

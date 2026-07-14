@@ -1,0 +1,72 @@
+{
+  "task_id": "yyjson_stringify_v2300_d",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/yyjson_stringify_v2300_d/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"yyjson.h\"\n#include <vector>\n#include <string>\n#include <cstdint>\n\nstd::string build_json(\n    const std::vector<uint32_t>& ids,\n    const std::vector<uint32_t>& values,\n    const std::vector<std::string>& names) {\n    \n    size_t n = ids.size();\n    if (n == 0) {\n        return \"[]\";\n    }\n\n    // Pre-calculate memory requirements for yyjson nodes to minimize allocations.\n    // Each record has 1 object, 4 keys, and 4 values = 9 nodes.\n    // Plus 1 node for the root array.\n    size_t max_nodes = n * 9 + 1;\n    \n    // Estimate string memory: keys (\"id\", \"flag\", \"value\", \"name\") are small.\n    // We use the mutable API which will copy strings into its own pool.\n    // A safe estimate for the pool size is nodes * sizeof(yyjson_mut_val) + string data.\n    size_t pool_size = max_nodes * sizeof(yyjson_mut_val) + (n * 64); \n    void* buf = malloc(pool_size);\n    \n    yyjson_alc alc;\n    yyjson_alc_pool_init(&alc, buf, pool_size);\n    \n    yyjson_mut_doc *doc = yyjson_mut_doc_new(&alc);\n    yyjson_mut_val *root = yyjson_mut_arr(doc);\n    yyjson_mut_doc_set_root(doc, root);\n\n    for (size_t i = 0; i < n; ++i) {\n        yyjson_mut_val *obj = yyjson_mut_obj(doc);\n        \n        // Field order: id, flag, value, name\n        // yyjson_mut_obj_add_* functions preserve insertion order.\n        uint32_t id = ids[i];\n        yyjson_mut_obj_add_uint(doc, obj, \"id\", id);\n        yyjson_mut_obj_add_bool(doc, obj, \"flag\", (id % 3U) == 0U);\n        yyjson_mut_obj_add_uint(doc, obj, \"value\", values[i]);\n        \n        // Use the string length to avoid redundant strlen calls\n        const std::string& name = names[i];\n        yyjson_mut_obj_add_strncpy(doc, obj, \"name\", name.c_str(), name.length());\n        \n        yyjson_mut_arr_append(root, obj);\n    }\n\n    // Write to minified JSON string\n    size_t len = 0;\n    char *json_ptr = yyjson_mut_write(doc, 0, &len);\n    \n    std::string result;\n    if (json_ptr) {\n        result.assign(json_ptr, len);\n        // yyjson_mut_write uses the default allocator (malloc) for the output string\n        free(json_ptr);\n    }\n\n    yyjson_mut_doc_free(doc);\n    free(buf);\n    \n    return result;\n}",
+  "baseline": {
+    "task_id": "yyjson_stringify_v2300_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 37140346,
+    "min_elapsed_ns": 36245273,
+    "max_elapsed_ns": 38791625,
+    "all_elapsed_ns": [
+      36245273,
+      38791625,
+      37140346
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 36245273,
+      "expected_size": 3378764,
+      "actual_size": 3378764
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "yyjson_stringify_v2300_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 6913768,
+    "min_elapsed_ns": 6695252,
+    "max_elapsed_ns": 7127516,
+    "all_elapsed_ns": [
+      6913768,
+      7127516,
+      6695252
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6913768,
+      "expected_size": 3378764,
+      "actual_size": 3378764
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "yyjson_stringify_v2300_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 12952445,
+    "min_elapsed_ns": 12128668,
+    "max_elapsed_ns": 13169053,
+    "all_elapsed_ns": [
+      12128668,
+      13169053,
+      12952445
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12128668,
+      "expected_size": 3378764,
+      "actual_size": 3378764
+    },
+    "status": "ok"
+  }
+}

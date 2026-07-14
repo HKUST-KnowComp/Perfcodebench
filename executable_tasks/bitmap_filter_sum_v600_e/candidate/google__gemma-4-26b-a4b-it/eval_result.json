@@ -1,0 +1,59 @@
+{
+  "task_id": "bitmap_filter_sum_v600_e",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/bitmap_filter_sum_v600_e/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 11,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <cstdint>\n\nuint64_t bitmap_filter_sum(\n    const std::vector<uint32_t>& enabled_keys,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int iters) {\n  // Use a bitset-like vector for O(1) lookup with minimal overhead.\n  // We use uint8_t to avoid the overhead of std::vector<bool> bit-packing \n  // if the key_space is small, but for general cases, a simple byte-array \n  // is often faster due to avoiding bit-shifting logic.\n  std::vector<uint8_t> bitmap(key_space, 0);\n  \n  // Pre-calculate the bitmap once if enabled_keys doesn't change per iteration.\n  // Based on the baseline, enabled_keys is inserted every iteration, \n  // but it's the same set. We move it outside the loop to optimize.\n  for (uint32_t key : enabled_keys) {\n    if (key < key_space) {\n      bitmap[key] = 1;\n    }\n  }\n\n  uint64_t total_sum = 0;\n  const size_t n = probe_keys.size();\n  const uint32_t* p_keys = probe_keys.data();\n  const uint32_t* p_vals = values.data();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t current_sum = 0;\n    // Unrolling or SIMD could be applied here, but a clean loop \n    // with a direct array lookup is highly efficient for modern CPUs.\n    for (size_t i = 0; i < n; ++i) {\n      if (bitmap[p_keys[i]]) {\n        current_sum += static_cast<uint64_t>(p_vals[i]);\n      }\n    }\n    total_sum = current_sum;\n  }\n\n  return total_sum;\n}",
+  "baseline": {
+    "task_id": "bitmap_filter_sum_v600_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6225321224,
+    "min_elapsed_ns": 6210795826,
+    "max_elapsed_ns": 8438493105,
+    "all_elapsed_ns": [
+      8438493105,
+      6225321224,
+      6210795826
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8438493105,
+      "expected_sum": 4303355904,
+      "actual_sum": 4303355904
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "bitmap_filter_sum_v600_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1497875431,
+    "min_elapsed_ns": 1461126593,
+    "max_elapsed_ns": 1537077421,
+    "all_elapsed_ns": [
+      1537077421,
+      1497875431,
+      1461126593
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1537077421,
+      "expected_sum": 4303355904,
+      "actual_sum": 4303355904
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "bitmap_filter_sum_v600_e",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/bitmap_filter_sum_v600_e/harness', 'executable_tasks/bitmap_filter_sum_v600_e/harness/benchmark_main.cpp', 'executable_tasks/bitmap_filter_sum_v600_e/candidate/google__gemma-4-26b-a4b-it/solution.cpp', '-o', 'build/bitmap_filter_sum_v600_e/candidate/bench']' returned non-zero exit status 1."
+  }
+}

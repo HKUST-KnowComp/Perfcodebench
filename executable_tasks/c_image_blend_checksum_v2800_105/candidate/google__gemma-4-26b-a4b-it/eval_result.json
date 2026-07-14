@@ -1,0 +1,72 @@
+{
+  "task_id": "c_image_blend_checksum_v2800_105",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_image_blend_checksum_v2800_105/candidate/google__gemma-4-26b-a4b-it/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\n// Optimized blend using fast integer approximation for division by 255\n// (x + 1 + (x >> 8)) >> 8 is a common trick for (x + 127) / 255\nstatic inline uint8_t blend_byte_fast(uint8_t s, uint8_t d, uint8_t a) {\n    uint32_t val = (uint32_t)s * a + (uint32_t)d * (255u - a) + 127u;\n    return (uint8_t)((val + (val >> 8)) >> 8);\n}\n\nstatic uint64_t checksum_bytes_fast(const uint8_t* data, size_t n) {\n    uint64_t hash = 1469598103934665603ULL;\n    const uint64_t prime = 1099511628211ULL;\n    \n    // Process 8 bytes at a time to reduce loop iterations\n    size_t i = 0;\n    for (; i + 7 < n; i += 8) {\n        uint64_t chunk;\n        // Manual unrolling/loading to avoid alignment issues if necessary,\n        // but standard memcpy is usually optimized by compiler to a single load.\n        // For simplicity and correctness with potential unaligned access:\n        chunk = *(const uint64_t*)(data + i);\n        \n        // We must process byte by byte to maintain the exact XOR-multiply order\n        // of the original algorithm. However, we can unroll the loop.\n        for(int j = 0; j < 8; ++j) {\n            hash ^= (uint64_t)data[i + j];\n            hash *= prime;\n        }\n    }\n    \n    for (; i < n; ++i) {\n        hash ^= (uint64_t)data[i];\n        hash *= prime;\n    }\n    return hash;\n}\n\n// Re-implementing checksum to be strictly identical to original logic but unrolled\nstatic uint64_t checksum_bytes_exact(const uint8_t* data, size_t n) {\n    uint64_t hash = 1469598103934665603ULL;\n    const uint64_t prime = 1099511628211ULL;\n    for (size_t i = 0; i < n; ++i) {\n        hash ^= (uint64_t)data[i];\n        hash *= prime;\n    }\n    return hash;\n}\n\nuint64_t run(const uint8_t* src, const uint8_t* dst, int width, int height, int iters) {\n    size_t pixels = (size_t)width * (size_t)height;\n    size_t total_bytes = pixels * 4u;\n    uint64_t hash = 0;\n\n    // Allocate buffer once outside the loop to avoid malloc/free overhead\n    uint8_t* out = (uint8_t*)malloc(total_bytes);\n    if (!out) return 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        for (size_t i = 0; i < pixels; ++i) {\n            size_t idx = i * 4u;\n            uint8_t a = src[idx + 3u];\n            \n            // Inline the blend logic for speed\n            uint32_t r_val = (uint32_t)src[idx] * a + (uint32_t)dst[idx] * (255u - a) + 127u;\n            out[idx] = (uint8_t)((r_val + (r_val >> 8)) >> 8);\n            \n            uint32_t g_val = (uint32_t)src[idx + 1u] * a + (uint32_t)dst[idx + 1u] * (255u - a) + 127u;\n            out[idx + 1u] = (uint8_t)((g_val + (g_val >> 8)) >> 8);\n            \n            uint32_t b_val = (uint32_t)src[idx + 2u] * a + (uint32_t)dst[idx + 2u] * (255u - a) + 127u;\n            out[idx + 2u] = (uint8_t)((b_val + (b_val >> 8)) >> 8);\n            \n            out[idx + 3u] = 255u;\n        }\n        hash = checksum_bytes_exact(out, total_bytes);\n    }\n\n    free(out);\n    return hash;\n}",
+  "baseline": {
+    "task_id": "c_image_blend_checksum_v2800_105",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 8308000,
+    "min_elapsed_ns": 8194000,
+    "max_elapsed_ns": 8623000,
+    "all_elapsed_ns": [
+      8194000,
+      8623000,
+      8308000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8194000,
+      "expected_checksum": 3253540113003649985,
+      "actual_checksum": 3253540113003649985
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_image_blend_checksum_v2800_105",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8336000,
+    "min_elapsed_ns": 8149000,
+    "max_elapsed_ns": 8373000,
+    "all_elapsed_ns": [
+      8373000,
+      8149000,
+      8336000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8373000,
+      "expected_checksum": 3253540113003649985,
+      "actual_checksum": 3253540113003649985
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_image_blend_checksum_v2800_105",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 8653000,
+    "min_elapsed_ns": 8538000,
+    "max_elapsed_ns": 8754000,
+    "all_elapsed_ns": [
+      8538000,
+      8754000,
+      8653000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8538000,
+      "expected_checksum": 3253540113003649985,
+      "actual_checksum": 3253540113003649985
+    },
+    "status": "ok"
+  }
+}

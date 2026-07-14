@@ -1,0 +1,72 @@
+{
+  "task_id": "python_image_blend_checksum_v3100_011",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/python_image_blend_checksum_v3100_011/candidate/google__gemma-4-26b-a4b-it/solution.py",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "import numpy as np\n\ndef run(src: bytearray, dst: bytearray, width: int, height: int, iters: int) -> int:\n    src_np = np.frombuffer(src, dtype=np.uint8).reshape(-1, 4).astype(np.int32)\n    dst_np = np.frombuffer(dst, dtype=np.uint8).reshape(-1, 4).astype(np.int32)\n    \n    # Pre-calculate components to avoid repeated work in the loop\n    # src_rgb: all channels except alpha\n    # dst_rgb: all channels except alpha\n    # a: alpha channel\n    src_rgb = src_np[:, :3]\n    dst_rgb = dst_np[:, :3]\n    a = src_np[:, 3:4]\n    \n    # Pre-calculate (255 - a)\n    inv_a = 255 - a\n    \n    # Pre-allocate output array for the RGB part\n    # We use int32 to prevent overflow during intermediate multiplication\n    res_rgb = np.empty((width * height, 3), dtype=np.int32)\n    \n    # The alpha channel of the output is always 255\n    # We'll construct the full RGBA array for checksumming\n    # To save memory/time, we can handle the checksum on the flattened result\n    \n    h_const = 1469598103934665603\n    prime = 1099511628211\n    mask = (1 << 64) - 1\n\n    last_h = 0\n    \n    for _ in range(iters):\n        # Vectorized blend: ((s * a) + (d * (255 - a)) + 127) // 255\n        res_rgb[:] = ((src_rgb * a) + (dst_rgb * inv_a) + 127) // 255\n        \n        # Construct the full RGBA byte sequence for checksum\n        # We need to interleave the 255 alpha channel\n        # Instead of creating a massive array, we can compute checksum more efficiently\n        # but for correctness, let's build the bytearray\n        \n        # Create the full RGBA array: [R, G, B, 255, R, G, B, 255, ...]\n        # We can use a trick: create an array of 255s and overwrite RGB\n        full_rgba = np.full((width * height, 4), 255, dtype=np.uint8)\n        full_rgba[:, :3] = res_rgb.astype(np.uint8)\n        \n        # Fast checksum calculation\n        # FNV-1a is inherently sequential, but we can speed up the loop\n        # by processing in chunks or using a more efficient loop if possible.\n        # However, standard Python loop is the bottleneck. \n        # Let's use the bytearray directly for the checksum to match the original logic.\n        \n        data = full_rgba.tobytes()\n        h = h_const\n        for b in data:\n            h ^= b\n            h = (h * prime) & mask\n        last_h = h\n        \n    return last_h",
+  "baseline": {
+    "task_id": "python_image_blend_checksum_v3100_011",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1131382056,
+    "min_elapsed_ns": 1069305152,
+    "max_elapsed_ns": 1759292702,
+    "all_elapsed_ns": [
+      1069305152,
+      1759292702,
+      1131382056
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1069305152,
+      "expected_checksum": 1054826796188149225,
+      "actual_checksum": 1054826796188149225
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "python_image_blend_checksum_v3100_011",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 999299544,
+    "min_elapsed_ns": 993569924,
+    "max_elapsed_ns": 1099687818,
+    "all_elapsed_ns": [
+      1099687818,
+      993569924,
+      999299544
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1099687818,
+      "expected_checksum": 1054826796188149225,
+      "actual_checksum": 1054826796188149225
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "python_image_blend_checksum_v3100_011",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 444583844,
+    "min_elapsed_ns": 434370054,
+    "max_elapsed_ns": 444974299,
+    "all_elapsed_ns": [
+      444583844,
+      444974299,
+      434370054
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 444583844,
+      "expected_checksum": 1054826796188149225,
+      "actual_checksum": 1054826796188149225
+    },
+    "status": "ok"
+  }
+}

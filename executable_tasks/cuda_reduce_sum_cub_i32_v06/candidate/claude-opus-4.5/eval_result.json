@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_reduce_sum_cub_i32_v06",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_reduce_sum_cub_i32_v06/candidate/claude-opus-4.5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\n// Warp-level reduction using shuffle\n__device__ __forceinline__ int warp_reduce_sum(int val) {\n    #pragma unroll\n    for (int offset = 16; offset > 0; offset >>= 1) {\n        val += __shfl_down_sync(0xffffffff, val, offset);\n    }\n    return val;\n}\n\n// Block-level reduction kernel - each block produces one partial sum\n__global__ void block_reduce_kernel(const int* __restrict__ input, int* __restrict__ partials, int n) {\n    __shared__ int sdata[32]; // One element per warp\n    \n    int tid = threadIdx.x;\n    int idx = blockIdx.x * blockDim.x * 8 + tid; // Each thread processes 8 elements\n    int stride = blockDim.x;\n    int grid_stride = gridDim.x * blockDim.x * 8;\n    \n    // Each thread accumulates multiple elements\n    int sum = 0;\n    \n    // Process 8 elements per thread per iteration\n    while (idx + 7 * stride < n) {\n        sum += input[idx];\n        sum += input[idx + stride];\n        sum += input[idx + 2 * stride];\n        sum += input[idx + 3 * stride];\n        sum += input[idx + 4 * stride];\n        sum += input[idx + 5 * stride];\n        sum += input[idx + 6 * stride];\n        sum += input[idx + 7 * stride];\n        idx += grid_stride;\n    }\n    \n    // Handle remaining elements\n    while (idx < n) {\n        sum += input[idx];\n        idx += stride;\n    }\n    \n    // Warp-level reduction\n    int warp_id = tid / 32;\n    int lane_id = tid % 32;\n    \n    sum = warp_reduce_sum(sum);\n    \n    // First thread of each warp writes to shared memory\n    if (lane_id == 0) {\n        sdata[warp_id] = sum;\n    }\n    __syncthreads();\n    \n    // First warp reduces all warp sums\n    if (warp_id == 0) {\n        sum = (tid < (blockDim.x / 32)) ? sdata[lane_id] : 0;\n        sum = warp_reduce_sum(sum);\n        \n        if (tid == 0) {\n            partials[blockIdx.x] = sum;\n        }\n    }\n}\n\n// Final reduction kernel - reduces partial sums to single value\n__global__ void final_reduce_kernel(const int* __restrict__ partials, int* __restrict__ output, int num_partials) {\n    __shared__ int sdata[32];\n    \n    int tid = threadIdx.x;\n    int sum = 0;\n    \n    // Each thread sums multiple partials\n    for (int i = tid; i < num_partials; i += blockDim.x) {\n        sum += partials[i];\n    }\n    \n    // Warp-level reduction\n    int warp_id = tid / 32;\n    int lane_id = tid % 32;\n    \n    sum = warp_reduce_sum(sum);\n    \n    if (lane_id == 0) {\n        sdata[warp_id] = sum;\n    }\n    __syncthreads();\n    \n    // First warp reduces all warp sums\n    if (warp_id == 0) {\n        sum = (tid < (blockDim.x / 32)) ? sdata[lane_id] : 0;\n        sum = warp_reduce_sum(sum);\n        \n        if (tid == 0) {\n            *output = sum;\n        }\n    }\n}\n\n// Persistent buffer for partial sums\nstatic int* d_partials = nullptr;\nstatic int partials_capacity = 0;\n\n}  // namespace\n\nvoid reduce_sum_i32(const int* input, int* output, int n, int iters) {\n    if (n == 0) {\n        cudaMemset(output, 0, sizeof(int));\n        return;\n    }\n    \n    constexpr int kBlock = 256;\n    constexpr int kElementsPerThread = 8;\n    constexpr int kElementsPerBlock = kBlock * kElementsPerThread;\n    \n    // Calculate grid size - limit to reasonable number of blocks\n    int num_blocks = (n + kElementsPerBlock - 1) / kElementsPerBlock;\n    num_blocks = min(num_blocks, 1024);\n    \n    // Allocate/reallocate partial sums buffer if needed\n    if (num_blocks > partials_capacity) {\n        if (d_partials) cudaFree(d_partials);\n        cudaMalloc(&d_partials, num_blocks * sizeof(int));\n        partials_capacity = num_blocks;\n    }\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        // First pass: block-level reduction\n        block_reduce_kernel<<<num_blocks, kBlock>>>(input, d_partials, n);\n        \n        // Second pass: reduce partial sums\n        final_reduce_kernel<<<1, kBlock>>>(d_partials, output, num_blocks);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_reduce_sum_cub_i32_v06",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 24212640,
+    "min_elapsed_ns": 24205919,
+    "max_elapsed_ns": 24214464,
+    "all_elapsed_ns": [
+      24214464,
+      24212640,
+      24205919
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 24214464,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_reduce_sum_cub_i32_v06",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1627583,
+    "min_elapsed_ns": 1617856,
+    "max_elapsed_ns": 1639487,
+    "all_elapsed_ns": [
+      1627583,
+      1639487,
+      1617856
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1627583,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_reduce_sum_cub_i32_v06",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_reduce_sum_cub_i32_v06/candidate/bench']' timed out after 5 seconds"
+  }
+}

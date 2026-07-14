@@ -1,0 +1,33 @@
+{
+  "task_id": "cuda_transpose_tiled_f32_v12",
+  "model": "bytedance-seed/seed-2.0-lite",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_transpose_tiled_f32_v12/candidate/bytedance-seed__seed-2.0-lite/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int kTileDim = 32;\nconstexpr int kBlockRows = 8;\n\n__global__ void transpose_optimized_kernel(const float* __restrict__ input, float* __restrict__ output, int width, int height) {\n  // Shared tile with 1-column padding to avoid shared memory bank conflicts\n  __shared__ float s_tile[32][33];\n\n  const int block_x = blockIdx.x * kTileDim;\n  const int block_y = blockIdx.y * kTileDim;\n  const int tx = threadIdx.x;\n  const int ty = threadIdx.y;\n\n  // Load input tile into shared memory with coalesced global reads\n  for (int j = 0; j < kTileDim; j += kBlockRows) {\n    const int x = block_x + tx;\n    const int y = block_y + ty + j;\n    if (x < width && y < height) {\n      s_tile[ty + j][tx] = input[y * width + x];\n    }\n  }\n\n  // Synchronize all threads before writing transposed tile\n  __syncthreads();\n\n  // Write transposed tile to output with coalesced global writes\n  const int out_block_x = block_y;\n  const int out_block_y = block_x;\n  for (int j = 0; j < kTileDim; j += kBlockRows) {\n    const int x = out_block_x + tx;\n    const int y = out_block_y + ty + j;\n    if (x < height && y < width) {\n      output[y * height + x] = s_tile[tx][ty + j];\n    }\n  }\n}\n\n}  // namespace\n\nvoid transpose_f32(const float* input, float* output, int width, int height, int iters) {\n  const dim3 block(kTileDim, kBlockRows);\n  const dim3 grid((width + kTileDim - 1) / kTileDim, (height + kTileDim - 1) / kTileDim);\n  for (int iter = 0; iter < iters; ++iter) {\n    transpose_optimized_kernel<<<grid, block>>>(input, output, width, height);\n  }\n}",
+  "baseline": {
+    "task_id": "cuda_transpose_tiled_f32_v12",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_transpose_tiled_f32_v12/baseline/bench']' timed out after 5 seconds"
+  },
+  "reference": {
+    "task_id": "cuda_transpose_tiled_f32_v12",
+    "variant": "reference",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_transpose_tiled_f32_v12/reference/bench']' timed out after 5 seconds"
+  },
+  "candidate": {
+    "task_id": "cuda_transpose_tiled_f32_v12",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_transpose_tiled_f32_v12/candidate/bench']' timed out after 5 seconds"
+  }
+}

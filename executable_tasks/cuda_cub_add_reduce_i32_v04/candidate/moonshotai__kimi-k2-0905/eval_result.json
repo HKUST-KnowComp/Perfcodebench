@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v04",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v04/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#define BLOCK_SIZE 512\n\n__global__ void reduce_stage1(const int *input, int *partial_sums, int n) {\n  extern __shared__ int shmem[];\n  int tid = threadIdx.x;\n  int idx = blockIdx.x * blockDim.x * 2 + tid;\n  // Load & first add\n  int val = 0;\n  if (idx < n) val = input[idx];\n  if (idx + blockDim.x < n) val += input[idx + blockDim.x];\n  shmem[tid] = val;\n  __syncthreads();\n  // Tree reduce in shared memory\n  for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {\n    if (tid < stride) shmem[tid] += shmem[tid + stride];\n    __syncthreads();\n  }\n  if (tid == 0) partial_sums[blockIdx.x] = shmem[0];\n}\n\n__global__ void reduce_stage2(const int *partial_sums, int *block_count, int *output) {\n  extern __shared__ int shmem[];\n  int tid = threadIdx.x;\n  int val = 0;\n  int N = *block_count;\n  int stride = (N + blockDim.x - 1) / blockDim.x;\n  // Accumulate strided partial sums from stage1\n  for (int i = tid; i < N; i += blockDim.x) val += partial_sums[i];\n  shmem[tid] = val;\n  __syncthreads();\n  // Single warp reduction\n  for (int offset = warpSize / 2; offset > 0; offset >>= 1)\n    shmem[tid] += __shfl_down_sync(0xFFFFFFFF, shmem[tid], offset);\n  if (tid == 0) *output = shmem[0];\n}\n\nvoid add_reduce_i32(const int *input, int *output, int n, int iters) {\n  int *d_partial, *d_block_count;\n  int num_blocks = (n + 2 * BLOCK_SIZE - 1) / (2 * BLOCK_SIZE);\n  cudaMalloc(&d_partial, sizeof(int) * num_blocks);\n  cudaMalloc(&d_block_count, sizeof(int));\n  for (int i = 0; i < iters; ++i) {\n    // Stage-1 kernel produces num_blocks partial sums\n    reduce_stage1<<<num_blocks, BLOCK_SIZE, BLOCK_SIZE * sizeof(int)>>>(input, d_partial, n);\n    cudaMemcpyAsync(d_block_count, &num_blocks, sizeof(int), cudaMemcpyHostToDevice);\n    // Stage-2 kernel summarizes exactly to one value\n    reduce_stage2<<<1, BLOCK_SIZE, BLOCK_SIZE * sizeof(int)>>>(d_partial, d_block_count, output);\n  }\n  cudaFree(d_partial);\n  cudaFree(d_block_count);\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v04",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 23932704,
+    "min_elapsed_ns": 23906175,
+    "max_elapsed_ns": 23957696,
+    "all_elapsed_ns": [
+      23957696,
+      23906175,
+      23932704
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 23957696,
+      "expected_sum": 62914560,
+      "actual_sum": 62914560
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v04",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1302783,
+    "min_elapsed_ns": 1302047,
+    "max_elapsed_ns": 1304512,
+    "all_elapsed_ns": [
+      1304512,
+      1302047,
+      1302783
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1304512,
+      "expected_sum": 62914560,
+      "actual_sum": 62914560
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v04",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v04/candidate/bench']' returned non-zero exit status 2."
+  }
+}

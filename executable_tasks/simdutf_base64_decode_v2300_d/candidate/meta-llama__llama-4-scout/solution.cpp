@@ -1,0 +1,25 @@
+#include "interface.h"
+#include "simdutf.h"
+
+#include <string>
+#include <cstdint>
+
+namespace {
+
+uint64_t checksum_bytes(const std::string& data) {
+  uint64_t hash = 1469598103934665603ULL;
+  for (unsigned char ch : data) {
+    hash ^= static_cast<uint64_t>(ch);
+    hash *= 1099511628211ULL;
+  }
+  return hash;
+}
+
+}  // namespace
+
+uint64_t decode_checksum(const std::string& input) {
+  std::string out;
+  out.resize(input.size() * 3 / 4);
+  simdutf::base64::decode(input, out);
+  return checksum_bytes(out);
+}

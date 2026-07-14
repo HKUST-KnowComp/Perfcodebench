@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_jacobi_2d_v600_f",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v600_f/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  if (rows <= 0 || cols <= 0) return 0;\n  \n  std::vector<uint32_t> a = input;\n  std::vector<uint32_t> b = input;\n  \n  uint32_t* ptr_a = a.data();\n  uint32_t* ptr_b = b.data();\n  \n  const size_t c_size = static_cast<size_t>(cols);\n\n  for (int step = 0; step < steps; ++step) {\n    #pragma omp parallel for schedule(static)\n    for (int row = 1; row < rows - 1; ++row) {\n      const size_t row_offset = static_cast<size_t>(row) * c_size;\n      const size_t prev_row = row_offset - c_size;\n      const size_t next_row = row_offset + c_size;\n      \n      // Handle first column of the row\n      ptr_b[row_offset] = ptr_a[row_offset];\n      \n      // Inner columns\n      for (int col = 1; col < cols - 1; ++col) {\n        const size_t idx = row_offset + col;\n        ptr_b[idx] = (ptr_a[idx] * 4u + \n                      ptr_a[idx - 1] + \n                      ptr_a[idx + 1] + \n                      ptr_a[prev_row + col] + \n                      ptr_a[next_row + col]) / 8u;\n      }\n      \n      // Handle last column of the row\n      ptr_b[row_offset + c_size - 1] = ptr_a[row_offset + c_size - 1];\n    }\n    \n    // Boundary rows are constant across steps, but we must ensure they are correct in b\n    // Since b was initialized to input and only inner rows are modified, \n    // the first and last rows of b always match the first and last rows of a/input.\n    \n    std::swap(ptr_a, ptr_b);\n  }\n  \n  // The final result is in ptr_a. We need to ensure the vector returned to checksum is the one ptr_a points to.\n  if (ptr_a == b.data()) {\n    return checksum_u32(b);\n  } else {\n    return checksum_u32(a);\n  }\n}",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v600_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 425501677,
+    "min_elapsed_ns": 357675408,
+    "max_elapsed_ns": 465768443,
+    "all_elapsed_ns": [
+      425501677,
+      465768443,
+      357675408
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 425501677,
+      "expected_checksum": 6578856415940264755,
+      "actual_checksum": 6578856415940264755
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v600_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 559195335,
+    "min_elapsed_ns": 472777674,
+    "max_elapsed_ns": 614484881,
+    "all_elapsed_ns": [
+      614484881,
+      559195335,
+      472777674
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 614484881,
+      "expected_checksum": 6578856415940264755,
+      "actual_checksum": 6578856415940264755
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v600_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-fopenmp', '-Iexecutable_tasks/openmp_jacobi_2d_v600_f/harness', 'executable_tasks/openmp_jacobi_2d_v600_f/harness/benchmark_main.cpp', 'executable_tasks/openmp_jacobi_2d_v600_f/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/openmp_jacobi_2d_v600_f/candidate/bench']' returned non-zero exit status 1."
+  }
+}

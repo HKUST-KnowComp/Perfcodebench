@@ -1,0 +1,59 @@
+{
+  "task_id": "bitmap_filter_sum",
+  "model": "moonshotai/kimi-k2.6",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/bitmap_filter_sum/candidate/moonshotai__kimi-k2.6/solution.cpp",
+  "benchmark_timeout_sec": 15,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nuint64_t bitmap_filter_sum(\n    const std::vector<uint32_t>& enabled_keys,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int iters) {\n  if (iters <= 0 || probe_keys.empty()) {\n    return 0;\n  }\n\n  // Build a dense byte bitmap once. Value-initialization guarantees all zeros.\n  std::vector<uint8_t> bitmap(key_space);\n  for (uint32_t key : enabled_keys) {\n    if (key < key_space) {\n      bitmap[key] = 1;\n    }\n  }\n\n  const size_t n = probe_keys.size();\n  const uint32_t* __restrict probe_data = probe_keys.data();\n  const uint32_t* __restrict values_data = values.data();\n  const uint8_t* __restrict bitmap_data = bitmap.data();\n\n  uint64_t sum = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t iter_sum = 0;\n    for (size_t i = 0; i < n; ++i) {\n      const uint32_t key = probe_data[i];\n      if (key < key_space) {\n        // Branchless accumulation: bitmap_data[key] is 0 or 1.\n        iter_sum += static_cast<uint64_t>(values_data[i]) * bitmap_data[key];\n      }\n    }\n    sum = iter_sum;\n  }\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "bitmap_filter_sum",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 8773583940,
+    "min_elapsed_ns": 8110047779,
+    "max_elapsed_ns": 8994226637,
+    "all_elapsed_ns": [
+      8994226637,
+      8110047779,
+      8773583940
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8994226637,
+      "expected_sum": 4303355904,
+      "actual_sum": 4303355904
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "bitmap_filter_sum",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1479314516,
+    "min_elapsed_ns": 1438754140,
+    "max_elapsed_ns": 1630483732,
+    "all_elapsed_ns": [
+      1479314516,
+      1438754140,
+      1630483732
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1479314516,
+      "expected_sum": 4303355904,
+      "actual_sum": 4303355904
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "bitmap_filter_sum",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/bitmap_filter_sum/harness', 'executable_tasks/bitmap_filter_sum/harness/benchmark_main.cpp', 'executable_tasks/bitmap_filter_sum/candidate/moonshotai__kimi-k2.6/solution.cpp', '-o', 'build/bitmap_filter_sum/candidate/bench']' returned non-zero exit status 1."
+  }
+}

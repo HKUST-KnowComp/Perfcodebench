@@ -1,0 +1,59 @@
+{
+  "task_id": "c_log_scan_checksum_v2900_000",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_log_scan_checksum_v2900_000/candidate/google__gemma-4-26b-a4b-it/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stddef.h>\n\nuint64_t run(const char* const* rows, size_t row_count) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (size_t i = 0; i < row_count; ++i) {\n        const char* r = rows[i];\n        uint64_t v = 0;\n        \n        /* \n         * The original logic requires: \n         * 1. sscanf matched 4 items (%c%c%4u-%8X)\n         * 2. strlen(rows[i]) == 15\n         * \n         * Given the format: CCUU-HHHHHHHH (where C=char, U=uint, H=hex)\n         * Total length: 2 (chars) + 4 (uint) + 1 (dash) + 8 (hex) = 15.\n         * \n         * To preserve correctness, we must ensure the string is exactly 15 chars\n         * and follows the pattern. However, the checksum only uses indices 2 and 7.\n         * Index 2 is the first digit of the 4u. Index 7 is the first digit of the 8X.\n         * \n         * We must verify the '-' is at index 6 and the string is 15 chars long.\n         * We also check for null terminator at index 15 to satisfy strlen == 15.\n         */\n        \n        if (r[6] == '-' && r[15] == '\\0') {\n            /* \n             * sscanf validation for %4u and %8X is complex to replicate perfectly \n             * without overhead, but the checksum only depends on specific bytes.\n             * The original code: v = (uint64_t)((unsigned char)rows[i][2] + (unsigned char)rows[i][7]);\n             * We check if the characters at the expected positions are valid for the types.\n             */\n            \n            // Check if index 2 is a digit (part of %4u)\n            // Check if index 7 is a hex digit (part of %8X)\n            // Note: sscanf returns 4 if all match. \n            // For the checksum to be calculated, the string must be valid.\n            \n            // Optimization: The original code's 'matched == 4' is the bottleneck.\n            // We perform a lightweight check for the required characters.\n            \n            // Check if r[2..5] are digits and r[7..14] are hex\n            // This is a heuristic to mimic sscanf's success for the specific checksum indices.\n            // However, to be strictly correct to the original's behavior:\n            \n            int valid = 1;\n            // Check digits for %4u (indices 2,3,4,5)\n            for(int j=2; j<=5; ++j) if(r[j] < '0' || r[j] > '9') { valid = 0; break; }\n            if(valid) {\n                // Check hex for %8X (indices 7,8,9,10,11,12,13,14)\n                for(int j=7; j<=14; ++j) {\n                    char c = r[j];\n                    if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f'))) {\n                        valid = 0; break;\n                    }\n                }\n            }\n\n            if (valid) {\n                v = (uint64_t)((unsigned char)r[2] + (unsigned char)r[7]);\n            }\n        }\n\n        hash ^= (v + 1ULL);\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}",
+  "baseline": {
+    "task_id": "c_log_scan_checksum_v2900_000",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1048000,
+    "min_elapsed_ns": 1033000,
+    "max_elapsed_ns": 1054000,
+    "all_elapsed_ns": [
+      1048000,
+      1054000,
+      1033000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1048000,
+      "expected_checksum": 10602522173779593648,
+      "actual_checksum": 10602522173779593648
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_log_scan_checksum_v2900_000",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 165000,
+    "min_elapsed_ns": 153000,
+    "max_elapsed_ns": 174000,
+    "all_elapsed_ns": [
+      174000,
+      165000,
+      153000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 174000,
+      "expected_checksum": 10602522173779593648,
+      "actual_checksum": 10602522173779593648
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_log_scan_checksum_v2900_000",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/c_log_scan_checksum_v2900_000/candidate/bench']' returned non-zero exit status 1."
+  }
+}

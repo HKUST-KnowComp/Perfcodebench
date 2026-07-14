@@ -1,0 +1,1 @@
+Optimized Python code with pre-allocation and alpha influence pre-calculation.

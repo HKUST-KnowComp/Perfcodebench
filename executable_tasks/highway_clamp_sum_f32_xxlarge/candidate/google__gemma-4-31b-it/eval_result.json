@@ -1,0 +1,72 @@
+{
+  "task_id": "highway_clamp_sum_f32_xxlarge",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_clamp_sum_f32_xxlarge/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <hwy/highway.h>\n\nnamespace hw = hwy::HWY_NAMESPACE;\n\nfloat clamp_sum(const float* data, std::size_t n) {\n    if (n == 0) return 0.0f;\n\n    const hw::ScalableTag<float> d;\n    auto v_zero = hw::Set(d, 0.0f);\n    auto v_sum = hw::Zero(d);\n\n    std::size_t i = 0;\n    for (; i <= n - hw::Lanes(d); i += hw::Lanes(d)) {\n        auto v_data = hw::Load(d, data + i);\n        // Clamp: max(0.0f, value)\n        auto v_clamped = hw::Max(v_data, v_zero);\n        v_sum = hw::Add(v_sum, v_clamped);\n    }\n\n    float total_sum = hw::ReduceSum(d, v_sum);\n\n    // Handle tail\n    for (; i < n; ++i) {\n        if (data[i] > 0.0f) {\n            total_sum += data[i];\n        }\n    }\n\n    return total_sum;\n}",
+  "baseline": {
+    "task_id": "highway_clamp_sum_f32_xxlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6041656,
+    "min_elapsed_ns": 6010725,
+    "max_elapsed_ns": 6043926,
+    "all_elapsed_ns": [
+      6041656,
+      6043926,
+      6010725
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6041656,
+      "expected_sum": 419515000.0,
+      "actual_sum": 419059000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_clamp_sum_f32_xxlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3285209,
+    "min_elapsed_ns": 3209552,
+    "max_elapsed_ns": 3326310,
+    "all_elapsed_ns": [
+      3209552,
+      3326310,
+      3285209
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3209552,
+      "expected_sum": 419515000.0,
+      "actual_sum": 419520000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_clamp_sum_f32_xxlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 5200141,
+    "min_elapsed_ns": 4528284,
+    "max_elapsed_ns": 8868342,
+    "all_elapsed_ns": [
+      8868342,
+      4528284,
+      5200141
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8868342,
+      "expected_sum": 419515000.0,
+      "actual_sum": 419520000.0
+    },
+    "status": "ok"
+  }
+}

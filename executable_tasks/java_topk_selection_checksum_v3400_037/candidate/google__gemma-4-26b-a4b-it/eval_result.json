@@ -1,0 +1,72 @@
+{
+  "task_id": "java_topk_selection_checksum_v3400_037",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/java_topk_selection_checksum_v3400_037/candidate/google__gemma-4-26b-a4b-it/Solution.java",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "import java.util.*;\n\npublic class Solution {\n  /**\n   * Optimized implementation using primitive long arrays to avoid object allocation\n   * and Quickselect to achieve O(N) average time complexity.\n   * \n   * We pack the score and index into a single long to allow efficient sorting/partitioning.\n   * Since we need descending score and ascending index:\n   * - We negate the score (or use bit manipulation) to make the natural long order\n   *   match our custom comparator requirements.\n   * - However, to keep it simple and avoid sign issues with bitwise negation, \n   *   we pack as: [32 bits: inverted score] [32 bits: index].\n   *   Wait, the requirement is: higher score first, then lower index.\n   *   Let's use: [32 bits: (Integer.MAX_VALUE - score)] [32 bits: index].\n   *   This way, a natural ascending sort on this long will give us:\n   *   1. Smallest (MAX - score) -> Largest score.\n   *   2. Smallest index.\n   */\n\n  public static long run(int[] scores, int k, int iters) {\n    int n = scores.length;\n    long[] packed = new long[n];\n    long h = 0;\n\n    for (int iter = 0; iter < iters; iter++) {\n      for (int i = 0; i < n; i++) {\n        // Pack: high 32 bits = (Integer.MAX_VALUE - score), low 32 bits = index\n        // This allows us to use natural ascending order to satisfy the requirements.\n        // We use (Integer.MAX_VALUE - score) to ensure higher scores come first.\n        // We use index directly to ensure lower indices come first.\n        long high = (long) (Integer.MAX_VALUE - scores[i]) << 32;\n        long low = (long) i & 0xFFFFFFFFL;\n        packed[i] = high | low;\n      }\n\n      // Use Quickselect to find the k-th smallest element in the packed array.\n      // After quickselect, the first k elements will be the top-k (in some order).\n      quickSelect(packed, 0, n - 1, k);\n\n      // The problem requires the checksum over the ORDERED winners.\n      // Quickselect doesn't guarantee order within the top-k, so we must sort the top-k.\n      Arrays.sort(packed, 0, k);\n\n      h = 1469598103934665603L;\n      for (int i = 0; i < k; i++) {\n        long p = packed[i];\n        int score = Integer.MAX_VALUE - (int) (p >>> 32);\n        int index = (int) (p & 0xFFFFFFFFL);\n        h ^= (((long) score) << 32) ^ (index & 0xffffffffL);\n        h *= 1099511628211L;\n      }\n    }\n    return h;\n  }\n\n  private static void quickSelect(long[] arr, int left, int right, int k) {\n    if (left >= right) return;\n    \n    int pivotIndex = partition(arr, left, right);\n    if (pivotIndex == k) return;\n    if (pivotIndex > k) {\n      quickSelect(arr, left, pivotIndex - 1, k);\n    } else {\n      quickSelect(arr, pivotIndex + 1, right, k);\n    }\n  }\n\n  private static int partition(long[] arr, int left, int right) {\n    // Median-of-three to avoid worst-case O(N^2)\n    int mid = left + (right - left) / 2;\n    if (arr[mid] < arr[left]) swap(arr, left, mid);\n    if (arr[right] < arr[left]) swap(arr, left, right);\n    if (arr[right] < arr[mid]) swap(arr, mid, right);\n    \n    long pivot = arr[mid];\n    swap(arr, mid, right - 1);\n    int i = left;\n    int j = right - 1;\n    \n    while (true) {\n      while (arr[++i] < pivot);\n      while (arr[--j] > pivot);\n      if (i >= j) break;\n      swap(arr, i, j);\n    }\n    swap(arr, i, right - 1);\n    return i;\n  }\n\n  private static void swap(long[] arr, int i, int j) {\n    long temp = arr[i];\n    arr[i] = arr[j];\n    arr[j] = temp;\n  }\n}",
+  "baseline": {
+    "task_id": "java_topk_selection_checksum_v3400_037",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2122639724,
+    "min_elapsed_ns": 1964831195,
+    "max_elapsed_ns": 2253624333,
+    "all_elapsed_ns": [
+      2122639724,
+      1964831195,
+      2253624333
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2122639724,
+      "expected_checksum": -9189010384389094488,
+      "actual_checksum": -9189010384389094488
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "java_topk_selection_checksum_v3400_037",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 149319528,
+    "min_elapsed_ns": 124426061,
+    "max_elapsed_ns": 160833136,
+    "all_elapsed_ns": [
+      124426061,
+      149319528,
+      160833136
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 124426061,
+      "expected_checksum": -9189010384389094488,
+      "actual_checksum": -9189010384389094488
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "java_topk_selection_checksum_v3400_037",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 48640841,
+    "min_elapsed_ns": 45797192,
+    "max_elapsed_ns": 53131830,
+    "all_elapsed_ns": [
+      53131830,
+      45797192,
+      48640841
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 53131830,
+      "expected_checksum": -9189010384389094488,
+      "actual_checksum": -9189010384389094488
+    },
+    "status": "ok"
+  }
+}

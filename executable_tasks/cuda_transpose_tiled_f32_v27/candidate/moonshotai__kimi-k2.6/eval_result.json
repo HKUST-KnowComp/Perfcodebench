@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_transpose_tiled_f32_v27",
+  "model": "moonshotai/kimi-k2.6",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_transpose_tiled_f32_v27/candidate/moonshotai__kimi-k2.6/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int kTileDim = 32;\nconstexpr int kBlockRows = 8;\n\n__launch_bounds__(kTileDim * kBlockRows)\n__global__ void transpose_tiled_kernel(const float* __restrict__ input,\n                                       float* __restrict__ output,\n                                       int width, int height) {\n  __shared__ float tile[kTileDim][kTileDim + 1];\n\n  // Coalesced load from input into shared memory\n  int x = blockIdx.x * kTileDim + threadIdx.x;\n  int y = blockIdx.y * kTileDim + threadIdx.y;\n\n  if (x < width) {\n    #pragma unroll\n    for (int j = 0; j < kTileDim; j += kBlockRows) {\n      if (y + j < height) {\n        tile[threadIdx.y + j][threadIdx.x] =\n            __ldg(&input[static_cast<size_t>(y + j) * width + x]);\n      }\n    }\n  }\n\n  __syncthreads();\n\n  // Coalesced write from shared memory to output (transposed)\n  x = blockIdx.y * kTileDim + threadIdx.x;\n  y = blockIdx.x * kTileDim + threadIdx.y;\n\n  if (x < height) {\n    #pragma unroll\n    for (int j = 0; j < kTileDim; j += kBlockRows) {\n      if (y + j < width) {\n        output[static_cast<size_t>(y + j) * height + x] =\n            tile[threadIdx.x][threadIdx.y + j];\n      }\n    }\n  }\n}\n\n}  // namespace\n\nvoid transpose_f32(const float* input, float* output, int width, int height, int iters) {\n  const dim3 block(kTileDim, kBlockRows);\n  const dim3 grid((width + kTileDim - 1) / kTileDim,\n                  (height + kTileDim - 1) / kTileDim);\n  for (int iter = 0; iter < iters; ++iter) {\n    transpose_tiled_kernel<<<grid, block>>>(input, output, width, height);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_transpose_tiled_f32_v27",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 29377855,
+    "min_elapsed_ns": 26981664,
+    "max_elapsed_ns": 32984127,
+    "all_elapsed_ns": [
+      26981664,
+      32984127,
+      29377855
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 26981664,
+      "checksum": 1327100000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_transpose_tiled_f32_v27",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2864480,
+    "min_elapsed_ns": 2574719,
+    "max_elapsed_ns": 4885503,
+    "all_elapsed_ns": [
+      4885503,
+      2574719,
+      2864480
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4885503,
+      "checksum": 1327100000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_transpose_tiled_f32_v27",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_transpose_tiled_f32_v27/candidate/bench']' timed out after 5 seconds"
+  }
+}

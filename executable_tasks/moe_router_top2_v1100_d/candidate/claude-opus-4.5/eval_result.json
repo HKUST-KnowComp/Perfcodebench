@@ -1,0 +1,59 @@
+{
+  "task_id": "moe_router_top2_v1100_d",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/moe_router_top2_v1100_d/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <immintrin.h>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n// Find top-2 with deterministic tie-breaking (lower index wins)\ninline void find_top2(const int32_t* row, int experts,\n                      int32_t& val1, int& idx1,\n                      int32_t& val2, int& idx2) {\n  // First pass: find maximum value\n  int32_t max_val = row[0];\n  int experts8 = experts & ~7;\n  \n  if (experts8 >= 8) {\n    __m256i vmax = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(row));\n    for (int e = 8; e < experts8; e += 8) {\n      __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(row + e));\n      vmax = _mm256_max_epi32(vmax, v);\n    }\n    // Horizontal max\n    __m128i lo = _mm256_castsi256_si128(vmax);\n    __m128i hi = _mm256_extracti128_si256(vmax, 1);\n    __m128i m = _mm_max_epi32(lo, hi);\n    m = _mm_max_epi32(m, _mm_shuffle_epi32(m, _MM_SHUFFLE(1,0,3,2)));\n    m = _mm_max_epi32(m, _mm_shuffle_epi32(m, _MM_SHUFFLE(2,3,0,1)));\n    max_val = _mm_cvtsi128_si32(m);\n  }\n  for (int e = experts8; e < experts; ++e) {\n    if (row[e] > max_val) max_val = row[e];\n  }\n  \n  // Find first index with max_val (smallest index for tie-breaking)\n  idx1 = 0;\n  if (experts8 >= 8) {\n    __m256i vtarget = _mm256_set1_epi32(max_val);\n    for (int e = 0; e < experts8; e += 8) {\n      __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(row + e));\n      __m256i cmp = _mm256_cmpeq_epi32(v, vtarget);\n      int mask = _mm256_movemask_ps(_mm256_castsi256_ps(cmp));\n      if (mask) {\n        idx1 = e + __builtin_ctz(static_cast<unsigned>(mask));\n        goto found_first;\n      }\n    }\n  }\n  for (int e = (experts8 >= 8 ? experts8 : 0); e < experts; ++e) {\n    if (row[e] == max_val) {\n      idx1 = e;\n      goto found_first;\n    }\n  }\nfound_first:\n  val1 = max_val;\n  \n  // Second pass: find second maximum (excluding idx1)\n  int32_t max2_val;\n  if (idx1 == 0) {\n    max2_val = (experts > 1) ? row[1] : row[0];\n  } else {\n    max2_val = row[0];\n  }\n  \n  for (int e = 0; e < experts; ++e) {\n    if (e == idx1) continue;\n    if (row[e] > max2_val) max2_val = row[e];\n  }\n  \n  // Find first index with max2_val (excluding idx1)\n  idx2 = -1;\n  for (int e = 0; e < experts; ++e) {\n    if (e == idx1) continue;\n    if (row[e] == max2_val) {\n      idx2 = e;\n      break;\n    }\n  }\n  val2 = max2_val;\n}\n\n}  // namespace\n\nuint64_t moe_router_checksum(const std::vector<int32_t>& logits, int tokens, int experts, int iters) {\n  const int32_t* data = logits.data();\n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    for (int t = 0; t < tokens; ++t) {\n      const int32_t* row = data + static_cast<std::size_t>(t) * static_cast<std::size_t>(experts);\n      int32_t val1, val2;\n      int idx1, idx2;\n      find_top2(row, experts, val1, idx1, val2, idx2);\n      \n      hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(val1)));\n      hash = mix(hash, static_cast<uint64_t>(idx1));\n      hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(val2)));\n      hash = mix(hash, static_cast<uint64_t>(idx2));\n    }\n  }\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "moe_router_top2_v1100_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 172949064,
+    "min_elapsed_ns": 163818696,
+    "max_elapsed_ns": 175897233,
+    "all_elapsed_ns": [
+      172949064,
+      175897233,
+      163818696
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 172949064,
+      "expected_checksum": 18048104632016276004,
+      "actual_checksum": 18048104632016276004
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "moe_router_top2_v1100_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 26141387,
+    "min_elapsed_ns": 22889529,
+    "max_elapsed_ns": 27501343,
+    "all_elapsed_ns": [
+      26141387,
+      27501343,
+      22889529
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 26141387,
+      "expected_checksum": 18048104632016276004,
+      "actual_checksum": 18048104632016276004
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "moe_router_top2_v1100_d",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/moe_router_top2_v1100_d/harness', 'executable_tasks/moe_router_top2_v1100_d/harness/benchmark_main.cpp', 'executable_tasks/moe_router_top2_v1100_d/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/moe_router_top2_v1100_d/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_084",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_084/candidate/moonshotai__kimi-k2-0905/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <stdint.h>\n#include <stdlib.h>\n\nstatic uint64_t checksum_i16(const int16_t* data, size_t n) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (size_t i = 0; i < n; ++i) {\n        hash ^= (uint16_t)data[i];\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n    if (input_len <= 0 || output_len <= 0 || iters <= 0) return 0;\n\n    int16_t* out = (int16_t*)malloc((size_t)output_len * sizeof(int16_t));\n    if (!out) return 0;\n\n    const int64_t step = ((int64_t)(input_len - 1) << 32) / (output_len - 1);\n    const int64_t half = 1LL << 31;\n\n    uint64_t hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        int64_t pos = 0;\n        int i = 0;\n\n        /* unroll 4x */\n        for (; i + 4 <= output_len; i += 4) {\n            for (int k = 0; k < 4; ++k) {\n                int idx = (int)(pos >> 32);\n                int idx2 = idx + 1;\n                if (idx2 >= input_len) idx2 = input_len - 1;\n\n                uint32_t frac = (uint32_t)(pos & 0xFFFFFFFFU);\n                int32_t v1 = src[idx];\n                int32_t v2 = src[idx2];\n\n                /* 32-bit fixed-point linear interpolation */\n                int32_t val = v1 + (int32_t)(((int64_t)(v2 - v1) * frac) >> 32);\n                if (val > 32767) val = 32767;\n                else if (val < -32768) val = -32768;\n                out[i + k] = (int16_t)val;\n                pos += step;\n            }\n        }\n\n        /* tail */\n        for (; i < output_len; ++i) {\n            int idx = (int)(pos >> 32);\n            int idx2 = idx + 1;\n            if (idx2 >= input_len) idx2 = input_len - 1;\n\n            uint32_t frac = (uint32_t)(pos & 0xFFFFFFFFU);\n            int32_t v1 = src[idx];\n            int32_t v2 = src[idx2];\n\n            int32_t val = v1 + (int32_t)(((int64_t)(v2 - v1) * frac) >> 32);\n            if (val > 32767) val = 32767;\n            else if (val < -32768) val = -32768;\n            out[i] = (int16_t)val;\n            pos += step;\n        }\n\n        hash = checksum_i16(out, (size_t)output_len);\n    }\n\n    free(out);\n    return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_084",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 12448000,
+    "min_elapsed_ns": 11788000,
+    "max_elapsed_ns": 13176000,
+    "all_elapsed_ns": [
+      11788000,
+      13176000,
+      12448000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11788000,
+      "expected_checksum": 10180140470447909299,
+      "actual_checksum": 10180140470447909299
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_084",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 12099000,
+    "min_elapsed_ns": 11668000,
+    "max_elapsed_ns": 12411000,
+    "all_elapsed_ns": [
+      12099000,
+      12411000,
+      11668000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12099000,
+      "expected_checksum": 10180140470447909299,
+      "actual_checksum": 10180140470447909299
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_084",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 391000,
+    "min_elapsed_ns": 376000,
+    "max_elapsed_ns": 392000,
+    "all_elapsed_ns": [
+      376000,
+      391000,
+      392000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 376000,
+      "expected_checksum": 10180140470447909299,
+      "actual_checksum": 10180140470447909299
+    },
+    "status": "ok"
+  }
+}

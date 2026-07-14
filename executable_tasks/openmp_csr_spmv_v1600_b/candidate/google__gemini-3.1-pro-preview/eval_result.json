@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_csr_spmv_v1600_b",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_csr_spmv_v1600_b/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\n/**\n * Parallelized version of the FNV-1a-like hash function provided in the baseline.\n * Since the hash is sequential in nature, we compute the final vector first\n * and then hash it. To speed up the hash, we ensure the SpMV is fast.\n */\nuint64_t checksum_i64(const std::vector<int64_t>& data) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (int64_t v : data) {\n        hash ^= static_cast<uint64_t>(v);\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\n}  // namespace\n\nuint64_t csr_spmv_checksum(\n    const std::vector<int>& row_ptr,\n    const std::vector<int>& col_idx,\n    const std::vector<int32_t>& values,\n    const std::vector<int32_t>& dense,\n    int rows,\n    int iters) {\n    \n    if (rows <= 0) return 1469598103934665603ULL;\n\n    std::vector<int64_t> out(static_cast<std::size_t>(rows));\n\n    // Pointers to raw data for faster access and to assist compiler vectorization\n    const int* r_ptr = row_ptr.data();\n    const int* c_idx = col_idx.data();\n    const int32_t* vals = values.data();\n    const int32_t* d_vec = dense.data();\n    int64_t* o_vec = out.data();\n\n    // Parallelize the SpMV operation.\n    // We keep the parallel region outside the iters loop to minimize fork/join overhead.\n    #pragma omp parallel\n    {\n        for (int iter = 0; iter < iters; ++iter) {\n            // Guided scheduling is effective for CSR where row lengths (work per row) vary.\n            #pragma omp for schedule(guided)\n            for (int row = 0; row < rows; ++row) {\n                int64_t sum = 0;\n                int start = r_ptr[row];\n                int end = r_ptr[row + 1];\n                \n                // Inner loop: Dot product of sparse row and dense vector.\n                // The compiler is encouraged to vectorize this loop.\n                #pragma omp simd reduction(+:sum)\n                for (int idx = start; idx < end; ++idx) {\n                    sum += (int64_t)vals[idx] * (int64_t)d_vec[c_idx[idx]];\n                }\n                o_vec[row] = sum;\n            }\n        }\n    }\n\n    return checksum_i64(out);\n}\n",
+  "baseline": {
+    "task_id": "openmp_csr_spmv_v1600_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1109513,
+    "min_elapsed_ns": 1107190,
+    "max_elapsed_ns": 1147138,
+    "all_elapsed_ns": [
+      1109513,
+      1147138,
+      1107190
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1109513,
+      "expected_checksum": 14092959161689800236,
+      "actual_checksum": 14092959161689800236
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_csr_spmv_v1600_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2052960,
+    "min_elapsed_ns": 910252,
+    "max_elapsed_ns": 4257020,
+    "all_elapsed_ns": [
+      910252,
+      2052960,
+      4257020
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 910252,
+      "expected_checksum": 14092959161689800236,
+      "actual_checksum": 14092959161689800236
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_csr_spmv_v1600_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 26074347,
+    "min_elapsed_ns": 25668352,
+    "max_elapsed_ns": 33593383,
+    "all_elapsed_ns": [
+      33593383,
+      26074347,
+      25668352
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 33593383,
+      "expected_checksum": 14092959161689800236,
+      "actual_checksum": 14092959161689800236
+    },
+    "status": "ok"
+  }
+}

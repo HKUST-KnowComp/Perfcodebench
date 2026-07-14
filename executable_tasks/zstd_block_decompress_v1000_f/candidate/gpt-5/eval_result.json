@@ -1,0 +1,72 @@
+{
+  "task_id": "zstd_block_decompress_v1000_f",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/zstd_block_decompress_v1000_f/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"zstd.h\"\n\n#include <cstddef>\n#include <cstdint>\n\nnamespace {\n\n// FNV-1a 64-bit parameters\nstatic constexpr uint64_t kFNVOffset = 1469598103934665603ULL;\nstatic constexpr uint64_t kFNVPrime  = 1099511628211ULL;\n\n// Reusable thread-local decompression context and buffer\nstruct DecompressResources {\n  ZSTD_DCtx* dctx = nullptr;\n  unsigned char* buf = nullptr;\n  std::size_t cap = 0;\n\n  ~DecompressResources() {\n    // Intentionally skip freeing to avoid teardown costs at program end.\n    // If cleanup is desired, uncomment the following lines:\n    // if (dctx) ZSTD_freeDCtx(dctx);\n    // delete[] buf;\n  }\n\n  ZSTD_DCtx* ctx() {\n    if (!dctx) {\n      dctx = ZSTD_createDCtx();\n    }\n    return dctx;\n  }\n\n  unsigned char* ensure_capacity(std::size_t need) {\n    if (need == 0) return buf; // may be nullptr, handled by caller\n    if (cap < need) {\n      unsigned char* nbuf = new unsigned char[need];\n      delete[] buf;\n      buf = nbuf;\n      cap = need;\n    }\n    return buf;\n  }\n};\n\nthread_local DecompressResources g_res;\n\ninline uint64_t fnv1a_checksum(const unsigned char* data, std::size_t len) {\n  uint64_t hash = kFNVOffset;\n  const unsigned char* p = data;\n  const unsigned char* const end = p + len;\n\n  // Unroll by 8 for reduced loop overhead\n  while (p + 8 <= end) {\n    hash ^= p[0]; hash *= kFNVPrime;\n    hash ^= p[1]; hash *= kFNVPrime;\n    hash ^= p[2]; hash *= kFNVPrime;\n    hash ^= p[3]; hash *= kFNVPrime;\n    hash ^= p[4]; hash *= kFNVPrime;\n    hash ^= p[5]; hash *= kFNVPrime;\n    hash ^= p[6]; hash *= kFNVPrime;\n    hash ^= p[7]; hash *= kFNVPrime;\n    p += 8;\n  }\n  while (p < end) {\n    hash ^= *p++;\n    hash *= kFNVPrime;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t decompress_checksum(const std::string& compressed, std::size_t decompressed_size) {\n  // Prepare destination buffer\n  unsigned char dummy;\n  unsigned char* dst = nullptr;\n  if (decompressed_size > 0) {\n    dst = g_res.ensure_capacity(decompressed_size);\n    if (!dst) return 0; // allocation failed\n  } else {\n    dst = &dummy; // ZSTD allows dstSize = 0; provide non-null pointer defensively\n  }\n\n  // Reuse decompression context for throughput\n  ZSTD_DCtx* dctx = g_res.ctx();\n  if (!dctx) return 0;\n\n  const size_t n = ZSTD_decompressDCtx(\n      dctx,\n      dst,\n      decompressed_size,\n      compressed.data(),\n      compressed.size());\n\n  if (ZSTD_isError(n) || n != decompressed_size) {\n    return 0;\n  }\n\n  if (decompressed_size == 0) return kFNVOffset; // checksum of empty data\n\n  return fnv1a_checksum(dst, decompressed_size);\n}",
+  "baseline": {
+    "task_id": "zstd_block_decompress_v1000_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4975774,
+    "min_elapsed_ns": 4588031,
+    "max_elapsed_ns": 5316619,
+    "all_elapsed_ns": [
+      5316619,
+      4588031,
+      4975774
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5316619,
+      "expected_checksum": 246513888327022261,
+      "actual_checksum": 246513888327022261
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "zstd_block_decompress_v1000_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4440682,
+    "min_elapsed_ns": 4418988,
+    "max_elapsed_ns": 4661308,
+    "all_elapsed_ns": [
+      4418988,
+      4440682,
+      4661308
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4418988,
+      "expected_checksum": 246513888327022261,
+      "actual_checksum": 246513888327022261
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "zstd_block_decompress_v1000_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 3920498,
+    "min_elapsed_ns": 3872572,
+    "max_elapsed_ns": 3957720,
+    "all_elapsed_ns": [
+      3957720,
+      3872572,
+      3920498
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3957720,
+      "expected_checksum": 246513888327022261,
+      "actual_checksum": 246513888327022261
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "selection_vector_gather_sum_v500_a",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/selection_vector_gather_sum_v500_a/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nuint64_t selection_gather_sum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint8_t>& flags,\n    const std::vector<uint32_t>& payloads,\n    uint32_t threshold,\n    int iters) {\n  const std::size_t n = keys.size();\n  const uint32_t* __restrict__ k = keys.data();\n  const uint8_t* __restrict__ f = flags.data();\n  const uint32_t* __restrict__ p = payloads.data();\n  \n  uint64_t sum = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t local_sum = 0;\n    std::size_t i = 0;\n    \n    // Process 4 elements at a time for better ILP\n    const std::size_t n4 = n & ~std::size_t(3);\n    for (; i < n4; i += 4) {\n      uint32_t k0 = k[i];\n      uint32_t k1 = k[i + 1];\n      uint32_t k2 = k[i + 2];\n      uint32_t k3 = k[i + 3];\n      \n      // Branchless predicate evaluation\n      bool c0 = f[i] && (k0 < threshold) && ((k0 & 7u) == 0u);\n      bool c1 = f[i + 1] && (k1 < threshold) && ((k1 & 7u) == 0u);\n      bool c2 = f[i + 2] && (k2 < threshold) && ((k2 & 7u) == 0u);\n      bool c3 = f[i + 3] && (k3 < threshold) && ((k3 & 7u) == 0u);\n      \n      // Conditional add using multiplication by boolean (compiles to cmov or branchless)\n      local_sum += static_cast<uint64_t>(p[i]) * c0;\n      local_sum += static_cast<uint64_t>(p[i + 1]) * c1;\n      local_sum += static_cast<uint64_t>(p[i + 2]) * c2;\n      local_sum += static_cast<uint64_t>(p[i + 3]) * c3;\n    }\n    \n    // Handle remaining elements\n    for (; i < n; ++i) {\n      uint32_t ki = k[i];\n      bool cond = f[i] && (ki < threshold) && ((ki & 7u) == 0u);\n      local_sum += static_cast<uint64_t>(p[i]) * cond;\n    }\n    \n    sum = local_sum;\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "selection_vector_gather_sum_v500_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 623121974,
+    "min_elapsed_ns": 619987311,
+    "max_elapsed_ns": 630476919,
+    "all_elapsed_ns": [
+      630476919,
+      623121974,
+      619987311
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 630476919,
+      "expected_sum": 4296002344,
+      "actual_sum": 4296002344
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "selection_vector_gather_sum_v500_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 633206287,
+    "min_elapsed_ns": 553782907,
+    "max_elapsed_ns": 633483349,
+    "all_elapsed_ns": [
+      553782907,
+      633206287,
+      633483349
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 553782907,
+      "expected_sum": 4296002344,
+      "actual_sum": 4296002344
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "selection_vector_gather_sum_v500_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 531200284,
+    "min_elapsed_ns": 510280006,
+    "max_elapsed_ns": 678392428,
+    "all_elapsed_ns": [
+      531200284,
+      510280006,
+      678392428
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 531200284,
+      "expected_sum": 4296002344,
+      "actual_sum": 4296002344
+    },
+    "status": "ok"
+  }
+}

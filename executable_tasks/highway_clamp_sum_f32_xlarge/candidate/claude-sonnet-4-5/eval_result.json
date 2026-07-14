@@ -1,0 +1,72 @@
+{
+  "task_id": "highway_clamp_sum_f32_xlarge",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_clamp_sum_f32_xlarge/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"hwy/highway.h\"\n\nnamespace hn = hwy::HWY_NAMESPACE;\n\nfloat clamp_sum(const float* data, std::size_t n) {\n  const hn::ScalableTag<float> d;\n  const auto zero = hn::Zero(d);\n  const size_t N = hn::Lanes(d);\n  \n  // Use 4 accumulators to hide latency\n  auto sum0 = zero;\n  auto sum1 = zero;\n  auto sum2 = zero;\n  auto sum3 = zero;\n  \n  size_t i = 0;\n  \n  // Process 4 vectors at a time\n  const size_t unroll = N * 4;\n  for (; i + unroll <= n; i += unroll) {\n    auto v0 = hn::LoadU(d, data + i);\n    auto v1 = hn::LoadU(d, data + i + N);\n    auto v2 = hn::LoadU(d, data + i + N * 2);\n    auto v3 = hn::LoadU(d, data + i + N * 3);\n    \n    sum0 = hn::Add(sum0, hn::Max(v0, zero));\n    sum1 = hn::Add(sum1, hn::Max(v1, zero));\n    sum2 = hn::Add(sum2, hn::Max(v2, zero));\n    sum3 = hn::Add(sum3, hn::Max(v3, zero));\n  }\n  \n  // Process remaining full vectors\n  for (; i + N <= n; i += N) {\n    auto v = hn::LoadU(d, data + i);\n    sum0 = hn::Add(sum0, hn::Max(v, zero));\n  }\n  \n  // Combine accumulators\n  sum0 = hn::Add(hn::Add(sum0, sum1), hn::Add(sum2, sum3));\n  \n  // Handle remainder with masked load\n  if (i < n) {\n    const size_t remaining = n - i;\n    auto mask = hn::FirstN(d, remaining);\n    auto v = hn::MaskedLoad(mask, d, data + i);\n    sum0 = hn::Add(sum0, hn::Max(v, zero));\n  }\n  \n  return hn::ReduceSum(d, sum0);\n}\n",
+  "baseline": {
+    "task_id": "highway_clamp_sum_f32_xlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2974725,
+    "min_elapsed_ns": 2970739,
+    "max_elapsed_ns": 2979977,
+    "all_elapsed_ns": [
+      2970739,
+      2979977,
+      2974725
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2970739,
+      "expected_sum": 209707000.0,
+      "actual_sum": 209587000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_clamp_sum_f32_xlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1452860,
+    "min_elapsed_ns": 1428666,
+    "max_elapsed_ns": 1546179,
+    "all_elapsed_ns": [
+      1546179,
+      1452860,
+      1428666
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1546179,
+      "expected_sum": 209707000.0,
+      "actual_sum": 209709000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_clamp_sum_f32_xlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1886972,
+    "min_elapsed_ns": 1841831,
+    "max_elapsed_ns": 2190934,
+    "all_elapsed_ns": [
+      2190934,
+      1886972,
+      1841831
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2190934,
+      "expected_sum": 209707000.0,
+      "actual_sum": 209707000.0
+    },
+    "status": "ok"
+  }
+}

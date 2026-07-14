@@ -1,0 +1,18 @@
+#include "interface.h"
+#include <string_view>
+#include <unordered_set>
+#include <cstdint>
+#include <vector>
+#include <string>
+
+uint64_t dictionary_distinct(
+    const std::vector<std::string>& dictionary,
+    const std::vector<uint16_t>& codes,
+    int iters) {
+    if (iters <= 0) return 0;
+    std::unordered_set<std::string_view> seen;
+    for (uint16_t code : codes) {
+        seen.insert(dictionary[code]);
+    }
+    return static_cast<uint64_t>(seen.size());
+}

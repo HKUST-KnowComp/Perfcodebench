@@ -1,0 +1,72 @@
+{
+  "task_id": "prefix_cache_block_lookup_v2000_f",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup_v2000_f/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <cstdint>\n#include <algorithm>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n// Use a static bitset to avoid repeated allocations.\n// Given the context of 'large key space', we assume keys fit within a reasonable range.\n// If hash_space is very large, we fall back to a more memory-efficient approach or use the bitset if possible.\n// For this task, we'll use a bitset for the 32-bit range if memory allows, or a optimized search.\n// However, a simple bitset for the entire 2^32 range is 512MB. Let's check if we can optimize the search.\n\n} // namespace\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t hash_space,\n    int iters) {\n\n    // If the cache is empty, all prefixes are 0.\n    if (sorted_cache_keys.empty()) {\n        uint64_t final_hash = 0;\n        size_t num_requests = request_offsets.size() > 0 ? request_offsets.size() - 1 : 0;\n        for (int iter = 0; iter < iters; ++iter) {\n            uint64_t hash = 1469598103934665603ULL;\n            for (size_t r = 0; r < num_requests; ++r) {\n                hash = mix(hash, 0);\n            }\n            final_hash = hash;\n        }\n        return final_hash;\n    }\n\n    // Optimization: Use a bitset for O(1) lookup if the range is manageable.\n    // Since we don't know the exact memory limit, but 512MB is usually okay in performance tasks,\n    // we check the max key. If max key is small, bitset is perfect.\n    uint32_t max_key = sorted_cache_keys.back();\n    \n    // If max_key is within a reasonable range (e.g., 128MB bitset range),\n    // we use a bitset. Otherwise, we use the sorted property with a more efficient search.\n    bool use_bitset = max_key < (1024 * 1024 * 512); // 512M bits = 64MB\n\n    std::vector<uint8_t> bitset;\n    if (use_bitset) {\n        bitset.assign((max_key >> 3) + 1, 0);\n        for (uint32_t key : sorted_cache_keys) {\n            bitset[key >> 3] |= (1 << (key & 7));\n        }\n    }\n\n    uint64_t final_hash = 0;\n    const size_t num_requests = request_offsets.size() - 1;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t hash = 1469598103934665603ULL;\n        \n        if (use_bitset) {\n            for (size_t r = 0; r < num_requests; ++r) {\n                uint64_t prefix = 0;\n                int start = request_offsets[r];\n                int end = request_offsets[r + 1];\n                for (int i = start; i < end; ++i) {\n                    uint32_t block = request_blocks[i];\n                    if (block > max_key || !(bitset[block >> 3] & (1 << (block & 7)))) {\n                        break;\n                    }\n                    ++prefix;\n                }\n                hash = mix(hash, prefix);\n            }\n        } else {\n            // Fallback to binary search if key space is too sparse/large\n            for (size_t r = 0; r < num_requests; ++r) {\n                uint64_t prefix = 0;\n                int start = request_offsets[r];\n                int end = request_offsets[r + 1];\n                for (int i = start; i < end; ++i) {\n                    uint32_t block = request_blocks[i];\n                    if (!std::binary_search(sorted_cache_keys.begin(), sorted_cache_keys.end(), block)) {\n                        break;\n                    }\n                    ++prefix;\n                }\n                hash = mix(hash, prefix);\n            }\n        }\n        final_hash = hash;\n    }\n\n    return final_hash;\n}\n",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup_v2000_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 157110397,
+    "min_elapsed_ns": 156032549,
+    "max_elapsed_ns": 166683324,
+    "all_elapsed_ns": [
+      157110397,
+      156032549,
+      166683324
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 157110397,
+      "expected_checksum": 11548637948046092892,
+      "actual_checksum": 11548637948046092892
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup_v2000_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5136391,
+    "min_elapsed_ns": 5079776,
+    "max_elapsed_ns": 7723725,
+    "all_elapsed_ns": [
+      7723725,
+      5136391,
+      5079776
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7723725,
+      "expected_checksum": 11548637948046092892,
+      "actual_checksum": 11548637948046092892
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup_v2000_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 3600459,
+    "min_elapsed_ns": 3390076,
+    "max_elapsed_ns": 14864349,
+    "all_elapsed_ns": [
+      3600459,
+      3390076,
+      14864349
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3600459,
+      "expected_checksum": 11548637948046092892,
+      "actual_checksum": 11548637948046092892
+    },
+    "status": "ok"
+  }
+}

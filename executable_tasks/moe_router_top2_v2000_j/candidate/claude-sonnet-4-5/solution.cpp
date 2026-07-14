@@ -1,0 +1,64 @@
+#include "interface.h"
+
+#include <cstdint>
+#include <vector>
+
+namespace {
+
+inline uint64_t mix(uint64_t hash, uint64_t value) {
+  hash ^= value;
+  hash *= 1099511628211ULL;
+  return hash;
+}
+
+}  // namespace
+
+uint64_t moe_router_checksum(const std::vector<int32_t>& logits, int tokens, int experts, int iters) {
+  uint64_t hash = 0;
+  const int32_t* data = logits.data();
+  
+  for (int iter = 0; iter < iters; ++iter) {
+    hash = 1469598103934665603ULL;
+    
+    for (int t = 0; t < tokens; ++t) {
+      const int32_t* row_ptr = data + static_cast<std::size_t>(t) * static_cast<std::size_t>(experts);
+      
+      // Find top-2 with single pass
+      int32_t top1_val = row_ptr[0];
+      int top1_idx = 0;
+      int32_t top2_val = (experts > 1) ? row_ptr[1] : INT32_MIN;
+      int top2_idx = (experts > 1) ? 1 : 0;
+      
+      // Ensure top1 >= top2 with tie-breaking
+      if (top2_val > top1_val || (top2_val == top1_val && top2_idx < top1_idx)) {
+        int32_t tmp_val = top1_val;
+        int tmp_idx = top1_idx;
+        top1_val = top2_val;
+        top1_idx = top2_idx;
+        top2_val = tmp_val;
+        top2_idx = tmp_idx;
+      }
+      
+      for (int e = 2; e < experts; ++e) {
+        int32_t val = row_ptr[e];
+        
+        if (val > top1_val || (val == top1_val && e < top1_idx)) {
+          top2_val = top1_val;
+          top2_idx = top1_idx;
+          top1_val = val;
+          top1_idx = e;
+        } else if (val > top2_val || (val == top2_val && e < top2_idx)) {
+          top2_val = val;
+          top2_idx = e;
+        }
+      }
+      
+      hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(top1_val)));
+      hash = mix(hash, static_cast<uint64_t>(top1_idx));
+      hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(top2_val)));
+      hash = mix(hash, static_cast<uint64_t>(top2_idx));
+    }
+  }
+  
+  return hash;
+}

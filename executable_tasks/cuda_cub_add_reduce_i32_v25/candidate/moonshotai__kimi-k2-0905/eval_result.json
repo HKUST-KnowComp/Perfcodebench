@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v25",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v25/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cub/cub.cuh>\n#include <cuda_runtime.h>\n#include <cstdint>\n\nnamespace {\nconstexpr int BLOCK_THREADS = 256;\n\n__global__ void block_striped_sum(const int* __restrict__ input,\n                                  int* __restrict__ blockSums,\n                                  int n) {\n  int tid = blockIdx.x * blockDim.x + threadIdx.x;\n  int value = 0;\n  // block-striped load to maximize coalescing\n  for (int i = tid; i < n; i += gridDim.x * blockDim.x) {\n    value += input[i];\n  }\n  // warp-level reduction\n  for (int offset = warpSize / 2; offset > 0; offset /= 2)\n    value += __shfl_down_sync(0xffffffff, value, offset);\n  // write warp 0 result to shared\n  __shared__ int warpSums[BLOCK_THREADS / warpSize];\n  int lane = threadIdx.x % warpSize;\n  int wid  = threadIdx.x / warpSize;\n  if (lane == 0) warpSums[wid] = value;\n  __syncthreads();\n  // final reduction in warp 0\n  if (threadIdx.x < warpSize) {\n    value = (threadIdx.x < (BLOCK_THREADS / warpSize)) ? warpSums[threadIdx.x] : 0;\n    for (int offset = warpSize / 2; offset > 0; offset /= 2)\n      value += __shfl_down_sync(0xffffffff, value, offset);\n    if (threadIdx.x == 0) blockSums[blockIdx.x] = value;\n  }\n}\n} // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n  int* d_blockSums = nullptr;\n  int* d_out       = nullptr;\n  void* d_temp     = nullptr;\n  size_t tempBytes = 0;\n\n  // one block per SM is usually enough occupancy\n  int numBlocks = 0;\n  cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numBlocks,\n                                                 reinterpret_cast<const void*>(block_striped_sum),\n                                                 BLOCK_THREADS, 0);\n  int device = 0;\n  cudaGetDevice(&device);\n  int sms = 0;\n  cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, device);\n  numBlocks = numBlocks * sms;\n\n  // allocate persistent buffers\n  cudaMalloc(&d_blockSums, numBlocks * sizeof(int));\n  cudaMalloc(&d_out,       sizeof(int));\n  // size CUB temp storage\n  cub::DeviceReduce::Sum(nullptr, tempBytes, d_blockSums, d_out, numBlocks);\n  cudaMalloc(&d_temp, tempBytes);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    // stage-1: reduce input to per-block sums\n    block_striped_sum<<<numBlocks, BLOCK_THREADS>>>(input, d_blockSums, n);\n    // stage-2: reduce block sums to single int\n    cub::DeviceReduce::Sum(d_temp, tempBytes, d_blockSums, d_out, numBlocks);\n    // copy result to host pointer\n    cudaMemcpy(output, d_out, sizeof(int), cudaMemcpyDeviceToHost);\n  }\n\n  cudaFree(d_temp);\n  cudaFree(d_out);\n  cudaFree(d_blockSums);\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v25",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1672991,
+    "min_elapsed_ns": 1659775,
+    "max_elapsed_ns": 1681887,
+    "all_elapsed_ns": [
+      1681887,
+      1659775,
+      1672991
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1681887,
+      "expected_sum": 7864320,
+      "actual_sum": 7864320
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v25",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 454528,
+    "min_elapsed_ns": 446079,
+    "max_elapsed_ns": 487040,
+    "all_elapsed_ns": [
+      487040,
+      454528,
+      446079
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 487040,
+      "expected_sum": 7864320,
+      "actual_sum": 7864320
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v25",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['nvcc', '-O3', '-std=c++17', '-Iexecutable_tasks/cuda_cub_add_reduce_i32_v25/harness', '-gencode=arch=compute_80,code=sm_80', '-gencode=arch=compute_80,code=compute_80', 'executable_tasks/cuda_cub_add_reduce_i32_v25/harness/benchmark_main.cu', 'executable_tasks/cuda_cub_add_reduce_i32_v25/candidate/moonshotai__kimi-k2-0905/solution.cu', '-o', 'build/cuda_cub_add_reduce_i32_v25/candidate/bench']' returned non-zero exit status 2."
+  }
+}

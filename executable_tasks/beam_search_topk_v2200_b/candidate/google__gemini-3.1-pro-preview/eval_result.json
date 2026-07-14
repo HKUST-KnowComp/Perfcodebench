@@ -1,0 +1,72 @@
+{
+  "task_id": "beam_search_topk_v2200_b",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v2200_b/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\n// Mix function for hashing as defined in the baseline.\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n// Pack logit and index into a single uint64_t for efficient comparison.\n// Logit (int32_t) is transformed to uint32_t preserving order (XOR 0x80000000).\n// Index is bitwise inverted so that a smaller index results in a larger packed value.\ninline uint64_t pack(int32_t logit, int32_t index) {\n  uint32_t u_logit = static_cast<uint32_t>(logit) ^ 0x80000000;\n  uint32_t u_index = ~static_cast<uint32_t>(index);\n  return (static_cast<uint64_t>(u_logit) << 32) | static_cast<uint64_t>(u_index);\n}\n\ninline int32_t unpack_logit(uint64_t packed) {\n  return static_cast<int32_t>((packed >> 32) ^ 0x80000000);\n}\n\ninline int32_t unpack_index(uint64_t packed) {\n  return static_cast<int32_t>(~static_cast<uint32_t>(packed & 0xFFFFFFFF));\n}\n\n}  // namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits, int beams, int vocab, int topk, int iters) {\n  if (iters <= 0 || beams <= 0 || vocab <= 0) return 0;\n\n  // The baseline resets the hash inside the iters loop, so only the last iteration matters.\n  // We only perform the calculation once.\n  uint64_t hash = 1469598103934665603ULL;\n  \n  // Pre-allocate buffer for packing logits and indices to avoid repeated allocations.\n  std::vector<uint64_t> buffer(vocab);\n  \n  for (int b = 0; b < beams; ++b) {\n    const size_t base = static_cast<size_t>(b) * static_cast<size_t>(vocab);\n    \n    for (int v = 0; v < vocab; ++v) {\n      buffer[v] = pack(logits[base + v], v);\n    } \n\n    // Use nth_element to find the top-k elements in O(V) time.\n    // std::greater ensures we get the largest packed values (highest logit, lowest index).\n    if (topk < vocab) {\n      std::nth_element(buffer.begin(), buffer.begin() + topk, buffer.end(), std::greater<uint64_t>());\n    }\n    \n    // Sort only the top-k elements in O(K log K) time.\n    int actual_k = (topk < vocab) ? topk : vocab;\n    std::sort(buffer.begin(), buffer.begin() + actual_k, std::greater<uint64_t>());\n\n    // Update hash with the top-k results.\n    for (int k = 0; k < actual_k; ++k) {\n      uint64_t val = buffer[k];\n      hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(unpack_logit(val))));\n      hash = mix(hash, static_cast<uint64_t>(unpack_index(val)));\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "beam_search_topk_v2200_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 277849509,
+    "min_elapsed_ns": 267020252,
+    "max_elapsed_ns": 311199860,
+    "all_elapsed_ns": [
+      311199860,
+      277849509,
+      267020252
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 311199860,
+      "expected_checksum": 3223124996355890236,
+      "actual_checksum": 3223124996355890236
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v2200_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4578704,
+    "min_elapsed_ns": 3753156,
+    "max_elapsed_ns": 4955272,
+    "all_elapsed_ns": [
+      3753156,
+      4578704,
+      4955272
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3753156,
+      "expected_checksum": 3223124996355890236,
+      "actual_checksum": 3223124996355890236
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v2200_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 7587320,
+    "min_elapsed_ns": 7507763,
+    "max_elapsed_ns": 7788873,
+    "all_elapsed_ns": [
+      7788873,
+      7587320,
+      7507763
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7788873,
+      "expected_checksum": 3223124996355890236,
+      "actual_checksum": 3223124996355890236
+    },
+    "status": "ok"
+  }
+}

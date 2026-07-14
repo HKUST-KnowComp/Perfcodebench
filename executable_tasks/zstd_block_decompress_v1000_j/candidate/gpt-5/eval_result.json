@@ -1,0 +1,72 @@
+{
+  "task_id": "zstd_block_decompress_v1000_j",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/zstd_block_decompress_v1000_j/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include \"zstd.h\"\n\n#include <cstddef>\n#include <cstdint>\n\nnamespace {\n\n// Fast FNV-1a 64-bit checksum over a byte buffer (matches baseline semantics)\nstatic inline uint64_t fnv1a64(const unsigned char* p, std::size_t len) {\n  uint64_t h = 1469598103934665603ULL;      // offset basis\n  const uint64_t prime = 1099511628211ULL;  // FNV prime\n  while (len >= 8) {\n    h ^= p[0]; h *= prime;\n    h ^= p[1]; h *= prime;\n    h ^= p[2]; h *= prime;\n    h ^= p[3]; h *= prime;\n    h ^= p[4]; h *= prime;\n    h ^= p[5]; h *= prime;\n    h ^= p[6]; h *= prime;\n    h ^= p[7]; h *= prime;\n    p += 8;\n    len -= 8;\n  }\n  while (len--) {\n    h ^= *p++;\n    h *= prime;\n  }\n  return h;\n}\n\n// Thread-local resources to avoid per-call allocations and context setup\nstruct TLS {\n  ZSTD_DCtx* dctx;\n  unsigned char* buf;\n  std::size_t cap;\n\n  TLS() : dctx(ZSTD_createDCtx()), buf(nullptr), cap(0) {}\n  ~TLS() {\n    if (dctx) ZSTD_freeDCtx(dctx);\n    delete[] buf;\n  }\n\n  void ensure(std::size_t n) {\n    if (cap >= n) return;\n    std::size_t newCap = cap ? cap : 256;\n    while (newCap < n) newCap <<= 1; // exponential growth to reduce reallocations\n    unsigned char* nb = new unsigned char[newCap];\n    delete[] buf;\n    buf = nb;\n    cap = newCap;\n  }\n};\n\nthread_local TLS tls;\n\n}  // namespace\n\nuint64_t decompress_checksum(const std::string& compressed, std::size_t decompressed_size) {\n  // Special-case zero-size output: verify and return checksum of empty data\n  if (decompressed_size == 0) {\n    const size_t n = ZSTD_decompressDCtx(tls.dctx, nullptr, 0, compressed.data(), compressed.size());\n    if (ZSTD_isError(n) || n != 0) {\n      return 0;\n    }\n    return 1469598103934665603ULL; // FNV-1a offset basis for empty input\n  }\n\n  tls.ensure(decompressed_size);\n  unsigned char* dst = tls.buf;\n\n  const size_t n = ZSTD_decompressDCtx(tls.dctx, dst, decompressed_size, compressed.data(), compressed.size());\n  if (ZSTD_isError(n) || n != decompressed_size) {\n    return 0;\n  }\n\n  return fnv1a64(dst, decompressed_size);\n}\n",
+  "baseline": {
+    "task_id": "zstd_block_decompress_v1000_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 565004,
+    "min_elapsed_ns": 456465,
+    "max_elapsed_ns": 742626,
+    "all_elapsed_ns": [
+      565004,
+      742626,
+      456465
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 565004,
+      "expected_checksum": 13160454220110910242,
+      "actual_checksum": 13160454220110910242
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "zstd_block_decompress_v1000_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 449409,
+    "min_elapsed_ns": 431733,
+    "max_elapsed_ns": 463101,
+    "all_elapsed_ns": [
+      449409,
+      431733,
+      463101
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 449409,
+      "expected_checksum": 13160454220110910242,
+      "actual_checksum": 13160454220110910242
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "zstd_block_decompress_v1000_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 388630,
+    "min_elapsed_ns": 386377,
+    "max_elapsed_ns": 391960,
+    "all_elapsed_ns": [
+      388630,
+      391960,
+      386377
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 388630,
+      "expected_checksum": 13160454220110910242,
+      "actual_checksum": 13160454220110910242
+    },
+    "status": "ok"
+  }
+}

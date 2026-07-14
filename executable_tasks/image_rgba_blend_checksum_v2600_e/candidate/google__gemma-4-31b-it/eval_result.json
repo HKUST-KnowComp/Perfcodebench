@@ -1,0 +1,59 @@
+{
+  "task_id": "image_rgba_blend_checksum_v2600_e",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/image_rgba_blend_checksum_v2600_e/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\n// Fast blend: (s * a + d * (255 - a) + 127) / 255\n// This is equivalent to: d + ((s - d) * a + 127) / 255\ninline uint8_t blend_fast(uint8_t s, uint8_t d, uint8_t a) {\n    return static_cast<uint8_t>(d + ((static_cast<int32_t>(s) - d) * a + 127) / 255);\n}\n\n} // namespace\n\nuint64_t blend_checksum(\n    const std::vector<uint8_t>& src,\n    const std::vector<uint8_t>& dst,\n    int width,\n    int height,\n    int iters) {\n    \n    const size_t size = src.size();\n    const uint8_t* src_ptr = src.data();\n    const uint8_t* dst_ptr = dst.data();\n    \n    // Pre-allocate output buffer to avoid repeated allocations\n    std::vector<uint8_t> out(size);\n    uint8_t* out_ptr = out.data();\n    \n    uint64_t final_hash = 0;\n    const uint64_t FNV_OFFSET_BASIS = 1469598103934665603ULL;\n    const uint64_t FNV_PRIME = 1099511628211ULL;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        size_t i = 0;\n        // Process pixels\n        for (; i < size; i += 4) {\n            const uint8_t a = src_ptr[i + 3];\n            out_ptr[i]     = blend_fast(src_ptr[i],     dst_ptr[i],     a);\n            out_ptr[i + 1] = blend_fast(src_ptr[i + 1], dst_ptr[i + 1], a);\n            out_ptr[i + 2] = blend_fast(src_ptr[i + 2], dst_ptr[i + 2], a);\n            out_ptr[i + 3] = 255;\n        }\n\n        // Compute checksum over the output buffer\n        uint64_t hash = FNV_OFFSET_BASIS;\n        for (size_t j = 0; j < size; ++j) {\n            hash ^= static_cast<uint64_t>(out_ptr[j]);\n            hash *= FNV_PRIME;\n        }\n        final_hash = hash;\n    }\n\n    return final_hash;\n}",
+  "baseline": {
+    "task_id": "image_rgba_blend_checksum_v2600_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 36703771,
+    "min_elapsed_ns": 35620473,
+    "max_elapsed_ns": 45059409,
+    "all_elapsed_ns": [
+      45059409,
+      36703771,
+      35620473
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 45059409,
+      "expected_checksum": 10114672101496441780,
+      "actual_checksum": 10114672101496441780
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "image_rgba_blend_checksum_v2600_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 27833491,
+    "min_elapsed_ns": 26638926,
+    "max_elapsed_ns": 29984417,
+    "all_elapsed_ns": [
+      27833491,
+      26638926,
+      29984417
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 27833491,
+      "expected_checksum": 10114672101496441780,
+      "actual_checksum": 10114672101496441780
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "image_rgba_blend_checksum_v2600_e",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/image_rgba_blend_checksum_v2600_e/harness', 'executable_tasks/image_rgba_blend_checksum_v2600_e/harness/benchmark_main.cpp', 'executable_tasks/image_rgba_blend_checksum_v2600_e/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/image_rgba_blend_checksum_v2600_e/candidate/bench']' returned non-zero exit status 1."
+  }
+}

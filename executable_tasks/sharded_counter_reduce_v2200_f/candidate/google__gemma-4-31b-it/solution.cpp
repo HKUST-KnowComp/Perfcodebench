@@ -1,0 +1,73 @@
+#include "interface.h"
+
+#include <atomic>
+#include <thread>
+#include <vector>
+#include <numeric>
+
+namespace {
+
+uint64_t checksum_u64(const std::vector<uint64_t>& counts) {
+  uint64_t hash = 1469598103934665603ULL;
+  for (uint64_t v : counts) {
+    hash ^= v;
+    hash *= 1099511628211ULL;
+  }
+  return hash;
+}
+
+}  // namespace
+
+uint64_t sharded_counter_checksum(
+    const std::vector<uint32_t>& keys,
+    const std::vector<uint32_t>& values,
+    uint32_t key_space,
+    int num_threads,
+    int iters) {
+  
+  const size_t n_keys = keys.size();
+  const size_t k_space = static_cast<size_t>(key_space);
+  uint64_t final_hash = 0;
+
+  // To avoid thread creation overhead inside the loop, we can't easily
+  // reuse threads without a complex barrier. However, the primary bottleneck
+  // is the mutex. We use per-thread local buffers to eliminate contention.
+  
+  for (int iter = 0; iter < iters; ++iter) {
+    std::vector<std::vector<uint64_t>> local_counts(num_threads, std::vector<uint64_t>(k_space, 0));
+    std::vector<std::thread> threads;
+    
+    const size_t chunk = n_keys / num_threads;
+    for (int t = 0; t < num_threads; ++t) {
+      const size_t begin = static_cast<size_t>(t) * chunk;
+      const size_t end = (t == num_threads - 1) ? n_keys : begin + chunk;
+      
+      threads.emplace_back([&, t, begin, end]() {
+        uint64_t* __restrict__ my_counts = local_counts[t].data();
+        const uint32_t* __restrict__ k_ptr = keys.data();
+        const uint32_t* __restrict__ v_ptr = values.data();
+        for (size_t i = begin; i < end; ++i) {
+          my_counts[k_ptr[i]] += v_ptr[i];
+        }
+      });
+    }
+
+    for (auto& th : threads) {
+      th.join();
+    }
+
+    // Reduction phase
+    std::vector<uint64_t> global_counts(k_space, 0);
+    for (int t = 0; t < num_threads; ++t) {
+      const uint64_t* __restrict__ src = local_counts[t].data();
+      uint64_t* __restrict__ dst = global_counts.data();
+      for (size_t i = 0; i < k_space; ++i) {
+        dst[i] += src[i];
+      }
+    }
+    
+    final_hash = checksum_u64(global_counts);
+  }
+
+  return final_hash;
+}

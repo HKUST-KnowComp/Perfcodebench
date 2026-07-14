@@ -1,0 +1,59 @@
+{
+  "task_id": "prefix_cache_block_lookup_v800_j",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup_v800_j/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstdint>\n\nnamespace {\n\nuint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n// Fast hash set for uint32_t using linear probing\nstruct FastSet {\n    uint32_t* table;\n    uint32_t size;\n    uint32_t mask;\n    bool* occupied;\n\n    FastSet(const std::vector<uint32_t>& keys) {\n        size = 1;\n        while (size < keys.size() * 2) size <<= 1;\n        mask = size - 1;\n        table = new uint32_t[size];\n        occupied = new bool[size]();\n\n        for (uint32_t k : keys) {\n            uint32_t h = k & mask;\n            while (occupied[h]) {\n                h = (h + 1) & mask;\n            }\n            table[h] = k;\n            occupied[h] = true;\n        }\n    }\n\n    ~FastSet() {\n        delete[] table;\n        delete[] occupied;\n    }\n\n    inline bool contains(uint32_t k) const {\n        uint32_t h = k & mask;\n        while (occupied[h]) {\n            if (table[h] == k) return true;\n            h = (h + 1) & mask;\n        }\n        return false;\n    }\n};\n\n}  // namespace\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t hash_space,\n    int iters) {\n  (void)hash_space;\n  \n  // Pre-build a hash set for O(1) lookups instead of O(log N) binary search\n  FastSet cache_set(sorted_cache_keys);\n  \n  uint64_t total_hash = 0;\n  const size_t num_requests = request_offsets.size() - 1;\n  const uint32_t* blocks_ptr = request_blocks.data();\n  const int* offsets_ptr = request_offsets.data();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t iter_hash = 1469598103934665603ULL;\n    for (size_t r = 0; r < num_requests; ++r) {\n      int start = offsets_ptr[r];\n      int end = offsets_ptr[r + 1];\n      uint64_t prefix = 0;\n      for (int i = start; i < end; ++i) {\n        if (!cache_set.contains(blocks_ptr[i])) {\n          break;\n        }\n        ++prefix;\n      }\n      iter_hash = mix(iter_hash, prefix);\n    }\n    // The original code resets hash = 1469... inside the loop and returns the last iter's hash\n    // but the logic implies it wants the result of the final iteration.\n    total_hash = iter_hash;\n  }\n  \n  return total_hash;\n}",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup_v800_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 824024997,
+    "min_elapsed_ns": 789530467,
+    "max_elapsed_ns": 884831434,
+    "all_elapsed_ns": [
+      824024997,
+      884831434,
+      789530467
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 824024997,
+      "expected_checksum": 14820957523826866342,
+      "actual_checksum": 14820957523826866342
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup_v800_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8724591,
+    "min_elapsed_ns": 8242903,
+    "max_elapsed_ns": 11800038,
+    "all_elapsed_ns": [
+      8242903,
+      11800038,
+      8724591
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8242903,
+      "expected_checksum": 14820957523826866342,
+      "actual_checksum": 14820957523826866342
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup_v800_j",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/prefix_cache_block_lookup_v800_j/harness', 'executable_tasks/prefix_cache_block_lookup_v800_j/harness/benchmark_main.cpp', 'executable_tasks/prefix_cache_block_lookup_v800_j/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/prefix_cache_block_lookup_v800_j/candidate/bench']' returned non-zero exit status 1."
+  }
+}

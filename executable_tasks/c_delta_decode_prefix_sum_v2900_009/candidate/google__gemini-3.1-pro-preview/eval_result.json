@@ -1,0 +1,59 @@
+{
+  "task_id": "c_delta_decode_prefix_sum_v2900_009",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_delta_decode_prefix_sum_v2900_009/candidate/google__gemini-3.1-pro-preview/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <stdint.h>\n#include <stdlib.h>\n\n/**\n * Optimized delta decoding with fused aggregation.\n * \n * The baseline computes:\n *   v[i] = sum_{j=0 to i} deltas[j]\n *   total = sum_{i=0 to count-1} (v[i] + 0x9E3779B1LL)\n * \n * This can be mathematically simplified to avoid the intermediate array and the second pass:\n *   total = [sum_{i=0 to count-1} v[i]] + (count * 0x9E3779B1LL)\n * \n * Expanding the prefix sum:\n *   v[0] = d[0]\n *   v[1] = d[0] + d[1]\n *   v[2] = d[0] + d[1] + d[2]\n *   ...\n *   sum(v[i]) = d[0]*count + d[1]*(count-1) + d[2]*(count-2) + ... + d[count-1]*1\n * \n * This transformation allows a single-pass O(1) space complexity solution.\n */\nuint64_t run(const int32_t* deltas, size_t count, int iters) {\n    if (count == 0) return 0;\n\n    uint64_t final_total = 0;\n    const uint64_t constant_offset = 0x9E3779B1ULL;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t weighted_sum = 0;\n        \n        // Use a signed multiplier to handle the (count - i) term.\n        // The compiler can easily vectorize this loop.\n        for (size_t i = 0; i < count; ++i) {\n            int64_t weight = (int64_t)(count - i);\n            int64_t delta = (int64_t)deltas[i];\n            // We cast to uint64_t to match the 2's complement behavior of the baseline\n            weighted_sum += (uint64_t)(weight * delta);\n        }\n\n        // Add the constant offset accumulated over 'count' elements.\n        final_total = weighted_sum + (uint64_t)count * constant_offset;\n    }\n\n    return final_total;\n}\n",
+  "baseline": {
+    "task_id": "c_delta_decode_prefix_sum_v2900_009",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1059000,
+    "min_elapsed_ns": 1052000,
+    "max_elapsed_ns": 1108000,
+    "all_elapsed_ns": [
+      1108000,
+      1059000,
+      1052000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1108000,
+      "expected_checksum": 114636687087266,
+      "actual_checksum": 114636687087266
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_delta_decode_prefix_sum_v2900_009",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 661000,
+    "min_elapsed_ns": 650000,
+    "max_elapsed_ns": 766000,
+    "all_elapsed_ns": [
+      661000,
+      650000,
+      766000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 661000,
+      "expected_checksum": 114636687087266,
+      "actual_checksum": 114636687087266
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_delta_decode_prefix_sum_v2900_009",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/c_delta_decode_prefix_sum_v2900_009/candidate/bench']' returned non-zero exit status 1."
+  }
+}

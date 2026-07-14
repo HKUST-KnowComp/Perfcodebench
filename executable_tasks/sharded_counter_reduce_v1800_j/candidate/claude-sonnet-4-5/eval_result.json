@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce_v1800_j",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v1800_j/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 8,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <thread>\n#include <vector>\n\nnamespace {\n\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  std::vector<uint64_t> counts(static_cast<std::size_t>(key_space), 0);\n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    std::fill(counts.begin(), counts.end(), 0);\n    \n    std::vector<std::vector<uint64_t>> thread_local_counts(num_threads);\n    for (int t = 0; t < num_threads; ++t) {\n      thread_local_counts[t].resize(static_cast<std::size_t>(key_space), 0);\n    }\n    \n    std::vector<std::thread> threads;\n    const std::size_t chunk = keys.size() / static_cast<std::size_t>(num_threads);\n    \n    for (int t = 0; t < num_threads; ++t) {\n      const std::size_t begin = static_cast<std::size_t>(t) * chunk;\n      const std::size_t end = (t + 1 == num_threads) ? keys.size() : begin + chunk;\n      threads.emplace_back([&, t, begin, end]() {\n        auto& local = thread_local_counts[t];\n        for (std::size_t i = begin; i < end; ++i) {\n          local[static_cast<std::size_t>(keys[i])] += static_cast<uint64_t>(values[i]);\n        }\n      });\n    }\n    \n    for (std::thread& th : threads) {\n      th.join();\n    }\n    \n    for (int t = 0; t < num_threads; ++t) {\n      const auto& local = thread_local_counts[t];\n      for (std::size_t k = 0; k < static_cast<std::size_t>(key_space); ++k) {\n        counts[k] += local[k];\n      }\n    }\n    \n    hash = checksum_u64(counts);\n  }\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v1800_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5610642656,
+    "min_elapsed_ns": 5328191224,
+    "max_elapsed_ns": 6292814604,
+    "all_elapsed_ns": [
+      5328191224,
+      6292814604,
+      5610642656
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5328191224,
+      "expected_checksum": 11972321977310262147,
+      "actual_checksum": 11972321977310262147
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v1800_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 31906226,
+    "min_elapsed_ns": 31494708,
+    "max_elapsed_ns": 62172241,
+    "all_elapsed_ns": [
+      62172241,
+      31494708,
+      31906226
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 62172241,
+      "expected_checksum": 11972321977310262147,
+      "actual_checksum": 11972321977310262147
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v1800_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 19923878,
+    "min_elapsed_ns": 19245639,
+    "max_elapsed_ns": 25498904,
+    "all_elapsed_ns": [
+      19245639,
+      25498904,
+      19923878
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 19245639,
+      "expected_checksum": 11972321977310262147,
+      "actual_checksum": 11972321977310262147
+    },
+    "status": "ok"
+  }
+}

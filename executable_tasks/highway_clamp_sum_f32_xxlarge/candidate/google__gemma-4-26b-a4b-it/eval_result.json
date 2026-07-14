@@ -1,0 +1,59 @@
+{
+  "task_id": "highway_clamp_sum_f32_xxlarge",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_clamp_sum_f32_xxlarge/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"hwy/highway.h\"\n\nnamespace {\nnamespace HWY =\nthe\nhwy::HWY;\n}\n\nfloat clamp_sum(const float* data, std::size_t n) {\n  if (n == 0) return 0.0f;\n\n  const HWY::ScalableTag<float> d;\n  const size_t lanes = HWY::Lanes(d);\n  const size_t loop_size = (n / lanes) * lanes;\n\n  float total_sum = 0.0f;\n  const float* ptr = data;\n\n  // SIMD Loop\n  if (loop_size > 0) {\n    HWY::Simd<float> sum_vec = HWY::SetZero(d);\n    HWY::Simd<float> zero_vec = HWY::SetZero(d);\n\n    for (std::size_t i = 0; i < loop_size; i += lanes) {\n      HWY::Simd<float> v = HWY::Load(d, ptr + i);\n      // Clamp: max(v, 0.0f)\n      HWY::Simd<float> clamped = HWY::Max(v, zero_vec);\n      sum_vec = HWY::Add(sum_vec, clamped);\n    }\n    total_sum = HWY::ReduceSum(d, sum_vec);\n    ptr += loop_size;\n  }\n\n  // Scalar Tail\n  for (std::size_t i = 0; i < (n - loop_size); ++i) {\n    float val = ptr[i];\n    if (val > 0.0f) {\n      total_sum += val;\n    }\n  }\n\n  return total_sum;\n}",
+  "baseline": {
+    "task_id": "highway_clamp_sum_f32_xxlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6041656,
+    "min_elapsed_ns": 6010725,
+    "max_elapsed_ns": 6043926,
+    "all_elapsed_ns": [
+      6041656,
+      6043926,
+      6010725
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6041656,
+      "expected_sum": 419515000.0,
+      "actual_sum": 419059000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_clamp_sum_f32_xxlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3285209,
+    "min_elapsed_ns": 3209552,
+    "max_elapsed_ns": 3326310,
+    "all_elapsed_ns": [
+      3209552,
+      3326310,
+      3285209
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3209552,
+      "expected_sum": 419515000.0,
+      "actual_sum": 419520000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_clamp_sum_f32_xxlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/highway_clamp_sum_f32_xxlarge/harness', '-Iexternal/highway', 'executable_tasks/highway_clamp_sum_f32_xxlarge/harness/benchmark_main.cpp', 'executable_tasks/highway_clamp_sum_f32_xxlarge/candidate/google__gemma-4-26b-a4b-it/solution.cpp', 'external/highway/hwy/abort.cc', 'external/highway/hwy/targets.cc', 'external/highway/hwy/aligned_allocator.cc', 'external/highway/hwy/per_target.cc', '-o', 'build/highway_clamp_sum_f32_xxlarge/candidate/bench']' returned non-zero exit status 1."
+  }
+}

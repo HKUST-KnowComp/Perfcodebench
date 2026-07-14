@@ -1,0 +1,72 @@
+{
+  "task_id": "dictionary_distinct_count_v500_f",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dictionary_distinct_count_v500_f/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <string>\n#include <vector>\n\nuint64_t dictionary_distinct(\n    const std::vector<std::string>& dictionary,\n    const std::vector<uint16_t>& codes,\n    int iters) {\n  uint64_t count = 0;\n\n  if (iters <= 0) return 0;\n  if (codes.empty()) return 0;\n  if (dictionary.empty()) return 0;\n\n  const std::size_t dict_size = dictionary.size();\n\n  // Fast path: codes are uint16_t, so when the dictionary fits in 65536 entries,\n  // distinct decoded strings are exactly the number of distinct code values used.\n  if (dict_size <= 65536u) {\n    for (int iter = 0; iter < iters; ++iter) {\n      alignas(64) uint64_t seen[1024] = {};\n      uint64_t distinct = 0;\n\n      const uint16_t* p = codes.data();\n      const uint16_t* const end = p + codes.size();\n      for (; p != end; ++p) {\n        const uint32_t c = static_cast<uint32_t>(*p);\n        const uint32_t word = c >> 6;\n        const uint64_t bit = uint64_t{1} << (c & 63u);\n        const uint64_t old = seen[word];\n        if ((old & bit) == 0) {\n          seen[word] = old | bit;\n          ++distinct;\n        }\n      }\n      count = distinct;\n    }\n    return count;\n  }\n\n  // Fallback for oversized dictionaries: count distinct decoded strings by\n  // marking first occurrence of each dictionary entry referenced by codes.\n  std::vector<unsigned char> seen(dict_size, 0);\n  std::vector<std::size_t> touched;\n  touched.reserve(codes.size() < dict_size ? codes.size() : dict_size);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t distinct = 0;\n    for (std::size_t i = 0; i < codes.size(); ++i) {\n      const std::size_t idx = static_cast<std::size_t>(codes[i]);\n      if (!seen[idx]) {\n        seen[idx] = 1;\n        touched.push_back(idx);\n        ++distinct;\n      }\n    }\n    count = distinct;\n    for (std::size_t i = 0; i < touched.size(); ++i) {\n      seen[touched[i]] = 0;\n    }\n    touched.clear();\n  }\n\n  return count;\n}\n",
+  "baseline": {
+    "task_id": "dictionary_distinct_count_v500_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2076680214,
+    "min_elapsed_ns": 2005401332,
+    "max_elapsed_ns": 2306028634,
+    "all_elapsed_ns": [
+      2005401332,
+      2076680214,
+      2306028634
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2005401332,
+      "expected_count": 8192,
+      "actual_count": 8192
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dictionary_distinct_count_v500_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 51679782,
+    "min_elapsed_ns": 49455789,
+    "max_elapsed_ns": 98420987,
+    "all_elapsed_ns": [
+      49455789,
+      98420987,
+      51679782
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 49455789,
+      "expected_count": 8192,
+      "actual_count": 8192
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dictionary_distinct_count_v500_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 51254722,
+    "min_elapsed_ns": 51104975,
+    "max_elapsed_ns": 51561815,
+    "all_elapsed_ns": [
+      51561815,
+      51104975,
+      51254722
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 51561815,
+      "expected_count": 8192,
+      "actual_count": 8192
+    },
+    "status": "ok"
+  }
+}

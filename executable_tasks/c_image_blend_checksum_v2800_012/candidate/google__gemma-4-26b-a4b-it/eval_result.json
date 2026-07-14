@@ -1,0 +1,72 @@
+{
+  "task_id": "c_image_blend_checksum_v2800_012",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_image_blend_checksum_v2800_012/candidate/google__gemma-4-26b-a4b-it/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\n/* \n * The original formula: (s*a + d*(255-a) + 127) / 255\n * This can be rewritten as: d + (s - d) * a / 255 + (127/255 if s-d > 0 else ...)\n * A common high-performance approximation for (x / 255) is ((x * 0x8081) >> 16) or similar.\n * However, to ensure EXACT correctness as per the requirement, we must match the \n * original integer math: (s*a + d*(255-a) + 127) / 255.\n * \n * To optimize, we use the identity: (s*a + d*(255-a) + 127) / 255 \n * = (s*a + 255*d - d*a + 127) / 255 \n * = d + (a*(s - d) + 127) / 255\n */\n\nuint64_t run(const uint8_t* src, const uint8_t* dst, int width, int height, int iters) {\n    size_t num_bytes = (size_t)width * (size_t)height * 4u;\n    uint8_t* out = (uint8_t*)malloc(num_bytes);\n    if (!out) return 0;\n\n    uint64_t final_hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        // Blending loop\n        for (size_t i = 0; i < num_bytes; i += 4) {\n            uint32_t s_r = src[i];\n            uint32_t d_r = dst[i];\n            uint32_t s_g = src[i+1];\n            uint32_t d_g = dst[i+1];\n            uint32_t s_b = src[i+2];\n            uint32_t d_b = dst[i+2];\n            uint32_t a   = src[i+3];\n\n            // Exact math implementation of: (s*a + d*(255-a) + 127) / 255\n            // Using the simplified form: d + (a*(s - d) + 127) / 255\n            // We must handle the signedness of (s-d) carefully for the division.\n            \n            // Redefining to avoid signed issues and match original exactly:\n            // res = (s*a + d*255 - d*a + 127) / 255\n            // res = d + (a*(s - d) + 127) / 255\n            \n            // Since we need EXACT correctness, we use the original formula logic \n            // but minimize operations.\n            \n            uint32_t inv_a = 255u - a;\n            out[i]     = (uint8_t)((s_r * a + d_r * inv_a + 127u) / 255u);\n            out[i + 1] = (uint8_t)((s_g * a + d_g * inv_a + 127u) / 255u);\n            out[i + 2] = (uint8_t)((s_b * a + d_b * inv_a + 127u) / 255u);\n            out[i + 3] = 255u;\n        }\n\n        // Checksum calculation\n        uint64_t hash = 1469598103934665603ULL;\n        for (size_t i = 0; i < num_bytes; ++i) {\n            hash ^= (uint64_t)out[i];\n            hash *= 1099511628211ULL;\n        }\n        final_hash = hash;\n    }\n\n    free(out);\n    return final_hash;\n}",
+  "baseline": {
+    "task_id": "c_image_blend_checksum_v2800_012",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 11898000,
+    "min_elapsed_ns": 11858000,
+    "max_elapsed_ns": 11898000,
+    "all_elapsed_ns": [
+      11898000,
+      11858000,
+      11898000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11898000,
+      "expected_checksum": 2858217867273713910,
+      "actual_checksum": 2858217867273713910
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_image_blend_checksum_v2800_012",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 12274000,
+    "min_elapsed_ns": 12146000,
+    "max_elapsed_ns": 13934000,
+    "all_elapsed_ns": [
+      13934000,
+      12274000,
+      12146000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 13934000,
+      "expected_checksum": 2858217867273713910,
+      "actual_checksum": 2858217867273713910
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_image_blend_checksum_v2800_012",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 12669000,
+    "min_elapsed_ns": 12183000,
+    "max_elapsed_ns": 13233000,
+    "all_elapsed_ns": [
+      12669000,
+      13233000,
+      12183000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12669000,
+      "expected_checksum": 2858217867273713910,
+      "actual_checksum": 2858217867273713910
+    },
+    "status": "ok"
+  }
+}

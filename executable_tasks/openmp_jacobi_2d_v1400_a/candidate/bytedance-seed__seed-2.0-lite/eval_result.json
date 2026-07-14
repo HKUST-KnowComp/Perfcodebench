@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_jacobi_2d_v1400_a",
+  "model": "bytedance-seed/seed-2.0-lite",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v1400_a/candidate/bytedance-seed__seed-2.0-lite/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <omp.h>\n\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  std::vector<uint32_t> a = input;\n  std::vector<uint32_t> b(a.size(), 0);\n  const size_t ncols = static_cast<size_t>(cols);\n\n  // Copy boundary values once, they never change across all iterations\n  for (int row = 0; row < rows; ++row) {\n    for (int col = 0; col < cols; ++col) {\n      if (row == 0 || col == 0 || row == rows - 1 || col == cols - 1) {\n        const size_t idx = static_cast<size_t>(row) * ncols + static_cast<size_t>(col);\n        b[idx] = a[idx];\n      }\n    }\n  }\n\n  for (int step = 0; step < steps; ++step) {\n    // Parallelize inner row processing with static scheduling for balanced work distribution\n    #pragma omp parallel for schedule(static) default(none) shared(a, b, rows, ncols)\n    for (int row = 1; row < rows - 1; ++row) {\n      const size_t row_offset = static_cast<size_t>(row) * ncols;\n      for (int col = 1; col < cols - 1; ++col) {\n        const size_t idx = row_offset + static_cast<size_t>(col);\n        b[idx] = (a[idx] * 4u + a[idx - 1] + a[idx + 1] +\n                  a[idx - ncols] + a[idx + ncols]) / 8u;\n      }\n    }\n    a.swap(b);\n  }\n\n  return checksum_u32(a);\n}",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v1400_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 147214021,
+    "min_elapsed_ns": 138779616,
+    "max_elapsed_ns": 246616605,
+    "all_elapsed_ns": [
+      147214021,
+      246616605,
+      138779616
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 147214021,
+      "expected_checksum": 10724555928738317727,
+      "actual_checksum": 10724555928738317727
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v1400_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 41134218,
+    "min_elapsed_ns": 33363315,
+    "max_elapsed_ns": 132252912,
+    "all_elapsed_ns": [
+      132252912,
+      41134218,
+      33363315
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 132252912,
+      "expected_checksum": 10724555928738317727,
+      "actual_checksum": 10724555928738317727
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v1400_a",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-fopenmp', '-Iexecutable_tasks/openmp_jacobi_2d_v1400_a/harness', 'executable_tasks/openmp_jacobi_2d_v1400_a/harness/benchmark_main.cpp', 'executable_tasks/openmp_jacobi_2d_v1400_a/candidate/bytedance-seed__seed-2.0-lite/solution.cpp', '-o', 'build/openmp_jacobi_2d_v1400_a/candidate/bench']' returned non-zero exit status 1."
+  }
+}

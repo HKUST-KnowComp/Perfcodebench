@@ -1,0 +1,24 @@
+#include "interface.h"
+#include <vector>
+#include <cstdint>
+
+uint64_t nibble_filter_sum(const std::vector<uint8_t>& packed, uint8_t threshold, int iters) {
+    uint64_t total_sum = 0;
+    const size_t n = packed.size();
+    const uint8_t* data = packed.data();
+    const uint32_t thresh = static_cast<uint32_t>(threshold);
+
+    for (int iter = 0; iter < iters; ++iter) {
+        uint64_t current_sum = 0;
+        for (size_t i = 0; i < n; ++i) {
+            uint8_t byte = data[i];
+            uint32_t v1 = byte & 0x0Fu;
+            uint32_t v2 = byte >> 4u;
+            
+            if (v1 > thresh) current_sum += v1;
+            if (v2 > thresh) current_sum += v2;
+        }
+        total_sum = current_sum;
+    }
+    return total_sum;
+}

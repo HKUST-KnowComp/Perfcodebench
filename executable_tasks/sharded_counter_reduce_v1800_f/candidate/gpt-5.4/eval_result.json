@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce_v1800_f",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v1800_f/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 11,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <atomic>\n#include <condition_variable>\n#include <cstdint>\n#include <mutex>\n#include <thread>\n#include <vector>\n\nnamespace {\n\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\nclass ThreadPoolReducer {\n public:\n  ThreadPoolReducer(const std::vector<uint32_t>& keys,\n                    const std::vector<uint32_t>& values,\n                    uint32_t key_space,\n                    int num_threads)\n      : keys_(keys),\n        values_(values),\n        key_space_(static_cast<std::size_t>(key_space)),\n        num_threads_(num_threads > 0 ? num_threads : 1),\n        locals_(static_cast<std::size_t>(num_threads_),\n                std::vector<uint64_t>(static_cast<std::size_t>(key_space), 0)) {\n    const std::size_t n = keys_.size();\n    ranges_begin_.resize(static_cast<std::size_t>(num_threads_));\n    ranges_end_.resize(static_cast<std::size_t>(num_threads_));\n\n    const std::size_t chunk = n / static_cast<std::size_t>(num_threads_);\n    for (int t = 0; t < num_threads_; ++t) {\n      const std::size_t begin = static_cast<std::size_t>(t) * chunk;\n      const std::size_t end = (t + 1 == num_threads_) ? n : begin + chunk;\n      ranges_begin_[static_cast<std::size_t>(t)] = begin;\n      ranges_end_[static_cast<std::size_t>(t)] = end;\n    }\n\n    workers_.reserve(static_cast<std::size_t>(num_threads_));\n    for (int t = 0; t < num_threads_; ++t) {\n      workers_.emplace_back(&ThreadPoolReducer::worker_loop, this, t);\n    }\n  }\n\n  ~ThreadPoolReducer() {\n    {\n      std::lock_guard<std::mutex> lock(mu_);\n      stop_ = true;\n      ++job_epoch_;\n    }\n    cv_start_.notify_all();\n    for (std::thread& th : workers_) {\n      th.join();\n    }\n  }\n\n  void run_iteration(std::vector<uint64_t>& counts) {\n    {\n      std::lock_guard<std::mutex> lock(mu_);\n      finished_ = 0;\n      ++job_epoch_;\n    }\n    cv_start_.notify_all();\n\n    {\n      std::unique_lock<std::mutex> lock(mu_);\n      cv_done_.wait(lock, [&] { return finished_ == num_threads_; });\n    }\n\n    std::fill(counts.begin(), counts.end(), 0);\n\n    const std::size_t ks = key_space_;\n    for (int t = 0; t < num_threads_; ++t) {\n      const std::vector<uint64_t>& local = locals_[static_cast<std::size_t>(t)];\n      for (std::size_t k = 0; k < ks; ++k) {\n        counts[k] += local[k];\n      }\n    }\n  }\n\n private:\n  void worker_loop(int tid) {\n    int seen_epoch = 0;\n    const std::size_t t = static_cast<std::size_t>(tid);\n    std::vector<uint64_t>& local = locals_[t];\n    const std::size_t begin = ranges_begin_[t];\n    const std::size_t end = ranges_end_[t];\n\n    for (;;) {\n      {\n        std::unique_lock<std::mutex> lock(mu_);\n        cv_start_.wait(lock, [&] { return stop_ || job_epoch_ != seen_epoch; });\n        if (stop_) {\n          return;\n        }\n        seen_epoch = job_epoch_;\n      }\n\n      std::fill(local.begin(), local.end(), 0);\n      for (std::size_t i = begin; i < end; ++i) {\n        local[static_cast<std::size_t>(keys_[i])] +=\n            static_cast<uint64_t>(values_[i]);\n      }\n\n      {\n        std::lock_guard<std::mutex> lock(mu_);\n        ++finished_;\n        if (finished_ == num_threads_) {\n          cv_done_.notify_one();\n        }\n      }\n    }\n  }\n\n  const std::vector<uint32_t>& keys_;\n  const std::vector<uint32_t>& values_;\n  std::size_t key_space_;\n  int num_threads_;\n\n  std::vector<std::thread> workers_;\n  std::vector<std::vector<uint64_t>> locals_;\n  std::vector<std::size_t> ranges_begin_;\n  std::vector<std::size_t> ranges_end_;\n\n  std::mutex mu_;\n  std::condition_variable cv_start_;\n  std::condition_variable cv_done_;\n  int job_epoch_ = 0;\n  int finished_ = 0;\n  bool stop_ = false;\n};\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  std::vector<uint64_t> counts(static_cast<std::size_t>(key_space), 0);\n  if (iters <= 0) {\n    return 0;\n  }\n\n  ThreadPoolReducer reducer(keys, values, key_space, num_threads);\n\n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    reducer.run_iteration(counts);\n    hash = checksum_u64(counts);\n  }\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v1800_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6828503873,
+    "min_elapsed_ns": 6504111171,
+    "max_elapsed_ns": 7317330411,
+    "all_elapsed_ns": [
+      7317330411,
+      6504111171,
+      6828503873
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7317330411,
+      "expected_checksum": 9756277127520650115,
+      "actual_checksum": 9756277127520650115
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v1800_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 16771022,
+    "min_elapsed_ns": 16714639,
+    "max_elapsed_ns": 16834691,
+    "all_elapsed_ns": [
+      16834691,
+      16771022,
+      16714639
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 16834691,
+      "expected_checksum": 9756277127520650115,
+      "actual_checksum": 9756277127520650115
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v1800_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 10496366,
+    "min_elapsed_ns": 9902814,
+    "max_elapsed_ns": 11471103,
+    "all_elapsed_ns": [
+      11471103,
+      9902814,
+      10496366
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11471103,
+      "expected_checksum": 9756277127520650115,
+      "actual_checksum": 9756277127520650115
+    },
+    "status": "ok"
+  }
+}

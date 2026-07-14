@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_matmul_tiled_f32_v12",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_matmul_tiled_f32_v12/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int BM = 128;          // rows of A tile & C tile\nconstexpr int BN = 128;          // cols of B tile & C tile\nconstexpr int BK = 8;            // reduction dimension tile\nconstexpr int TM = 8;            // rows each thread computes\nconstexpr int TN = 8;            // cols each thread computes\nconstexpr int THREADS = (BM * BN) / (TM * TN);\n\n__global__ void matmul_tiled_kernel(const float* __restrict__ A,\n                                    const float* __restrict__ B,\n                                    float* __restrict__ C,\n                                    int n) {\n  __shared__ float tileA[BM * BK];\n  __shared__ float tileB[BK * BN];\n\n  const int tid = threadIdx.x;\n  const int rowC = blockIdx.y * BM;\n  const int colC = blockIdx.x * BN;\n\n  float regC[TM * TN] = {0.0f};\n\n  for (int k0 = 0; k0 < n; k0 += BK) {\n    // Load tileA (BM x BK) with vectorized float4\n    #pragma unroll\n    for (int i = 0; i < (BM * BK) / 4; i += THREADS) {\n      int idx = i + tid;\n      if (idx < (BM * BK) / 4) {\n        int r = (idx * 4) / BK;\n        int c = (idx * 4) % BK;\n        int gRow = rowC + r;\n        int gCol = k0 + c;\n        if (gRow < n && gCol < n) {\n          float4 v = *reinterpret_cast<const float4*>(&A[gRow * n + gCol]);\n          *reinterpret_cast<float4*>(&tileA[idx * 4]) = v;\n        }\n      }\n    }\n    // Load tileB (BK x BN) with vectorized float4\n    #pragma unroll\n    for (int i = 0; i < (BK * BN) / 4; i += THREADS) {\n      int idx = i + tid;\n      if (idx < (BK * BN) / 4) {\n        int r = (idx * 4) / BN;\n        int c = (idx * 4) % BN;\n        int gRow = k0 + r;\n        int gCol = colC + c;\n        if (gRow < n && gCol < n) {\n          float4 v = *reinterpret_cast<const float4*>(&B[gRow * n + gCol]);\n          *reinterpret_cast<float4*>(&tileB[idx * 4]) = v;\n        }\n      }\n    }\n    __syncthreads();\n\n    // Compute\n    #pragma unroll\n    for (int k = 0; k < BK; ++k) {\n      #pragma unroll\n      for (int m = 0; m < TM; ++m) {\n        float a = tileA[(threadIdx.y * TM + m) * BK + k];\n        #pragma unroll\n        for (int n = 0; n < TN; ++n) {\n          float b = tileB[k * BN + threadIdx.x * TN + n];\n          regC[m * TN + n] += a * b;\n        }\n      }\n    }\n    __syncthreads();\n  }\n\n  // Store C tile with vectorized float4\n  #pragma unroll\n  for (int m = 0; m < TM; ++m) {\n    #pragma unroll\n    for (int n = 0; n < TN; n += 4) {\n      int gRow = rowC + threadIdx.y * TM + m;\n      int gCol = colC + threadIdx.x * TN + n;\n      if (gRow < n && gCol + 3 < n) {\n        float4 v = {regC[m * TN + n],\n                    regC[m * TN + n + 1],\n                    regC[m * TN + n + 2],\n                    regC[m * TN + n + 3]};\n        *reinterpret_cast<float4*>(&C[gRow * n + gCol]) = v;\n      }\n    }\n  }\n}\n\n}  // namespace\n\nvoid matmul_f32(const float* a, const float* b, float* c, int n, int iters) {\n  dim3 blockDim(THREADS);\n  dim3 gridDim((n + BN - 1) / BN, (n + BM - 1) / BM);\n  for (int i = 0; i < iters; ++i) {\n    matmul_tiled_kernel<<<gridDim, blockDim>>>(a, b, c, n);\n  }\n}",
+  "baseline": {
+    "task_id": "cuda_matmul_tiled_f32_v12",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 567936,
+    "min_elapsed_ns": 565280,
+    "max_elapsed_ns": 569855,
+    "all_elapsed_ns": [
+      567936,
+      569855,
+      565280
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 567936,
+      "max_abs_error": 0,
+      "checksum": 1947170000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_matmul_tiled_f32_v12",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 423936,
+    "min_elapsed_ns": 423135,
+    "max_elapsed_ns": 424351,
+    "all_elapsed_ns": [
+      423936,
+      423135,
+      424351
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 423936,
+      "max_abs_error": 0,
+      "checksum": 1947170000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_matmul_tiled_f32_v12",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_matmul_tiled_f32_v12/candidate/bench']' returned non-zero exit status 1."
+  }
+}

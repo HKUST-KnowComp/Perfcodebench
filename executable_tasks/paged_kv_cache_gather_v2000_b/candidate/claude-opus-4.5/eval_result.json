@@ -1,0 +1,72 @@
+{
+  "task_id": "paged_kv_cache_gather_v2000_b",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/paged_kv_cache_gather_v2000_b/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nuint64_t paged_kv_checksum(\n    const std::vector<uint32_t>& cache,\n    const std::vector<uint32_t>& page_ids,\n    const std::vector<uint32_t>& slot_offsets,\n    int num_pages,\n    int page_size,\n    int iters) {\n  (void)num_pages;\n  \n  const uint32_t* __restrict__ cache_ptr = cache.data();\n  const uint32_t* __restrict__ pids = page_ids.data();\n  const uint32_t* __restrict__ soffs = slot_offsets.data();\n  const std::size_t n = page_ids.size();\n  const std::size_t ps = static_cast<std::size_t>(page_size);\n  \n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    \n    std::size_t i = 0;\n    \n    // Process 4 elements at a time for better ILP\n    const std::size_t n4 = n & ~static_cast<std::size_t>(3);\n    for (; i < n4; i += 4) {\n      // Prefetch ahead\n      if (i + 16 < n) {\n        __builtin_prefetch(&cache_ptr[pids[i + 16] * ps + soffs[i + 16]], 0, 0);\n      }\n      \n      uint64_t v0 = cache_ptr[pids[i] * ps + soffs[i]];\n      uint64_t v1 = cache_ptr[pids[i + 1] * ps + soffs[i + 1]];\n      uint64_t v2 = cache_ptr[pids[i + 2] * ps + soffs[i + 2]];\n      uint64_t v3 = cache_ptr[pids[i + 3] * ps + soffs[i + 3]];\n      \n      hash ^= v0;\n      hash *= 1099511628211ULL;\n      hash ^= v1;\n      hash *= 1099511628211ULL;\n      hash ^= v2;\n      hash *= 1099511628211ULL;\n      hash ^= v3;\n      hash *= 1099511628211ULL;\n    }\n    \n    // Handle remaining elements\n    for (; i < n; ++i) {\n      uint64_t val = cache_ptr[pids[i] * ps + soffs[i]];\n      hash ^= val;\n      hash *= 1099511628211ULL;\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "paged_kv_cache_gather_v2000_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 93839510,
+    "min_elapsed_ns": 86635841,
+    "max_elapsed_ns": 95335585,
+    "all_elapsed_ns": [
+      86635841,
+      93839510,
+      95335585
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 86635841,
+      "expected_checksum": 5374401203677234051,
+      "actual_checksum": 5374401203677234051
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "paged_kv_cache_gather_v2000_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 84770154,
+    "min_elapsed_ns": 54071701,
+    "max_elapsed_ns": 93704958,
+    "all_elapsed_ns": [
+      54071701,
+      84770154,
+      93704958
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 54071701,
+      "expected_checksum": 5374401203677234051,
+      "actual_checksum": 5374401203677234051
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "paged_kv_cache_gather_v2000_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 58508421,
+    "min_elapsed_ns": 57156792,
+    "max_elapsed_ns": 107320319,
+    "all_elapsed_ns": [
+      57156792,
+      107320319,
+      58508421
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 57156792,
+      "expected_checksum": 5374401203677234051,
+      "actual_checksum": 5374401203677234051
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "packed12_decode_filter_sum_v500_c",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/packed12_decode_filter_sum_v500_c/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <immintrin.h>\n#include <cstdint>\n#include <vector>\n\nuint64_t packed12_filter_sum(const std::vector<uint8_t>& packed, uint16_t threshold, int iters) {\n    if (packed.empty()) return 0;\n\n    const size_t n_bytes = packed.size();\n    const size_t n_blocks = n_bytes / 24;\n    const uint16_t* packed_ptr = reinterpret_cast<const uint16_t*>(packed.data());\n    \n    __m256i v_threshold = _mm256_set1_epi16(static_cast<short>(threshold));\n    __m256i v_mask_even = _mm256_set1_epi16(0x0FFF);\n    __m256i v_shuffle = _mm256_setr_epi8(\n        0, 1, 1, 2, 3, 4, 4, 5, 6, 7, 7, 8, 9, 10, 10, 11,\n        12, 13, 13, 14, 15, 16, 16, 17, 18, 19, 19, 20, 21, 22, 22, 23\n    );\n\n    uint64_t final_sum = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        __m256i v_sum_lo = _mm256_setzero_si256();\n        __m256i v_sum_hi = _mm256_setzero_si256();\n        \n        size_t i = 0;\n        for (; i < n_blocks; ++i) {\n            // Load 24 bytes (using 32-byte load, safe if vector has padding or small enough)\n            __m256i raw = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(packed.data() + i * 24));\n            __m256i shuffled = _mm256_shuffle_epi8(raw, v_shuffle);\n\n            // Even lanes: (p[0] | p[1] << 8) & 0x0FFF\n            // Odd lanes: (p[1] | p[2] << 8) >> 4\n            __m256i even_vals = _mm256_and_si256(shuffled, v_mask_even);\n            __m256i odd_vals = _mm256_srli_epi16(shuffled, 4);\n\n            // Blend even and odd lanes\n            __m256i values = _mm256_blend_epi16(even_vals, odd_vals, 0xAA);\n\n            // Filter: values > threshold\n            // _mm256_cmpgt_epi16 works on signed shorts, but 12-bit values (0-4095) fit in signed positive range\n            __m256i mask = _mm256_cmpgt_epi16(values, v_threshold);\n            __m256i filtered = _mm256_and_si256(values, mask);\n\n            // Accumulate into 64-bit sums to avoid overflow\n            __m256i filtered_lo = _mm256_unpacklo_epi16(filtered, _mm256_setzero_si256());\n            __m256i filtered_hi = _mm256_unpackhi_epi16(filtered, _mm256_setzero_si256());\n\n            v_sum_lo = _mm256_add_epi64(v_sum_lo, _mm256_unpacklo_epi32(filtered_lo, _mm256_setzero_si256()));\n            v_sum_lo = _mm256_add_epi64(v_sum_lo, _mm256_unpackhi_epi32(filtered_lo, _mm256_setzero_si256()));\n            v_sum_hi = _mm256_add_epi64(v_sum_hi, _mm256_unpacklo_epi32(filtered_hi, _mm256_setzero_si256()));\n            v_sum_hi = _mm256_add_epi64(v_sum_hi, _mm256_unpackhi_epi32(filtered_hi, _mm256_setzero_si256()));\n        }\n\n        uint64_t sums[4];\n        _mm256_storeu_si256(reinterpret_cast<__m256i*>(sums), _mm256_add_epi64(v_sum_lo, v_sum_hi));\n        final_sum = sums[0] + sums[1] + sums[2] + sums[3];\n\n        // Scalar tail\n        for (size_t j = n_blocks * 24; j + 2 < n_bytes; j += 3) {\n            uint32_t a = static_cast<uint32_t>(packed[j]) | (static_cast<uint32_t>(packed[j + 1] & 0x0F) << 8);\n            uint32_t b = static_cast<uint32_t>(packed[j + 1] >> 4) | (static_cast<uint32_t>(packed[j + 2]) << 4);\n            if (a > threshold) final_sum += a;\n            if (b > threshold) final_sum += b;\n        }\n    }\n\n    return final_sum;\n}",
+  "baseline": {
+    "task_id": "packed12_decode_filter_sum_v500_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 129527879,
+    "min_elapsed_ns": 119034247,
+    "max_elapsed_ns": 129599596,
+    "all_elapsed_ns": [
+      129599596,
+      129527879,
+      119034247
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 129599596,
+      "expected_sum": 8051694504,
+      "actual_sum": 8051694504
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "packed12_decode_filter_sum_v500_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 60700190,
+    "min_elapsed_ns": 53070179,
+    "max_elapsed_ns": 66086722,
+    "all_elapsed_ns": [
+      66086722,
+      60700190,
+      53070179
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 66086722,
+      "expected_sum": 8051694504,
+      "actual_sum": 8051694504
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "packed12_decode_filter_sum_v500_c",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/packed12_decode_filter_sum_v500_c/harness', 'executable_tasks/packed12_decode_filter_sum_v500_c/harness/benchmark_main.cpp', 'executable_tasks/packed12_decode_filter_sum_v500_c/candidate/google__gemini-3.1-pro-preview/solution.cpp', '-o', 'build/packed12_decode_filter_sum_v500_c/candidate/bench']' returned non-zero exit status 1."
+  }
+}

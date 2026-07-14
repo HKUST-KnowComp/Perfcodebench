@@ -1,0 +1,59 @@
+{
+  "task_id": "highway_clamp_sum_f32_xlarge",
+  "model": "bytedance-seed/seed-2.0-lite",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_clamp_sum_f32_xlarge/candidate/bytedance-seed__seed-2.0-lite/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <hwy/highway.h>\n\nfloat clamp_sum(const float* data, std::size_t n) {\n  const hwy::HWY_NAMESPACE::ScalableTag<float> d;\n  const size_t lanes = hwy::Lanes(d);\n  auto sum_vec = hwy::Zero(d);\n\n  // Process full SIMD vector chunks\n  for (std::size_t i = 0; i + lanes <= n; i += lanes) {\n    const auto v = hwy::LoadU(d, data + i);\n    const auto clamped = hwy::Max(v, hwy::Zero(d));\n    sum_vec = hwy::Add(sum_vec, clamped);\n  }\n\n  // Process remaining partial vector if any\n  const std::size_t rem = n % lanes;\n  if (rem != 0) {\n    const auto mask = hwy::FirstN(d, rem);\n    const auto v = hwy::LoadMasked(d, mask, data + (n - rem));\n    const auto clamped = hwy::Max(v, hwy::Zero(d));\n    sum_vec = hwy::Add(sum_vec, clamped);\n  }\n\n  // Reduce vector sum to final scalar value\n  return hwy::ReduceSum(d, sum_vec);\n}",
+  "baseline": {
+    "task_id": "highway_clamp_sum_f32_xlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2974725,
+    "min_elapsed_ns": 2970739,
+    "max_elapsed_ns": 2979977,
+    "all_elapsed_ns": [
+      2970739,
+      2979977,
+      2974725
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2970739,
+      "expected_sum": 209707000.0,
+      "actual_sum": 209587000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_clamp_sum_f32_xlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1452860,
+    "min_elapsed_ns": 1428666,
+    "max_elapsed_ns": 1546179,
+    "all_elapsed_ns": [
+      1546179,
+      1452860,
+      1428666
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1546179,
+      "expected_sum": 209707000.0,
+      "actual_sum": 209709000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_clamp_sum_f32_xlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/highway_clamp_sum_f32_xlarge/harness', '-Iexternal/highway', 'executable_tasks/highway_clamp_sum_f32_xlarge/harness/benchmark_main.cpp', 'executable_tasks/highway_clamp_sum_f32_xlarge/candidate/bytedance-seed__seed-2.0-lite/solution.cpp', 'external/highway/hwy/abort.cc', 'external/highway/hwy/targets.cc', 'external/highway/hwy/aligned_allocator.cc', 'external/highway/hwy/per_target.cc', '-o', 'build/highway_clamp_sum_f32_xlarge/candidate/bench']' returned non-zero exit status 1."
+  }
+}

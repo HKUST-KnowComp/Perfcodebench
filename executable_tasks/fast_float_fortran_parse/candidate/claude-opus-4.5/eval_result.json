@@ -1,0 +1,59 @@
+{
+  "task_id": "fast_float_fortran_parse",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/fast_float_fortran_parse/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <fast_float/fast_float.h>\n#include <cstring>\n\ndouble parse_sum(const std::string& input) {\n    const char* p = input.data();\n    const char* const end = p + input.size();\n    \n    double sum = 0.0;\n    double c = 0.0;  // Kahan summation compensation\n    \n    while (p < end) {\n        // Skip leading whitespace and empty lines\n        while (p < end && (*p == ' ' || *p == '\\t' || *p == '\\n' || *p == '\\r')) {\n            ++p;\n        }\n        if (p >= end) break;\n        \n        // Find end of current number (next whitespace or newline)\n        const char* num_start = p;\n        \n        double value;\n        auto result = fast_float::from_chars_advanced(\n            num_start, end, value,\n            fast_float::chars_format::fortran\n        );\n        \n        if (result.ec == std::errc() && result.ptr != num_start) {\n            // Kahan summation for better precision\n            double y = value - c;\n            double t = sum + y;\n            c = (t - sum) - y;\n            sum = t;\n            p = result.ptr;\n        } else {\n            // Skip to next line on parse failure\n            while (p < end && *p != '\\n') ++p;\n            if (p < end) ++p;\n        }\n    }\n    \n    return sum;\n}",
+  "baseline": {
+    "task_id": "fast_float_fortran_parse",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 33105120,
+    "min_elapsed_ns": 33067002,
+    "max_elapsed_ns": 33810555,
+    "all_elapsed_ns": [
+      33810555,
+      33105120,
+      33067002
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 33810555,
+      "expected_sum": 4942183041033.184,
+      "actual_sum": 4942183041033.184
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "fast_float_fortran_parse",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5281806,
+    "min_elapsed_ns": 5261517,
+    "max_elapsed_ns": 5299076,
+    "all_elapsed_ns": [
+      5261517,
+      5281806,
+      5299076
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5261517,
+      "expected_sum": 4942183041033.184,
+      "actual_sum": 4942183041033.184
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "fast_float_fortran_parse",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/fast_float_fortran_parse/harness', '-Iexternal/fast_float/include', 'executable_tasks/fast_float_fortran_parse/harness/benchmark_main.cpp', 'executable_tasks/fast_float_fortran_parse/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/fast_float_fortran_parse/candidate/bench']' returned non-zero exit status 1."
+  }
+}

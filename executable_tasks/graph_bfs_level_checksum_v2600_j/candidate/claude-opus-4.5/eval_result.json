@@ -1,0 +1,59 @@
+{
+  "task_id": "graph_bfs_level_checksum_v2600_j",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/graph_bfs_level_checksum_v2600_j/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <atomic>\n#include <cstdint>\n#include <cstring>\n#include <vector>\n\nnamespace {\n\ninline uint64_t checksum_levels(const int32_t* levels, uint32_t n) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (uint32_t i = 0; i < n; ++i) {\n        hash ^= static_cast<uint64_t>(static_cast<uint32_t>(levels[i] + 1));\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\n}  // namespace\n\nuint64_t bfs_level_checksum(\n    const std::vector<uint32_t>& offsets,\n    const std::vector<uint32_t>& edges,\n    uint32_t source,\n    int iters) {\n    \n    const uint32_t n = static_cast<uint32_t>(offsets.size() - 1u);\n    if (n == 0) return 1469598103934665603ULL;\n    \n    const uint32_t* __restrict off_ptr = offsets.data();\n    const uint32_t* __restrict edge_ptr = edges.data();\n    \n    std::vector<int32_t> levels(n);\n    int32_t* __restrict lev_ptr = levels.data();\n    \n    // Frontier buffers - use two for ping-pong\n    std::vector<uint32_t> frontier_buf1, frontier_buf2;\n    frontier_buf1.reserve(n);\n    frontier_buf2.reserve(n);\n    \n    // Bitmap for visited tracking in bottom-up phase\n    const uint32_t bitmap_size = (n + 63) / 64;\n    std::vector<uint64_t> visited_bitmap(bitmap_size);\n    std::vector<uint64_t> frontier_bitmap(bitmap_size);\n    \n    uint64_t hash = 0;\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        // Reset levels to -1\n        std::memset(lev_ptr, 0xFF, n * sizeof(int32_t));\n        \n        // Reset bitmaps\n        std::memset(visited_bitmap.data(), 0, bitmap_size * sizeof(uint64_t));\n        std::memset(frontier_bitmap.data(), 0, bitmap_size * sizeof(uint64_t));\n        \n        // Initialize source\n        lev_ptr[source] = 0;\n        visited_bitmap[source / 64] |= (1ULL << (source % 64));\n        frontier_bitmap[source / 64] |= (1ULL << (source % 64));\n        \n        frontier_buf1.clear();\n        frontier_buf1.push_back(source);\n        \n        uint32_t* frontier = frontier_buf1.data();\n        uint32_t* next_frontier = frontier_buf2.data();\n        uint32_t frontier_size = 1;\n        uint32_t next_size = 0;\n        \n        int32_t depth = 0;\n        \n        // Count edges in frontier for direction optimization\n        uint64_t total_edges = edges.size();\n        uint64_t frontier_edges = off_ptr[source + 1] - off_ptr[source];\n        uint64_t unvisited_count = n - 1;\n        \n        // Threshold for switching to bottom-up (alpha parameter)\n        const double alpha = 14.0;\n        const double beta = 24.0;\n        \n        bool use_bottom_up = false;\n        \n        while (frontier_size > 0) {\n            ++depth;\n            next_size = 0;\n            \n            // Decide direction based on frontier size\n            // Switch to bottom-up when frontier is large relative to unvisited vertices\n            bool should_bottom_up = (frontier_edges > unvisited_count / alpha);\n            bool should_top_down = (frontier_size < n / beta);\n            \n            if (should_bottom_up && !should_top_down && unvisited_count > 0) {\n                use_bottom_up = true;\n            } else if (should_top_down) {\n                use_bottom_up = false;\n            }\n            \n            if (!use_bottom_up) {\n                // Top-down BFS\n                frontier_buf2.clear();\n                \n                for (uint32_t i = 0; i < frontier_size; ++i) {\n                    uint32_t u = frontier[i];\n                    uint32_t start = off_ptr[u];\n                    uint32_t end = off_ptr[u + 1];\n                    \n                    for (uint32_t idx = start; idx < end; ++idx) {\n                        uint32_t v = edge_ptr[idx];\n                        if (lev_ptr[v] == -1) {\n                            lev_ptr[v] = depth;\n                            frontier_buf2.push_back(v);\n                            \n                            // Update bitmap\n                            uint32_t word = v / 64;\n                            uint64_t bit = 1ULL << (v % 64);\n                            visited_bitmap[word] |= bit;\n                        }\n                    }\n                }\n                \n                next_size = static_cast<uint32_t>(frontier_buf2.size());\n                \n                // Update frontier bitmap for potential bottom-up switch\n                std::memset(frontier_bitmap.data(), 0, bitmap_size * sizeof(uint64_t));\n                for (uint32_t i = 0; i < next_size; ++i) {\n                    uint32_t v = frontier_buf2[i];\n                    frontier_bitmap[v / 64] |= (1ULL << (v % 64));\n                }\n                \n                // Swap buffers\n                std::swap(frontier_buf1, frontier_buf2);\n                frontier = frontier_buf1.data();\n                \n            } else {\n                // Bottom-up BFS\n                std::memset(frontier_bitmap.data(), 0, bitmap_size * sizeof(uint64_t));\n                frontier_buf2.clear();\n                \n                for (uint32_t v = 0; v < n; ++v) {\n                    if (lev_ptr[v] != -1) continue;\n                    \n                    uint32_t start = off_ptr[v];\n                    uint32_t end = off_ptr[v + 1];\n                    \n                    for (uint32_t idx = start; idx < end; ++idx) {\n                        uint32_t u = edge_ptr[idx];\n                        if (lev_ptr[u] == depth - 1) {\n                            lev_ptr[v] = depth;\n                            frontier_buf2.push_back(v);\n                            \n                            uint32_t word = v / 64;\n                            uint64_t bit = 1ULL << (v % 64);\n                            visited_bitmap[word] |= bit;\n                            frontier_bitmap[word] |= bit;\n                            break;\n                        }\n                    }\n                }\n                \n                next_size = static_cast<uint32_t>(frontier_buf2.size());\n                std::swap(frontier_buf1, frontier_buf2);\n                frontier = frontier_buf1.data();\n            }\n            \n            frontier_size = next_size;\n            unvisited_count -= frontier_size;\n            \n            // Count edges for next iteration's direction decision\n            frontier_edges = 0;\n            for (uint32_t i = 0; i < frontier_size; ++i) {\n                uint32_t v = frontier[i];\n                frontier_edges += off_ptr[v + 1] - off_ptr[v];\n            }\n        }\n        \n        hash = checksum_levels(lev_ptr, n);\n    }\n    \n    return hash;\n}",
+  "baseline": {
+    "task_id": "graph_bfs_level_checksum_v2600_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 77145571,
+    "min_elapsed_ns": 73915300,
+    "max_elapsed_ns": 82920431,
+    "all_elapsed_ns": [
+      73915300,
+      77145571,
+      82920431
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 73915300,
+      "expected_checksum": 6678482772042208467,
+      "actual_checksum": 6678482772042208467
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "graph_bfs_level_checksum_v2600_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 7342278,
+    "min_elapsed_ns": 6366833,
+    "max_elapsed_ns": 8934562,
+    "all_elapsed_ns": [
+      7342278,
+      8934562,
+      6366833
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7342278,
+      "expected_checksum": 6678482772042208467,
+      "actual_checksum": 6678482772042208467
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "graph_bfs_level_checksum_v2600_j",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/graph_bfs_level_checksum_v2600_j/candidate/bench']' returned non-zero exit status 1."
+  }
+}

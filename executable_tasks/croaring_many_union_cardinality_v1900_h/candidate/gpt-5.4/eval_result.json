@@ -1,0 +1,72 @@
+{
+  "task_id": "croaring_many_union_cardinality_v1900_h",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/croaring_many_union_cardinality_v1900_h/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <roaring.h>\n\n#include <algorithm>\n#include <cstdint>\n#include <vector>\n\nuint64_t many_union_cardinality(\n    const std::vector<uint32_t>& offsets,\n    const std::vector<uint32_t>& values) {\n  const std::size_t shard_count = offsets.size() > 0 ? offsets.size() - 1 : 0;\n  if (shard_count == 0 || values.empty()) {\n    return 0;\n  }\n\n  // For the small-total-size latency regime, a direct k-way merge over the\n  // already-sorted shards avoids bitmap construction overhead and computes the\n  // exact union cardinality in a single pass.\n  std::vector<uint32_t> pos(shard_count);\n  std::vector<uint32_t> end(shard_count);\n\n  bool any_nonempty = false;\n  for (std::size_t s = 0; s < shard_count; ++s) {\n    uint32_t b = offsets[s];\n    uint32_t e = offsets[s + 1];\n    if (b > values.size()) b = static_cast<uint32_t>(values.size());\n    if (e > values.size()) e = static_cast<uint32_t>(values.size());\n    if (e < b) e = b;\n    pos[s] = b;\n    end[s] = e;\n    any_nonempty |= (b < e);\n  }\n  if (!any_nonempty) {\n    return 0;\n  }\n\n  uint64_t count = 0;\n  bool have_last = false;\n  uint32_t last = 0;\n\n  while (true) {\n    uint32_t min_value = 0;\n    bool found = false;\n\n    for (std::size_t s = 0; s < shard_count; ++s) {\n      if (pos[s] < end[s]) {\n        const uint32_t v = values[pos[s]];\n        if (!found || v < min_value) {\n          min_value = v;\n          found = true;\n        }\n      }\n    }\n\n    if (!found) {\n      break;\n    }\n\n    if (!have_last || min_value != last) {\n      ++count;\n      last = min_value;\n      have_last = true;\n    }\n\n    for (std::size_t s = 0; s < shard_count; ++s) {\n      uint32_t p = pos[s];\n      const uint32_t e = end[s];\n      while (p < e && values[p] == min_value) {\n        ++p;\n      }\n      pos[s] = p;\n    }\n  }\n\n  return count;\n}\n",
+  "baseline": {
+    "task_id": "croaring_many_union_cardinality_v1900_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 110683619,
+    "min_elapsed_ns": 103199457,
+    "max_elapsed_ns": 154522503,
+    "all_elapsed_ns": [
+      103199457,
+      110683619,
+      154522503
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 103199457,
+      "expected_cardinality": 404763,
+      "actual_cardinality": 404763
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "croaring_many_union_cardinality_v1900_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5157017,
+    "min_elapsed_ns": 4956973,
+    "max_elapsed_ns": 5857015,
+    "all_elapsed_ns": [
+      5857015,
+      4956973,
+      5157017
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5857015,
+      "expected_cardinality": 404763,
+      "actual_cardinality": 404763
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "croaring_many_union_cardinality_v1900_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 66485923,
+    "min_elapsed_ns": 66259139,
+    "max_elapsed_ns": 66720245,
+    "all_elapsed_ns": [
+      66720245,
+      66485923,
+      66259139
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 66720245,
+      "expected_cardinality": 404763,
+      "actual_cardinality": 404763
+    },
+    "status": "ok"
+  }
+}

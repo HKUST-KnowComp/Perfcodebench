@@ -1,0 +1,59 @@
+{
+  "task_id": "sorted_interval_lookup_sum_v1200_i",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sorted_interval_lookup_sum_v1200_i/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <immintrin.h>\n\nuint64_t interval_lookup_sum(\n    const std::vector<uint32_t>& starts,\n    const std::vector<uint32_t>& ends,\n    const std::vector<uint32_t>& payloads,\n    const std::vector<uint32_t>& probes,\n    const std::vector<uint32_t>& weights,\n    int iters) {\n  (void)ends;\n  \n  const uint32_t* starts_ptr = starts.data();\n  const uint32_t* payloads_ptr = payloads.data();\n  const uint32_t* probes_ptr = probes.data();\n  const uint32_t* weights_ptr = weights.data();\n  const std::size_t n_intervals = starts.size();\n  const std::size_t n_probes = probes.size();\n  \n  uint64_t sum = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    std::size_t i = 0;\n    \n    // Process 8 probes at a time with AVX2\n    const std::size_t vec_end = (n_probes / 8) * 8;\n    \n    for (; i < vec_end; i += 8) {\n      // Prefetch future probes and weights\n      if (i + 64 < n_probes) {\n        _mm_prefetch(reinterpret_cast<const char*>(probes_ptr + i + 64), _MM_HINT_T0);\n        _mm_prefetch(reinterpret_cast<const char*>(weights_ptr + i + 64), _MM_HINT_T0);\n      }\n      \n      // Load 8 probes and weights\n      __m256i probe_vec = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(probes_ptr + i));\n      __m256i weight_vec = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(weights_ptr + i));\n      \n      // Binary search for each probe (vectorized approach)\n      __m256i lo = _mm256_setzero_si256();\n      __m256i hi = _mm256_set1_epi32(static_cast<int>(n_intervals));\n      \n      // Binary search iterations\n      while (true) {\n        __m256i diff = _mm256_sub_epi32(hi, lo);\n        __m256i max_diff = _mm256_max_epi32(diff, _mm256_setzero_si256());\n        \n        // Check if all searches are done (diff <= 1)\n        __m256i one = _mm256_set1_epi32(1);\n        __m256i cmp = _mm256_cmpgt_epi32(max_diff, one);\n        if (_mm256_testz_si256(cmp, cmp)) break;\n        \n        // mid = lo + (hi - lo) / 2\n        __m256i half = _mm256_srli_epi32(diff, 1);\n        __m256i mid = _mm256_add_epi32(lo, half);\n        \n        // Gather starts[mid]\n        __m256i mid_vals = _mm256_i32gather_epi32(reinterpret_cast<const int*>(starts_ptr), mid, 4);\n        \n        // Compare: if starts[mid] <= probe, lo = mid + 1, else hi = mid\n        __m256i le_mask = _mm256_or_si256(\n            _mm256_cmpgt_epi32(probe_vec, mid_vals),\n            _mm256_cmpeq_epi32(probe_vec, mid_vals)\n        );\n        \n        __m256i mid_plus_one = _mm256_add_epi32(mid, one);\n        lo = _mm256_blendv_epi8(lo, mid_plus_one, le_mask);\n        hi = _mm256_blendv_epi8(mid, hi, le_mask);\n      }\n      \n      // idx = lo - 1 (upper_bound result - 1)\n      __m256i idx = _mm256_sub_epi32(lo, _mm256_set1_epi32(1));\n      \n      // Gather payloads[idx]\n      __m256i payload_vec = _mm256_i32gather_epi32(reinterpret_cast<const int*>(payloads_ptr), idx, 4);\n      \n      // Compute payload * weight for each element and accumulate\n      // Split into low and high 4 elements for 64-bit multiplication\n      __m128i payload_lo = _mm256_castsi256_si128(payload_vec);\n      __m128i payload_hi = _mm256_extracti128_si256(payload_vec, 1);\n      __m128i weight_lo = _mm256_castsi256_si128(weight_vec);\n      __m128i weight_hi = _mm256_extracti128_si256(weight_vec, 1);\n      \n      // Extend to 64-bit and multiply\n      __m256i p_lo_64 = _mm256_cvtepu32_epi64(payload_lo);\n      __m256i w_lo_64 = _mm256_cvtepu32_epi64(weight_lo);\n      __m256i p_hi_64 = _mm256_cvtepu32_epi64(payload_hi);\n      __m256i w_hi_64 = _mm256_cvtepu32_epi64(weight_hi);\n      \n      __m256i prod_lo = _mm256_mul_epu32(p_lo_64, w_lo_64);\n      __m256i prod_hi = _mm256_mul_epu32(p_hi_64, w_hi_64);\n      \n      // Horizontal sum\n      __m256i prod_sum = _mm256_add_epi64(prod_lo, prod_hi);\n      __m128i sum_128 = _mm_add_epi64(_mm256_castsi256_si128(prod_sum), _mm256_extracti128_si256(prod_sum, 1));\n      sum_128 = _mm_add_epi64(sum_128, _mm_srli_si128(sum_128, 8));\n      sum += static_cast<uint64_t>(_mm_cvtsi128_si64(sum_128));\n    }\n    \n    // Handle remaining probes\n    for (; i < n_probes; ++i) {\n      const auto it = std::upper_bound(starts.begin(), starts.end(), probes_ptr[i]);\n      const std::size_t idx = static_cast<std::size_t>(it - starts.begin() - 1);\n      sum += static_cast<uint64_t>(payloads_ptr[idx]) * static_cast<uint64_t>(weights_ptr[i]);\n    }\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "sorted_interval_lookup_sum_v1200_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1031176514,
+    "min_elapsed_ns": 1029693377,
+    "max_elapsed_ns": 1034615609,
+    "all_elapsed_ns": [
+      1029693377,
+      1034615609,
+      1031176514
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1029693377,
+      "expected_sum": 343316313832,
+      "actual_sum": 343316313832
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sorted_interval_lookup_sum_v1200_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 129368825,
+    "min_elapsed_ns": 129310657,
+    "max_elapsed_ns": 130159167,
+    "all_elapsed_ns": [
+      130159167,
+      129310657,
+      129368825
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 130159167,
+      "expected_sum": 343316313832,
+      "actual_sum": 343316313832
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sorted_interval_lookup_sum_v1200_i",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/sorted_interval_lookup_sum_v1200_i/harness', 'executable_tasks/sorted_interval_lookup_sum_v1200_i/harness/benchmark_main.cpp', 'executable_tasks/sorted_interval_lookup_sum_v1200_i/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/sorted_interval_lookup_sum_v1200_i/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "packet_ipv4_classify_checksum_v2600_f",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/packet_ipv4_classify_checksum_v2600_f/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstddef>\n#include <cstdint>\n#include <vector>\n\n/**\n * Optimized IPv4 packet classification and checksum calculation.\n * \n * Performance Strategy:\n * 1. Minimize memory access overhead by using direct pointer offsets.\n * 2. Use branchless logic for IP classification and port bucketing.\n * 3. Reduce the number of operations in the hot loop.\n * 4. Maintain the sequential nature of the FNV-1a hash while optimizing the key calculation.\n */\n\nuint64_t classify_packets_checksum(\n    const std::vector<uint8_t>& packets,\n    std::size_t packet_count,\n    int iters) {\n  \n  const uint8_t* const base_ptr = packets.data();\n  const uint64_t fnv_prime = 1099511628211ULL;\n  const uint64_t fnv_offset_basis = 1469598103934665603ULL;\n  \n  uint64_t hash = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = fnv_offset_basis;\n    \n    for (std::size_t i = 0; i < packet_count; ++i) {\n      // Each packet is exactly 64 bytes.\n      const uint8_t* const pkt = base_ptr + (i << 6);\n\n      // Extract necessary fields directly from the packet buffer.\n      const uint8_t ttl = pkt[8];\n      const uint8_t protocol = pkt[9];\n      const uint8_t ip0 = pkt[12];\n      const uint8_t ip1 = pkt[13];\n      \n      // Big-endian port extraction.\n      const uint32_t dst_port = (static_cast<uint32_t>(pkt[22]) << 8) | pkt[23];\n\n      // Branchless TTL bucket: ttl >> 6 (0-63->0, 64-127->1, 128-191->2, 192-255->3).\n      const uint32_t ttl_bucket = static_cast<uint32_t>(ttl >> 6);\n\n      // Branchless Private IP check:\n      // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16\n      const bool is_private = (ip0 == 10u) |\n                              ((ip0 == 172u) & ((ip1 & 0xF0u) == 16u)) |\n                              ((ip0 == 192u) & (ip1 == 168u));\n      const uint32_t private_key_part = is_private ? 5u : 11u;\n\n      // Branchless Port bucket:\n      // If TCP (6) or UDP (17), bucket is based on port ranges.\n      // Otherwise, bucket is 3.\n      uint32_t port_bucket = 3u;\n      if (protocol == 6u || protocol == 17u) {\n        // (port >= 1024) is 1 if true, 0 if false. \n        // Summing these conditions gives 0 (<1024), 1 (1024-8191), or 2 (>=8192).\n        port_bucket = static_cast<uint32_t>(dst_port >= 1024u) + \n                      static_cast<uint32_t>(dst_port >= 8192u);\n      }\n\n      // Calculate classification key.\n      const uint32_t key = (static_cast<uint32_t>(protocol) * 131u) +\n                           (ttl_bucket * 17u) +\n                           private_key_part +\n                           (port_bucket * 23u);\n\n      // Update FNV-1a hash.\n      hash ^= static_cast<uint64_t>(key);\n      hash *= fnv_prime;\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 8645895,
+    "min_elapsed_ns": 8504269,
+    "max_elapsed_ns": 8868296,
+    "all_elapsed_ns": [
+      8868296,
+      8645895,
+      8504269
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8868296,
+      "expected_checksum": 16848120379964828775,
+      "actual_checksum": 16848120379964828775
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 7788895,
+    "min_elapsed_ns": 7621211,
+    "max_elapsed_ns": 8777232,
+    "all_elapsed_ns": [
+      7788895,
+      7621211,
+      8777232
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7788895,
+      "expected_checksum": 16848120379964828775,
+      "actual_checksum": 16848120379964828775
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 25742537,
+    "min_elapsed_ns": 7800908,
+    "max_elapsed_ns": 26456456,
+    "all_elapsed_ns": [
+      26456456,
+      7800908,
+      25742537
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 26456456,
+      "expected_checksum": 16848120379964828775,
+      "actual_checksum": 16848120379964828775
+    },
+    "status": "ok"
+  }
+}

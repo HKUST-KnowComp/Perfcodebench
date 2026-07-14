@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce_v1100_h",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v1100_h/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <thread>\n#include <atomic>\n#include <numeric>\n\nnamespace {\n\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  \n  const size_t n_keys = keys.size();\n  const size_t k_space = static_cast<size_t>(key_space);\n  \n  // To avoid repeated thread creation overhead, we create threads once.\n  // Each thread will have its own local buffer to avoid contention.\n  std::vector<std::vector<uint64_t>> local_counts(num_threads, std::vector<uint64_t>(k_space, 0));\n  std::vector<std::thread> threads;\n  \n  const size_t chunk = n_keys / num_threads;\n  \n  // We need to run the process 'iters' times. \n  // To maximize performance, we move the 'iters' loop inside the thread logic\n  // but the problem requires a checksum after EACH iteration. \n  // Therefore, we must synchronize after each iteration.\n  \n  uint64_t final_hash = 0;\n  std::vector<uint64_t> global_counts(k_space, 0);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    std::fill(global_counts.begin(), global_counts.end(), 0);\n    \n    // Reset local buffers for this iteration\n    for(int t = 0; t < num_threads; ++t) {\n        std::fill(local_counts[t].begin(), local_counts[t].end(), 0);\n    }\n\n    threads.clear();\n    for (int t = 0; t < num_threads; ++t) {\n      const size_t begin = t * chunk;\n      const size_t end = (t == num_threads - 1) ? n_keys : (t + 1) * chunk;\n      \n      threads.emplace_back([&, t, begin, end]() {\n        uint64_t* my_counts = local_counts[t].data();\n        const uint32_t* k_ptr = keys.data();\n        const uint32_t* v_ptr = values.data();\n        for (size_t i = begin; i < end; ++i) {\n          my_counts[k_ptr[i]] += v_ptr[i];\n        }\n      });\n    }\n\n    for (auto& th : threads) {\n      th.join();\n    }\n\n    // Reduction phase: Sum up all local buffers into global_counts\n    // Parallelize reduction for large key_space\n    for (int t = 0; t < num_threads; ++t) {\n      const uint64_t* my_counts = local_counts[t].data();\n      for (size_t k = 0; k < k_space; ++k) {\n        global_counts[k] += my_counts[k];\n      }\n    }\n    \n    final_hash = checksum_u64(global_counts);\n  }\n\n  return final_hash;\n}",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v1100_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1339207969,
+    "min_elapsed_ns": 1318268618,
+    "max_elapsed_ns": 1432668256,
+    "all_elapsed_ns": [
+      1432668256,
+      1318268618,
+      1339207969
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1432668256,
+      "expected_checksum": 13873522559520932739,
+      "actual_checksum": 13873522559520932739
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v1100_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 126241605,
+    "min_elapsed_ns": 125031023,
+    "max_elapsed_ns": 132767637,
+    "all_elapsed_ns": [
+      132767637,
+      126241605,
+      125031023
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 132767637,
+      "expected_checksum": 13873522559520932739,
+      "actual_checksum": 13873522559520932739
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v1100_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 137478014,
+    "min_elapsed_ns": 133799140,
+    "max_elapsed_ns": 139519772,
+    "all_elapsed_ns": [
+      137478014,
+      133799140,
+      139519772
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 137478014,
+      "expected_checksum": 13873522559520932739,
+      "actual_checksum": 13873522559520932739
+    },
+    "status": "ok"
+  }
+}

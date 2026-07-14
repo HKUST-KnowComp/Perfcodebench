@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_csr_spmv_v1600_d",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_csr_spmv_v1600_d/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\ninline uint64_t checksum_i64(const std::vector<int64_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (int64_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t csr_spmv_checksum(\n    const std::vector<int>& row_ptr,\n    const std::vector<int>& col_idx,\n    const std::vector<int32_t>& values,\n    const std::vector<int32_t>& dense,\n    int rows,\n    int iters) {\n  // Output vector\n  std::vector<int64_t> out(static_cast<std::size_t>(rows), 0);\n\n  // If iters <= 0, the output remains the zero vector; checksum computed below.\n  if (iters > 0 && rows > 0) {\n    const int* rp = row_ptr.data();\n    const int* ci = col_idx.data();\n    const int32_t* val = values.data();\n    const int32_t* x = dense.data();\n    int64_t* y = out.data();\n\n    // Parallelize across rows. Guided scheduling helps balance irregular row lengths.\n    #pragma omp parallel for schedule(guided, 16) if (rows >= 64)\n    for (int row = 0; row < rows; ++row) {\n      const int start = rp[row];\n      const int end = rp[row + 1];\n      int64_t sum = 0;\n\n      int idx = start;\n      // Unrolled loop for better throughput\n      for (; idx + 3 < end; idx += 4) {\n        sum += static_cast<int64_t>(val[idx])     * static_cast<int64_t>(x[ci[idx]]);\n        sum += static_cast<int64_t>(val[idx + 1]) * static_cast<int64_t>(x[ci[idx + 1]]);\n        sum += static_cast<int64_t>(val[idx + 2]) * static_cast<int64_t>(x[ci[idx + 2]]);\n        sum += static_cast<int64_t>(val[idx + 3]) * static_cast<int64_t>(x[ci[idx + 3]]);\n      }\n      for (; idx < end; ++idx) {\n        sum += static_cast<int64_t>(val[idx]) * static_cast<int64_t>(x[ci[idx]]);\n      }\n\n      y[row] = sum;\n    }\n  }\n\n  return checksum_i64(out);\n}\n",
+  "baseline": {
+    "task_id": "openmp_csr_spmv_v1600_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 25041116,
+    "min_elapsed_ns": 22688993,
+    "max_elapsed_ns": 28375874,
+    "all_elapsed_ns": [
+      22688993,
+      25041116,
+      28375874
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 22688993,
+      "expected_checksum": 4881773614452686187,
+      "actual_checksum": 4881773614452686187
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_csr_spmv_v1600_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 80737817,
+    "min_elapsed_ns": 5050681,
+    "max_elapsed_ns": 156914045,
+    "all_elapsed_ns": [
+      5050681,
+      80737817,
+      156914045
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5050681,
+      "expected_checksum": 4881773614452686187,
+      "actual_checksum": 4881773614452686187
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_csr_spmv_v1600_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 32350481,
+    "min_elapsed_ns": 29911625,
+    "max_elapsed_ns": 62461429,
+    "all_elapsed_ns": [
+      32350481,
+      29911625,
+      62461429
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 32350481,
+      "expected_checksum": 4881773614452686187,
+      "actual_checksum": 4881773614452686187
+    },
+    "status": "ok"
+  }
+}

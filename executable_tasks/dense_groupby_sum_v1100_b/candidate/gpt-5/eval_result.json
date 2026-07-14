@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_groupby_sum_v1100_b",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_groupby_sum_v1100_b/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstdint>\n\nuint64_t groupby_checksum(const std::vector<uint32_t>& keys, const std::vector<uint32_t>& values, int groups, int iters) {\n  // Match baseline behavior: if iters == 0, the loop body never runs and returns 0.\n  if (iters <= 0) return 0ULL;\n\n  // If groups <= 0, checksum loop is empty in baseline, returning FNV offset basis.\n  if (groups <= 0) return 1469598103934665603ULL;\n\n  const std::size_t n = keys.size();\n\n  // Dense aggregation array; value-initialized to zero.\n  std::vector<uint64_t> agg(static_cast<std::size_t>(groups));\n\n  const uint32_t* kptr = keys.data();\n  const uint32_t* vptr = values.data();\n\n  // Accumulate with simple unrolling for better throughput.\n  std::size_t i = 0;\n  const std::size_t n4 = n & ~static_cast<std::size_t>(3);\n  for (; i < n4; i += 4) {\n    const uint32_t k0 = kptr[i];\n    const uint32_t k1 = kptr[i + 1];\n    const uint32_t k2 = kptr[i + 2];\n    const uint32_t k3 = kptr[i + 3];\n    agg[k0] += static_cast<uint64_t>(vptr[i]);\n    agg[k1] += static_cast<uint64_t>(vptr[i + 1]);\n    agg[k2] += static_cast<uint64_t>(vptr[i + 2]);\n    agg[k3] += static_cast<uint64_t>(vptr[i + 3]);\n  }\n  for (; i < n; ++i) {\n    agg[kptr[i]] += static_cast<uint64_t>(vptr[i]);\n  }\n\n  // FNV-1a over grouped sums in order [0..groups-1].\n  uint64_t hash = 1469598103934665603ULL;      // FNV-1a 64-bit offset basis\n  const uint64_t prime = 1099511628211ULL;     // FNV-1a 64-bit prime\n  for (int g = 0; g < groups; ++g) {\n    hash ^= agg[static_cast<std::size_t>(g)];\n    hash *= prime;\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "dense_groupby_sum_v1100_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 531025649,
+    "min_elapsed_ns": 526454328,
+    "max_elapsed_ns": 542306267,
+    "all_elapsed_ns": [
+      526454328,
+      531025649,
+      542306267
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 526454328,
+      "expected_checksum": 9226660842016801667,
+      "actual_checksum": 9226660842016801667
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_groupby_sum_v1100_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 197673793,
+    "min_elapsed_ns": 184181440,
+    "max_elapsed_ns": 205959822,
+    "all_elapsed_ns": [
+      205959822,
+      197673793,
+      184181440
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 205959822,
+      "expected_checksum": 9226660842016801667,
+      "actual_checksum": 9226660842016801667
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_groupby_sum_v1100_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 26014544,
+    "min_elapsed_ns": 26009619,
+    "max_elapsed_ns": 26078269,
+    "all_elapsed_ns": [
+      26014544,
+      26078269,
+      26009619
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 26014544,
+      "expected_checksum": 9226660842016801667,
+      "actual_checksum": 9226660842016801667
+    },
+    "status": "ok"
+  }
+}

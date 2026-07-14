@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_matmul_tiled_f32_v25",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_matmul_tiled_f32_v25/candidate/claude-opus-4.5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int BM = 64;   // tile rows\nconstexpr int BN = 64;   // tile cols\nconstexpr int BK = 16;   // tile depth\nconstexpr int TM = 8;    // thread tile rows\nconstexpr int TN = 8;    // thread tile cols\n\n// Threads per block: (BM/TM) * (BN/TN) = 8*8 = 64\nconstexpr int BLOCK_SIZE = (BM / TM) * (BN / TN);\n\n__global__ __launch_bounds__(BLOCK_SIZE)\nvoid matmul_tiled_kernel(const float* __restrict__ A,\n                         const float* __restrict__ B,\n                         float* __restrict__ C,\n                         int n) {\n    // Shared memory with padding to avoid bank conflicts\n    __shared__ float As[2][BK][BM + 4];\n    __shared__ float Bs[2][BK][BN + 4];\n\n    const int bx = blockIdx.x;\n    const int by = blockIdx.y;\n    const int tx = threadIdx.x;\n\n    // Thread position within the thread-tile grid\n    const int threadRow = tx / (BN / TN);  // 0..7\n    const int threadCol = tx % (BN / TN);  // 0..7\n\n    // Global starting positions for this block\n    const int aRowStart = by * BM;\n    const int bColStart = bx * BN;\n\n    // Register tile for accumulation\n    float regC[TM][TN] = {0.0f};\n\n    // Registers for A and B fragments\n    float regA[TM];\n    float regB[TN];\n\n    // Number of tiles along K dimension\n    const int numTiles = (n + BK - 1) / BK;\n\n    // Precompute load indices for A and B\n    // Each thread loads multiple elements to fill shared memory\n    // A tile: BM x BK = 64 x 16 = 1024 elements, 64 threads -> 16 elements each\n    // B tile: BK x BN = 16 x 64 = 1024 elements, 64 threads -> 16 elements each\n\n    const int loadARow = tx / 4;           // 0..15 (but we need 64 rows)\n    const int loadACol = (tx % 4) * 4;     // 0, 4, 8, 12\n\n    const int loadBRow = tx / 16;          // 0..3 (but we need 16 rows)\n    const int loadBCol = (tx % 16) * 4;    // 0, 4, 8, ..., 60\n\n    // Load first tile into buffer 0\n    int writeBuffer = 0;\n    int kStart = 0;\n\n    // Load A tile (64 rows x 16 cols)\n    // Each thread loads 4 elements per iteration, need 4 iterations for rows\n    #pragma unroll\n    for (int i = 0; i < 4; ++i) {\n        int aRow = aRowStart + loadARow + i * 16;\n        int aCol = kStart + loadACol;\n        if (aRow < n && aCol + 3 < n) {\n            float4 tmp = *reinterpret_cast<const float4*>(&A[aRow * n + aCol]);\n            As[writeBuffer][loadACol + 0][loadARow + i * 16] = tmp.x;\n            As[writeBuffer][loadACol + 1][loadARow + i * 16] = tmp.y;\n            As[writeBuffer][loadACol + 2][loadARow + i * 16] = tmp.z;\n            As[writeBuffer][loadACol + 3][loadARow + i * 16] = tmp.w;\n        } else {\n            #pragma unroll\n            for (int j = 0; j < 4; ++j) {\n                int r = aRow;\n                int c = aCol + j;\n                As[writeBuffer][loadACol + j][loadARow + i * 16] = \n                    (r < n && c < n) ? A[r * n + c] : 0.0f;\n            }\n        }\n    }\n\n    // Load B tile (16 rows x 64 cols)\n    // Each thread loads 4 elements per iteration, need 4 iterations for rows\n    #pragma unroll\n    for (int i = 0; i < 4; ++i) {\n        int bRow = kStart + loadBRow + i * 4;\n        int bCol = bColStart + loadBCol;\n        if (bRow < n && bCol + 3 < n) {\n            float4 tmp = *reinterpret_cast<const float4*>(&B[bRow * n + bCol]);\n            Bs[writeBuffer][loadBRow + i * 4][loadBCol + 0] = tmp.x;\n            Bs[writeBuffer][loadBRow + i * 4][loadBCol + 1] = tmp.y;\n            Bs[writeBuffer][loadBRow + i * 4][loadBCol + 2] = tmp.z;\n            Bs[writeBuffer][loadBRow + i * 4][loadBCol + 3] = tmp.w;\n        } else {\n            #pragma unroll\n            for (int j = 0; j < 4; ++j) {\n                int r = bRow;\n                int c = bCol + j;\n                Bs[writeBuffer][loadBRow + i * 4][loadBCol + j] = \n                    (r < n && c < n) ? B[r * n + c] : 0.0f;\n            }\n        }\n    }\n\n    __syncthreads();\n\n    // Main loop over tiles\n    for (int tile = 0; tile < numTiles; ++tile) {\n        int readBuffer = writeBuffer;\n        writeBuffer = 1 - writeBuffer;\n\n        // Prefetch next tile if not last\n        if (tile + 1 < numTiles) {\n            kStart = (tile + 1) * BK;\n\n            #pragma unroll\n            for (int i = 0; i < 4; ++i) {\n                int aRow = aRowStart + loadARow + i * 16;\n                int aCol = kStart + loadACol;\n                if (aRow < n && aCol + 3 < n) {\n                    float4 tmp = *reinterpret_cast<const float4*>(&A[aRow * n + aCol]);\n                    As[writeBuffer][loadACol + 0][loadARow + i * 16] = tmp.x;\n                    As[writeBuffer][loadACol + 1][loadARow + i * 16] = tmp.y;\n                    As[writeBuffer][loadACol + 2][loadARow + i * 16] = tmp.z;\n                    As[writeBuffer][loadACol + 3][loadARow + i * 16] = tmp.w;\n                } else {\n                    #pragma unroll\n                    for (int j = 0; j < 4; ++j) {\n                        int r = aRow;\n                        int c = aCol + j;\n                        As[writeBuffer][loadACol + j][loadARow + i * 16] = \n                            (r < n && c < n) ? A[r * n + c] : 0.0f;\n                    }\n                }\n            }\n\n            #pragma unroll\n            for (int i = 0; i < 4; ++i) {\n                int bRow = kStart + loadBRow + i * 4;\n                int bCol = bColStart + loadBCol;\n                if (bRow < n && bCol + 3 < n) {\n                    float4 tmp = *reinterpret_cast<const float4*>(&B[bRow * n + bCol]);\n                    Bs[writeBuffer][loadBRow + i * 4][loadBCol + 0] = tmp.x;\n                    Bs[writeBuffer][loadBRow + i * 4][loadBCol + 1] = tmp.y;\n                    Bs[writeBuffer][loadBRow + i * 4][loadBCol + 2] = tmp.z;\n                    Bs[writeBuffer][loadBRow + i * 4][loadBCol + 3] = tmp.w;\n                } else {\n                    #pragma unroll\n                    for (int j = 0; j < 4; ++j) {\n                        int r = bRow;\n                        int c = bCol + j;\n                        Bs[writeBuffer][loadBRow + i * 4][loadBCol + j] = \n                            (r < n && c < n) ? B[r * n + c] : 0.0f;\n                    }\n                }\n            }\n        }\n\n        // Compute on current tile\n        #pragma unroll\n        for (int k = 0; k < BK; ++k) {\n            // Load A fragment\n            #pragma unroll\n            for (int i = 0; i < TM; ++i) {\n                regA[i] = As[readBuffer][k][threadRow * TM + i];\n            }\n            // Load B fragment\n            #pragma unroll\n            for (int j = 0; j < TN; ++j) {\n                regB[j] = Bs[readBuffer][k][threadCol * TN + j];\n            }\n            // Outer product\n            #pragma unroll\n            for (int i = 0; i < TM; ++i) {\n                #pragma unroll\n                for (int j = 0; j < TN; ++j) {\n                    regC[i][j] += regA[i] * regB[j];\n                }\n            }\n        }\n\n        __syncthreads();\n    }\n\n    // Write results to global memory\n    const int cRowStart = aRowStart + threadRow * TM;\n    const int cColStart = bColStart + threadCol * TN;\n\n    #pragma unroll\n    for (int i = 0; i < TM; ++i) {\n        int cRow = cRowStart + i;\n        if (cRow < n) {\n            #pragma unroll\n            for (int j = 0; j < TN; j += 4) {\n                int cCol = cColStart + j;\n                if (cCol + 3 < n) {\n                    float4 out;\n                    out.x = regC[i][j + 0];\n                    out.y = regC[i][j + 1];\n                    out.z = regC[i][j + 2];\n                    out.w = regC[i][j + 3];\n                    *reinterpret_cast<float4*>(&C[cRow * n + cCol]) = out;\n                } else {\n                    #pragma unroll\n                    for (int jj = 0; jj < 4; ++jj) {\n                        if (cCol + jj < n) {\n                            C[cRow * n + cCol + jj] = regC[i][j + jj];\n                        }\n                    }\n                }\n            }\n        }\n    }\n}\n\n}  // namespace\n\nvoid matmul_f32(const float* a, const float* b, float* c, int n, int iters) {\n    dim3 block(BLOCK_SIZE);\n    dim3 grid((n + BN - 1) / BN, (n + BM - 1) / BM);\n    for (int iter = 0; iter < iters; ++iter) {\n        matmul_tiled_kernel<<<grid, block>>>(a, b, c, n);\n    }\n}\n",
+  "baseline": {
+    "task_id": "cuda_matmul_tiled_f32_v25",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 435456,
+    "min_elapsed_ns": 432799,
+    "max_elapsed_ns": 436352,
+    "all_elapsed_ns": [
+      435456,
+      432799,
+      436352
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 435456,
+      "max_abs_error": 0,
+      "checksum": 1226200000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_matmul_tiled_f32_v25",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 362336,
+    "min_elapsed_ns": 362304,
+    "max_elapsed_ns": 385343,
+    "all_elapsed_ns": [
+      362336,
+      385343,
+      362304
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 362336,
+      "max_abs_error": 0,
+      "checksum": 1226200000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_matmul_tiled_f32_v25",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_matmul_tiled_f32_v25/candidate/bench']' timed out after 5 seconds"
+  }
+}

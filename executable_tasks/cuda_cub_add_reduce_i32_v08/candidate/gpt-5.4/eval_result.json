@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v08",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v08/candidate/gpt-5.4/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cub/cub.cuh>\n\nnamespace {\n\nstruct TempStorageCache {\n  void* ptr;\n  size_t bytes;\n  TempStorageCache() : ptr(nullptr), bytes(0) {}\n  ~TempStorageCache() {\n    if (ptr) cudaFree(ptr);\n  }\n  void ensure(size_t required) {\n    if (required <= bytes) return;\n    if (ptr) cudaFree(ptr);\n    cudaMalloc(&ptr, required);\n    bytes = required;\n  }\n};\n\nTempStorageCache& storage_cache() {\n  static TempStorageCache cache;\n  return cache;\n}\n\n}  // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n  if (iters <= 0) return;\n\n  if (n <= 0) {\n    for (int iter = 0; iter < iters; ++iter) {\n      cudaMemset(output, 0, sizeof(int));\n    }\n    return;\n  }\n\n  size_t temp_storage_bytes = 0;\n  cub::DeviceReduce::Sum(nullptr, temp_storage_bytes, input, output, n);\n  TempStorageCache& cache = storage_cache();\n  cache.ensure(temp_storage_bytes);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    cub::DeviceReduce::Sum(cache.ptr, temp_storage_bytes, input, output, n);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v08",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6262527,
+    "min_elapsed_ns": 6262303,
+    "max_elapsed_ns": 6266272,
+    "all_elapsed_ns": [
+      6262303,
+      6262527,
+      6266272
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6262303,
+      "expected_sum": 15728640,
+      "actual_sum": 15728640
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v08",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 776256,
+    "min_elapsed_ns": 756063,
+    "max_elapsed_ns": 908671,
+    "all_elapsed_ns": [
+      756063,
+      776256,
+      908671
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 756063,
+      "expected_sum": 15728640,
+      "actual_sum": 15728640
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v08",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v08/candidate/bench']' timed out after 5 seconds"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "task_id": "cuda_matmul_tiled_f32_v04",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_matmul_tiled_f32_v04/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int TILE = 32;               // shared-memory tile size\nconstexpr int TMR  = 8;                // per-thread tile (rows & cols)\n\n__global__ void matmul_tiled_kernel(const float* __restrict__ A,\n                                    const float* __restrict__ B,\n                                    float*       __restrict__ C,\n                                    int n)\n{\n    // 16\u00d716 thread block \u2192 256 threads\n    const int tx = threadIdx.x;\n    const int ty = threadIdx.y;\n\n    // Global tile coordinates\n    const int tileRow = blockIdx.y * TILE;\n    const int tileCol = blockIdx.x * TILE;\n\n    // Shared memory tiles with padding to avoid bank conflicts\n    __shared__ float As[TILE][TILE + 1];\n    __shared__ float Bs[TILE][TILE + 1];\n\n    // Each thread computes an 8\u00d78 sub-tile of C\n    float c[TMR][TMR] = {};\n\n    const int innerTiles = (n + TILE - 1) / TILE;\n    for (int t = 0; t < innerTiles; ++t) {\n        // Load tile of A into shared memory\n        #pragma unroll\n        for (int i = 0; i < TILE; i += 16) {\n            int globalRow = tileRow + i + ty;\n            int globalCol = t * TILE + tx;\n            As[i + ty][tx] = (globalRow < n && globalCol < n) ?\n                               A[globalRow * n + globalCol] : 0.0f;\n        }\n        // Load tile of B into shared memory\n        #pragma unroll\n        for (int i = 0; i < TILE; i += 16) {\n            int globalRow = t * TILE + ty;\n            int globalCol = tileCol + i + tx;\n            Bs[ty][i + tx] = (globalRow < n && globalCol < n) ?\n                               B[globalRow * n + globalCol] : 0.0f;\n        }\n        __syncthreads();\n\n        // Compute partial products\n        #pragma unroll\n        for (int k = 0; k < TILE; ++k) {\n            #pragma unroll\n            for (int tr = 0; tr < TMR; ++tr) {\n                #pragma unroll\n                for (int tc = 0; tc < TMR; ++tc) {\n                    c[tr][tc] += As[ty * TMR + tr][k] *\n                                 Bs[k][tx * TMR + tc];\n                }\n            }\n        }\n        __syncthreads();\n    }\n\n    // Write 8\u00d78 results back to global memory\n    #pragma unroll\n    for (int tr = 0; tr < TMR; ++tr) {\n        #pragma unroll\n        for (int tc = 0; tc < TMR; ++tc) {\n            int globalRow = tileRow + ty * TMR + tr;\n            int globalCol = tileCol + tx * TMR + tc;\n            if (globalRow < n && globalCol < n) {\n                C[globalRow * n + globalCol] = c[tr][tc];\n            }\n        }\n    }\n}\n\n}  // namespace\n\nvoid matmul_f32(const float* a, const float* b, float* c, int n, int iters) {\n    dim3 block(16, 16);\n    dim3 grid((n + TILE - 1) / TILE, (n + TILE - 1) / TILE);\n    for (int i = 0; i < iters; ++i) {\n        matmul_tiled_kernel<<<grid, block>>>(a, b, c, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_matmul_tiled_f32_v04",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_matmul_tiled_f32_v04/baseline/bench']' timed out after 5 seconds"
+  },
+  "reference": {
+    "task_id": "cuda_matmul_tiled_f32_v04",
+    "variant": "reference",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_matmul_tiled_f32_v04/reference/bench']' timed out after 5 seconds"
+  },
+  "candidate": {
+    "task_id": "cuda_matmul_tiled_f32_v04",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_matmul_tiled_f32_v04/candidate/bench']' returned non-zero exit status 1."
+  }
+}

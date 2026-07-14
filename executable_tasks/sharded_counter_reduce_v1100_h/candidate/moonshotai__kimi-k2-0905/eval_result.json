@@ -1,0 +1,59 @@
+{
+  "task_id": "sharded_counter_reduce_v1100_h",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v1100_h/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <atomic>\n#include <thread>\n#include <vector>\n\nnamespace {\n\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  const std::size_t kspace = static_cast<std::size_t>(key_space);\n  std::vector<uint64_t> counts(kspace, 0);\n\n  // one atomic counter per bucket per thread\n  std::vector<std::vector<std::atomic<uint64_t>>> thread_counts(\n      static_cast<std::size_t>(num_threads),\n      std::vector<std::atomic<uint64_t>>(kspace));\n\n  const std::size_t n = keys.size();\n  const std::size_t chunk = (n + static_cast<std::size_t>(num_threads) - 1) /\n                            static_cast<std::size_t>(num_threads);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    // reset thread-local atomics\n    for (int t = 0; t < num_threads; ++t) {\n      for (std::size_t k = 0; k < kspace; ++k) {\n        thread_counts[static_cast<std::size_t>(t)][k].store(0,\n                                                            std::memory_order_relaxed);\n      }\n    }\n\n    std::vector<std::thread> threads;\n    for (int t = 0; t < num_threads; ++t) {\n      const std::size_t begin = static_cast<std::size_t>(t) * chunk;\n      const std::size_t end = std::min(begin + chunk, n);\n      threads.emplace_back([&, t, begin, end]() {\n        auto& local = thread_counts[static_cast<std::size_t>(t)];\n        for (std::size_t i = begin; i < end; ++i) {\n          uint32_t k = keys[i];\n          uint32_t v = values[i];\n          local[k].fetch_add(static_cast<uint64_t>(v), std::memory_order_relaxed);\n        }\n      });\n    }\n    for (auto& th : threads) th.join();\n\n    // merge into single counts vector\n    for (std::size_t k = 0; k < kspace; ++k) {\n      uint64_t sum = 0;\n      for (int t = 0; t < num_threads; ++t) {\n        sum += thread_counts[static_cast<std::size_t>(t)][k].load(\n            std::memory_order_relaxed);\n      }\n      counts[k] = sum;\n    }\n  }\n\n  return checksum_u64(counts);\n}",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v1100_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1339207969,
+    "min_elapsed_ns": 1318268618,
+    "max_elapsed_ns": 1432668256,
+    "all_elapsed_ns": [
+      1432668256,
+      1318268618,
+      1339207969
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1432668256,
+      "expected_checksum": 13873522559520932739,
+      "actual_checksum": 13873522559520932739
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v1100_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 126241605,
+    "min_elapsed_ns": 125031023,
+    "max_elapsed_ns": 132767637,
+    "all_elapsed_ns": [
+      132767637,
+      126241605,
+      125031023
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 132767637,
+      "expected_checksum": 13873522559520932739,
+      "actual_checksum": 13873522559520932739
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v1100_h",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-pthread', '-Iexecutable_tasks/sharded_counter_reduce_v1100_h/harness', 'executable_tasks/sharded_counter_reduce_v1100_h/harness/benchmark_main.cpp', 'executable_tasks/sharded_counter_reduce_v1100_h/candidate/moonshotai__kimi-k2-0905/solution.cpp', '-o', 'build/sharded_counter_reduce_v1100_h/candidate/bench']' returned non-zero exit status 1."
+  }
+}

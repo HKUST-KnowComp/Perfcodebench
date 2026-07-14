@@ -1,0 +1,72 @@
+{
+  "task_id": "xxhash_line_hash_short_xlarge",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/xxhash_line_hash_short_xlarge/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"xxhash.h\"\n#include <cstdint>\n#include <cstring>\n\n#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)\n#define USE_X86_SIMD 1\n#include <immintrin.h>\n#else\n#define USE_X86_SIMD 0\n#endif\n\nstatic inline const char* find_newline_scalar(const char* p, const char* end) {\n    while (p < end && *p != '\\n') ++p;\n    return p;\n}\n\n#if USE_X86_SIMD\n\n#if defined(__AVX2__)\nstatic inline const char* find_newline_avx2(const char* p, const char* end) {\n    const __m256i nl = _mm256_set1_epi8('\\n');\n    while (p + 32 <= end) {\n        __m256i chunk = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(p));\n        __m256i cmp = _mm256_cmpeq_epi8(chunk, nl);\n        int mask = _mm256_movemask_epi8(cmp);\n        if (mask != 0) {\n            return p + __builtin_ctz(static_cast<unsigned>(mask));\n        }\n        p += 32;\n    }\n    return find_newline_scalar(p, end);\n}\n#define find_newline_fast find_newline_avx2\n#elif defined(__SSE2__)\nstatic inline const char* find_newline_sse2(const char* p, const char* end) {\n    const __m128i nl = _mm_set1_epi8('\\n');\n    while (p + 16 <= end) {\n        __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(p));\n        __m128i cmp = _mm_cmpeq_epi8(chunk, nl);\n        int mask = _mm_movemask_epi8(cmp);\n        if (mask != 0) {\n            return p + __builtin_ctz(static_cast<unsigned>(mask));\n        }\n        p += 16;\n    }\n    return find_newline_scalar(p, end);\n}\n#define find_newline_fast find_newline_sse2\n#else\n#define find_newline_fast find_newline_scalar\n#endif\n\n#else\n#define find_newline_fast find_newline_scalar\n#endif\n\nuint64_t hash_lines(const std::string& input) {\n    uint64_t acc = 1469598103934665603ULL;\n    const char* p = input.data();\n    const char* const end = p + input.size();\n    \n    constexpr uint64_t FNV_PRIME = 1099511628211ULL;\n    \n    while (p < end) {\n        const char* line_end = find_newline_fast(p, end);\n        acc ^= XXH64(p, static_cast<std::size_t>(line_end - p), 0);\n        acc *= FNV_PRIME;\n        p = (line_end < end) ? (line_end + 1) : line_end;\n    }\n    \n    return acc;\n}",
+  "baseline": {
+    "task_id": "xxhash_line_hash_short_xlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 9941239,
+    "min_elapsed_ns": 9748425,
+    "max_elapsed_ns": 10783686,
+    "all_elapsed_ns": [
+      10783686,
+      9748425,
+      9941239
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10783686,
+      "expected_hash": 14675483765372111338,
+      "actual_hash": 14675483765372111338
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "xxhash_line_hash_short_xlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 9867360,
+    "min_elapsed_ns": 9796288,
+    "max_elapsed_ns": 10746778,
+    "all_elapsed_ns": [
+      9867360,
+      10746778,
+      9796288
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9867360,
+      "expected_hash": 14675483765372111338,
+      "actual_hash": 14675483765372111338
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "xxhash_line_hash_short_xlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 7836579,
+    "min_elapsed_ns": 7786719,
+    "max_elapsed_ns": 7897290,
+    "all_elapsed_ns": [
+      7786719,
+      7897290,
+      7836579
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7786719,
+      "expected_hash": 14675483765372111338,
+      "actual_hash": 14675483765372111338
+    },
+    "status": "ok"
+  }
+}

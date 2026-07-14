@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_matmul_tiled_f32",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_matmul_tiled_f32/candidate/google__gemma-4-26b-a4b-it/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void matmul_tiled_kernel(const float* __restrict__ a, const float* __restrict__ b, float* __restrict__ c, int n) {\n    // Using a 32x32 block size for better occupancy and coalescing\n    // Tile size is 16x16 to fit within shared memory limits comfortably\n    const int TILE_SIZE = 16;\n    __shared__ float s_a[TILE_SIZE][TILE_SIZE];\n    __shared__ float s_b[TILE_SIZE][TILE_SIZE];\n\n    const int row = blockIdx.y * blockDim.y + threadIdx.y;\n    const int col = blockIdx.x * blockDim.x + threadIdx.x;\n\n    float sum = 0.0f;\n\n    // Loop over tiles\n    for (int t = 0; t < (n + TILE_SIZE - 1) / TILE_SIZE; ++t) {\n        // Load tile from A into shared memory\n        if (row < n && (t * TILE_SIZE + threadIdx.x) < n) {\n            s_a[threadIdx.y][threadIdx.x] = a[row * n + (t * TILE_SIZE + threadIdx.x)];\n        } else {\n            s_a[threadIdx.y][threadIdx.x] = 0.0f;\n        }\n\n        // Load tile from B into shared memory\n        if (col < n && (t * TILE_SIZE + threadIdx.y) < n) {\n            s_b[threadIdx.y][threadIdx.x] = b[(t * TILE_SIZE + threadIdx.y) * n + col];\n        } else {\n            s_b[threadIdx.y][threadIdx.x] = 0.0f;\n        }\n\n        __syncthreads();\n\n        // Compute partial product for this tile\n        #pragma unroll\n        for (int k = 0; k < TILE_SIZE; ++k) {\n            sum += s_a[threadIdx.y][k] * s_b[k][threadIdx.x];\n        }\n\n        __syncthreads();\n    }\n\n    if (row < n && col < n) {\n        c[row * n + col] = sum;\n    }\n}\n\n// A more aggressive version using larger blocks and register tiling\n__global__ void matmul_optimized_kernel(const float* __restrict__ a, const float* __restrict__ b, float* __restrict__ c, int n) {\n    const int BM = 32; // Block Memory dimension\n    const int BK = 8;  // Block K dimension\n    \n    // Using a 32x8 block to facilitate better memory access patterns\n    // However, for simplicity and stability in a single kernel, we use a standard 32x32 block\n    // with a 16x16 tile approach optimized for the hardware.\n    \n    const int row = blockIdx.y * blockDim.y + threadIdx.y;\n    const int col = blockIdx.x * blockDim.x + threadIdx.x;\n\n    float sum = 0.0f;\n    const int tile_size = 32;\n\n    // We use a 32x32 block and process tiles of 32\n    // To keep it simple and highly performant, we use a standard tiling pattern\n    // but ensure we use __restrict__ and avoid bank conflicts.\n    \n    // Re-implementing a robust tiled version\n    // This version uses 32x32 threads and 32x32 tiles\n    // Note: 32*32*4 bytes = 4KB per shared array. Two arrays = 8KB. Fits in 48KB+ L1/Shared.\n    \n    __shared__ float s_a[32][32];\n    __shared__ float s_b[32][32];\n\n    for (int m = 0; m < (n + 31) / 32; ++m) {\n        int a_row = row;\n        int a_col = m * 32 + threadIdx.x;\n        int b_row = m * 32 + threadIdx.y;\n        int b_col = col;\n\n        if (a_row < n && a_col < n) s_a[threadIdx.y][threadIdx.x] = a[a_row * n + a_col];\n        else s_a[threadIdx.y][threadIdx.x] = 0.0f;\n\n        if (b_row < n && b_col < n) s_b[threadIdx.y][threadIdx.x] = b[b_row * n + b_col];\n        else s_b[threadIdx.y][threadIdx.x] = 0.0f;\n\n        __syncthreads();\n\n        #pragma unroll\n        for (int k = 0; k < 32; ++k) {\n            sum += s_a[threadIdx.y][k] * s_b[k][threadIdx.x];\n        }\n        __syncthreads();\n    }\n\n    if (row < n && col < n) {\n        c[row * n + col] = sum;\n    }\n}\n\n} // namespace\n\nvoid matmul_f32(const float* a, const float* b, float* c, int n, int iters) {\n    // 32x32 threads per block is a sweet spot for many architectures\n    const dim3 block(32, 32);\n    const dim3 grid((n + block.x - 1) / block.x, (n + block.y - 1) / block.y);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        matmul_optimized_kernel<<<grid, block>>>(a, b, c, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_matmul_tiled_f32",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1142719,
+    "min_elapsed_ns": 1141664,
+    "max_elapsed_ns": 1146463,
+    "all_elapsed_ns": [
+      1142719,
+      1146463,
+      1141664
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1142719,
+      "max_abs_error": 0,
+      "checksum": 2906550000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_matmul_tiled_f32",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 675935,
+    "min_elapsed_ns": 675872,
+    "max_elapsed_ns": 680863,
+    "all_elapsed_ns": [
+      680863,
+      675872,
+      675935
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 680863,
+      "max_abs_error": 0,
+      "checksum": 2906550000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_matmul_tiled_f32",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_matmul_tiled_f32/candidate/bench']' timed out after 5 seconds"
+  }
+}

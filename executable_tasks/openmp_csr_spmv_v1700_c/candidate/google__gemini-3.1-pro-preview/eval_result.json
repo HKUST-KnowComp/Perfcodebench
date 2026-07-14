@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_csr_spmv_v1700_c",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_csr_spmv_v1700_c/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nuint64_t checksum_i64(const int64_t* data, size_t size) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (size_t i = 0; i < size; ++i) {\n    hash ^= static_cast<uint64_t>(data[i]);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t csr_spmv_checksum(\n    const std::vector<int>& row_ptr,\n    const std::vector<int>& col_idx,\n    const std::vector<int32_t>& values,\n    const std::vector<int32_t>& dense,\n    int rows,\n    int iters) {\n  \n  if (rows <= 0) return 1469598103934665603ULL;\n\n  std::vector<int64_t> out(rows);\n  int64_t* __restrict__ out_ptr = out.data();\n  const int* __restrict__ r_ptr = row_ptr.data();\n  const int* __restrict__ c_idx = col_idx.data();\n  const int32_t* __restrict__ val_ptr = values.data();\n  const int32_t* __restrict__ d_ptr = dense.data();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    #pragma omp parallel for schedule(guided)\n    for (int row = 0; row < rows; ++row) {\n      int64_t sum = 0;\n      int start = r_ptr[row];\n      int end = r_ptr[row + 1];\n      \n      // Manual unrolling or compiler auto-vectorization target\n      #pragma omp simd reduction(+:sum)\n      for (int idx = start; idx < end; ++idx) {\n        sum += static_cast<int64_t>(val_ptr[idx]) * static_cast<int64_t>(d_ptr[c_idx[idx]]);\n      }\n      out_ptr[row] = sum;\n    }\n  }\n\n  return checksum_i64(out_ptr, static_cast<size_t>(rows));\n}",
+  "baseline": {
+    "task_id": "openmp_csr_spmv_v1700_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 26820435,
+    "min_elapsed_ns": 24824881,
+    "max_elapsed_ns": 38498286,
+    "all_elapsed_ns": [
+      38498286,
+      26820435,
+      24824881
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 38498286,
+      "expected_checksum": 8124037110664934171,
+      "actual_checksum": 8124037110664934171
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_csr_spmv_v1700_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 293059595,
+    "min_elapsed_ns": 223597771,
+    "max_elapsed_ns": 504890399,
+    "all_elapsed_ns": [
+      293059595,
+      504890399,
+      223597771
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 293059595,
+      "expected_checksum": 8124037110664934171,
+      "actual_checksum": 8124037110664934171
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_csr_spmv_v1700_c",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-fopenmp', '-Iexecutable_tasks/openmp_csr_spmv_v1700_c/harness', 'executable_tasks/openmp_csr_spmv_v1700_c/harness/benchmark_main.cpp', 'executable_tasks/openmp_csr_spmv_v1700_c/candidate/google__gemini-3.1-pro-preview/solution.cpp', '-o', 'build/openmp_csr_spmv_v1700_c/candidate/bench']' returned non-zero exit status 1."
+  }
+}

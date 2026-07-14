@@ -1,0 +1,59 @@
+{
+  "task_id": "simdjson_minify",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdjson_minify/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <simdjson.h>\n#include <string>\n\nstd::string minify_json(const std::string& json_input) {\n    thread_local static simdjson::ondemand::parser parser;\n    simdjson::ondemand::document doc;\n    if (parser.iterate(json_input).get(doc) != simdjson::SUCCESS) {\n        return \"\"; // invalid JSON -> empty string (same behaviour as baseline)\n    }\n\n    std::string out;\n    out.reserve(json_input.size()); // minified is never larger than input\n\n    auto write = [&](simdjson::ondemand::value v) -> bool {\n        switch (v.type()) {\n        case simdjson::ondemand::json_type::string: {\n            std::string_view sv;\n            if (v.get_string(sv) != simdjson::SUCCESS) return false;\n            out.push_back('\"');\n            out.append(sv);\n            out.push_back('\"');\n            return true;\n        }\n        case simdjson::ondemand::json_type::number: {\n            std::string_view sv;\n            if (v.get_raw_json_string(sv) != simdjson::SUCCESS) return false;\n            out.append(sv);\n            return true;\n        }\n        case simdjson::ondemand::json_type::boolean: {\n            bool b;\n            if (v.get_bool(b) != simdjson::SUCCESS) return false;\n            out.append(b ? \"true\" : \"false\");\n            return true;\n        }\n        case simdjson::ondemand::json_type::null:\n            out.append(\"null\");\n            return true;\n        case simdjson::ondemand::json_type::array: {\n            out.push_back('[');\n            simdjson::ondemand::array arr;\n            if (v.get_array(arr) != simdjson::SUCCESS) return false;\n            bool first = true;\n            for (auto elem : arr) {\n                if (!first) out.push_back(',');\n                first = false;\n                if (!write(elem.value())) return false;\n            }\n            out.push_back(']');\n            return true;\n        }\n        case simdjson::ondemand::json_type::object: {\n            out.push_back('{');\n            simdjson::ondemand::object obj;\n            if (v.get_object(obj) != simdjson::SUCCESS) return false;\n            bool first = true;\n            for (auto field : obj) {\n                if (!first) out.push_back(',');\n                first = false;\n                std::string_view key;\n                if (field.unescaped_key(key) != simdjson::SUCCESS) return false;\n                out.push_back('\"');\n                out.append(key);\n                out.push_back('\"');\n                out.push_back(':');\n                if (!write(field.value())) return false;\n            }\n            out.push_back('}');\n            return true;\n        }\n        default:\n            return false;\n        }\n    };\n\n    if (!write(doc)) return \"\";\n    return out;\n}",
+  "baseline": {
+    "task_id": "simdjson_minify",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 18588790,
+    "min_elapsed_ns": 18423937,
+    "max_elapsed_ns": 18819530,
+    "all_elapsed_ns": [
+      18588790,
+      18423937,
+      18819530
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 18588790,
+      "expected_size": 799403,
+      "actual_size": 799403
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdjson_minify",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 162939,
+    "min_elapsed_ns": 147394,
+    "max_elapsed_ns": 198565,
+    "all_elapsed_ns": [
+      198565,
+      162939,
+      147394
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 198565,
+      "expected_size": 799403,
+      "actual_size": 799403
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdjson_minify",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/simdjson_minify/harness', '-Iexternal/nlohmann_json/single_include', '-Iexternal/simdjson/include', '-Iexternal/simdjson/singleheader', 'executable_tasks/simdjson_minify/harness/benchmark_main.cpp', 'executable_tasks/simdjson_minify/candidate/moonshotai__kimi-k2-0905/solution.cpp', 'external/simdjson/singleheader/simdjson.cpp', '-o', 'build/simdjson_minify/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "prefix_cache_block_lookup_v800_f",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup_v800_f/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstdint>\n\nnamespace {\n\nuint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t hash_space,\n    int iters) {\n  \n  // Use a simple open-addressing hash table for O(1) lookups.\n  // We use a size that is a power of two for fast masking.\n  size_t table_size = 1;\n  while (table_size < sorted_cache_keys.size() * 2) {\n    table_size <<= 1;\n  }\n  \n  std::vector<uint32_t> table(table_size, 0xFFFFFFFF);\n  std::vector<bool> occupied(table_size, false);\n  uint32_t mask = static_cast<uint32_t>(table_size - 1);\n\n  for (uint32_t key : sorted_cache_keys) {\n    uint32_t h = key & mask;\n    while (occupied[h]) {\n      h = (h + 1) & mask;\n    }\n    table[h] = key;\n    occupied[h] = true;\n  }\n\n  uint64_t final_hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t current_iter_hash = 1469598103934665603ULL;\n    for (std::size_t r = 0; r + 1 < request_offsets.size(); ++r) {\n      uint64_t prefix = 0;\n      int start = request_offsets[r];\n      int end = request_offsets[r + 1];\n      \n      for (int i = start; i < end; ++i) {\n        uint32_t block = request_blocks[static_cast<std::size_t>(i)];\n        uint32_t h = block & mask;\n        bool found = false;\n        while (occupied[h]) {\n          if (table[h] == block) {\n            found = true;\n            break;\n          }\n          h = (h + 1) & mask;\n        }\n        \n        if (!found) break;\n        ++prefix;\n      }\n      current_iter_hash = mix(current_iter_hash, prefix);\n    }\n    final_hash = mix(final_hash, current_iter_hash);\n  }\n\n  // The original baseline resets hash = 1469598103934665603ULL inside the loop\n  // and returns the hash of the LAST iteration. Let's match that exactly.\n  \n  uint64_t last_hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t h_val = 1469598103934665603ULL;\n    for (std::size_t r = 0; r + 1 < request_offsets.size(); ++r) {\n      uint64_t prefix = 0;\n      for (int i = request_offsets[r]; i < request_offsets[r + 1]; ++i) {\n        uint32_t block = request_blocks[static_cast<std::size_t>(i)];\n        uint32_t h = block & mask;\n        bool found = false;\n        while (occupied[h]) {\n          if (table[h] == block) { found = true; break; }\n          h = (h + 1) & mask;\n        }\n        if (!found) break;\n        ++prefix;\n      }\n      h_val = mix(h_val, prefix);\n    }\n    last_hash = h_val;\n  }\n  \n  return last_hash;\n}",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup_v800_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 858658911,
+    "min_elapsed_ns": 777945674,
+    "max_elapsed_ns": 938489404,
+    "all_elapsed_ns": [
+      777945674,
+      858658911,
+      938489404
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 777945674,
+      "expected_checksum": 7981008146789562534,
+      "actual_checksum": 7981008146789562534
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup_v800_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 6403085,
+    "min_elapsed_ns": 6252525,
+    "max_elapsed_ns": 6508475,
+    "all_elapsed_ns": [
+      6252525,
+      6403085,
+      6508475
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6252525,
+      "expected_checksum": 7981008146789562534,
+      "actual_checksum": 7981008146789562534
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup_v800_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/prefix_cache_block_lookup_v800_f/harness', 'executable_tasks/prefix_cache_block_lookup_v800_f/harness/benchmark_main.cpp', 'executable_tasks/prefix_cache_block_lookup_v800_f/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/prefix_cache_block_lookup_v800_f/candidate/bench']' returned non-zero exit status 1."
+  }
+}

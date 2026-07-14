@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_dimension_join_sum_v1100_a",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_dimension_join_sum_v1100_a/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 27,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nuint64_t join_sum(\n    const std::vector<uint32_t>& dim_keys,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n  const std::size_t dim_n = dim_keys.size();\n  const std::size_t probe_n = probe_keys.size();\n\n  if (iters <= 0 || probe_n == 0 || dim_n == 0) {\n    return 0;\n  }\n\n  // Dense dimension optimization:\n  // Build a direct lookup table once, then probe with O(1) indexed loads.\n  uint32_t max_key = 0;\n  for (std::size_t i = 0; i < dim_n; ++i) {\n    if (dim_keys[i] > max_key) max_key = dim_keys[i];\n  }\n\n  std::vector<uint32_t> lookup(static_cast<std::size_t>(max_key) + 1);\n  for (std::size_t i = 0; i < dim_n; ++i) {\n    lookup[dim_keys[i]] = dim_values[i];\n  }\n\n  const uint32_t* lookup_ptr = lookup.data();\n  const uint32_t* probe_k = probe_keys.data();\n  const uint32_t* probe_w = probe_weights.data();\n\n  uint64_t sum = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t local_sum = 0;\n\n    std::size_t i = 0;\n    const std::size_t unroll_end = probe_n & ~static_cast<std::size_t>(3);\n    for (; i < unroll_end; i += 4) {\n      local_sum += static_cast<uint64_t>(lookup_ptr[probe_k[i]]) * static_cast<uint64_t>(probe_w[i]);\n      local_sum += static_cast<uint64_t>(lookup_ptr[probe_k[i + 1]]) * static_cast<uint64_t>(probe_w[i + 1]);\n      local_sum += static_cast<uint64_t>(lookup_ptr[probe_k[i + 2]]) * static_cast<uint64_t>(probe_w[i + 2]);\n      local_sum += static_cast<uint64_t>(lookup_ptr[probe_k[i + 3]]) * static_cast<uint64_t>(probe_w[i + 3]);\n    }\n    for (; i < probe_n; ++i) {\n      local_sum += static_cast<uint64_t>(lookup_ptr[probe_k[i]]) * static_cast<uint64_t>(probe_w[i]);\n    }\n\n    sum = local_sum;\n  }\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "dense_dimension_join_sum_v1100_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 17453259299,
+    "min_elapsed_ns": 17340801692,
+    "max_elapsed_ns": 18303457749,
+    "all_elapsed_ns": [
+      17340801692,
+      18303457749,
+      17453259299
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 17340801692,
+      "expected_sum": 146414764032,
+      "actual_sum": 146414764032
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_dimension_join_sum_v1100_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 151293617,
+    "min_elapsed_ns": 146519211,
+    "max_elapsed_ns": 182908505,
+    "all_elapsed_ns": [
+      151293617,
+      146519211,
+      182908505
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 151293617,
+      "expected_sum": 146414764032,
+      "actual_sum": 146414764032
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_dimension_join_sum_v1100_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 114124147,
+    "min_elapsed_ns": 111728539,
+    "max_elapsed_ns": 122127132,
+    "all_elapsed_ns": [
+      122127132,
+      111728539,
+      114124147
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 122127132,
+      "expected_sum": 146414764032,
+      "actual_sum": 146414764032
+    },
+    "status": "ok"
+  }
+}

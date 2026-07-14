@@ -1,0 +1,30 @@
+#include "interface.h"
+#include <stdint.h>
+
+uint64_t run(const int16_t* src, int input_len, int output_len, int iters) {
+    uint64_t final_hash = 0;
+    if (output_len <= 1) {
+        uint64_t h = 1469598103934665603ULL;
+        int16_t val = (input_len > 0) ? src[0] : 0;
+        h ^= (uint16_t)val;
+        h *= 1099511628211ULL;
+        return h;
+    }
+    double step = (double)(input_len - 1) / (double)(output_len - 1);
+    for (int iter = 0; iter < iters; ++iter) {
+        uint64_t h = 1469598103934665603ULL;
+        for (int i = 0; i < output_len; ++i) {
+            double pos = (double)i * step;
+            int left = (int)pos;
+            int right = left + 1;
+            if (right >= input_len) right = input_len - 1;
+            double frac = pos - (double)left;
+            double sample = src[left] * (1.0 - frac) + src[right] * frac;
+            int16_t val = (int16_t)(sample >= 0.0 ? sample + 0.5 : sample - 0.5);
+            h ^= (uint16_t)val;
+            h *= 1099511628211ULL;
+        }
+        final_hash = h;
+    }
+    return final_hash;
+}

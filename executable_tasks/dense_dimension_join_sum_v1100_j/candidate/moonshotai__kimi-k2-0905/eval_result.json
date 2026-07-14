@@ -1,0 +1,59 @@
+{
+  "task_id": "dense_dimension_join_sum_v1100_j",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_dimension_join_sum_v1100_j/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 17,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <cstdint>\n\nuint64_t join_sum(\n    const std::vector<uint32_t>& dim_keys,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& probe_weights,\n    int iters)\n{\n    // Build a direct lookup table: key -> value (O(1) access)\n    const uint32_t max_key = dim_keys.empty() ? 0 : dim_keys.back();\n    std::vector<uint32_t> map(max_key + 1, 0);\n    for (size_t i = 0; i < dim_keys.size(); ++i) {\n        map[dim_keys[i]] = dim_values[i];\n    }\n\n    const uint32_t* __restrict map_ptr = map.data();\n    const uint32_t* __restrict pk  = probe_keys.data();\n    const uint32_t* __restrict pw  = probe_weights.data();\n    const size_t n = probe_keys.size();\n\n    uint64_t sum = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t local_sum = 0;\n        size_t i = 0;\n        // Unroll 8\u00d7 to reduce loop overhead and increase ILP\n        for (; i + 8 <= n; i += 8) {\n            local_sum += uint64_t(map_ptr[pk[i  ]]) * uint64_t(pw[i  ]);\n            local_sum += uint64_t(map_ptr[pk[i+1]]) * uint64_t(pw[i+1]);\n            local_sum += uint64_t(map_ptr[pk[i+2]]) * uint64_t(pw[i+2]);\n            local_sum += uint64_t(map_ptr[pk[i+3]]) * uint64_t(pw[i+3]);\n            local_sum += uint64_t(map_ptr[pk[i+4]]) * uint64_t(pw[i+4]);\n            local_sum += uint64_t(map_ptr[pk[i+5]]) * uint64_t(pw[i+5]);\n            local_sum += uint64_t(map_ptr[pk[i+6]]) * uint64_t(pw[i+6]);\n            local_sum += uint64_t(map_ptr[pk[i+7]]) * uint64_t(pw[i+7]);\n        }\n        // Tail\n        for (; i < n; ++i) {\n            local_sum += uint64_t(map_ptr[pk[i]]) * uint64_t(pw[i]);\n        }\n        sum = local_sum;\n    }\n    return sum;\n}",
+  "baseline": {
+    "task_id": "dense_dimension_join_sum_v1100_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 11262548966,
+    "min_elapsed_ns": 10890096390,
+    "max_elapsed_ns": 11585483188,
+    "all_elapsed_ns": [
+      10890096390,
+      11262548966,
+      11585483188
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10890096390,
+      "expected_sum": 146414764032,
+      "actual_sum": 146414764032
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_dimension_join_sum_v1100_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 113845102,
+    "min_elapsed_ns": 82626647,
+    "max_elapsed_ns": 127319029,
+    "all_elapsed_ns": [
+      82626647,
+      113845102,
+      127319029
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 82626647,
+      "expected_sum": 146414764032,
+      "actual_sum": 146414764032
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_dimension_join_sum_v1100_j",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/dense_dimension_join_sum_v1100_j/harness', 'executable_tasks/dense_dimension_join_sum_v1100_j/harness/benchmark_main.cpp', 'executable_tasks/dense_dimension_join_sum_v1100_j/candidate/moonshotai__kimi-k2-0905/solution.cpp', '-o', 'build/dense_dimension_join_sum_v1100_j/candidate/bench']' returned non-zero exit status 1."
+  }
+}

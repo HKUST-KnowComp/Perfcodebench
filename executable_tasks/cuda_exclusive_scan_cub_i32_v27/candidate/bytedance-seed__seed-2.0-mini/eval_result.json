@@ -1,0 +1,69 @@
+{
+  "task_id": "cuda_exclusive_scan_cub_i32_v27",
+  "model": "bytedance-seed/seed-2.0-mini",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_exclusive_scan_cub_i32_v27/candidate/bytedance-seed__seed-2.0-mini/solution.cu",
+  "benchmark_timeout_sec": 39,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cub/cub.cuh>\n\nvoid exclusive_scan_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0 || iters <= 0) {\n        return;\n    }\n\n    static void* s_temp_storage = nullptr;\n    static size_t s_temp_storage_bytes = 0;\n\n    // Query required temporary storage size (no actual computation occurs here)\n    size_t required_temp_bytes = 0;\n    cub::DeviceScan::ExclusiveSum(\n        nullptr,\n        required_temp_bytes,\n        input,\n        output,\n        n\n    );\n\n    // Reallocate temporary storage if size requirements change\n    if (required_temp_bytes != s_temp_storage_bytes) {\n        if (s_temp_storage != nullptr) {\n            cudaFree(s_temp_storage);\n            s_temp_storage = nullptr;\n        }\n        if (required_temp_bytes > 0) {\n            const cudaError_t alloc_err = cudaMalloc(&s_temp_storage, required_temp_bytes);\n            if (alloc_err != cudaSuccess) {\n                return;\n            }\n            s_temp_storage_bytes = required_temp_bytes;\n        } else {\n            s_temp_storage_bytes = 0;\n        }\n    }\n\n    // Execute exclusive scan for each requested iteration\n    for (int iter = 0; iter < iters; ++iter) {\n        const cudaError_t scan_err = cub::DeviceScan::ExclusiveSum(\n            s_temp_storage,\n            s_temp_storage_bytes,\n            input,\n            output,\n            n\n        );\n        if (scan_err != cudaSuccess) {\n            return;\n        }\n        // Catch any latent kernel launch errors\n        const cudaError_t last_err = cudaGetLastError();\n        if (last_err != cudaSuccess) {\n            return;\n        }\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v27",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 20915644531,
+    "min_elapsed_ns": 20912220703,
+    "max_elapsed_ns": 21034119140,
+    "all_elapsed_ns": [
+      20915644531,
+      21034119140,
+      20912220703
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 20915644531,
+      "checksum": 115448375935531
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v27",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3552736,
+    "min_elapsed_ns": 3532831,
+    "max_elapsed_ns": 10546303,
+    "all_elapsed_ns": [
+      3532831,
+      3552736,
+      10546303
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3532831,
+      "checksum": 115448375935531
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v27",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1162624,
+    "min_elapsed_ns": 1130911,
+    "max_elapsed_ns": 1171648,
+    "all_elapsed_ns": [
+      1171648,
+      1130911,
+      1162624
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1171648,
+      "checksum": 115448375935531
+    },
+    "status": "ok"
+  }
+}

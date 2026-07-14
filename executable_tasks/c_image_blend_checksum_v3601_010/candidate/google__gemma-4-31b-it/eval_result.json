@@ -1,0 +1,72 @@
+{
+  "task_id": "c_image_blend_checksum_v3601_010",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_image_blend_checksum_v3601_010/candidate/google__gemma-4-31b-it/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\n/**\n * The original blend_byte formula: ((s * a) + (d * (255 - a)) + 127) / 255\n * This is a standard linear interpolation. \n * To optimize, we can avoid the division by 255 using the property:\n * (x + 127) / 255 is approximately (x + 127) * 0x01010101 >> 24\n * However, for exact correctness, we must ensure the result matches exactly.\n * \n * The most significant bottleneck is the malloc/free inside the loop and the separate checksum pass.\n * We can compute the checksum on-the-fly to avoid the output buffer entirely.\n */\n\nuint64_t run(const uint8_t* src, const uint8_t* dst, int width, int height, int iters) {\n    size_t pixels = (size_t)width * (size_t)height;\n    size_t total_bytes = pixels * 4u;\n    uint64_t hash = 0;\n\n    // Pre-calculate constants for the checksum\n    const uint64_t seed = 1469598103934665603ULL;\n    const uint64_t multiplier = 1099511628211ULL;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t current_hash = seed;\n        \n        for (size_t i = 0; i < pixels; ++i) {\n            size_t idx = i * 4u;\n            uint32_t a = src[idx + 3u];\n            uint32_t inv_a = 255u - a;\n\n            // Process R, G, B\n            for (int c = 0; c < 3; ++c) {\n                uint32_t s = src[idx + c];\n                uint32_t d = dst[idx + c];\n                uint8_t blended = (uint8_t)(((s * a) + (d * inv_a) + 127u) / 255u);\n                current_hash ^= (uint64_t)blended;\n                current_hash *= multiplier;\n            }\n            \n            // Process Alpha (always 255)\n            current_hash ^= (uint64_t)255u;\n            current_hash *= multiplier;\n        }\n        hash = current_hash;\n    }\n    \n    return hash;\n}",
+  "baseline": {
+    "task_id": "c_image_blend_checksum_v3601_010",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 14301000,
+    "min_elapsed_ns": 14274000,
+    "max_elapsed_ns": 14466000,
+    "all_elapsed_ns": [
+      14301000,
+      14466000,
+      14274000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 14301000,
+      "expected_checksum": 3339261447300708341,
+      "actual_checksum": 3339261447300708341
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_image_blend_checksum_v3601_010",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 14242000,
+    "min_elapsed_ns": 14165000,
+    "max_elapsed_ns": 14554000,
+    "all_elapsed_ns": [
+      14242000,
+      14165000,
+      14554000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 14242000,
+      "expected_checksum": 3339261447300708341,
+      "actual_checksum": 3339261447300708341
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_image_blend_checksum_v3601_010",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 13376000,
+    "min_elapsed_ns": 13247000,
+    "max_elapsed_ns": 14077000,
+    "all_elapsed_ns": [
+      13376000,
+      13247000,
+      14077000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 13376000,
+      "expected_checksum": 3339261447300708341,
+      "actual_checksum": 3339261447300708341
+    },
+    "status": "ok"
+  }
+}

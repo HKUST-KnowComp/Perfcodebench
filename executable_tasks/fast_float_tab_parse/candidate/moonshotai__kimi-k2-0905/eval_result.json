@@ -1,0 +1,59 @@
+{
+  "task_id": "fast_float_tab_parse",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/fast_float_tab_parse/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"fast_float/fast_float.h\"\n#include <cstring>\n#include <cstddef>\n#include <array>\n#include <algorithm>\n\nnamespace {\n\nconstexpr std::size_t CHUNK = 64;\n\ninline double pairwise_sum(const double* a, std::size_t n) {\n    while (n > 1) {\n        std::size_t half = n / 2;\n        for (std::size_t i = 0; i < half; ++i)\n            a[i] += a[i + half];\n        n = half;\n    }\n    return a[0];\n}\n\n} // anon\n\ndouble parse_sum(const std::string& input) {\n    const char* p   = input.data();\n    const char* end = p + input.size();\n    alignas(64) std::array<double,CHUNK> buf{};\n    std::size_t cnt = 0;\n    double global = 0.0;\n\n    while (p < end) {\n        const char* tab = static_cast<const char*>(std::memchr(p, '\\t', end - p));\n        const char* field_end = (tab ? tab : end);\n\n        double v;\n        auto [ptr, ec] = fast_float::from_chars(p, field_end, v);\n        if (ec != std::errc{}) break;\n\n        buf[cnt++] = v;\n        if (cnt == buf.size()) {\n            global += pairwise_sum(buf.data(), cnt);\n            cnt = 0;\n        }\n\n        p = field_end;\n        if (p < end && *p == '\\t') ++p;\n    }\n\n    if (cnt) global += pairwise_sum(buf.data(), cnt);\n    return global;\n}",
+  "baseline": {
+    "task_id": "fast_float_tab_parse",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 15630276,
+    "min_elapsed_ns": 15511089,
+    "max_elapsed_ns": 15690790,
+    "all_elapsed_ns": [
+      15630276,
+      15690790,
+      15511089
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15630276,
+      "expected_sum": -91007410645.29008,
+      "actual_sum": -91007410645.29008
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "fast_float_tab_parse",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3564313,
+    "min_elapsed_ns": 3517169,
+    "max_elapsed_ns": 3711679,
+    "all_elapsed_ns": [
+      3711679,
+      3564313,
+      3517169
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3711679,
+      "expected_sum": -91007410645.29008,
+      "actual_sum": -91007410645.29008
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "fast_float_tab_parse",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/fast_float_tab_parse/harness', '-Iexternal/fast_float/include', 'executable_tasks/fast_float_tab_parse/harness/benchmark_main.cpp', 'executable_tasks/fast_float_tab_parse/candidate/moonshotai__kimi-k2-0905/solution.cpp', '-o', 'build/fast_float_tab_parse/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "nibble_decode_filter_sum_v1300_a",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/nibble_decode_filter_sum_v1300_a/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nuint64_t nibble_filter_sum(const std::vector<uint8_t>& packed, uint8_t threshold, int iters) {\n    const uint8_t* data = packed.data();\n    const std::size_t n = packed.size();\n    uint64_t sum = 0;\n\n    // Precompute constants for SWAR\n    const uint64_t mask_lo = 0x0F0F0F0F0F0F0F0FULL;\n    const uint64_t ones    = 0x0101010101010101ULL;\n    // For comparison: we want nibble > threshold, i.e., nibble >= threshold+1\n    // Using saturating subtraction trick: if nibble >= (threshold+1), then (nibble - (threshold+1)) doesn't underflow\n    // We'll use a different approach: compare via (threshold - nibble) and check sign bit\n    // Actually simpler: nibble > threshold <=> nibble - threshold - 1 >= 0 when nibble in [0,15]\n    // We'll broadcast threshold into each byte and use subtraction with borrow detection.\n    \n    // For each nibble n in [0,15], we want to keep it if n > threshold.\n    // We'll compute (n + (15 - threshold)) and check if it overflows the nibble (>= 16).\n    // If n > threshold, then n + (15 - threshold) >= 16.\n    // The overflow bit (bit 4 of each nibble position) indicates n > threshold.\n    \n    const uint8_t add_val = 15 - threshold; // This works for threshold in [0,14]. For threshold=15, add_val=0, and no nibble > 15.\n    const uint64_t add_broadcast = add_val * ones;\n    const uint64_t overflow_mask = 0x1010101010101010ULL; // bit 4 of each nibble pair\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t local_sum = 0;\n        std::size_t i = 0;\n\n        // Process 8 bytes at a time (16 nibbles)\n        const std::size_t n8 = n & ~7ULL;\n        for (; i < n8; i += 8) {\n            uint64_t chunk;\n            // Load 8 bytes\n            const uint8_t* p = data + i;\n            chunk = static_cast<uint64_t>(p[0])\n                  | (static_cast<uint64_t>(p[1]) << 8)\n                  | (static_cast<uint64_t>(p[2]) << 16)\n                  | (static_cast<uint64_t>(p[3]) << 24)\n                  | (static_cast<uint64_t>(p[4]) << 32)\n                  | (static_cast<uint64_t>(p[5]) << 40)\n                  | (static_cast<uint64_t>(p[6]) << 48)\n                  | (static_cast<uint64_t>(p[7]) << 56);\n\n            // Extract low nibbles (even indices in output)\n            uint64_t lo = chunk & mask_lo;\n            // Extract high nibbles (odd indices in output)\n            uint64_t hi = (chunk >> 4) & mask_lo;\n\n            // For low nibbles: check which are > threshold\n            // Add (15 - threshold) to each nibble; if result >= 16, the nibble was > threshold\n            uint64_t lo_add = lo + add_broadcast;\n            uint64_t lo_overflow = lo_add & overflow_mask; // non-zero in positions where nibble > threshold\n            // Create mask: if overflow bit is set, we want to keep the nibble\n            // Shift overflow bit down and subtract 1 to create 0x0F mask, or 0 if no overflow\n            // Actually, let's use a different approach: spread the overflow bit to mask the nibble\n            // lo_overflow has bit 4 set for each byte where low nibble > threshold\n            // We want a mask that is 0x0F where bit 4 is set, 0x00 otherwise\n            // (lo_overflow >> 4) gives 0x01 where condition is true\n            // ((lo_overflow >> 4) * 0x0F) doesn't work directly...\n            // Let's use: mask = (lo_overflow >> 4) - ((lo_overflow >> 4) >> 4) ... no\n            // Simpler: mask = lo_overflow - (lo_overflow >> 4) = 0x10 - 0x01 = 0x0F where set\n            uint64_t lo_mask = lo_overflow - (lo_overflow >> 4);\n            uint64_t lo_filtered = lo & lo_mask;\n\n            // Same for high nibbles\n            uint64_t hi_add = hi + add_broadcast;\n            uint64_t hi_overflow = hi_add & overflow_mask;\n            uint64_t hi_mask = hi_overflow - (hi_overflow >> 4);\n            uint64_t hi_filtered = hi & hi_mask;\n\n            // Sum all bytes in lo_filtered and hi_filtered\n            // Each byte contains a value 0-15, sum of 16 such values fits in 16 bits easily\n            // Use horizontal sum via multiplication trick\n            // Sum bytes: (x * 0x0101010101010101) >> 56 gives sum of all 8 bytes\n            uint64_t lo_sum = ((lo_filtered * ones) >> 56) & 0xFF;\n            uint64_t hi_sum = ((hi_filtered * ones) >> 56) & 0xFF;\n            // Actually the multiply-shift gives the sum in the top byte, but we need to be careful\n            // Let's verify: if lo_filtered = 0x0102030405060708, then\n            // lo_filtered * 0x0101010101010101 = sum appears in top byte\n            // This works for bytes, but we have nibbles stored in bytes (values 0-15)\n            // The sum of 8 bytes each 0-15 is at most 120, fits in a byte.\n            // The multiply trick: (a0 + a1*256 + ... + a7*256^7) * (1 + 256 + ... + 256^7)\n            // The coefficient of 256^7 in the product is a0 + a1 + ... + a7 (mod 256)\n            // Since max sum is 120 < 256, no overflow, so this works.\n            \n            local_sum += lo_sum + hi_sum;\n        }\n\n        // Scalar tail\n        for (; i < n; ++i) {\n            uint8_t byte = data[i];\n            uint8_t lo = byte & 0x0F;\n            uint8_t hi = byte >> 4;\n            if (lo > threshold) local_sum += lo;\n            if (hi > threshold) local_sum += hi;\n        }\n\n        sum = local_sum;\n    }\n\n    return sum;\n}\n",
+  "baseline": {
+    "task_id": "nibble_decode_filter_sum_v1300_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 148996454,
+    "min_elapsed_ns": 145693054,
+    "max_elapsed_ns": 151142882,
+    "all_elapsed_ns": [
+      145693054,
+      148996454,
+      151142882
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 145693054,
+      "expected_sum": 9830400,
+      "actual_sum": 9830400
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "nibble_decode_filter_sum_v1300_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 79888360,
+    "min_elapsed_ns": 76179153,
+    "max_elapsed_ns": 95059612,
+    "all_elapsed_ns": [
+      95059612,
+      76179153,
+      79888360
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 95059612,
+      "expected_sum": 9830400,
+      "actual_sum": 9830400
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "nibble_decode_filter_sum_v1300_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 12288637,
+    "min_elapsed_ns": 11947246,
+    "max_elapsed_ns": 12531953,
+    "all_elapsed_ns": [
+      12531953,
+      11947246,
+      12288637
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12531953,
+      "expected_sum": 9830400,
+      "actual_sum": 9830400
+    },
+    "status": "ok"
+  }
+}

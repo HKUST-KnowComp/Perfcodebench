@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_011",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_011/candidate/moonshotai__kimi-k2-0905/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <stdint.h>\n#include <stdlib.h>\n\nstatic uint64_t checksum_i16(const int16_t* data, size_t n) {\n    uint64_t hash = 14695981039346656037ULL;\n    for (size_t i = 0; i < n; ++i) {\n        hash ^= (uint16_t)data[i];\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n    /* allocate once, reuse every iteration */\n    int16_t* out = (int16_t*)malloc((size_t)output_len * sizeof(int16_t));\n    if (!out) return 0;\n\n    /* precompute fixed-point constants */\n    const int in_last  = input_len - 1;\n    const int out_last = output_len - 1;\n    const uint32_t scale = (uint32_t)in_last;\n    const uint32_t norm  = (uint32_t)out_last;\n\n    uint64_t hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        int i = 0;\n        /* process 4 samples per iteration */\n        for (; i + 3 < output_len; i += 4) {\n            uint32_t pos0 = ((uint32_t)i       * scale + (norm >> 1)) / norm;\n            uint32_t pos1 = ((uint32_t)(i + 1) * scale + (norm >> 1)) / norm;\n            uint32_t pos2 = ((uint32_t)(i + 2) * scale + (norm >> 1)) / norm;\n            uint32_t pos3 = ((uint32_t)(i + 3) * scale + (norm >> 1)) / norm;\n\n            int left0 = (int)pos0, right0 = left0 + 1; if (right0 >= input_len) right0 = in_last;\n            int left1 = (int)pos1, right1 = left1 + 1; if (right1 >= input_len) right1 = in_last;\n            int left2 = (int)pos2, right2 = left2 + 1; if (right2 >= input_len) right2 = in_last;\n            int left3 = (int)pos3, right3 = left3 + 1; if (right3 >= input_len) right3 = in_last;\n\n            uint32_t frac0 = ((uint32_t)i       * scale) % norm;\n            uint32_t frac1 = ((uint32_t)(i + 1) * scale) % norm;\n            uint32_t frac2 = ((uint32_t)(i + 2) * scale) % norm;\n            uint32_t frac3 = ((uint32_t)(i + 3) * scale) % norm;\n\n            int32_t v0 = (int32_t)src[left0] * (int32_t)(norm - frac0) +\n                         (int32_t)src[right0] * (int32_t)frac0;\n            int32_t v1 = (int32_t)src[left1] * (int32_t)(norm - frac1) +\n                         (int32_t)src[right1] * (int32_t)frac1;\n            int32_t v2 = (int32_t)src[left2] * (int32_t)(norm - frac2) +\n                         (int32_t)src[right2] * (int32_t)frac2;\n            int32_t v3 = (int32_t)src[left3] * (int32_t)(norm - frac3) +\n                         (int32_t)src[right3] * (int32_t)frac3;\n\n            /* round and shift */\n            v0 = (v0 + (norm >> 1)) / (int32_t)norm;\n            v1 = (v1 + (norm >> 1)) / (int32_t)norm;\n            v2 = (v2 + (norm >> 1)) / (int32_t)norm;\n            v3 = (v3 + (norm >> 1)) / (int32_t)norm;\n\n            out[i]     = (int16_t)v0;\n            out[i + 1] = (int16_t)v1;\n            out[i + 2] = (int16_t)v2;\n            out[i + 3] = (int16_t)v3;\n        }\n        /* tail */\n        for (; i < output_len; ++i) {\n            uint32_t pos  = ((uint32_t)i * scale + (norm >> 1)) / norm;\n            int left  = (int)pos;\n            int right = left + 1; if (right >= input_len) right = in_last;\n            uint32_t frac = ((uint32_t)i * scale) % norm;\n            int32_t v = (int32_t)src[left]  * (int32_t)(norm - frac) +\n                        (int32_t)src[right] * (int32_t)frac;\n            v = (v + (norm >> 1)) / (int32_t)norm;\n            out[i] = (int16_t)v;\n        }\n        hash = checksum_i16(out, (size_t)output_len);\n    }\n    free(out);\n    return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_011",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 878000,
+    "min_elapsed_ns": 817000,
+    "max_elapsed_ns": 900000,
+    "all_elapsed_ns": [
+      900000,
+      817000,
+      878000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 900000,
+      "expected_checksum": 4215574957456807525,
+      "actual_checksum": 4215574957456807525
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_011",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 752000,
+    "min_elapsed_ns": 707000,
+    "max_elapsed_ns": 852000,
+    "all_elapsed_ns": [
+      752000,
+      852000,
+      707000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 752000,
+      "expected_checksum": 4215574957456807525,
+      "actual_checksum": 4215574957456807525
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_011",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 618000,
+    "min_elapsed_ns": 611000,
+    "max_elapsed_ns": 698000,
+    "all_elapsed_ns": [
+      618000,
+      611000,
+      698000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 618000,
+      "expected_checksum": 4215574957456807525,
+      "actual_checksum": 4215574957456807525
+    },
+    "status": "ok"
+  }
+}

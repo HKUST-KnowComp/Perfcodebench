@@ -1,0 +1,72 @@
+{
+  "task_id": "sparse_accumulator_checksum_v500_c",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sparse_accumulator_checksum_v500_c/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n#include <map>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n// Precompute the effect of mixing a 0 value multiple times is hard because \n// the mix function is not easily invertible or reducible for arbitrary counts.\n// However, we can optimize the accumulation and the loop.\n\n} // namespace\n\nuint64_t sparse_accumulator_hash(\n    const std::vector<uint32_t>& indices,\n    const std::vector<uint32_t>& values,\n    uint32_t domain,\n    int iters) {\n    \n    if (indices.empty()) {\n        uint64_t hash = 1469598103934665603ULL;\n        for (uint32_t k = 0; k < domain; ++k) {\n            hash = mix(hash, 0ULL);\n        }\n        return hash;\n    }\n\n    // To handle the 'iters' loop efficiently, note that the accumulation \n    // result is the same for every iteration because indices/values don't change.\n    // The original code clears the map and re-accumulates every time.\n    \n    // 1. Aggregate updates\n    // Using a vector of pairs + sort is faster than unordered_map for many updates\n    struct Entry { uint32_t idx; uint64_t val; };\n    std::vector<Entry> updates;\n    updates.reserve(indices.size());\n    for (size_t i = 0; i < indices.size(); ++i) {\n        updates.push_back({indices[i], static_cast<uint64_t>(values[i])});\n    }\n    std::sort(updates.begin(), updates.end(), [](const Entry& a, const Entry& b) {\n        return a.idx < b.idx;\n    });\n\n    std::vector<std::pair<uint32_t, uint64_t>> accum;\n    if (!updates.empty()) {\n        uint32_t current_idx = updates[0].idx;\n        uint64_t current_val = updates[0].val;\n        for (size_t i = 1; i < updates.size(); ++i) {\n            if (updates[i].idx == current_idx) {\n                current_val += updates[i].val;\n            } else {\n                accum.push_back({current_idx, current_val});\n                current_idx = updates[i].idx;\n                current_val = updates[i].val;\n            }\n        }\n        accum.push_back({current_idx, current_val});\n    }\n\n    // 2. Compute hash\n    // The original code: for (uint32_t key = 0; key < domain; ++key) { hash = mix(hash, accum[key]); }\n    // We must simulate this exactly.\n    uint64_t hash = 1469598103934665603ULL;\n    uint32_t current_key = 0;\n    \n    for (const auto& p : accum) {\n        // Mix all the zeros before this key\n        while (current_key < p.first) {\n            hash = mix(hash, 0ULL);\n            current_key++;\n        }\n        // Mix the actual value\n        hash = mix(hash, p.second);\n        current_key = p.first + 1;\n    }\n    \n    // Mix remaining zeros\n    while (current_key < domain) {\n        hash = mix(hash, 0ULL);\n        current_key++;\n    }\n\n    // Since the accumulation result is identical for every iteration in the original code,\n    // and the hash is reset to the constant inside the loop, the result is the same.\n    // Wait, the original code: 'hash = 1469598103934665603ULL;' is INSIDE the 'iters' loop.\n    // This means the 'hash' from the previous iteration is overwritten. \n    // The loop 'for (int iter = 0; iter < iters; ++iter)' effectively just repeats the same calculation.\n    // The final 'hash' returned is the result of the LAST iteration.\n    \n    return hash;\n}\n",
+  "baseline": {
+    "task_id": "sparse_accumulator_checksum_v500_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 325981088,
+    "min_elapsed_ns": 314943451,
+    "max_elapsed_ns": 376995227,
+    "all_elapsed_ns": [
+      314943451,
+      376995227,
+      325981088
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 314943451,
+      "expected_checksum": 15063535610254003531,
+      "actual_checksum": 15063535610254003531
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sparse_accumulator_checksum_v500_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 67703874,
+    "min_elapsed_ns": 67644844,
+    "max_elapsed_ns": 71153560,
+    "all_elapsed_ns": [
+      67703874,
+      71153560,
+      67644844
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 67703874,
+      "expected_checksum": 15063535610254003531,
+      "actual_checksum": 15063535610254003531
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sparse_accumulator_checksum_v500_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 348999898,
+    "min_elapsed_ns": 347500864,
+    "max_elapsed_ns": 356776300,
+    "all_elapsed_ns": [
+      347500864,
+      356776300,
+      348999898
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 347500864,
+      "expected_checksum": 15063535610254003531,
+      "actual_checksum": 15063535610254003531
+    },
+    "status": "ok"
+  }
+}

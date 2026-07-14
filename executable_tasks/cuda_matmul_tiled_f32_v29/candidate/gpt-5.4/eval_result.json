@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_matmul_tiled_f32_v29",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_matmul_tiled_f32_v29/candidate/gpt-5.4/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int TILE_M = 32;\nconstexpr int TILE_N = 32;\nconstexpr int TILE_K = 32;\nconstexpr int THREADS_X = 8;\nconstexpr int THREADS_Y = 32;\nconstexpr int COLS_PER_THREAD = 4;\n\n__global__ void matmul_tiled_kernel(const float* __restrict__ a,\n                                    const float* __restrict__ b,\n                                    float* __restrict__ c,\n                                    int n) {\n  const int tx = threadIdx.x;\n  const int ty = threadIdx.y;\n\n  const int block_row = blockIdx.y * TILE_M;\n  const int block_col = blockIdx.x * TILE_N;\n\n  const int row = block_row + ty;\n  const int col_base = block_col + tx * COLS_PER_THREAD;\n\n  __shared__ float As[TILE_M][TILE_K];\n  __shared__ float Bs[TILE_K][TILE_N];\n\n  float acc[COLS_PER_THREAD] = {0.f, 0.f, 0.f, 0.f};\n\n  // Cooperative loading mapping:\n  // 256 threads load 1024 elements for A tile and 1024 elements for B tile.\n  // Each thread loads 4 elements from A and 4 elements from B.\n  const int linear_tid = ty * THREADS_X + tx;\n\n  for (int k0 = 0; k0 < n; k0 += TILE_K) {\n    #pragma unroll\n    for (int i = 0; i < 4; ++i) {\n      const int idx = linear_tid + i * (THREADS_X * THREADS_Y);\n\n      const int a_r = idx / TILE_K;\n      const int a_c = idx - a_r * TILE_K;\n      const int g_a_r = block_row + a_r;\n      const int g_a_c = k0 + a_c;\n      As[a_r][a_c] = (g_a_r < n && g_a_c < n) ? a[g_a_r * n + g_a_c] : 0.0f;\n\n      const int b_r = idx / TILE_N;\n      const int b_c = idx - b_r * TILE_N;\n      const int g_b_r = k0 + b_r;\n      const int g_b_c = block_col + b_c;\n      Bs[b_r][b_c] = (g_b_r < n && g_b_c < n) ? b[g_b_r * n + g_b_c] : 0.0f;\n    }\n\n    __syncthreads();\n\n    #pragma unroll\n    for (int k = 0; k < TILE_K; ++k) {\n      const float a_val = As[ty][k];\n      #pragma unroll\n      for (int j = 0; j < COLS_PER_THREAD; ++j) {\n        acc[j] = fmaf(a_val, Bs[k][tx * COLS_PER_THREAD + j], acc[j]);\n      }\n    }\n\n    __syncthreads();\n  }\n\n  if (row < n) {\n    #pragma unroll\n    for (int j = 0; j < COLS_PER_THREAD; ++j) {\n      const int col = col_base + j;\n      if (col < n) {\n        c[row * n + col] = acc[j];\n      }\n    }\n  }\n}\n\n}  // namespace\n\nvoid matmul_f32(const float* a, const float* b, float* c, int n, int iters) {\n  const dim3 block(THREADS_X, THREADS_Y);\n  const dim3 grid((n + TILE_N - 1) / TILE_N, (n + TILE_M - 1) / TILE_M);\n  for (int iter = 0; iter < iters; ++iter) {\n    matmul_tiled_kernel<<<grid, block>>>(a, b, c, n);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_matmul_tiled_f32_v29",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 575616,
+    "min_elapsed_ns": 574559,
+    "max_elapsed_ns": 577152,
+    "all_elapsed_ns": [
+      575616,
+      577152,
+      574559
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 575616,
+      "max_abs_error": 0,
+      "checksum": 2906550000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_matmul_tiled_f32_v29",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 342559,
+    "min_elapsed_ns": 342272,
+    "max_elapsed_ns": 346399,
+    "all_elapsed_ns": [
+      346399,
+      342272,
+      342559
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 346399,
+      "max_abs_error": 0,
+      "checksum": 2906550000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_matmul_tiled_f32_v29",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_matmul_tiled_f32_v29/candidate/bench']' timed out after 5 seconds"
+  }
+}

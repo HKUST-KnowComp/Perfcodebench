@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_dimension_join_sum_v1100_a",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_dimension_join_sum_v1100_a/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 27,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <algorithm>\n#include <vector>\n#include <cstdint>\n\nuint64_t join_sum(\n    const std::vector<uint32_t>& dim_keys,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n    \n    if (probe_keys.empty()) return 0;\n\n    // Pre-calculate the mapping for the dense dimension.\n    // Since dim_keys is sorted and dense, we can use a LUT for the range [0, max_key].\n    uint32_t max_key = dim_keys.empty() ? 0 : dim_keys.back();\n    \n    // We use a LUT to store the index that std::lower_bound would return.\n    // This is feasible because the dimension is 'dense' and 'small'.\n    std::vector<uint32_t> lut;\n    if (!dim_keys.empty()) {\n        lut.resize(max_key + 1);\n        uint32_t current_idx = 0;\n        for (uint32_t k = 0; k <= max_key; ++k) {\n            while (current_idx < dim_keys.size() && dim_keys[current_idx] < k) {\n                current_idx++;\n            }\n            lut[k] = current_idx;\n        }\n    }\n\n    uint64_t final_sum = 0;\n    const size_t n = probe_keys.size();\n    const uint32_t* p_keys = probe_keys.data();\n    const uint32_t* p_weights = probe_weights.data();\n    const uint32_t* d_values = dim_values.data();\n    const uint32_t* lut_ptr = lut.data();\n    const uint32_t dim_size = static_cast<uint32_t>(dim_keys.size());\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t local_sum = 0;\n        size_t i = 0;\n\n        // Unrolled loop for performance\n        for (; i + 3 < n; i += 4) {\n            uint32_t k0 = p_keys[i];\n            uint32_t k1 = p_keys[i+1];\n            uint32_t k2 = p_keys[i+2];\n            uint32_t k3 = p_keys[i+3];\n\n            uint32_t idx0 = (k0 <= max_key) ? lut_ptr[k0] : dim_size;\n            uint32_t idx1 = (k1 <= max_key) ? lut_ptr[k1] : dim_size;\n            uint32_t idx2 = (k2 <= max_key) ? lut_ptr[k2] : dim_size;\n            uint32_t idx3 = (k3 <= max_key) ? lut_ptr[k3] : dim_size;\n\n            local_sum += static_cast<uint64_t>(d_values[idx0]) * p_weights[i];\n            local_sum += static_cast<uint64_t>(d_values[idx1]) * p_weights[i+1];\n            local_sum += static_cast<uint64_t>(d_values[idx2]) * p_weights[i+2];\n            local_sum += static_cast<uint64_t>(d_values[idx3]) * p_weights[i+3];\n        }\n\n        for (; i < n; ++i) {\n            uint32_t k = p_keys[i];\n            uint32_t idx = (k <= max_key) ? lut_ptr[k] : dim_size;\n            local_sum += static_cast<uint64_t>(d_values[idx]) * p_weights[i];\n        }\n        final_sum = local_sum;\n    }\n\n    return final_sum;\n}\n",
+  "baseline": {
+    "task_id": "dense_dimension_join_sum_v1100_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 17453259299,
+    "min_elapsed_ns": 17340801692,
+    "max_elapsed_ns": 18303457749,
+    "all_elapsed_ns": [
+      17340801692,
+      18303457749,
+      17453259299
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 17340801692,
+      "expected_sum": 146414764032,
+      "actual_sum": 146414764032
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_dimension_join_sum_v1100_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 151293617,
+    "min_elapsed_ns": 146519211,
+    "max_elapsed_ns": 182908505,
+    "all_elapsed_ns": [
+      151293617,
+      146519211,
+      182908505
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 151293617,
+      "expected_sum": 146414764032,
+      "actual_sum": 146414764032
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_dimension_join_sum_v1100_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 163284513,
+    "min_elapsed_ns": 162520448,
+    "max_elapsed_ns": 165697868,
+    "all_elapsed_ns": [
+      162520448,
+      163284513,
+      165697868
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 162520448,
+      "expected_sum": 146414764032,
+      "actual_sum": 146414764032
+    },
+    "status": "ok"
+  }
+}

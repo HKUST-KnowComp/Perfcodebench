@@ -1,0 +1,59 @@
+{
+  "task_id": "image_rgba_blend_checksum_v2600_c",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/image_rgba_blend_checksum_v2600_c/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\n#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)\n#include <immintrin.h>\n#define HAS_SIMD 1\n#else\n#define HAS_SIMD 0\n#endif\n\nnamespace {\n\ninline uint8_t blend_byte(uint8_t s, uint8_t d, uint8_t a) {\n  uint32_t sa = static_cast<uint32_t>(s) * a;\n  uint32_t da = static_cast<uint32_t>(d) * (255u - a);\n  return static_cast<uint8_t>((sa + da + 128u) >> 8);\n}\n\nuint64_t checksum_bytes(const uint8_t* bytes, size_t len) {\n  uint64_t hash = 1469598103934665603ULL;\n  const uint64_t prime = 1099511628211ULL;\n  \n  size_t i = 0;\n  for (; i + 7 < len; i += 8) {\n    hash ^= static_cast<uint64_t>(bytes[i]);\n    hash *= prime;\n    hash ^= static_cast<uint64_t>(bytes[i + 1]);\n    hash *= prime;\n    hash ^= static_cast<uint64_t>(bytes[i + 2]);\n    hash *= prime;\n    hash ^= static_cast<uint64_t>(bytes[i + 3]);\n    hash *= prime;\n    hash ^= static_cast<uint64_t>(bytes[i + 4]);\n    hash *= prime;\n    hash ^= static_cast<uint64_t>(bytes[i + 5]);\n    hash *= prime;\n    hash ^= static_cast<uint64_t>(bytes[i + 6]);\n    hash *= prime;\n    hash ^= static_cast<uint64_t>(bytes[i + 7]);\n    hash *= prime;\n  }\n  \n  for (; i < len; ++i) {\n    hash ^= static_cast<uint64_t>(bytes[i]);\n    hash *= prime;\n  }\n  \n  return hash;\n}\n\n#if HAS_SIMD && (defined(__SSE2__) || defined(__AVX2__))\nvoid blend_simd(const uint8_t* src, const uint8_t* dst, uint8_t* out, size_t pixels) {\n  size_t i = 0;\n  \n#ifdef __AVX2__\n  const __m256i zero = _mm256_setzero_si256();\n  const __m256i c255 = _mm256_set1_epi16(255);\n  const __m256i c128 = _mm256_set1_epi16(128);\n  const __m256i alpha_ff = _mm256_set1_epi32(0xFF000000);\n  \n  for (; i + 7 < pixels; i += 8) {\n    __m256i src_vec = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(src + i * 4));\n    __m256i dst_vec = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(dst + i * 4));\n    \n    __m256i alpha = _mm256_shuffle_epi8(src_vec, \n      _mm256_set_epi8(15,15,15,15, 11,11,11,11, 7,7,7,7, 3,3,3,3,\n                      15,15,15,15, 11,11,11,11, 7,7,7,7, 3,3,3,3));\n    \n    __m256i src_lo = _mm256_unpacklo_epi8(src_vec, zero);\n    __m256i src_hi = _mm256_unpackhi_epi8(src_vec, zero);\n    __m256i dst_lo = _mm256_unpacklo_epi8(dst_vec, zero);\n    __m256i dst_hi = _mm256_unpackhi_epi8(dst_vec, zero);\n    __m256i alpha_lo = _mm256_unpacklo_epi8(alpha, zero);\n    __m256i alpha_hi = _mm256_unpackhi_epi8(alpha, zero);\n    \n    __m256i inv_alpha_lo = _mm256_sub_epi16(c255, alpha_lo);\n    __m256i inv_alpha_hi = _mm256_sub_epi16(c255, alpha_hi);\n    \n    __m256i blend_lo = _mm256_add_epi16(\n      _mm256_mullo_epi16(src_lo, alpha_lo),\n      _mm256_mullo_epi16(dst_lo, inv_alpha_lo)\n    );\n    __m256i blend_hi = _mm256_add_epi16(\n      _mm256_mullo_epi16(src_hi, alpha_hi),\n      _mm256_mullo_epi16(dst_hi, inv_alpha_hi)\n    );\n    \n    blend_lo = _mm256_srli_epi16(_mm256_add_epi16(blend_lo, c128), 8);\n    blend_hi = _mm256_srli_epi16(_mm256_add_epi16(blend_hi, c128), 8);\n    \n    __m256i result = _mm256_packus_epi16(blend_lo, blend_hi);\n    result = _mm256_or_si256(result, alpha_ff);\n    \n    _mm256_storeu_si256(reinterpret_cast<__m256i*>(out + i * 4), result);\n  }\n#endif\n  \n#ifdef __SSE2__\n  const __m128i zero = _mm_setzero_si128();\n  const __m128i c255 = _mm_set1_epi16(255);\n  const __m128i c128 = _mm_set1_epi16(128);\n  const __m128i alpha_ff = _mm_set1_epi32(0xFF000000);\n  \n  for (; i + 3 < pixels; i += 4) {\n    __m128i src_vec = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src + i * 4));\n    __m128i dst_vec = _mm_loadu_si128(reinterpret_cast<const __m128i*>(dst + i * 4));\n    \n    __m128i alpha = _mm_shuffle_epi8(src_vec, \n      _mm_set_epi8(15,15,15,15, 11,11,11,11, 7,7,7,7, 3,3,3,3));\n    \n    __m128i src_lo = _mm_unpacklo_epi8(src_vec, zero);\n    __m128i src_hi = _mm_unpackhi_epi8(src_vec, zero);\n    __m128i dst_lo = _mm_unpacklo_epi8(dst_vec, zero);\n    __m128i dst_hi = _mm_unpackhi_epi8(dst_vec, zero);\n    __m128i alpha_lo = _mm_unpacklo_epi8(alpha, zero);\n    __m128i alpha_hi = _mm_unpackhi_epi8(alpha, zero);\n    \n    __m128i inv_alpha_lo = _mm_sub_epi16(c255, alpha_lo);\n    __m128i inv_alpha_hi = _mm_sub_epi16(c255, alpha_hi);\n    \n    __m128i blend_lo = _mm_add_epi16(\n      _mm_mullo_epi16(src_lo, alpha_lo),\n      _mm_mullo_epi16(dst_lo, inv_alpha_lo)\n    );\n    __m128i blend_hi = _mm_add_epi16(\n      _mm_mullo_epi16(src_hi, alpha_hi),\n      _mm_mullo_epi16(dst_hi, inv_alpha_hi)\n    );\n    \n    blend_lo = _mm_srli_epi16(_mm_add_epi16(blend_lo, c128), 8);\n    blend_hi = _mm_srli_epi16(_mm_add_epi16(blend_hi, c128), 8);\n    \n    __m128i result = _mm_packus_epi16(blend_lo, blend_hi);\n    result = _mm_or_si128(result, alpha_ff);\n    \n    _mm_storeu_si128(reinterpret_cast<__m128i*>(out + i * 4), result);\n  }\n#endif\n  \n  for (; i < pixels; ++i) {\n    const size_t idx = i * 4;\n    const uint8_t a = src[idx + 3];\n    out[idx] = blend_byte(src[idx], dst[idx], a);\n    out[idx + 1] = blend_byte(src[idx + 1], dst[idx + 1], a);\n    out[idx + 2] = blend_byte(src[idx + 2], dst[idx + 2], a);\n    out[idx + 3] = 255;\n  }\n}\n#endif\n\nvoid blend_scalar(const uint8_t* src, const uint8_t* dst, uint8_t* out, size_t pixels) {\n  size_t i = 0;\n  \n  for (; i + 3 < pixels; i += 4) {\n    size_t idx0 = i * 4;\n    size_t idx1 = idx0 + 4;\n    size_t idx2 = idx1 + 4;\n    size_t idx3 = idx2 + 4;\n    \n    uint8_t a0 = src[idx0 + 3];\n    out[idx0] = blend_byte(src[idx0], dst[idx0], a0);\n    out[idx0 + 1] = blend_byte(src[idx0 + 1], dst[idx0 + 1], a0);\n    out[idx0 + 2] = blend_byte(src[idx0 + 2], dst[idx0 + 2], a0);\n    out[idx0 + 3] = 255;\n    \n    uint8_t a1 = src[idx1 + 3];\n    out[idx1] = blend_byte(src[idx1], dst[idx1], a1);\n    out[idx1 + 1] = blend_byte(src[idx1 + 1], dst[idx1 + 1], a1);\n    out[idx1 + 2] = blend_byte(src[idx1 + 2], dst[idx1 + 2], a1);\n    out[idx1 + 3] = 255;\n    \n    uint8_t a2 = src[idx2 + 3];\n    out[idx2] = blend_byte(src[idx2], dst[idx2], a2);\n    out[idx2 + 1] = blend_byte(src[idx2 + 1], dst[idx2 + 1], a2);\n    out[idx2 + 2] = blend_byte(src[idx2 + 2], dst[idx2 + 2], a2);\n    out[idx2 + 3] = 255;\n    \n    uint8_t a3 = src[idx3 + 3];\n    out[idx3] = blend_byte(src[idx3], dst[idx3], a3);\n    out[idx3 + 1] = blend_byte(src[idx3 + 1], dst[idx3 + 1], a3);\n    out[idx3 + 2] = blend_byte(src[idx3 + 2], dst[idx3 + 2], a3);\n    out[idx3 + 3] = 255;\n  }\n  \n  for (; i < pixels; ++i) {\n    const size_t idx = i * 4;\n    const uint8_t a = src[idx + 3];\n    out[idx] = blend_byte(src[idx], dst[idx], a);\n    out[idx + 1] = blend_byte(src[idx + 1], dst[idx + 1], a);\n    out[idx + 2] = blend_byte(src[idx + 2], dst[idx + 2], a);\n    out[idx + 3] = 255;\n  }\n}\n\n}  // namespace\n\nuint64_t blend_checksum(\n    const std::vector<uint8_t>& src,\n    const std::vector<uint8_t>& dst,\n    int width,\n    int height,\n    int iters) {\n  (void)width;\n  (void)height;\n  \n  const size_t pixels = src.size() / 4u;\n  std::vector<uint8_t> out(src.size());\n  uint64_t hash = 0;\n  \n  const uint8_t* src_ptr = src.data();\n  const uint8_t* dst_ptr = dst.data();\n  uint8_t* out_ptr = out.data();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n#if HAS_SIMD && (defined(__SSE2__) || defined(__AVX2__))\n    blend_simd(src_ptr, dst_ptr, out_ptr, pixels);\n#else\n    blend_scalar(src_ptr, dst_ptr, out_ptr, pixels);\n#endif\n    hash = checksum_bytes(out_ptr, out.size());\n  }\n  \n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "image_rgba_blend_checksum_v2600_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 15931561,
+    "min_elapsed_ns": 13585714,
+    "max_elapsed_ns": 16201919,
+    "all_elapsed_ns": [
+      16201919,
+      15931561,
+      13585714
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 16201919,
+      "expected_checksum": 17295181830630871979,
+      "actual_checksum": 17295181830630871979
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "image_rgba_blend_checksum_v2600_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 12301315,
+    "min_elapsed_ns": 12126789,
+    "max_elapsed_ns": 12698898,
+    "all_elapsed_ns": [
+      12301315,
+      12698898,
+      12126789
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12301315,
+      "expected_checksum": 17295181830630871979,
+      "actual_checksum": 17295181830630871979
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "image_rgba_blend_checksum_v2600_c",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/image_rgba_blend_checksum_v2600_c/harness', 'executable_tasks/image_rgba_blend_checksum_v2600_c/harness/benchmark_main.cpp', 'executable_tasks/image_rgba_blend_checksum_v2600_c/candidate/claude-sonnet-4-5/solution.cpp', '-o', 'build/image_rgba_blend_checksum_v2600_c/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "frame_of_reference_filter_sum",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/frame_of_reference_filter_sum/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\nuint64_t frame_filter_sum(\n    const std::vector<uint16_t>& deltas,\n    uint32_t base,\n    uint32_t low,\n    uint32_t high,\n    int iters) {\n    uint64_t total_sum = 0;\n    \n    // Pre-calculate bounds relative to base to avoid repeated additions inside the loop\n    // We use uint64_t to avoid underflow/overflow during comparison\n    uint64_t u_base = base;\n    uint64_t u_low = low;\n    uint64_t u_high = high;\n\n    // The original code resets sum = 0 inside the loop, meaning only the last iteration counts.\n    // However, the baseline logic says 'sum = 0' inside the loop, but the return is outside.\n    // Looking at the baseline: \n    // for (int iter = 0; iter < iters; ++iter) { \n    //    ... \n    //    sum = 0; \n    //    for (uint32_t value : decoded) { ... sum += value; } \n    // }\n    // This means the result is simply the sum of the final iteration.\n    \n    if (iters <= 0) return 0;\n\n    const uint16_t* data = deltas.data();\n    size_t size = deltas.size();\n    uint64_t current_sum = 0;\n\n    // Only the last iteration matters based on the baseline's 'sum = 0' placement\n    // But to be safe and follow the logic exactly:\n    for (int iter = 0; iter < iters; ++iter) {\n        current_sum = 0;\n        for (size_t i = 0; i < size; ++i) {\n            uint32_t val = static_cast<uint32_t>(u_base + data[i]);\n            if (val >= low && val <= high) {\n                current_sum += val;\n            }\n        }\n    }\n\n    return current_sum;\n}",
+  "baseline": {
+    "task_id": "frame_of_reference_filter_sum",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 285013975,
+    "min_elapsed_ns": 242836396,
+    "max_elapsed_ns": 313144614,
+    "all_elapsed_ns": [
+      313144614,
+      285013975,
+      242836396
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 313144614,
+      "expected_sum": 80014950400,
+      "actual_sum": 80014950400
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "frame_of_reference_filter_sum",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 144197843,
+    "min_elapsed_ns": 138876410,
+    "max_elapsed_ns": 160169639,
+    "all_elapsed_ns": [
+      144197843,
+      160169639,
+      138876410
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 144197843,
+      "expected_sum": 80014950400,
+      "actual_sum": 80014950400
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "frame_of_reference_filter_sum",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/frame_of_reference_filter_sum/harness', 'executable_tasks/frame_of_reference_filter_sum/harness/benchmark_main.cpp', 'executable_tasks/frame_of_reference_filter_sum/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/frame_of_reference_filter_sum/candidate/bench']' returned non-zero exit status 1."
+  }
+}

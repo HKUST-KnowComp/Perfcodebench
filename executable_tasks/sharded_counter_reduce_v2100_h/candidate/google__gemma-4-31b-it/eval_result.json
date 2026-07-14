@@ -1,0 +1,59 @@
+{
+  "task_id": "sharded_counter_reduce_v2100_h",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v2100_h/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <thread>\n#include <atomic>\n#include <cstring>\n\nnamespace {\n\nuint64_t checksum_u64(const uint64_t* counts, uint32_t key_space) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (uint32_t i = 0; i < key_space; ++i) {\n        hash ^= counts[i];\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\n} // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n    \n    const size_t n = keys.size();\n    const size_t ks = static_cast<size_t>(key_space);\n    uint64_t final_hash = 0;\n\n    // Pre-allocate a buffer for the global counts to avoid repeated allocations\n    std::vector<uint64_t> global_counts(ks);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        std::fill(global_counts.begin(), global_counts.end(), 0);\n        \n        std::vector<std::thread> workers;\n        workers.reserve(num_threads);\n\n        for (int t = 0; t < num_threads; ++t) {\n            workers.emplace_back([&, t]() {\n                // Thread-local storage to avoid contention and false sharing\n                std::vector<uint64_t> local_counts(ks, 0);\n                \n                size_t start = (n * t) / num_threads;\n                size_t end = (n * (t + 1)) / num_threads;\n                \n                for (size_t i = start; i < end; ++i) {\n                    local_counts[keys[i]] += values[i];\n                }\n\n                // Merge local results into global counts using atomics or a mutex\n                // Since we only do this once per thread per iteration, we can use a simple lock\n                // or just use atomics for the merge phase.\n                static std::mutex merge_mutex;\n                std::lock_guard<std::mutex> lock(merge_mutex);\n                for (size_t i = 0; i < ks; ++i) {\n                    global_counts[i] += local_counts[i];\n                }\n            });\n        }\n\n        for (auto& worker : workers) {\n            worker.join();\n        }\n\n        final_hash = checksum_u64(global_counts.data(), key_space);\n    }\n\n    return final_hash;\n}",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v2100_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1401368893,
+    "min_elapsed_ns": 1321115156,
+    "max_elapsed_ns": 1405804222,
+    "all_elapsed_ns": [
+      1321115156,
+      1405804222,
+      1401368893
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1321115156,
+      "expected_checksum": 13873522559520932739,
+      "actual_checksum": 13873522559520932739
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v2100_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 129946232,
+    "min_elapsed_ns": 129507800,
+    "max_elapsed_ns": 133886593,
+    "all_elapsed_ns": [
+      129946232,
+      133886593,
+      129507800
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 129946232,
+      "expected_checksum": 13873522559520932739,
+      "actual_checksum": 13873522559520932739
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v2100_h",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-pthread', '-Iexecutable_tasks/sharded_counter_reduce_v2100_h/harness', 'executable_tasks/sharded_counter_reduce_v2100_h/harness/benchmark_main.cpp', 'executable_tasks/sharded_counter_reduce_v2100_h/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/sharded_counter_reduce_v2100_h/candidate/bench']' returned non-zero exit status 1."
+  }
+}

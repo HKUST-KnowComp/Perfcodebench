@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce_v2100_d",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v2100_d/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 8,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <atomic>\n#include <thread>\n#include <vector>\n\nnamespace {\n\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  std::vector<std::atomic<uint64_t>> acounts(static_cast<std::size_t>(key_space));\n  for (auto& a : acounts) a.store(0, std::memory_order_relaxed);\n\n  const std::size_t n = keys.size();\n  const std::size_t chunk = (n + num_threads - 1) / static_cast<std::size_t>(num_threads);\n\n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    // reset counters\n    for (auto& a : acounts) a.store(0, std::memory_order_relaxed);\n\n    std::vector<std::thread> threads;\n    threads.reserve(static_cast<std::size_t>(num_threads));\n\n    for (int t = 0; t < num_threads; ++t) {\n      const std::size_t begin = t * chunk;\n      if (begin >= n) break;\n      const std::size_t end = std::min(begin + chunk, n);\n      threads.emplace_back([&, begin, end]() {\n        for (std::size_t i = begin; i < end; ++i) {\n          const std::size_t bucket = static_cast<std::size_t>(keys[i]);\n          const uint64_t delta = static_cast<uint64_t>(values[i]);\n          acounts[bucket].fetch_add(delta, std::memory_order_relaxed);\n        }\n      });\n    }\n\n    for (std::thread& th : threads) th.join();\n\n    // materialize snapshot for checksum\n    std::vector<uint64_t> counts(static_cast<std::size_t>(key_space));\n    for (std::size_t i = 0; i < key_space; ++i) {\n      counts[i] = acounts[i].load(std::memory_order_relaxed);\n    }\n    hash = checksum_u64(counts);\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v2100_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5388416717,
+    "min_elapsed_ns": 4562184212,
+    "max_elapsed_ns": 6434659752,
+    "all_elapsed_ns": [
+      4562184212,
+      6434659752,
+      5388416717
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4562184212,
+      "expected_checksum": 4927837675318346627,
+      "actual_checksum": 4927837675318346627
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v2100_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 27082010,
+    "min_elapsed_ns": 12706070,
+    "max_elapsed_ns": 34598151,
+    "all_elapsed_ns": [
+      12706070,
+      34598151,
+      27082010
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12706070,
+      "expected_checksum": 4927837675318346627,
+      "actual_checksum": 4927837675318346627
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v2100_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 491863183,
+    "min_elapsed_ns": 283050501,
+    "max_elapsed_ns": 495186737,
+    "all_elapsed_ns": [
+      491863183,
+      495186737,
+      283050501
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 491863183,
+      "expected_checksum": 4927837675318346627,
+      "actual_checksum": 4927837675318346627
+    },
+    "status": "ok"
+  }
+}

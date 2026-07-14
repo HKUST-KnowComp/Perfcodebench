@@ -1,0 +1,72 @@
+{
+  "task_id": "highway_dot_product_xlarge",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_dot_product_xlarge/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <hwy/highway.h>\n\nnamespace {\nnamespace hn = hwy::HWY_NAMESPACE;\n\nfloat dot_product_scalar_tail(const float* a, const float* b, std::size_t i,\n                              std::size_t n, float sum) {\n  for (; i < n; ++i) {\n    sum += a[i] * b[i];\n  }\n  return sum;\n}\n}  // namespace\n\nfloat dot_product(const float* a, const float* b, std::size_t n) {\n  const hn::ScalableTag<float> d;\n  const std::size_t lanes = hn::Lanes(d);\n\n  std::size_t i = 0;\n  auto vsum0 = hn::Zero(d);\n  auto vsum1 = hn::Zero(d);\n  auto vsum2 = hn::Zero(d);\n  auto vsum3 = hn::Zero(d);\n\n  const std::size_t unroll = 4 * lanes;\n  for (; i + unroll <= n; i += unroll) {\n    const auto a0 = hn::LoadU(d, a + i);\n    const auto b0 = hn::LoadU(d, b + i);\n    const auto a1 = hn::LoadU(d, a + i + lanes);\n    const auto b1 = hn::LoadU(d, b + i + lanes);\n    const auto a2 = hn::LoadU(d, a + i + 2 * lanes);\n    const auto b2 = hn::LoadU(d, b + i + 2 * lanes);\n    const auto a3 = hn::LoadU(d, a + i + 3 * lanes);\n    const auto b3 = hn::LoadU(d, b + i + 3 * lanes);\n\n    vsum0 = hn::MulAdd(a0, b0, vsum0);\n    vsum1 = hn::MulAdd(a1, b1, vsum1);\n    vsum2 = hn::MulAdd(a2, b2, vsum2);\n    vsum3 = hn::MulAdd(a3, b3, vsum3);\n  }\n\n  auto vsum = hn::Add(hn::Add(vsum0, vsum1), hn::Add(vsum2, vsum3));\n\n  for (; i + lanes <= n; i += lanes) {\n    const auto va = hn::LoadU(d, a + i);\n    const auto vb = hn::LoadU(d, b + i);\n    vsum = hn::MulAdd(va, vb, vsum);\n  }\n\n  float sum = hn::GetLane(hn::SumOfLanes(d, vsum));\n  return dot_product_scalar_tail(a, b, i, n, sum);\n}\n",
+  "baseline": {
+    "task_id": "highway_dot_product_xlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3168156,
+    "min_elapsed_ns": 3055580,
+    "max_elapsed_ns": 3657801,
+    "all_elapsed_ns": [
+      3657801,
+      3168156,
+      3055580
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3657801,
+      "expected_dot": 1884630.0,
+      "actual_dot": 1884700.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_dot_product_xlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2401109,
+    "min_elapsed_ns": 2336993,
+    "max_elapsed_ns": 2468568,
+    "all_elapsed_ns": [
+      2401109,
+      2468568,
+      2336993
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2401109,
+      "expected_dot": 1884630.0,
+      "actual_dot": 1884660.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_dot_product_xlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 2461155,
+    "min_elapsed_ns": 2394894,
+    "max_elapsed_ns": 2591090,
+    "all_elapsed_ns": [
+      2394894,
+      2461155,
+      2591090
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2394894,
+      "expected_dot": 1884630.0,
+      "actual_dot": 1884640.0
+    },
+    "status": "ok"
+  }
+}

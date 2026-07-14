@@ -1,0 +1,59 @@
+{
+  "task_id": "beam_search_topk_v1800_f",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v1800_f/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <climits>\n#include <cstdint>\n#include <utility>\n#include <vector>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n// Insert (score,id) into a fixed-size top-k array (k<=32) in descending order.\n// Keeps the smallest element at position k-1 for quick eviction.\ninline void insert_topk(std::pair<int32_t, int>* topk, int k,\n                        int32_t score, int id) {\n  // Fast path: smaller than current k-th -> skip\n  if (k > 0 && score < topk[k - 1].first) return;\n  if (k > 0 && score == topk[k - 1].first && id > topk[k - 1].second) return;\n\n  // Find position; shift right; insert\n  int pos = 0;\n  while (pos < k) {\n    if (score > topk[pos].first ||\n        (score == topk[pos].first && id < topk[pos].second))\n      break;\n    ++pos;\n  }\n  if (pos < k) {\n    for (int j = k - 1; j > pos; --j) topk[j] = topk[j - 1];\n    topk[pos] = {score, id};\n  }\n}\n\n}  // namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits,\n                            int beams, int vocab, int topk, int iters) {\n  // Clamp topk to a reasonable upper bound to keep the array small\n  const int k = (topk > 32) ? 32 : topk;\n  std::pair<int32_t, int> topk_buf[32];\n  uint64_t hash = 14695981039346656037ULL;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 14695981039346656037ULL;\n    for (int b = 0; b < beams; ++b) {\n      // Initialize buffer to minimal values\n      for (int i = 0; i < k; ++i) topk_buf[i] = {INT32_MIN, 0};\n\n      const int32_t* ptr = &logits[static_cast<size_t>(b) * vocab];\n      for (int v = 0; v < vocab; ++v) {\n        insert_topk(topk_buf, k, ptr[v], v);\n      }\n\n      // Mix the top-k results into the checksum\n      for (int i = 0; i < k; ++i) {\n        hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(topk_buf[i].first)));\n        hash = mix(hash, static_cast<uint64_t>(topk_buf[i].second));\n      }\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "beam_search_topk_v1800_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 177572892,
+    "min_elapsed_ns": 163240813,
+    "max_elapsed_ns": 202693272,
+    "all_elapsed_ns": [
+      202693272,
+      177572892,
+      163240813
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 202693272,
+      "expected_checksum": 10132284384874256058,
+      "actual_checksum": 10132284384874256058
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v1800_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4938358,
+    "min_elapsed_ns": 4853624,
+    "max_elapsed_ns": 6120993,
+    "all_elapsed_ns": [
+      6120993,
+      4853624,
+      4938358
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6120993,
+      "expected_checksum": 10132284384874256058,
+      "actual_checksum": 10132284384874256058
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v1800_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/beam_search_topk_v1800_f/candidate/bench']' returned non-zero exit status 1."
+  }
+}

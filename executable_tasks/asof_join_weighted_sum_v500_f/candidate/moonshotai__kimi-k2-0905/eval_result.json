@@ -1,0 +1,72 @@
+{
+  "task_id": "asof_join_weighted_sum_v500_f",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/asof_join_weighted_sum_v500_f/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <immintrin.h>\n#include <algorithm>\n\nstatic inline uint32_t fast_lower(const uint32_t* __restrict arr, uint32_t n, uint32_t key) {\n    uint32_t lo = 0, hi = n;\n    while (lo < hi) {\n        uint32_t mid = (lo + hi) >> 1;\n        if (arr[mid] <= key) lo = mid + 1;\n        else hi = mid;\n    }\n    return lo - 1;\n}\n\nuint64_t asof_join_sum(\n    const std::vector<uint32_t>& dim_ts,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_ts,\n    const std::vector<uint32_t>& probe_weights,\n    int iters)\n{\n    const uint32_t* ts = dim_ts.data();\n    const uint32_t* vs = dim_values.data();\n    const uint32_t* pts = probe_ts.data();\n    const uint32_t* pws = probe_weights.data();\n    const std::size_t dsize = dim_ts.size();\n    const std::size_t psize = probe_ts.size();\n\n    uint64_t sum = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        sum = 0;\n        std::size_t i = 0;\n\n        // unroll 4-way\n        for (; i + 3 < psize; i += 4) {\n            _mm_prefetch((const char*)(ts + 64), _MM_HINT_T0);\n            uint32_t k0 = pts[i];\n            uint32_t k1 = pts[i + 1];\n            uint32_t k2 = pts[i + 2];\n            uint32_t k3 = pts[i + 3];\n\n            uint32_t idx0 = fast_lower(ts, dsize, k0);\n            uint32_t idx1 = fast_lower(ts, dsize, k1);\n            uint32_t idx2 = fast_lower(ts, dsize, k2);\n            uint32_t idx3 = fast_lower(ts, dsize, k3);\n\n            sum += uint64_t(vs[idx0]) * uint64_t(pws[i]);\n            sum += uint64_t(vs[idx1]) * uint64_t(pws[i + 1]);\n            sum += uint64_t(vs[idx2]) * uint64_t(pws[i + 2]);\n            sum += uint64_t(vs[idx3]) * uint64_t(pws[i + 3]);\n        }\n        for (; i < psize; ++i) {\n            uint32_t idx = fast_lower(ts, dsize, pts[i]);\n            sum += uint64_t(vs[idx]) * uint64_t(pws[i]);\n        }\n    }\n    return sum;\n}",
+  "baseline": {
+    "task_id": "asof_join_weighted_sum_v500_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 468464793,
+    "min_elapsed_ns": 448411229,
+    "max_elapsed_ns": 523627687,
+    "all_elapsed_ns": [
+      468464793,
+      523627687,
+      448411229
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 468464793,
+      "expected_sum": 73588270107,
+      "actual_sum": 73588270107
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "asof_join_weighted_sum_v500_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 43655936,
+    "min_elapsed_ns": 43152765,
+    "max_elapsed_ns": 44792689,
+    "all_elapsed_ns": [
+      43655936,
+      44792689,
+      43152765
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 43655936,
+      "expected_sum": 73588270107,
+      "actual_sum": 73588270107
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "asof_join_weighted_sum_v500_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 563954228,
+    "min_elapsed_ns": 553332538,
+    "max_elapsed_ns": 571400915,
+    "all_elapsed_ns": [
+      563954228,
+      571400915,
+      553332538
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 563954228,
+      "expected_sum": 73588270107,
+      "actual_sum": 73588270107
+    },
+    "status": "ok"
+  }
+}

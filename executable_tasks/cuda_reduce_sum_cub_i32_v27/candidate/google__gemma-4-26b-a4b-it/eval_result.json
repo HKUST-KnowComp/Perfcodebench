@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_reduce_sum_cub_i32_v27",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_reduce_sum_cub_i32_v27/candidate/google__gemma-4-26b-a4b-it/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void reduce_kernel(const int* __restrict__ input, int* __restrict__ partial_sums, int n) {\n    extern __shared__ int sdata[];\n    \n    int tid = threadIdx.x;\n    int i = blockIdx.x * blockDim.x + threadIdx.x;\n    int stride = blockDim.x * gridDim.x;\n\n    int sum = 0;\n    // Grid-stride loop to handle arbitrary n\n    while (i < n) {\n        sum += input[i];\n        i += stride;\n    }\n\n    // Shared memory reduction within block\n    sdata[tid] = sum;\n    __syncthreads();\n\n    // Warp-level reduction using shuffle\n    if (tid < 32) {\n        for (int offset = 16; offset > 0; offset /= 2) {\n            sum = __shfl_down_sync(0xffffffff, sum, offset);\n        }\n        // Only the first thread of each warp writes to shared memory\n        if (tid == 0) {\n            sdata[tid] = sum;\n        }\n    }\n    __syncthreads();\n\n    // Final block reduction in shared memory\n    // Since we only have 32 values (one per warp) in sdata[0..31]\n    if (tid < 32) {\n        int val = sdata[tid];\n        for (int offset = 16; offset > 0; offset /= 2) {\n            val += __shfl_down_sync(0xffffffff, val, offset);\n        }\n        if (tid == 0) {\n            partial_sums[blockIdx.x] = val;\n        }\n    }\n}\n\n__global__ void final_reduce_kernel(const int* __restrict__ partial_sums, int* __restrict__ output, int num_blocks) {\n    int tid = threadIdx.x;\n    int sum = 0;\n    for (int i = tid; i < num_blocks; i += blockDim.x) {\n        sum += partial_sums[i];\n    }\n    \n    // Use atomicAdd for the very last step to handle small num_blocks\n    if (tid == 0) {\n        // We use a single block to finish the reduction to avoid complexity\n        // but for safety in a general kernel, we use atomicAdd on the final output\n        // However, since we launch this with 1 block, we can just write it.\n    }\n    \n    // To keep it simple and fast, we'll use a single block for the final reduction\n    // if num_blocks is small, or just use atomicAdd.\n    atomicAdd(output, sum);\n}\n\n} // namespace\n\nvoid reduce_sum_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0) {\n        *output = 0;\n        return;\n    }\n\n    const int kBlock = 256;\n    // Calculate grid size to cover n, but cap it to avoid excessive overhead\n    // We want enough blocks to saturate the GPU but not so many that partial_sums is huge\n    const int max_blocks = 4096;\n    int grid = (n + kBlock - 1) / kBlock;\n    if (grid > max_blocks) grid = max_blocks;\n    \n    // Allocate temporary space for partial sums\n    int* d_partial_sums;\n    cudaMalloc(&d_partial_sums, max_blocks * sizeof(int));\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, sizeof(int));\n        cudaMemset(d_partial_sums, 0, max_blocks * sizeof(int));\n\n        // Step 1: Block-level reduction\n        // We use a fixed grid size to ensure we don't exceed d_partial_sums\n        // and to keep the workload balanced.\n        int actual_grid = (grid > max_blocks) ? max_blocks : grid;\n        \n        reduce_kernel<<<actual_grid, kBlock, kBlock * sizeof(int)>>>(input, d_partial_sums, n);\n\n        // Step 2: Final reduction of partial sums\n        final_reduce_kernel<<<1, 256>>>(d_partial_sums, output, actual_grid);\n    }\n\n    cudaFree(d_partial_sums);\n}",
+  "baseline": {
+    "task_id": "cuda_reduce_sum_cub_i32_v27",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1881152,
+    "min_elapsed_ns": 1871711,
+    "max_elapsed_ns": 1885439,
+    "all_elapsed_ns": [
+      1871711,
+      1881152,
+      1885439
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1871711,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_reduce_sum_cub_i32_v27",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 751200,
+    "min_elapsed_ns": 743615,
+    "max_elapsed_ns": 1381024,
+    "all_elapsed_ns": [
+      751200,
+      743615,
+      1381024
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 751200,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_reduce_sum_cub_i32_v27",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_reduce_sum_cub_i32_v27/candidate/bench']' timed out after 5 seconds"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_jacobi_2d_v1600_e",
+  "model": "qwen/qwen3.6-plus",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v1600_e/candidate/qwen__qwen3.6-plus/solution.cpp",
+  "benchmark_timeout_sec": 8,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <cstring>\n#include <omp.h>\n\nnamespace {\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  std::vector<uint32_t> a = input;\n  std::vector<uint32_t> b(a.size());\n\n  const size_t cols_sz = static_cast<size_t>(cols);\n\n  #pragma omp parallel\n  {\n    for (int step = 0; step < steps; ++step) {\n      #pragma omp single\n      {\n        std::memcpy(b.data(), a.data(), cols_sz * sizeof(uint32_t));\n        std::memcpy(b.data() + (rows - 1) * cols_sz, a.data() + (rows - 1) * cols_sz, cols_sz * sizeof(uint32_t));\n        for (int r = 1; r < rows - 1; ++r) {\n          b[r * cols_sz] = a[r * cols_sz];\n          b[r * cols_sz + cols_sz - 1] = a[r * cols_sz + cols_sz - 1];\n        }\n      }\n\n      const uint32_t* __restrict__ pa = a.data();\n      uint32_t* __restrict__ pb = b.data();\n\n      #pragma omp for schedule(static)\n      for (int r = 1; r < rows - 1; ++r) {\n        size_t i = r * cols_sz + 1;\n        const size_t i_end = i + cols_sz - 2;\n        for (; i < i_end; ++i) {\n          pb[i] = (pa[i] * 4u + pa[i - 1] + pa[i + 1] + pa[i - cols_sz] + pa[i + cols_sz]) >> 3;\n        }\n      }\n\n      #pragma omp single\n      a.swap(b);\n    }\n  }\n\n  return checksum_u32(a);\n}\n",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v1600_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3869792906,
+    "min_elapsed_ns": 3512621399,
+    "max_elapsed_ns": 3975563744,
+    "all_elapsed_ns": [
+      3512621399,
+      3975563744,
+      3869792906
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3512621399,
+      "expected_checksum": 1842857931776151235,
+      "actual_checksum": 1842857931776151235
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v1600_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1395382247,
+    "min_elapsed_ns": 1264192633,
+    "max_elapsed_ns": 1685936962,
+    "all_elapsed_ns": [
+      1685936962,
+      1395382247,
+      1264192633
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1685936962,
+      "expected_checksum": 1842857931776151235,
+      "actual_checksum": 1842857931776151235
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v1600_e",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/openmp_jacobi_2d_v1600_e/candidate/bench']' timed out after 8 seconds"
+  }
+}

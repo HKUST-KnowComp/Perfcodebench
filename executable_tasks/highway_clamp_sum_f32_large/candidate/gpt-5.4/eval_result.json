@@ -1,0 +1,72 @@
+{
+  "task_id": "highway_clamp_sum_f32_large",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_clamp_sum_f32_large/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"hwy/highway.h\"\n\nnamespace {\nnamespace hn = hwy::HWY_NAMESPACE;\n}\n\nfloat clamp_sum(const float* data, std::size_t n) {\n  const hn::ScalableTag<float> d;\n  const std::size_t lanes = hn::Lanes(d);\n\n  std::size_t i = 0;\n  auto zero = hn::Zero(d);\n  auto sum0 = hn::Zero(d);\n  auto sum1 = hn::Zero(d);\n  auto sum2 = hn::Zero(d);\n  auto sum3 = hn::Zero(d);\n\n  const std::size_t step = lanes * 4;\n  for (; i + step <= n; i += step) {\n    auto v0 = hn::LoadU(d, data + i);\n    auto v1 = hn::LoadU(d, data + i + lanes);\n    auto v2 = hn::LoadU(d, data + i + 2 * lanes);\n    auto v3 = hn::LoadU(d, data + i + 3 * lanes);\n\n    sum0 = hn::Add(sum0, hn::Max(v0, zero));\n    sum1 = hn::Add(sum1, hn::Max(v1, zero));\n    sum2 = hn::Add(sum2, hn::Max(v2, zero));\n    sum3 = hn::Add(sum3, hn::Max(v3, zero));\n  }\n\n  auto vsum = hn::Add(hn::Add(sum0, sum1), hn::Add(sum2, sum3));\n\n  for (; i + lanes <= n; i += lanes) {\n    auto v = hn::LoadU(d, data + i);\n    vsum = hn::Add(vsum, hn::Max(v, zero));\n  }\n\n  float sum = hn::GetLane(hn::SumOfLanes(d, vsum));\n\n  for (; i < n; ++i) {\n    const float x = data[i];\n    sum += x > 0.0f ? x : 0.0f;\n  }\n\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "highway_clamp_sum_f32_large",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1470825,
+    "min_elapsed_ns": 1454547,
+    "max_elapsed_ns": 1608668,
+    "all_elapsed_ns": [
+      1608668,
+      1470825,
+      1454547
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1608668,
+      "expected_sum": 105014000.0,
+      "actual_sum": 105013000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_clamp_sum_f32_large",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 611687,
+    "min_elapsed_ns": 499403,
+    "max_elapsed_ns": 628165,
+    "all_elapsed_ns": [
+      499403,
+      628165,
+      611687
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 499403,
+      "expected_sum": 105014000.0,
+      "actual_sum": 105014000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_clamp_sum_f32_large",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 442853,
+    "min_elapsed_ns": 295480,
+    "max_elapsed_ns": 446352,
+    "all_elapsed_ns": [
+      442853,
+      446352,
+      295480
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 442853,
+      "expected_sum": 105014000.0,
+      "actual_sum": 105014000.0
+    },
+    "status": "ok"
+  }
+}

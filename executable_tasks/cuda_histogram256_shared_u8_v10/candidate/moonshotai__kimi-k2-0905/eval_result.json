@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v10",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v10/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void histogram256_kernel(const unsigned char* __restrict__ input,\n                                    unsigned int* __restrict__ output,\n                                    int n) {\n  // 256 histogram bins, 32 warps per block (1024 threads)\n  static_assert(blockDim.x == 1024, \"Kernel expects 1024 threads per block\");\n\n  __shared__ unsigned int smem[256];\n\n  // Warp-private counters (256 bytes) in registers\n  unsigned int warpHist[8];  // 8*4 = 32 bytes, 8 lanes cooperate per 32 bins\n#pragma unroll\n  for (int i = 0; i < 8; ++i) warpHist[i] = 0;\n\n  const int tid = threadIdx.x;\n  const int laneId = tid & 31;\n  const int warpId = tid >> 5;\n\n  // Grid-stride loop\n  for (int idx = blockIdx.x * blockDim.x + tid; idx < n;\n       idx += blockDim.x * gridDim.x) {\n    unsigned char val = input[idx];\n    int sub = val >> 2;  // 0..63 maps to one of 64 counters\n    unsigned mask = __ballot_sync(0xFFFFFFFF, (val & 3) == 0);\n    if ((val & 3) == 0) warpHist[sub] += __popc(mask);\n    mask = __ballot_sync(0xFFFFFFFF, (val & 3) == 1);\n    if ((val & 3) == 1) warpHist[sub] += __popc(mask);\n    mask = __ballot_sync(0xFFFFFFFF, (val & 3) == 2);\n    if ((val & 3) == 2) warpHist[sub] += __popc(mask);\n    mask = __ballot_sync(0xFFFFFFFF, (val & 3) == 3);\n    if ((val & 3) == 3) warpHist[sub] += __popc(mask);\n  }\n\n  // Reduce warp counters into shared memory (per-block histogram)\n#pragma unroll\n  for (int i = 0; i < 8; ++i) {\n    int bin = (i << 2) + (laneId & 3);\n    if (bin < 32) {\n      unsigned int cnt = warpHist[i];\n      // Use warp-level reduction\n      cnt += __shfl_down_sync(0xFFFFFFFF, cnt, 16);\n      cnt += __shfl_down_sync(0xFFFFFFFF, cnt, 8);\n      cnt += __shfl_down_sync(0xFFFFFFFF, cnt, 4);\n      cnt += __shfl_down_sync(0xFFFFFFFF, cnt, 2);\n      cnt += __shfl_down_sync(0xFFFFFFFF, cnt, 1);\n      if ((laneId & 31) == 0) atomicAdd(&smem[bin + (warpId << 5)], cnt);\n    }\n  }\n  __syncthreads();\n\n  // Final warp (warp 0) writes block histogram to global memory\n  if (warpId == 0) {\n    for (int bin = laneId; bin < 256; bin += 32) {\n      unsigned int cnt = smem[bin];\n      // Warp-level reduction across blocks\n      for (int offset = 16; offset > 0; offset >>= 1) {\n        cnt += __shfl_down_sync(0xFFFFFFFF, cnt, offset);\n      }\n      if ((laneId & 31) == 0) {\n        if (blockIdx.x == 0) output[bin] = cnt;\n        else atomicAdd(&output[bin], cnt);\n      }\n    }\n  }\n}\n\n}  // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n,\n                     int iters) {\n  constexpr int kThreadsPerBlock = 1024;\n  const int kBlocks = (n + kThreadsPerBlock - 1) / kThreadsPerBlock;\n\n  cudaMemset(output, 0, 256 * sizeof(unsigned int));\n  for (int iter = 0; iter < iters; ++iter) {\n    histogram256_kernel<<<kBlocks, kThreadsPerBlock>>>(input, output, n);\n  }\n}",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v10",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 620291992,
+    "min_elapsed_ns": 620197082,
+    "max_elapsed_ns": 620407287,
+    "all_elapsed_ns": [
+      620407287,
+      620291992,
+      620197082
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 620407287,
+      "checksum": 4311744512
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v10",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3142784,
+    "min_elapsed_ns": 3130496,
+    "max_elapsed_ns": 3144063,
+    "all_elapsed_ns": [
+      3144063,
+      3142784,
+      3130496
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3144063,
+      "checksum": 4311744512
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v10",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['nvcc', '-O3', '-std=c++17', '-Iexecutable_tasks/cuda_histogram256_shared_u8_v10/harness', '-gencode=arch=compute_80,code=sm_80', '-gencode=arch=compute_80,code=compute_80', 'executable_tasks/cuda_histogram256_shared_u8_v10/harness/benchmark_main.cu', 'executable_tasks/cuda_histogram256_shared_u8_v10/candidate/moonshotai__kimi-k2-0905/solution.cu', '-o', 'build/cuda_histogram256_shared_u8_v10/candidate/bench']' returned non-zero exit status 2."
+  }
+}

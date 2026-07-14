@@ -1,0 +1,59 @@
+{
+  "task_id": "sorted_range_bucket_sum_v500_f",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sorted_range_bucket_sum_v500_f/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <immintrin.h>\n\nuint64_t range_bucket_sum(\n    const std::vector<uint32_t>& boundaries,\n    const std::vector<uint32_t>& probes,\n    int iters) {\n  \n  const size_t n_bounds = boundaries.size();\n  const size_t n_probes = probes.size();\n  \n  if (n_probes == 0) return 0;\n  \n  const uint32_t* __restrict__ b_ptr = boundaries.data();\n  const uint32_t* __restrict__ p_ptr = probes.data();\n  \n  uint64_t sum = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    size_t b_idx = 0;\n    \n    // Process in chunks for better cache utilization\n    size_t i = 0;\n    \n    // Main loop with manual unrolling and prefetching\n    const size_t PREFETCH_DIST = 64;\n    \n    // Use AVX2 to accumulate sums\n    __m256i vsum = _mm256_setzero_si256();\n    \n    // Process 4 probes at a time when possible\n    for (; i + 4 <= n_probes; i += 4) {\n      // Prefetch future probes\n      if (i + PREFETCH_DIST < n_probes) {\n        _mm_prefetch(reinterpret_cast<const char*>(&p_ptr[i + PREFETCH_DIST]), _MM_HINT_T0);\n      }\n      \n      uint32_t p0 = p_ptr[i];\n      uint32_t p1 = p_ptr[i + 1];\n      uint32_t p2 = p_ptr[i + 2];\n      uint32_t p3 = p_ptr[i + 3];\n      \n      // Advance boundary index for p0\n      while (b_idx < n_bounds && b_ptr[b_idx] <= p0) {\n        ++b_idx;\n      }\n      uint64_t idx0 = b_idx;\n      \n      // Advance boundary index for p1 (probes are sorted, so we continue from current b_idx)\n      while (b_idx < n_bounds && b_ptr[b_idx] <= p1) {\n        ++b_idx;\n      }\n      uint64_t idx1 = b_idx;\n      \n      // Advance boundary index for p2\n      while (b_idx < n_bounds && b_ptr[b_idx] <= p2) {\n        ++b_idx;\n      }\n      uint64_t idx2 = b_idx;\n      \n      // Advance boundary index for p3\n      while (b_idx < n_bounds && b_ptr[b_idx] <= p3) {\n        ++b_idx;\n      }\n      uint64_t idx3 = b_idx;\n      \n      // Pack into vector and add\n      __m256i vidx = _mm256_set_epi64x(idx3, idx2, idx1, idx0);\n      vsum = _mm256_add_epi64(vsum, vidx);\n    }\n    \n    // Horizontal sum of vsum\n    __m128i vsum_lo = _mm256_castsi256_si128(vsum);\n    __m128i vsum_hi = _mm256_extracti128_si256(vsum, 1);\n    __m128i vsum128 = _mm_add_epi64(vsum_lo, vsum_hi);\n    sum = _mm_extract_epi64(vsum128, 0) + _mm_extract_epi64(vsum128, 1);\n    \n    // Handle remaining probes\n    for (; i < n_probes; ++i) {\n      uint32_t p = p_ptr[i];\n      while (b_idx < n_bounds && b_ptr[b_idx] <= p) {\n        ++b_idx;\n      }\n      sum += b_idx;\n    }\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "sorted_range_bucket_sum_v500_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1026355647,
+    "min_elapsed_ns": 1024383887,
+    "max_elapsed_ns": 1029470929,
+    "all_elapsed_ns": [
+      1024383887,
+      1029470929,
+      1026355647
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1024383887,
+      "expected_sum": 17175789587,
+      "actual_sum": 17175789587
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sorted_range_bucket_sum_v500_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 74477384,
+    "min_elapsed_ns": 66081080,
+    "max_elapsed_ns": 76174826,
+    "all_elapsed_ns": [
+      76174826,
+      66081080,
+      74477384
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 76174826,
+      "expected_sum": 17175789587,
+      "actual_sum": 17175789587
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sorted_range_bucket_sum_v500_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/sorted_range_bucket_sum_v500_f/harness', 'executable_tasks/sorted_range_bucket_sum_v500_f/harness/benchmark_main.cpp', 'executable_tasks/sorted_range_bucket_sum_v500_f/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/sorted_range_bucket_sum_v500_f/candidate/bench']' returned non-zero exit status 1."
+  }
+}

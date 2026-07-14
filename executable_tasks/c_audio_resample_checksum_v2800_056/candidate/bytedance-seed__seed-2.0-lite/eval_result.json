@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_056",
+  "model": "bytedance-seed/seed-2.0-lite",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_056/candidate/bytedance-seed__seed-2.0-lite/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n#include <math.h>\n\nstatic uint64_t checksum_i16(const int16_t* data, size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (size_t i = 0; i < n; ++i) {\n    hash ^= (uint16_t)data[i];\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n  if (input_len <= 0 || output_len <= 0 || iters <= 0) return 0;\n  uint64_t hash = 0;\n  \n  // Allocate output buffer once instead of per iteration to eliminate repeated heap overhead\n  int16_t* out = (int16_t*)malloc((size_t)output_len * sizeof(int16_t));\n  if (!out) return 0;\n\n  // Edge case: single input sample, all output samples match input\n  if (input_len == 1) {\n    const int16_t sample = src[0];\n    for (int i = 0; i < output_len; ++i) out[i] = sample;\n    for (int iter = 0; iter < iters; ++iter) {\n      hash = checksum_i16(out, (size_t)output_len);\n    }\n    free(out);\n    return hash;\n  }\n\n  // Edge case: single output sample, matches final input sample\n  if (output_len == 1) {\n    out[0] = src[input_len - 1];\n    for (int iter = 0; iter < iters; ++iter) {\n      hash = checksum_i16(out, 1);\n    }\n    free(out);\n    return hash;\n  }\n\n  // Precompute resampling scale once to avoid repeated calculation\n  const float scale = (float)(input_len - 1) / (float)(output_len - 1);\n\n  // Main iteration loop\n  for (int iter = 0; iter < iters; ++iter) {\n    float pos = 0.0f;\n    for (int i = 0; i < output_len; ++i) {\n      const int left = (int)pos;\n      int right = left + 1;\n      if (right >= input_len) right = input_len - 1;\n      const float frac = pos - left;\n      const float s0 = (float)src[left];\n      const float s1 = (float)src[right];\n      // Rearranged interpolation to use 1 multiply instead of 2, same mathematical result\n      const float sample = s0 + (s1 - s0) * frac;\n      out[i] = (int16_t)roundf(sample); // Matches original rounding behavior exactly\n      pos += scale; // Increment position instead of recalculating i*scale, reduces inner loop work\n    }\n    hash = checksum_i16(out, (size_t)output_len);\n  }\n\n  free(out);\n  return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_056",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3946000,
+    "min_elapsed_ns": 3901000,
+    "max_elapsed_ns": 4069000,
+    "all_elapsed_ns": [
+      4069000,
+      3946000,
+      3901000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4069000,
+      "expected_checksum": 4390123806707265425,
+      "actual_checksum": 4390123806707265425
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_056",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3972000,
+    "min_elapsed_ns": 3654000,
+    "max_elapsed_ns": 4210000,
+    "all_elapsed_ns": [
+      3972000,
+      4210000,
+      3654000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3972000,
+      "expected_checksum": 4390123806707265425,
+      "actual_checksum": 4390123806707265425
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_056",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 3697000,
+    "min_elapsed_ns": 3658000,
+    "max_elapsed_ns": 3756000,
+    "all_elapsed_ns": [
+      3697000,
+      3756000,
+      3658000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3697000,
+      "expected_checksum": 4390123806707265425,
+      "actual_checksum": 4390123806707265425
+    },
+    "status": "ok"
+  }
+}

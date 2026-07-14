@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v02",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v02/candidate/gpt-5.4/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int kBins = 256;\nconstexpr int kBlock = 256;\nconstexpr int kGrid = 1024;\n\n__global__ __launch_bounds__(kBlock, 2)\nvoid histogram_shared_atomic_kernel(const unsigned char* __restrict__ input,\n                                    unsigned int* __restrict__ output,\n                                    int n) {\n  __shared__ unsigned int shist[kBins];\n\n  // Zero shared histogram.\n  for (int i = threadIdx.x; i < kBins; i += blockDim.x) {\n    shist[i] = 0;\n  }\n  __syncthreads();\n\n  const int tid = blockIdx.x * blockDim.x + threadIdx.x;\n  const int stride_threads = blockDim.x * gridDim.x;\n\n  // Vectorized main path: each logical iteration processes 4 bytes.\n  const int n4 = n >> 2;\n  const uchar4* __restrict__ input4 = reinterpret_cast<const uchar4*>(input);\n  for (int i = tid; i < n4; i += stride_threads) {\n    uchar4 v = input4[i];\n    atomicAdd(&shist[v.x], 1U);\n    atomicAdd(&shist[v.y], 1U);\n    atomicAdd(&shist[v.z], 1U);\n    atomicAdd(&shist[v.w], 1U);\n  }\n\n  // Tail handling for the final 0..3 bytes.\n  const int tail_start = n4 << 2;\n  for (int i = tail_start + tid; i < n; i += stride_threads) {\n    atomicAdd(&shist[input[i]], 1U);\n  }\n\n  __syncthreads();\n\n  // Flush block-local histogram to global histogram.\n  for (int i = threadIdx.x; i < kBins; i += blockDim.x) {\n    unsigned int v = shist[i];\n    if (v) atomicAdd(output + i, v);\n  }\n}\n\n}  // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters) {\n  if (iters <= 0) return;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    cudaMemset(output, 0, kBins * sizeof(unsigned int));\n    if (n > 0) {\n      histogram_shared_atomic_kernel<<<kGrid, kBlock>>>(input, output, n);\n    }\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v02",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 25898239,
+    "min_elapsed_ns": 25896480,
+    "max_elapsed_ns": 25900512,
+    "all_elapsed_ns": [
+      25900512,
+      25898239,
+      25896480
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 25900512,
+      "checksum": 538968064
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v02",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 270527,
+    "min_elapsed_ns": 270208,
+    "max_elapsed_ns": 271360,
+    "all_elapsed_ns": [
+      270208,
+      271360,
+      270527
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 270208,
+      "checksum": 538968064
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v02",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_histogram256_shared_u8_v02/candidate/bench']' timed out after 5 seconds"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "genomic_kmer_histogram_checksum_v2600_j",
+  "model": "deepseek-v4-flash",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/genomic_kmer_histogram_checksum_v2600_j/candidate/deepseek-v4-flash/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <string>\n#include <vector>\n\nnamespace {\n\n// Lookup table: char -> 2-bit value (A=0, C=1, G=2, T=3, else 0)\nuint32_t char_to_val[256] = {};\nbool init_lut = false;\n\nvoid ensure_lut() {\n  if (!init_lut) {\n    char_to_val['A'] = 0;\n    char_to_val['C'] = 1;\n    char_to_val['G'] = 2;\n    char_to_val['T'] = 3;\n    init_lut = true;\n  }\n}\n\n// FNV-1a hash over vector of uint32_t counts\nuint64_t fnv1a(const std::vector<uint32_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t c : counts) {\n    hash ^= static_cast<uint64_t>(c);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n} // anonymous namespace\n\nuint64_t kmer_histogram_checksum(const std::string& dna, int k, int iters) {\n  ensure_lut();\n\n  const std::size_t n = dna.size();\n  const std::size_t bits = static_cast<std::size_t>(2) * static_cast<std::size_t>(k);\n  const std::size_t bins = static_cast<std::size_t>(1) << bits;\n  uint64_t mask = (bits == 64) ? ~0ULL : ( (static_cast<uint64_t>(1) << bits) - 1);\n\n  // Allocate dense histogram once\n  std::vector<uint32_t> dense(bins, 0);\n  uint64_t hash = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    std::fill(dense.begin(), dense.end(), 0u);\n\n    if (static_cast<std::size_t>(k) <= n) {\n      // Build initial k-mer code\n      uint64_t code = 0;\n      for (std::size_t i = 0; i < static_cast<std::size_t>(k); ++i) {\n        code = (code << 2) | char_to_val[static_cast<unsigned char>(dna[i])];\n      }\n      ++dense[code & mask];  // mask always covers bits, but indexing needs code < bins\n\n      // Slide the window\n      for (std::size_t i = static_cast<std::size_t>(k); i < n; ++i) {\n        code = ((code << 2) | char_to_val[static_cast<unsigned char>(dna[i])]) & mask;\n        ++dense[code];\n      }\n    }\n\n    hash = fnv1a(dense);\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 139101753,
+    "min_elapsed_ns": 139045594,
+    "max_elapsed_ns": 139335268,
+    "all_elapsed_ns": [
+      139045594,
+      139335268,
+      139101753
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 139045594,
+      "expected_checksum": 7421827575641651183,
+      "actual_checksum": 7421827575641651183
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 15837244,
+    "min_elapsed_ns": 15689155,
+    "max_elapsed_ns": 15842643,
+    "all_elapsed_ns": [
+      15842643,
+      15837244,
+      15689155
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15842643,
+      "expected_checksum": 7421827575641651183,
+      "actual_checksum": 7421827575641651183
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 5858853,
+    "min_elapsed_ns": 5646617,
+    "max_elapsed_ns": 5861763,
+    "all_elapsed_ns": [
+      5861763,
+      5646617,
+      5858853
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5861763,
+      "expected_checksum": 7421827575641651183,
+      "actual_checksum": 7421827575641651183
+    },
+    "status": "ok"
+  }
+}

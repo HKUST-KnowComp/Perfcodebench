@@ -1,0 +1,59 @@
+{
+  "task_id": "row_group_minmax_prune_v1000_h",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/row_group_minmax_prune_v1000_h/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <immintrin.h>\n#include <cstdint>\n#include <vector>\n\nuint64_t row_group_range_sum(\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& mins,\n    const std::vector<uint32_t>& maxs,\n    uint32_t low,\n    uint32_t high,\n    uint32_t block_size,\n    int iters) {\n\n    size_t n = values.size();\n    size_t num_blocks = mins.size();\n    uint64_t total_sum = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t current_sum = 0;\n        for (size_t b = 0; b < num_blocks; ++b) {\n            uint32_t b_min = mins[b];\n            uint32_t b_max = maxs[b];\n\n            // Case 1: Entire block is outside the range [low, high]\n            if (b_min > high || b_max < low) {\n                continue;\n            }\n\n            size_t start = b * block_size;\n            size_t end = (b + 1) * block_size;\n            if (end > n) end = n;\n\n            // Case 2: Entire block is within the range [low, high]\n            if (b_min >= low && b_max <= high) {\n                __m256i sum_v = _mm256_setzero_si256();\n                size_t i = start;\n                for (; i + 7 < end; i += 8) {\n                    __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&values[i]));\n                    __m256i v_lo = _mm256_unpacklo_epi32(v, _mm256_setzero_si256());\n                    __m256i v_hi = _mm256_unpackhi_epi32(v, _mm256_setzero_si256());\n                    sum_v = _mm256_add_epi64(sum_v, v_lo);\n                    sum_v = _mm256_add_epi64(sum_v, v_hi);\n                }\n                uint64_t temp[4];\n                _mm256_storeu_si256(reinterpret_cast<__m256i*>(temp), sum_v);\n                current_sum += temp[0] + temp[1] + temp[2] + temp[3];\n                for (; i < end; ++i) {\n                    current_sum += values[i];\n                }\n            } \n            // Case 3: Partial overlap - filter elements\n            else {\n                __m256i sum_v = _mm256_setzero_si256();\n                __m256i low_v = _mm256_set1_epi32(low - 1);\n                __m256i high_v = _mm256_set1_epi32(high);\n                size_t i = start;\n                for (; i + 7 < end; i += 8) {\n                    __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&values[i]));\n                    // mask = (v > low-1) AND (high >= v) => (v > low-1) AND NOT (v > high)\n                    __m256i gt_low = _mm256_cmpgt_epi32(v, low_v);\n                    __m256i gt_high = _mm256_cmpgt_epi32(v, high_v);\n                    __m256i mask = _mm256_andnot_si256(gt_high, gt_low);\n                    \n                    __m256i filtered = _mm256_and_si256(v, mask);\n                    __m256i v_lo = _mm256_unpacklo_epi32(filtered, _mm256_setzero_si256());\n                    __m256i v_hi = _mm256_unpackhi_epi32(filtered, _mm256_setzero_si256());\n                    sum_v = _mm256_add_epi64(sum_v, v_lo);\n                    sum_v = _mm256_add_epi64(sum_v, v_hi);\n                }\n                uint64_t temp[4];\n                _mm256_storeu_si256(reinterpret_cast<__m256i*>(temp), sum_v);\n                current_sum += temp[0] + temp[1] + temp[2] + temp[3];\n                for (; i < end; ++i) {\n                    uint32_t val = values[i];\n                    if (val >= low && val <= high) {\n                        current_sum += val;\n                    }\n                }\n            }\n        }\n        total_sum = current_sum;\n    }\n\n    return total_sum;\n}",
+  "baseline": {
+    "task_id": "row_group_minmax_prune_v1000_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 24550072,
+    "min_elapsed_ns": 24438594,
+    "max_elapsed_ns": 24801282,
+    "all_elapsed_ns": [
+      24801282,
+      24550072,
+      24438594
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 24801282,
+      "expected_sum": 57990458,
+      "actual_sum": 57990458
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "row_group_minmax_prune_v1000_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 885180,
+    "min_elapsed_ns": 851132,
+    "max_elapsed_ns": 908848,
+    "all_elapsed_ns": [
+      851132,
+      908848,
+      885180
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 851132,
+      "expected_sum": 57990458,
+      "actual_sum": 57990458
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "row_group_minmax_prune_v1000_h",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/row_group_minmax_prune_v1000_h/harness', 'executable_tasks/row_group_minmax_prune_v1000_h/harness/benchmark_main.cpp', 'executable_tasks/row_group_minmax_prune_v1000_h/candidate/google__gemini-3.1-pro-preview/solution.cpp', '-o', 'build/row_group_minmax_prune_v1000_h/candidate/bench']' returned non-zero exit status 1."
+  }
+}

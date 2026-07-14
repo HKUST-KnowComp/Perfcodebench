@@ -1,0 +1,72 @@
+{
+  "task_id": "sparse_accumulator_checksum_v500_d",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sparse_accumulator_checksum_v500_d/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n#include <cstdint>\n\nnamespace {\n\nconstexpr uint64_t FNV_PRIME = 1099511628211ULL;\nconstexpr uint64_t FNV_OFFSET_BASIS = 1469598103934665603ULL;\n\n// Computes (base^exp) mod 2^64 in O(log exp) time.\nuint64_t power(uint64_t base, uint32_t exp) {\n    uint64_t res = 1;\n    while (exp > 0) {\n        if (exp % 2 == 1) res *= base;\n        base *= base;\n        exp /= 2;\n    }\n    return res;\n}\n\nstruct Entry {\n    uint32_t index;\n    uint64_t value;\n};\n\n} // namespace\n\nuint64_t sparse_accumulator_hash(\n    const std::vector<uint32_t>& indices,\n    const std::vector<uint32_t>& values,\n    uint32_t domain,\n    int iters) {\n    \n    if (indices.empty()) {\n        uint64_t h = FNV_OFFSET_BASIS;\n        uint64_t skip_multiplier = power(FNV_PRIME, domain);\n        h *= skip_multiplier;\n        return h;\n    }\n\n    // Pre-aggregate indices and values into a sorted list of unique entries.\n    // This is done once per function call.\n    std::vector<Entry> entries;\n    entries.reserve(indices.size());\n    for (size_t i = 0; i < indices.size(); ++i) {\n        if (indices[i] < domain) {\n            entries.push_back({indices[i], static_cast<uint64_t>(values[i])});\n        }\n    }\n    \n    std::sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) {\n        return a.index < b.index;\n    });\n\n    std::vector<Entry> aggregated;\n    if (!entries.empty()) {\n        aggregated.reserve(entries.size());\n        aggregated.push_back(entries[0]);\n        for (size_t i = 1; i < entries.size(); ++i) {\n            if (entries[i].index == aggregated.back().index) {\n                aggregated.back().value += entries[i].value;\n            } else {\n                aggregated.push_back(entries[i]);\n            }\n        }\n    }\n\n    uint64_t final_hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t h = FNV_OFFSET_BASIS;\n        uint32_t current_pos = 0;\n\n        for (const auto& entry : aggregated) {\n            // Skip zeros between current_pos and entry.index\n            if (entry.index > current_pos) {\n                h *= power(FNV_PRIME, entry.index - current_pos);\n            }\n            // Mix the non-zero value\n            h ^= entry.value;\n            h *= FNV_PRIME;\n            current_pos = entry.index + 1;\n        }\n\n        // Skip remaining zeros until the end of the domain\n        if (domain > current_pos) {\n            h *= power(FNV_PRIME, domain - current_pos);\n        }\n        final_hash = h;\n    }\n\n    return final_hash;\n}\n",
+  "baseline": {
+    "task_id": "sparse_accumulator_checksum_v500_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 851291612,
+    "min_elapsed_ns": 835372633,
+    "max_elapsed_ns": 856711054,
+    "all_elapsed_ns": [
+      851291612,
+      856711054,
+      835372633
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 851291612,
+      "expected_checksum": 16502923419748412723,
+      "actual_checksum": 16502923419748412723
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sparse_accumulator_checksum_v500_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 117312201,
+    "min_elapsed_ns": 104611025,
+    "max_elapsed_ns": 120815989,
+    "all_elapsed_ns": [
+      120815989,
+      117312201,
+      104611025
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 120815989,
+      "expected_checksum": 16502923419748412723,
+      "actual_checksum": 16502923419748412723
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sparse_accumulator_checksum_v500_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 503740668,
+    "min_elapsed_ns": 480911150,
+    "max_elapsed_ns": 515651220,
+    "all_elapsed_ns": [
+      480911150,
+      515651220,
+      503740668
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 480911150,
+      "expected_checksum": 16502923419748412723,
+      "actual_checksum": 16502923419748412723
+    },
+    "status": "ok"
+  }
+}

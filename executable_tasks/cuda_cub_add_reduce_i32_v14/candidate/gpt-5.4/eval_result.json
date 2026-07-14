@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v14",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v14/candidate/gpt-5.4/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__inline__ __device__ int warp_reduce_sum(int v) {\n  unsigned mask = 0xffffffffu;\n  v += __shfl_down_sync(mask, v, 16);\n  v += __shfl_down_sync(mask, v, 8);\n  v += __shfl_down_sync(mask, v, 4);\n  v += __shfl_down_sync(mask, v, 2);\n  v += __shfl_down_sync(mask, v, 1);\n  return v;\n}\n\n__global__ void reduce_kernel(const int* __restrict__ input, int* __restrict__ output, int n) {\n  int sum = 0;\n  int idx = blockIdx.x * blockDim.x + threadIdx.x;\n  int stride = blockDim.x * gridDim.x;\n\n  for (int i = idx; i < n; i += stride) {\n    sum += input[i];\n  }\n\n  sum = warp_reduce_sum(sum);\n\n  __shared__ int warp_sums[32];\n  int lane = threadIdx.x & 31;\n  int warp = threadIdx.x >> 5;\n  int num_warps = blockDim.x >> 5;\n\n  if (lane == 0) warp_sums[warp] = sum;\n  __syncthreads();\n\n  if (warp == 0) {\n    int block_sum = (lane < num_warps) ? warp_sums[lane] : 0;\n    block_sum = warp_reduce_sum(block_sum);\n    if (lane == 0) atomicAdd(output, block_sum);\n  }\n}\n\n}  // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n  if (iters <= 0) return;\n\n  int block = 256;\n  int grid = 0;\n\n  cudaDeviceProp prop;\n  if (cudaGetDeviceProperties(&prop, 0) == cudaSuccess) {\n    int sm = prop.multiProcessorCount;\n    grid = sm * 8;\n  }\n  if (grid <= 0) grid = 256;\n\n  int max_grid = (n + block - 1) / block;\n  if (max_grid < 1) max_grid = 1;\n  if (grid > max_grid) grid = max_grid;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    cudaMemset(output, 0, sizeof(int));\n    reduce_kernel<<<grid, block>>>(input, output, n);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v14",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 99215393,
+    "min_elapsed_ns": 97356033,
+    "max_elapsed_ns": 99385566,
+    "all_elapsed_ns": [
+      99215393,
+      99385566,
+      97356033
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 99215393,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v14",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8134431,
+    "min_elapsed_ns": 8060256,
+    "max_elapsed_ns": 8172991,
+    "all_elapsed_ns": [
+      8172991,
+      8134431,
+      8060256
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8172991,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v14",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v14/candidate/bench']' timed out after 5 seconds"
+  }
+}

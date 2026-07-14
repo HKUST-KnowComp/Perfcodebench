@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_100",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_100/candidate/claude-opus-4.5/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\nstatic uint64_t checksum_i16(const int16_t* data, size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  const uint64_t prime = 1099511628211ULL;\n  size_t i = 0;\n  size_t n4 = n & ~(size_t)3;\n  for (; i < n4; i += 4) {\n    hash ^= (uint16_t)data[i];\n    hash *= prime;\n    hash ^= (uint16_t)data[i + 1];\n    hash *= prime;\n    hash ^= (uint16_t)data[i + 2];\n    hash *= prime;\n    hash ^= (uint16_t)data[i + 3];\n    hash *= prime;\n  }\n  for (; i < n; ++i) {\n    hash ^= (uint16_t)data[i];\n    hash *= prime;\n  }\n  return hash;\n}\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n  if (output_len <= 0 || input_len <= 0) return 0;\n  \n  int16_t* out = (int16_t*)malloc((size_t)output_len * sizeof(int16_t));\n  if (!out) return 0;\n  \n  uint64_t hash = 0;\n  \n  /* Fixed-point arithmetic: 32 bits for fractional part */\n  const uint64_t frac_bits = 32;\n  const uint64_t frac_one = (uint64_t)1 << frac_bits;\n  const uint64_t frac_half = frac_one >> 1;\n  \n  /* step = (input_len - 1) / (output_len - 1) in fixed-point */\n  uint64_t step = 0;\n  if (output_len > 1) {\n    step = ((uint64_t)(input_len - 1) << frac_bits) / (uint64_t)(output_len - 1);\n  }\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t pos_fixed = 0;\n    \n    for (int i = 0; i < output_len; ++i) {\n      int left = (int)(pos_fixed >> frac_bits);\n      int right = left + 1;\n      if (right >= input_len) right = input_len - 1;\n      \n      /* frac is the fractional part, scaled to [0, frac_one) */\n      uint64_t frac = pos_fixed & (frac_one - 1);\n      \n      /* Linear interpolation in fixed-point:\n       * sample = src[left] * (1 - frac) + src[right] * frac\n       * Using 64-bit arithmetic to avoid overflow */\n      int32_t left_val = src[left];\n      int32_t right_val = src[right];\n      \n      /* Compute: left_val * (frac_one - frac) + right_val * frac\n       * Then divide by frac_one with rounding */\n      int64_t interp = (int64_t)left_val * (int64_t)(frac_one - frac) \n                     + (int64_t)right_val * (int64_t)frac;\n      \n      /* Round to nearest: add half before truncating */\n      int16_t sample;\n      if (interp >= 0) {\n        sample = (int16_t)((interp + (int64_t)frac_half) >> frac_bits);\n      } else {\n        sample = (int16_t)((interp - (int64_t)frac_half) >> frac_bits);\n      }\n      \n      out[i] = sample;\n      pos_fixed += step;\n    }\n    \n    hash = checksum_i16(out, (size_t)output_len);\n  }\n  \n  free(out);\n  return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_100",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5519000,
+    "min_elapsed_ns": 5486000,
+    "max_elapsed_ns": 5619000,
+    "all_elapsed_ns": [
+      5619000,
+      5486000,
+      5519000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5619000,
+      "expected_checksum": 11530346929100680791,
+      "actual_checksum": 11530346929100680791
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_100",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5611000,
+    "min_elapsed_ns": 5469000,
+    "max_elapsed_ns": 5903000,
+    "all_elapsed_ns": [
+      5903000,
+      5611000,
+      5469000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5903000,
+      "expected_checksum": 11530346929100680791,
+      "actual_checksum": 11530346929100680791
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_100",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 4505000,
+    "min_elapsed_ns": 4429000,
+    "max_elapsed_ns": 4973000,
+    "all_elapsed_ns": [
+      4505000,
+      4429000,
+      4973000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4505000,
+      "expected_checksum": 11530346929100680791,
+      "actual_checksum": 11530346929100680791
+    },
+    "status": "ok"
+  }
+}

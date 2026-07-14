@@ -1,0 +1,55 @@
+{
+  "task_id": "cuda_thrust_sort_i32_v31",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_thrust_sort_i32_v31/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 111,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <thrust/device_ptr.h>\n#include <thrust/sort.h>\n#include <cstdint>\n\nnamespace {\n\nstatic int* d_in  = nullptr;\nstatic int* d_out = nullptr;\nstatic int  cached_n = 0;\n\n__global__ void copy_kernel(const int* __restrict__ in, int* __restrict__ out, int n) {\n    int tid = blockIdx.x * blockDim.x + threadIdx.x;\n    if (tid < n) out[tid] = in[tid];\n}\n\ninline void ensure_buffers(int n) {\n    if (n > cached_n) {\n        cudaFree(d_in);\n        cudaFree(d_out);\n        cudaMalloc(&d_in , n * sizeof(int));\n        cudaMalloc(&d_out, n * sizeof(int));\n        cached_n = n;\n    }\n}\n\n} // anonymous namespace\n\nvoid sort_vec_i32(const int* input, int* output, int n, int iters) {\n    ensure_buffers(n);\n\n    const int block = 256;\n    const int grid  = (n + block - 1) / block;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        copy_kernel<<<grid, block>>>(input, d_in, n);\n        thrust::device_ptr<int> begin = thrust::device_pointer_cast(d_in);\n        thrust::device_ptr<int> end   = begin + n;\n        thrust::sort(thrust::device, begin, end);\n        copy_kernel<<<grid, block>>>(d_in, output, n);\n    }\n    cudaDeviceSynchronize();\n}",
+  "baseline": {
+    "task_id": "cuda_thrust_sort_i32_v31",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_thrust_sort_i32_v31/baseline/bench']' timed out after 111 seconds"
+  },
+  "reference": {
+    "task_id": "cuda_thrust_sort_i32_v31",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 54074817,
+    "min_elapsed_ns": 50721534,
+    "max_elapsed_ns": 54103839,
+    "all_elapsed_ns": [
+      54074817,
+      54103839,
+      50721534
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 54074817
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_thrust_sort_i32_v31",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 709289245,
+    "min_elapsed_ns": 703215637,
+    "max_elapsed_ns": 764853698,
+    "all_elapsed_ns": [
+      764853698,
+      703215637,
+      709289245
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 764853698
+    },
+    "status": "ok"
+  }
+}

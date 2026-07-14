@@ -1,0 +1,59 @@
+{
+  "task_id": "row_group_minmax_prune_v1000_i",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/row_group_minmax_prune_v1000_i/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <immintrin.h>\n\nuint64_t row_group_range_sum(\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& mins,\n    const std::vector<uint32_t>& maxs,\n    uint32_t low,\n    uint32_t high,\n    uint32_t block_size,\n    int iters) {\n  uint64_t sum = 0;\n  const uint32_t* vals = values.data();\n  const uint32_t* min_ptr = mins.data();\n  const uint32_t* max_ptr = maxs.data();\n  const size_t n = values.size();\n  const size_t num_blocks = (n + block_size - 1) / block_size;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    \n    for (size_t block_idx = 0; block_idx < num_blocks; ++block_idx) {\n      const uint32_t block_min = min_ptr[block_idx];\n      const uint32_t block_max = max_ptr[block_idx];\n      \n      // Skip blocks completely outside range\n      if (block_max < low || block_min > high) {\n        continue;\n      }\n      \n      const size_t block_start = block_idx * block_size;\n      const size_t block_end = (block_start + block_size < n) ? block_start + block_size : n;\n      const uint32_t* block_vals = vals + block_start;\n      const size_t block_len = block_end - block_start;\n      \n      // If entire block is within range, sum without checks\n      if (block_min >= low && block_max <= high) {\n        size_t i = 0;\n        \n        // SIMD processing for aligned blocks\n        const size_t simd_end = block_len & ~7;\n        __m256i sum_vec = _mm256_setzero_si256();\n        \n        for (; i < simd_end; i += 8) {\n          __m256i v = _mm256_loadu_si256((__m256i*)(block_vals + i));\n          sum_vec = _mm256_add_epi64(sum_vec, _mm256_cvtepu32_epi64(_mm256_castsi256_si128(v)));\n          sum_vec = _mm256_add_epi64(sum_vec, _mm256_cvtepu32_epi64(_mm256_extracti128_si256(v, 1)));\n        }\n        \n        // Horizontal sum\n        __m128i sum_low = _mm256_castsi256_si128(sum_vec);\n        __m128i sum_high = _mm256_extracti128_si256(sum_vec, 1);\n        sum_low = _mm_add_epi64(sum_low, sum_high);\n        sum += _mm_extract_epi64(sum_low, 0) + _mm_extract_epi64(sum_low, 1);\n        \n        // Scalar tail\n        for (; i < block_len; ++i) {\n          sum += block_vals[i];\n        }\n      } else {\n        // Partial overlap: check each value\n        size_t i = 0;\n        \n        // SIMD with masking\n        const size_t simd_end = block_len & ~7;\n        __m256i low_vec = _mm256_set1_epi32(low);\n        __m256i high_vec = _mm256_set1_epi32(high);\n        __m256i sum_vec = _mm256_setzero_si256();\n        \n        for (; i < simd_end; i += 8) {\n          __m256i v = _mm256_loadu_si256((__m256i*)(block_vals + i));\n          __m256i ge_low = _mm256_cmpgt_epi32(v, _mm256_sub_epi32(low_vec, _mm256_set1_epi32(1)));\n          __m256i le_high = _mm256_cmpgt_epi32(_mm256_add_epi32(high_vec, _mm256_set1_epi32(1)), v);\n          __m256i mask = _mm256_and_si256(ge_low, le_high);\n          __m256i masked = _mm256_and_si256(v, mask);\n          \n          sum_vec = _mm256_add_epi64(sum_vec, _mm256_cvtepu32_epi64(_mm256_castsi256_si128(masked)));\n          sum_vec = _mm256_add_epi64(sum_vec, _mm256_cvtepu32_epi64(_mm256_extracti128_si256(masked, 1)));\n        }\n        \n        __m128i sum_low = _mm256_castsi256_si128(sum_vec);\n        __m128i sum_high = _mm256_extracti128_si256(sum_vec, 1);\n        sum_low = _mm_add_epi64(sum_low, sum_high);\n        sum += _mm_extract_epi64(sum_low, 0) + _mm_extract_epi64(sum_low, 1);\n        \n        // Scalar tail\n        for (; i < block_len; ++i) {\n          uint32_t v = block_vals[i];\n          sum += (v >= low && v <= high) ? v : 0;\n        }\n      }\n    }\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "row_group_minmax_prune_v1000_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 34114226,
+    "min_elapsed_ns": 33937393,
+    "max_elapsed_ns": 34483745,
+    "all_elapsed_ns": [
+      34483745,
+      34114226,
+      33937393
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 34483745,
+      "expected_sum": 55291932,
+      "actual_sum": 55291932
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "row_group_minmax_prune_v1000_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 585824,
+    "min_elapsed_ns": 578830,
+    "max_elapsed_ns": 627083,
+    "all_elapsed_ns": [
+      578830,
+      585824,
+      627083
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 578830,
+      "expected_sum": 55291932,
+      "actual_sum": 55291932
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "row_group_minmax_prune_v1000_i",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/row_group_minmax_prune_v1000_i/harness', 'executable_tasks/row_group_minmax_prune_v1000_i/harness/benchmark_main.cpp', 'executable_tasks/row_group_minmax_prune_v1000_i/candidate/claude-sonnet-4-5/solution.cpp', '-o', 'build/row_group_minmax_prune_v1000_i/candidate/bench']' returned non-zero exit status 1."
+  }
+}

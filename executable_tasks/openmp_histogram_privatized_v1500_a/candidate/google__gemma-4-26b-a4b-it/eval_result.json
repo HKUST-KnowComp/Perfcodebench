@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_histogram_privatized_v1500_a",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_histogram_privatized_v1500_a/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 38,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <omp.h>\n#include <vector>\n#include <cstring>\n\nnamespace {\n\nint num_threads() {\n  return std::max(1, std::min(8, omp_get_max_threads()));\n}\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 146959810394665603ULL;\n  // Note: The original baseline used 1469598103934665603ULL. \n  // To ensure exact correctness with the baseline's checksum logic:\n  hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t histogram_checksum(const std::vector<uint8_t>& input, int bins, int iters) {\n  const int n_threads = num_threads();\n  omp_set_num_threads(n_threads);\n  \n  std::vector<uint32_t> global_counts(static_cast<std::size_t>(bins), 0);\n  const std::size_t input_size = input.size();\n  const uint8_t* data_ptr = input.data();\n\n  // Pre-allocate thread-local buffers to avoid allocation inside the loop\n  // Each thread gets a vector of size 'bins'\n  std::vector<std::vector<uint32_t>> local_histograms(n_threads, std::vector<uint32_t>(bins, 0));\n\n  for (int iter = 0; iter < iters; ++iter) {\n    // Reset global counts for this iteration\n    std::fill(global_counts.begin(), global_counts.end(), 0u);\n\n    #pragma omp parallel\n    {\n      int tid = omp_get_thread_num();\n      uint32_t* my_hist = local_histograms[tid].data();\n      \n      // Reset local histogram\n      std::memset(my_hist, 0, bins * sizeof(uint32_t));\n\n      #pragma omp for schedule(static)\n      for (std::size_t i = 0; i < input_size; ++i) {\n        my_hist[data_ptr[i]]++;\n      }\n\n      // Merge local histogram into global histogram\n      // We use a critical section or atomic for the merge, but since it's \n      // only done once per thread per iteration, contention is negligible.\n      for (int b = 0; b < bins; ++b) {\n        if (my_hist[b] > 0) {\n          #pragma omp atomic\n          global_counts[b] += my_hist[b];\n        }\n      }\n    }\n  }\n\n  return checksum_u32(global_counts);\n}\n",
+  "baseline": {
+    "task_id": "openmp_histogram_privatized_v1500_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5229074216,
+    "min_elapsed_ns": 4120143309,
+    "max_elapsed_ns": 5612639189,
+    "all_elapsed_ns": [
+      4120143309,
+      5229074216,
+      5612639189
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4120143309,
+      "expected_checksum": 11027996006448794577,
+      "actual_checksum": 11027996006448794577
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_histogram_privatized_v1500_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 43694265,
+    "min_elapsed_ns": 40695100,
+    "max_elapsed_ns": 56926866,
+    "all_elapsed_ns": [
+      40695100,
+      43694265,
+      56926866
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 40695100,
+      "expected_checksum": 11027996006448794577,
+      "actual_checksum": 11027996006448794577
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_histogram_privatized_v1500_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 102651601,
+    "min_elapsed_ns": 67587970,
+    "max_elapsed_ns": 106876312,
+    "all_elapsed_ns": [
+      106876312,
+      102651601,
+      67587970
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 106876312,
+      "expected_checksum": 11027996006448794577,
+      "actual_checksum": 11027996006448794577
+    },
+    "status": "ok"
+  }
+}

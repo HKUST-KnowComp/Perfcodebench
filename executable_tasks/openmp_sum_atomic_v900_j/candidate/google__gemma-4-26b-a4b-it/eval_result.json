@@ -1,0 +1,46 @@
+{
+  "task_id": "openmp_sum_atomic_v900_j",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_sum_atomic_v900_j/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 6,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <omp.h>\n#include <algorithm>\n\nuint64_t sum_repeated(const std::vector<uint32_t>& input, int iters) {\n    if (input.empty() || iters <= 0) return 0;\n\n    size_t n = input.size();\n    const uint32_t* data = input.data();\n    uint64_t total_sum = 0;\n\n    // Use a fixed number of threads to avoid overhead of repeated thread management\n    // and to ensure we don't oversubscribe if the system has many cores.\n    int max_threads = omp_get_max_threads();\n    int num_threads = std::max(1, std::min(max_threads, 16));\n\n    #pragma omp parallel num_threads(num_threads)\n    {\n        uint64_t local_sum = 0;\n        \n        #pragma omp for schedule(static)\n        for (size_t i = 0; i < n; ++i) {\n            // We perform the sum of the array once, but we need to account for 'iters'.\n            // To maximize performance, we can treat the problem as summing (input[i] * iters).\n            // However, to ensure exact uint64_t correctness without overflow issues \n            // during intermediate steps (though uint64 is huge), we sum the array \n            // and multiply by iters, or sum iters times.\n            // The most efficient way is to sum the array once and multiply by iters.\n            local_sum += static_cast<uint64_t>(data[i]);\n        }\n\n        // Multiply the single pass sum by the number of iterations\n        local_sum *= static_cast<uint64_t>(iters);\n\n        #pragma omp atomic\n        total_sum += local_sum;\n    }\n\n    return total_sum;\n}",
+  "baseline": {
+    "task_id": "openmp_sum_atomic_v900_j",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/openmp_sum_atomic_v900_j/baseline/bench']' timed out after 6 seconds"
+  },
+  "reference": {
+    "task_id": "openmp_sum_atomic_v900_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 53240126,
+    "min_elapsed_ns": 40888764,
+    "max_elapsed_ns": 140078637,
+    "all_elapsed_ns": [
+      40888764,
+      140078637,
+      53240126
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 40888764,
+      "expected_sum": 103054049280,
+      "actual_sum": 103054049280
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_sum_atomic_v900_j",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/openmp_sum_atomic_v900_j/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,48 @@
+import java.util.*;
+
+public class Solution {
+  // Optimized blend function using integer math to avoid division where possible
+  // (s * a + d * (255 - a) + 127) / 255
+  // We can use (val + 1 + (val >> 8)) >> 8 as a fast approximation, 
+  // but for exact correctness with the original formula, we use the integer math.
+  static int blendByte(int s, int d, int a) {
+    return (s * a + d * (255 - a) + 127) / 255;
+  }
+
+  static long checksumBytes(byte[] data) {
+    long hash = 1469598103934665603L;
+    for (int i = 0; i < data.length; i++) {
+      hash ^= (data[i] & 0xFFL);
+      hash *= 1099511628211L;
+    }
+    return hash;
+  }
+
+  public static long run(byte[] src, byte[] dst, int width, int height, int iters) {
+    int pixels = width * height;
+    int totalBytes = pixels * 4;
+    byte[] out = new byte[totalBytes];
+    long hash = 0;
+
+    for (int iter = 0; iter < iters; iter++) {
+      for (int i = 0; i < pixels; i++) {
+        int base = i << 2;
+        int a = src[base + 3] & 0xFF;
+        
+        // Inline blendByte logic for performance
+        int r = (src[base] & 0xFF) * a + (dst[base] & 0xFF) * (255 - a);
+        out[base] = (byte) ((r + 127) / 255);
+        
+        int g = (src[base + 1] & 0xFF) * a + (dst[base + 1] & 0xFF) * (255 - a);
+        out[base + 1] = (byte) ((g + 127) / 255);
+        
+        int b = (src[base + 2] & 0xFF) * a + (dst[base + 2] & 0xFF) * (255 - a);
+        out[base + 2] = (byte) ((b + 127) / 255);
+        
+        out[base + 3] = (byte) 255;
+      }
+      hash = checksumBytes(out);
+    }
+    return hash;
+  }
+}

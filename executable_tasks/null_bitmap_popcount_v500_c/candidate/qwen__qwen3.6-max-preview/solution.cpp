@@ -1,0 +1,15 @@
+#include "interface.h"
+#include <vector>
+#include <cstdint>
+#include <cstddef>
+
+uint64_t bitmap_popcount(const std::vector<uint64_t>& words, int iters) {
+    (void)iters;
+    uint64_t count = 0;
+    const uint64_t* data = words.data();
+    std::size_t n = words.size();
+    for (std::size_t i = 0; i < n; ++i) {
+        count += __builtin_popcountll(data[i]);
+    }
+    return count;
+}

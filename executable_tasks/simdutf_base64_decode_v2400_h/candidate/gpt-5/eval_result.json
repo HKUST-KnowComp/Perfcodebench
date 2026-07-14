@@ -1,0 +1,72 @@
+{
+  "task_id": "simdutf_base64_decode_v2400_h",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdutf_base64_decode_v2400_h/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstddef>\n#include <cstdint>\n\nnamespace {\n\n// Initialize base64 decode table once, mapping bytes to values in [0..63],\n// with -2 for '=' padding and -1 for invalid bytes.\ninline const int8_t* base64_decode_table() {\n  static int8_t table[256];\n  static bool inited = false;\n  if (!inited) {\n    // default to invalid\n    for (int i = 0; i < 256; ++i) table[i] = -1;\n    // 'A'-'Z' -> 0..25\n    for (int c = 'A'; c <= 'Z'; ++c) table[c] = static_cast<int8_t>(c - 'A');\n    // 'a'-'z' -> 26..51\n    for (int c = 'a'; c <= 'z'; ++c) table[c] = static_cast<int8_t>(c - 'a' + 26);\n    // '0'-'9' -> 52..61\n    for (int c = '0'; c <= '9'; ++c) table[c] = static_cast<int8_t>(c - '0' + 52);\n    table[static_cast<unsigned char>('+')] = 62;\n    table[static_cast<unsigned char>('/')] = 63;\n    table[static_cast<unsigned char>('=')] = -2; // padding\n    inited = true;\n  }\n  return table;\n}\n\n} // namespace\n\nuint64_t decode_checksum(const std::string& input) {\n  const int8_t* const table = base64_decode_table();\n  const unsigned char* p = reinterpret_cast<const unsigned char*>(input.data());\n  const std::size_t n = input.size();\n\n  // FNV-1a 64-bit\n  uint64_t hash = 1469598103934665603ULL;\n  const uint64_t fnv_prime = 1099511628211ULL;\n\n  // Process in groups of 4 input chars -> up to 3 output bytes\n  // Assumes input length is a multiple of 4, same as baseline.\n  for (std::size_t i = 0; i < n; i += 4) {\n    const int c0 = static_cast<int>(table[p[i]]);\n    const int c1 = static_cast<int>(table[p[i + 1]]);\n    const int c2 = static_cast<int>(table[p[i + 2]]);\n    const int c3 = static_cast<int>(table[p[i + 3]]);\n\n    const uint32_t triple = (static_cast<uint32_t>(c0) << 18) |\n                            (static_cast<uint32_t>(c1) << 12) |\n                            (static_cast<uint32_t>((c2 < 0) ? 0 : c2) << 6) |\n                            static_cast<uint32_t>((c3 < 0) ? 0 : c3);\n\n    // First byte always emitted\n    const unsigned char b0 = static_cast<unsigned char>((triple >> 16) & 0xFFu);\n    hash ^= static_cast<uint64_t>(b0);\n    hash *= fnv_prime;\n\n    // Second byte emitted unless padding '=' at position 2\n    if (c2 != -2) {\n      const unsigned char b1 = static_cast<unsigned char>((triple >> 8) & 0xFFu);\n      hash ^= static_cast<uint64_t>(b1);\n      hash *= fnv_prime;\n    }\n\n    // Third byte emitted unless padding '=' at position 3\n    if (c3 != -2) {\n      const unsigned char b2 = static_cast<unsigned char>(triple & 0xFFu);\n      hash ^= static_cast<uint64_t>(b2);\n      hash *= fnv_prime;\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "simdutf_base64_decode_v2400_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 44715,
+    "min_elapsed_ns": 44232,
+    "max_elapsed_ns": 45237,
+    "all_elapsed_ns": [
+      45237,
+      44715,
+      44232
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 45237,
+      "expected_checksum": 15585477267746685673,
+      "actual_checksum": 15585477267746685673
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdutf_base64_decode_v2400_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 27777,
+    "min_elapsed_ns": 24137,
+    "max_elapsed_ns": 59939,
+    "all_elapsed_ns": [
+      59939,
+      27777,
+      24137
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 59939,
+      "expected_checksum": 15585477267746685673,
+      "actual_checksum": 15585477267746685673
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdutf_base64_decode_v2400_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 4880,
+    "min_elapsed_ns": 4397,
+    "max_elapsed_ns": 7084,
+    "all_elapsed_ns": [
+      4397,
+      4880,
+      7084
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4397,
+      "expected_checksum": 15585477267746685673,
+      "actual_checksum": 15585477267746685673
+    },
+    "status": "ok"
+  }
+}

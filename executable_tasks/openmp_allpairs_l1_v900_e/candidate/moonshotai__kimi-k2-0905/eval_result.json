@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_allpairs_l1_v900_e",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_allpairs_l1_v900_e/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nint64_t allpairs_l1_sum(const std::vector<int32_t>& xs,\n                        const std::vector<int32_t>& ys,\n                        int iters) {\n    const std::size_t n = xs.size();\n    if (n < 2) return 0;\n\n    // Pre-compute the difference vectors (read-only, shared)\n    std::vector<int64_t> dx(n * n);\n    std::vector<int64_t> dy(n * n);\n    for (std::size_t i = 0; i < n; ++i) {\n        for (std::size_t j = 0; j < n; ++j) {\n            dx[i * n + j] = std::abs(xs[i] - xs[j]);\n            dy[i * n + j] = std::abs(ys[i] - ys[j]);\n        }\n    }\n\n    // Accumulate across iterations in parallel\n    int64_t total = 0;\n    #pragma omp parallel reduction(+:total)\n    {\n        const int tid       = omp_get_thread_num();\n        const int nthreads  = omp_get_num_threads();\n        const int64_t chunk = (iters + nthreads - 1) / nthreads;\n        const int64_t start = tid * chunk;\n        const int64_t end   = (start + chunk < iters) ? start + chunk : iters;\n\n        for (int64_t iter = start; iter < end; ++iter) {\n            int64_t local = 0;\n            std::size_t j = 1;\n            // unroll 4\u00d7\n            for (std::size_t i = 0; i + 3 < n; i += 4) {\n                #define DO(k) do { \\\n                    const std::size_t base = i + k; \\\n                    for (; j < n; ++j) { \\\n                        local += dx[base * n + j] + dy[base * n + j]; \\\n                    } \\\n                    j = base + 1; \\\n                } while (0)\n                DO(0); DO(1); DO(2); DO(3);\n                #undef DO\n            }\n            // tail\n            for (std::size_t i = (n & ~3U); i < n; ++i) {\n                for (std::size_t j = i + 1; j < n; ++j) {\n                    local += dx[i * n + j] + dy[i * n + j];\n                }\n            }\n            total += local;\n        }\n    }\n    return total;\n}",
+  "baseline": {
+    "task_id": "openmp_allpairs_l1_v900_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 11232892,
+    "min_elapsed_ns": 11187193,
+    "max_elapsed_ns": 12282462,
+    "all_elapsed_ns": [
+      11232892,
+      12282462,
+      11187193
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11232892,
+      "expected_sum": 1613918604,
+      "actual_sum": 1613918604
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_allpairs_l1_v900_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3050614,
+    "min_elapsed_ns": 2998708,
+    "max_elapsed_ns": 3150733,
+    "all_elapsed_ns": [
+      3150733,
+      2998708,
+      3050614
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3150733,
+      "expected_sum": 1613918604,
+      "actual_sum": 1613918604
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_allpairs_l1_v900_e",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-fopenmp', '-Iexecutable_tasks/openmp_allpairs_l1_v900_e/harness', 'executable_tasks/openmp_allpairs_l1_v900_e/harness/benchmark_main.cpp', 'executable_tasks/openmp_allpairs_l1_v900_e/candidate/moonshotai__kimi-k2-0905/solution.cpp', '-o', 'build/openmp_allpairs_l1_v900_e/candidate/bench']' returned non-zero exit status 1."
+  }
+}

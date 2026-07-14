@@ -1,0 +1,59 @@
+{
+  "task_id": "go_image_blend_checksum_v3000_019",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/go_image_blend_checksum_v3000_019/candidate/moonshotai__kimi-k2-0905/solution.go",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "package main\n\nfunc run(src, dst []byte, width, height, iters int) uint64 {\n\tpixels := width * height\n\tout := make([]byte, pixels*4)\n\n\t// constants\n\tconst (\n\t\tc127    = uint64(0x007F007F007F007F)\n\t\tc255    = uint64(0x00FF00FF00FF00FF)\n\t\tc255inv = uint64(0x00FF00FF00FF00FF) // 255-a is handled via (255-a) below\n\t\tmaskLo  = uint64(0x00FF00FF00FF00FF)\n\t\tmaskHi  = uint64(0xFF00FF00FF00FF00)\n\t)\n\n\tvar hash uint64 = 1469598103934665603\n\n\tfor iter := 0; iter < iters; iter++ {\n\t\t// reset output slice header cheaply\n\t\toutPtr := out\n\n\t\tfor i := 0; i < pixels; {\n\t\t\t// process 4 RGBA pixels (16 bytes) per iteration\n\t\t\t// load src & dst 8 bytes at a time (two pixels each)\n\n\t\t\t// pixel 0 & 1\n\t\t\ts0 := uint64(src[i*4+0]) | uint64(src[i*4+1])<<8 | uint64(src[i*4+2])<<16 | uint64(src[i*4+3])<<24 |\n\t\t\t\tuint64(src[i*4+4])<<32 | uint64(src[i*4+5])<<40 | uint64(src[i*4+6])<<48 | uint64(src[i*4+7])<<56\n\t\t\td0 := uint64(dst[i*4+0]) | uint64(dst[i*4+1])<<8 | uint64(dst[i*4+2])<<16 | uint64(dst[i*4+3])<<24 |\n\t\t\t\tuint64(dst[i*4+4])<<32 | uint64(dst[i*4+5])<<40 | uint64(dst[i*4+6])<<48 | uint64(dst[i*4+7])<<56\n\n\t\t\t// pixel 2 & 3\n\t\t\ts1 := uint64(src[i*4+8]) | uint64(src[i*4+9])<<8 | uint64(src[i*4+10])<<16 | uint64(src[i*4+11])<<24 |\n\t\t\t\tuint64(src[i*4+12])<<32 | uint64(src[i*4+13])<<40 | uint64(src[i*4+14])<<48 | uint64(src[i*4+15])<<56\n\t\t\td1 := uint64(dst[i*4+8]) | uint64(dst[i*4+9])<<8 | uint64(dst[i*4+10])<<16 | uint64(dst[i*4+11])<<24 |\n\t\t\t\tuint64(dst[i*4+12])<<32 | uint64(dst[i*4+13])<<40 | uint64(dst[i*4+14])<<48 | uint64(dst[i*4+15])<<56\n\n\t\t\t// extract alpha channels (every 4th byte)\n\t\t\ta0 := (s0 >> 24) & 0xFF\n\t\t\ta1 := (s0 >> 56) & 0xFF\n\t\t\ta2 := (s1 >> 24) & 0xFF\n\t\t\ta3 := (s1 >> 56) & 0xFF\n\n\t\t\t// replicate alpha for blending\n\t\t\taMask0 := a0 | a0<<8 | a0<<16 | a0<<24\n\t\t\taMask1 := a1 | a1<<8 | a1<<16 | a1<<24\n\t\t\taMask2 := a2 | a2<<8 | a2<<16 | a2<<24\n\t\t\taMask3 := a3 | a3<<8 | a3<<16 | a3<<24\n\n\t\t\t// blend for pixel 0\n\t\t\tsLo0 := s0 & maskLo\n\t\t\tsHi0 := (s0 >> 8) & maskLo\n\t\t\tdLo0 := d0 & maskLo\n\t\t\tdHi0 := (d0 >> 8) & maskLo\n\n\t\t\tresLo0 := (sLo0*aMask0 + dLo0*(255-aMask0) + c127) / 255\n\t\t\tresHi0 := (sHi0*aMask0 + dHi0*(255-aMask0) + c127) / 255\n\t\t\tout0 := (resLo0 & maskLo) | ((resHi0 & maskLo) << 8)\n\n\t\t\t// blend for pixel 1\n\t\t\tsLo1 := (s0 >> 32) & maskLo\n\t\t\tsHi1 := (s0 >> 40) & maskLo\n\t\t\tdLo1 := (d0 >> 32) & maskLo\n\t\t\tdHi1 := (d0 >> 40) & maskLo\n\n\t\t\tresLo1 := (sLo1*aMask1 + dLo1*(255-aMask1) + c127) / 255\n\t\t\tresHi1 := (sHi1*aMask1 + dHi1*(255-aMask1) + c127) / 255\n\t\t\tout1 := (resLo1 & maskLo) | ((resHi1 & maskLo) << 8)\n\n\t\t\t// blend for pixel 2\n\t\t\tsLo2 := s1 & maskLo\n\t\t\tsHi2 := (s1 >> 8) & maskLo\n\t\t\tdLo2 := d1 & maskLo\n\t\t\tdHi2 := (d1 >> 8) & maskLo\n\n\t\t\tresLo2 := (sLo2*aMask2 + dLo2*(255-aMask2) + c127) / 255\n\t\t\tresHi2 := (sHi2*aMask2 + dHi2*(255-aMask2) + c127) / 255\n\t\t\tout2 := (resLo2 & maskLo) | ((resHi2 & maskLo) << 8)\n\n\t\t\t// blend for pixel 3\n\t\t\tsLo3 := (s1 >> 32) & maskLo\n\t\t\tsHi3 := (s1 >> 40) & maskLo\n\t\t\tdLo3 := (d1 >> 32) & maskLo\n\t\t\tdHi3 := (d1 >> 40) & maskLo\n\n\t\t\tresLo3 := (sLo3*aMask3 + dLo3*(255-aMask3) + c127) / 255\n\t\t\tresHi3 := (sHi3*aMask3 + dHi3*(255-aMask3) + c127) / 255\n\t\t\tout3 := (resLo3 & maskLo) | ((resHi3 & maskLo) << 8)\n\n\t\t\t// store results\n\t\t\toutPtr[i*4+0] = byte(out0)\n\t\t\toutPtr[i*4+1] = byte(out0 >> 8)\n\t\t\toutPtr[i*4+2] = byte(out0 >> 16)\n\t\t\toutPtr[i*4+3] = 255\n\n\t\t\toutPtr[i*4+4] = byte(out0 >> 32)\n\t\t\toutPtr[i*4+5] = byte(out0 >> 40)\n\t\t\toutPtr[i*4+6] = byte(out0 >> 48)\n\t\t\toutPtr[i*4+7] = 255\n\n\t\t\toutPtr[i*4+8] = byte(out1)\n\t\t\toutPtr[i*4+9] = byte(out1 >> 8)\n\t\t\toutPtr[i*4+10] = byte(out1 >> 16)\n\t\t\toutPtr[i*4+11] = 255\n\n\t\t\toutPtr[i*4+12] = byte(out1 >> 32)\n\t\t\toutPtr[i*4+13] = byte(out1 >> 40)\n\t\t\toutPtr[i*4+14] = byte(out1 >> 48)\n\t\t\toutPtr[i*4+15] = 255\n\n\t\t\ti += 4\n\t\t}\n\n\t\t// Handle remaining pixels\n\t\tfor i := 0; i < pixels*4; i += 4 {\n\t\t\tif i >= pixels*4 {\n\t\t\t\tbreak\n\t\t\t}\n\t\t\ta := src[i+3]\n\t\t\tout[i+0] = uint8((uint32(src[i+0])*uint32(a) + uint32(dst[i+0])*uint32(255-a) + 127) / 255)\n\t\t\tout[i+1] = uint8((uint32(src[i+1])*uint32(a) + uint32(dst[i+1])*uint32(255-a) + 127) / 255)\n\t\t\tout[i+2] = uint8((uint32(src[i+2])*uint32(a) + uint32(dst[i+2])*uint32(255-a) + 127) / 255)\n\t\t\tout[i+3] = 255\n\t\t}\n\n\t\t// Compute checksum inline\n\t\tfor _, b := range out {\n\t\t\thash ^= uint64(b)\n\t\t\thash *= 1099511628211\n\t\t}\n\t}\n\treturn hash\n}",
+  "baseline": {
+    "task_id": "go_image_blend_checksum_v3000_019",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1838006,
+    "min_elapsed_ns": 1719375,
+    "max_elapsed_ns": 2077312,
+    "all_elapsed_ns": [
+      1719375,
+      1838006,
+      2077312
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1719375,
+      "expected_checksum": 7370370849143394940,
+      "actual_checksum": 7370370849143394940
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "go_image_blend_checksum_v3000_019",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1467393,
+    "min_elapsed_ns": 1420301,
+    "max_elapsed_ns": 1519375,
+    "all_elapsed_ns": [
+      1519375,
+      1420301,
+      1467393
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1519375,
+      "expected_checksum": 7370370849143394940,
+      "actual_checksum": 7370370849143394940
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "go_image_blend_checksum_v3000_019",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['env', 'GOCACHE=build/go_image_blend_checksum_v3000_019/candidate/.gocache', 'go', 'build', '-o', 'build/go_image_blend_checksum_v3000_019/candidate/bench', 'build/go_image_blend_checksum_v3000_019/candidate/benchmark_main.go', 'build/go_image_blend_checksum_v3000_019/candidate/solution.go']' returned non-zero exit status 2."
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "prefix_cache_block_lookup_v2200_f",
+  "model": "qwen/qwen3.6-plus",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup_v2200_f/candidate/qwen__qwen3.6-plus/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <cstdint>\n\nnamespace {\n\nstruct FastSet {\n    std::vector<uint64_t> table;\n    uint32_t mask;\n\n    FastSet(const std::vector<uint32_t>& keys) {\n        size_t n = keys.size();\n        size_t cap = 1;\n        while (cap < n * 2) cap <<= 1;\n        mask = static_cast<uint32_t>(cap - 1);\n        table.assign(cap, 0);\n        for (uint32_t k : keys) {\n            uint32_t h = k * 0x9e3779b9;\n            uint32_t idx = h & mask;\n            while (table[idx] != 0) {\n                if ((uint32_t)table[idx] == k) break;\n                idx = (idx + 1) & mask;\n            }\n            if (table[idx] == 0) {\n                table[idx] = (1ULL << 32) | k;\n            }\n        }\n    }\n\n    inline bool contains(uint32_t k) const {\n        uint32_t h = k * 0x9e3779b9;\n        uint32_t idx = h & mask;\n        while (true) {\n            uint64_t val = table[idx];\n            if (val == 0) return false;\n            if ((uint32_t)val == k) return true;\n            idx = (idx + 1) & mask;\n        }\n    }\n};\n\n} // namespace\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t hash_space,\n    int iters) {\n    (void)hash_space;\n    FastSet cache(sorted_cache_keys);\n    uint64_t hash = 0;\n    const uint32_t* blocks_ptr = request_blocks.data();\n    const int* offsets_ptr = request_offsets.data();\n    size_t num_offsets = request_offsets.size();\n\n    for (int iter = 0; iter < iters; ++iter) {\n        hash = 1469598103934665603ULL;\n        for (size_t r = 0; r + 1 < num_offsets; ++r) {\n            uint64_t prefix = 0;\n            int start = offsets_ptr[r];\n            int end = offsets_ptr[r + 1];\n            for (int i = start; i < end; ++i) {\n                if (!cache.contains(blocks_ptr[i])) break;\n                ++prefix;\n            }\n            hash ^= prefix;\n            hash *= 1099511628211ULL;\n        }\n    }\n    return hash;\n}\n",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup_v2200_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 319098450,
+    "min_elapsed_ns": 303485205,
+    "max_elapsed_ns": 322069854,
+    "all_elapsed_ns": [
+      319098450,
+      303485205,
+      322069854
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 319098450,
+      "expected_checksum": 11548637948046092892,
+      "actual_checksum": 11548637948046092892
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup_v2200_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 6670434,
+    "min_elapsed_ns": 6572324,
+    "max_elapsed_ns": 9203035,
+    "all_elapsed_ns": [
+      9203035,
+      6572324,
+      6670434
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9203035,
+      "expected_checksum": 11548637948046092892,
+      "actual_checksum": 11548637948046092892
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup_v2200_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/prefix_cache_block_lookup_v2200_f/harness', 'executable_tasks/prefix_cache_block_lookup_v2200_f/harness/benchmark_main.cpp', 'executable_tasks/prefix_cache_block_lookup_v2200_f/candidate/qwen__qwen3.6-plus/solution.cpp', '-o', 'build/prefix_cache_block_lookup_v2200_f/candidate/bench']' returned non-zero exit status 1."
+  }
+}

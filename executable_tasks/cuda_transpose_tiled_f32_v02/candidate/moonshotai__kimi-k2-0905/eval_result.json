@@ -1,0 +1,33 @@
+{
+  "task_id": "cuda_transpose_tiled_f32_v02",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_transpose_tiled_f32_v02/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n// Each thread handles 8 values -> 8x32 tile processed by 32x8 block\nconstexpr int BLOCK_X = 32;\nconstexpr int BLOCK_Y = 8;\nconstexpr int PAD     = 1;                       // prevent shared-memory bank conflicts\n\n__global__ void kernel(const float* __restrict__ in,\n                       float* __restrict__ out,\n                       int w, int h)\n{\n  // each thread handles 8 consecutive rows in the tile\n  __shared__ float tile[BLOCK_Y*8][BLOCK_X+PAD];\n\n  int gx = blockIdx.x * BLOCK_X + threadIdx.x;\n  int gy = blockIdx.y * BLOCK_Y*8;\n\n  // load from global memory (coalesced) into shared memory transposed position\n  #pragma unroll\n  for (int i=0;i<8;i++)\n  {\n    int yy = gy + threadIdx.y + i*BLOCK_Y;\n    if (gx<w && yy<h)\n      tile[threadIdx.y+i*BLOCK_Y][threadIdx.x] = in[yy*w+gx];\n  }\n  __syncthread();\n\n  // write back transposed tile (now coalesced again)\n  gy = blockIdx.y * BLOCK_Y*8;\n  int ny = gy + threadIdx.x;          // new y after transpose\n  int nx = blockIdx.x * BLOCK_X + threadIdx.y;\n  #pragma unroll\n  for (int i=0;i<8;i++)\n  {\n    if (nx<w && ny+i*BLOCK_X<h)\n      out[(ny+i*BLOCK_X)*w+nx] = tile[threadIdx.y+i*BLOCK_X][threadIdx.x];\n  }\n}\n\n} // anon\n\nvoid transpose_f32(const float* input, float* output,\n                   int width, int height, int iters)\n{\n  dim3 block(BLOCK_X, BLOCK_Y);\n  dim3 grid((width  + BLOCK_X - 1) / BLOCK_X,\n            (height + BLOCK_Y*8 - 1) / (BLOCK_Y*8));\n\n  for (int i=0;i<iters;i++)\n    kernel<<<grid, block>>>(input, output, width, height);\n}",
+  "baseline": {
+    "task_id": "cuda_transpose_tiled_f32_v02",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_transpose_tiled_f32_v02/baseline/bench']' timed out after 5 seconds"
+  },
+  "reference": {
+    "task_id": "cuda_transpose_tiled_f32_v02",
+    "variant": "reference",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_transpose_tiled_f32_v02/reference/bench']' timed out after 5 seconds"
+  },
+  "candidate": {
+    "task_id": "cuda_transpose_tiled_f32_v02",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['nvcc', '-O3', '-std=c++17', '-Iexecutable_tasks/cuda_transpose_tiled_f32_v02/harness', '-gencode=arch=compute_80,code=sm_80', '-gencode=arch=compute_80,code=compute_80', 'executable_tasks/cuda_transpose_tiled_f32_v02/harness/benchmark_main.cu', 'executable_tasks/cuda_transpose_tiled_f32_v02/candidate/moonshotai__kimi-k2-0905/solution.cu', '-o', 'build/cuda_transpose_tiled_f32_v02/candidate/bench']' returned non-zero exit status 2."
+  }
+}

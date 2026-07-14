@@ -1,0 +1,72 @@
+{
+  "task_id": "asof_join_weighted_sum_v1200_c",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/asof_join_weighted_sum_v1200_c/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n\nuint64_t asof_join_sum(\n    const std::vector<uint32_t>& dim_ts,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_ts,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n\n  const std::size_t dim_n = dim_ts.size();\n  const std::size_t probe_n = probe_ts.size();\n\n  if (dim_n == 0 || probe_n == 0) {\n    return 0;\n  }\n\n  const uint32_t* __restrict__ dts = dim_ts.data();\n  const uint32_t* __restrict__ dval = dim_values.data();\n  const uint32_t* __restrict__ pts = probe_ts.data();\n  const uint32_t* __restrict__ pw = probe_weights.data();\n\n  uint64_t sum = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t local_sum = 0;\n    std::size_t d = 0;\n\n    for (std::size_t p = 0; p < probe_n; ++p) {\n      const uint32_t t = pts[p];\n\n      // Advance d so that dts[d] <= t and (d+1 >= dim_n or dts[d+1] > t)\n      while (d + 1 < dim_n && dts[d + 1] <= t) {\n        ++d;\n      }\n\n      // Prefetch next dim_values to hide latency\n      if (d + 8 < dim_n) {\n        __builtin_prefetch(&dval[d + 8], 0, 0);\n      }\n\n      local_sum += static_cast<uint64_t>(dval[d]) * static_cast<uint64_t>(pw[p]);\n    }\n\n    sum = local_sum;\n  }\n\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "asof_join_weighted_sum_v1200_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 434840617,
+    "min_elapsed_ns": 433975025,
+    "max_elapsed_ns": 453886693,
+    "all_elapsed_ns": [
+      434840617,
+      453886693,
+      433975025
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 434840617,
+      "expected_sum": 36791321936,
+      "actual_sum": 36791321936
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "asof_join_weighted_sum_v1200_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 47236229,
+    "min_elapsed_ns": 45414760,
+    "max_elapsed_ns": 48216282,
+    "all_elapsed_ns": [
+      45414760,
+      48216282,
+      47236229
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 45414760,
+      "expected_sum": 36791321936,
+      "actual_sum": 36791321936
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "asof_join_weighted_sum_v1200_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 43038271,
+    "min_elapsed_ns": 42436817,
+    "max_elapsed_ns": 44704234,
+    "all_elapsed_ns": [
+      43038271,
+      44704234,
+      42436817
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 43038271,
+      "expected_sum": 36791321936,
+      "actual_sum": 36791321936
+    },
+    "status": "ok"
+  }
+}

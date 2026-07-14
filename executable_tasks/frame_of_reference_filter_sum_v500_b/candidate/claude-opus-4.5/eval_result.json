@@ -1,0 +1,59 @@
+{
+  "task_id": "frame_of_reference_filter_sum_v500_b",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/frame_of_reference_filter_sum_v500_b/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstddef>\n\n#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)\n#include <immintrin.h>\n#define HAS_SSE4 1\n#if defined(__AVX2__)\n#define HAS_AVX2 1\n#else\n#define HAS_AVX2 0\n#endif\n#else\n#define HAS_SSE4 0\n#define HAS_AVX2 0\n#endif\n\nuint64_t frame_filter_sum(\n    const std::vector<uint16_t>& deltas,\n    uint32_t base,\n    uint32_t low,\n    uint32_t high,\n    int iters) {\n  \n  const size_t n = deltas.size();\n  const uint16_t* __restrict data = deltas.data();\n  uint64_t sum = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    size_t i = 0;\n    \n#if HAS_AVX2\n    // AVX2 path: process 16 elements at a time\n    if (n >= 16) {\n      __m256i vbase = _mm256_set1_epi32(static_cast<int32_t>(base));\n      __m256i vlow = _mm256_set1_epi32(static_cast<int32_t>(low));\n      __m256i vhigh = _mm256_set1_epi32(static_cast<int32_t>(high));\n      __m256i vsum0 = _mm256_setzero_si256();\n      __m256i vsum1 = _mm256_setzero_si256();\n      \n      size_t vec_end = n - (n % 16);\n      for (; i < vec_end; i += 16) {\n        // Load 16 uint16_t values\n        __m256i raw = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(data + i));\n        \n        // Zero-extend to 32-bit: lower 8 and upper 8\n        __m256i vals0 = _mm256_cvtepu16_epi32(_mm256_castsi256_si128(raw));\n        __m256i vals1 = _mm256_cvtepu16_epi32(_mm256_extracti128_si256(raw, 1));\n        \n        // Add base\n        __m256i decoded0 = _mm256_add_epi32(vals0, vbase);\n        __m256i decoded1 = _mm256_add_epi32(vals1, vbase);\n        \n        // Compare: value >= low && value <= high\n        // For unsigned comparison, we use signed comparison with offset trick\n        // Or use _mm256_cmpgt_epi32 with adjusted values\n        // Actually for this range, we can use: (value >= low) && (value <= high)\n        // Using signed comparison works if values don't exceed INT32_MAX\n        __m256i ge_low0 = _mm256_or_si256(\n            _mm256_cmpgt_epi32(decoded0, vlow),\n            _mm256_cmpeq_epi32(decoded0, vlow));\n        __m256i le_high0 = _mm256_or_si256(\n            _mm256_cmpgt_epi32(vhigh, decoded0),\n            _mm256_cmpeq_epi32(decoded0, vhigh));\n        __m256i mask0 = _mm256_and_si256(ge_low0, le_high0);\n        \n        __m256i ge_low1 = _mm256_or_si256(\n            _mm256_cmpgt_epi32(decoded1, vlow),\n            _mm256_cmpeq_epi32(decoded1, vlow));\n        __m256i le_high1 = _mm256_or_si256(\n            _mm256_cmpgt_epi32(vhigh, decoded1),\n            _mm256_cmpeq_epi32(decoded1, vhigh));\n        __m256i mask1 = _mm256_and_si256(ge_low1, le_high1);\n        \n        // Mask and accumulate\n        __m256i masked0 = _mm256_and_si256(decoded0, mask0);\n        __m256i masked1 = _mm256_and_si256(decoded1, mask1);\n        \n        vsum0 = _mm256_add_epi64(vsum0, _mm256_add_epi64(\n            _mm256_cvtepu32_epi64(_mm256_castsi256_si128(masked0)),\n            _mm256_cvtepu32_epi64(_mm256_extracti128_si256(masked0, 1))));\n        vsum1 = _mm256_add_epi64(vsum1, _mm256_add_epi64(\n            _mm256_cvtepu32_epi64(_mm256_castsi256_si128(masked1)),\n            _mm256_cvtepu32_epi64(_mm256_extracti128_si256(masked1, 1))));\n      }\n      \n      // Horizontal sum\n      __m256i vtotal = _mm256_add_epi64(vsum0, vsum1);\n      __m128i lo = _mm256_castsi256_si128(vtotal);\n      __m128i hi = _mm256_extracti128_si256(vtotal, 1);\n      __m128i sum128 = _mm_add_epi64(lo, hi);\n      sum = static_cast<uint64_t>(_mm_extract_epi64(sum128, 0)) + \n            static_cast<uint64_t>(_mm_extract_epi64(sum128, 1));\n    }\n#elif HAS_SSE4\n    // SSE4.1 path: process 8 elements at a time\n    if (n >= 8) {\n      __m128i vbase = _mm_set1_epi32(static_cast<int32_t>(base));\n      __m128i vlow = _mm_set1_epi32(static_cast<int32_t>(low));\n      __m128i vhigh = _mm_set1_epi32(static_cast<int32_t>(high));\n      __m128i vsum0 = _mm_setzero_si128();\n      __m128i vsum1 = _mm_setzero_si128();\n      \n      size_t vec_end = n - (n % 8);\n      for (; i < vec_end; i += 8) {\n        // Load 8 uint16_t values\n        __m128i raw = _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + i));\n        \n        // Zero-extend to 32-bit\n        __m128i vals0 = _mm_cvtepu16_epi32(raw);\n        __m128i vals1 = _mm_cvtepu16_epi32(_mm_srli_si128(raw, 8));\n        \n        // Add base\n        __m128i decoded0 = _mm_add_epi32(vals0, vbase);\n        __m128i decoded1 = _mm_add_epi32(vals1, vbase);\n        \n        // Compare for range\n        __m128i ge_low0 = _mm_or_si128(\n            _mm_cmpgt_epi32(decoded0, vlow),\n            _mm_cmpeq_epi32(decoded0, vlow));\n        __m128i le_high0 = _mm_or_si128(\n            _mm_cmpgt_epi32(vhigh, decoded0),\n            _mm_cmpeq_epi32(decoded0, vhigh));\n        __m128i mask0 = _mm_and_si128(ge_low0, le_high0);\n        \n        __m128i ge_low1 = _mm_or_si128(\n            _mm_cmpgt_epi32(decoded1, vlow),\n            _mm_cmpeq_epi32(decoded1, vlow));\n        __m128i le_high1 = _mm_or_si128(\n            _mm_cmpgt_epi32(vhigh, decoded1),\n            _mm_cmpeq_epi32(decoded1, vhigh));\n        __m128i mask1 = _mm_and_si128(ge_low1, le_high1);\n        \n        // Mask and accumulate to 64-bit\n        __m128i masked0 = _mm_and_si128(decoded0, mask0);\n        __m128i masked1 = _mm_and_si128(decoded1, mask1);\n        \n        vsum0 = _mm_add_epi64(vsum0, _mm_add_epi64(\n            _mm_cvtepu32_epi64(masked0),\n            _mm_cvtepu32_epi64(_mm_srli_si128(masked0, 8))));\n        vsum1 = _mm_add_epi64(vsum1, _mm_add_epi64(\n            _mm_cvtepu32_epi64(masked1),\n            _mm_cvtepu32_epi64(_mm_srli_si128(masked1, 8))));\n      }\n      \n      // Horizontal sum\n      __m128i vtotal = _mm_add_epi64(vsum0, vsum1);\n      sum = static_cast<uint64_t>(_mm_extract_epi64(vtotal, 0)) + \n            static_cast<uint64_t>(_mm_extract_epi64(vtotal, 1));\n    }\n#endif\n    \n    // Scalar tail\n    for (; i < n; ++i) {\n      uint32_t value = base + static_cast<uint32_t>(data[i]);\n      if (value >= low && value <= high) {\n        sum += value;\n      }\n    }\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "frame_of_reference_filter_sum_v500_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 407989065,
+    "min_elapsed_ns": 390390872,
+    "max_elapsed_ns": 436968301,
+    "all_elapsed_ns": [
+      390390872,
+      407989065,
+      436968301
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 390390872,
+      "expected_sum": 160029900800,
+      "actual_sum": 160029900800
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "frame_of_reference_filter_sum_v500_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 205702993,
+    "min_elapsed_ns": 204963079,
+    "max_elapsed_ns": 214292510,
+    "all_elapsed_ns": [
+      214292510,
+      205702993,
+      204963079
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 214292510,
+      "expected_sum": 160029900800,
+      "actual_sum": 160029900800
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "frame_of_reference_filter_sum_v500_b",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/frame_of_reference_filter_sum_v500_b/harness', 'executable_tasks/frame_of_reference_filter_sum_v500_b/harness/benchmark_main.cpp', 'executable_tasks/frame_of_reference_filter_sum_v500_b/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/frame_of_reference_filter_sum_v500_b/candidate/bench']' returned non-zero exit status 1."
+  }
+}

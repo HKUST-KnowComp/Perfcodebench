@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_id_remap_checksum",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_id_remap_checksum/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 14,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <algorithm>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t remap_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& probes,\n    int iters) {\n  if (keys.empty() || probes.empty() || iters <= 0) {\n    return 0;\n  }\n\n  // Build direct lookup table: table[key - min_key] = value\n  const uint32_t min_key = keys.front();\n  const uint32_t max_key = keys.back();\n  const size_t table_size = static_cast<size_t>(max_key - min_key) + 1;\n\n  std::vector<uint32_t> table(table_size);\n  const size_t n = keys.size();\n  for (size_t i = 0; i < n; ++i) {\n    table[keys[i] - min_key] = values[i];\n  }\n\n  const uint32_t* __restrict tbl = table.data();\n  const uint32_t* __restrict prb = probes.data();\n  const size_t probe_count = probes.size();\n\n  uint64_t hash = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n\n    size_t i = 0;\n    const size_t unroll_limit = probe_count & ~static_cast<size_t>(3);\n\n    // Unrolled loop (4 at a time)\n    for (; i < unroll_limit; i += 4) {\n      uint32_t v0 = tbl[prb[i]     - min_key];\n      uint32_t v1 = tbl[prb[i + 1] - min_key];\n      uint32_t v2 = tbl[prb[i + 2] - min_key];\n      uint32_t v3 = tbl[prb[i + 3] - min_key];\n      hash = mix(hash, v0);\n      hash = mix(hash, v1);\n      hash = mix(hash, v2);\n      hash = mix(hash, v3);\n    }\n\n    // Remainder\n    for (; i < probe_count; ++i) {\n      hash = mix(hash, tbl[prb[i] - min_key]);\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "dense_id_remap_checksum",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 8600797916,
+    "min_elapsed_ns": 8179743877,
+    "max_elapsed_ns": 8615142491,
+    "all_elapsed_ns": [
+      8179743877,
+      8615142491,
+      8600797916
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8179743877,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_id_remap_checksum",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 100206945,
+    "min_elapsed_ns": 98216448,
+    "max_elapsed_ns": 100469892,
+    "all_elapsed_ns": [
+      100206945,
+      98216448,
+      100469892
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 100206945,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_id_remap_checksum",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 96183564,
+    "min_elapsed_ns": 93505476,
+    "max_elapsed_ns": 99716085,
+    "all_elapsed_ns": [
+      93505476,
+      96183564,
+      99716085
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 93505476,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  }
+}

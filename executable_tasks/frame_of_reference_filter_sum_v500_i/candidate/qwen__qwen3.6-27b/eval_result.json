@@ -1,0 +1,59 @@
+{
+  "task_id": "frame_of_reference_filter_sum_v500_i",
+  "model": "qwen/qwen3.6-27b",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/frame_of_reference_filter_sum_v500_i/candidate/qwen__qwen3.6-27b/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <immintrin.h>\n#include <vector>\n\nuint64_t frame_filter_sum(\n    const std::vector<uint16_t>& deltas,\n    uint32_t base,\n    uint32_t low,\n    uint32_t high,\n    int iters) {\n  uint64_t sum = 0;\n  size_t n = deltas.size();\n  const uint16_t* d_ptr = deltas.data();\n\n  __m256i vbase = _mm256_set1_epi32(base);\n  __m256i vlow = _mm256_set1_epi32(low);\n  __m256i vhigh = _mm256_set1_epi32(high);\n  __m256i vzero = _mm256_setzero_si256();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t iter_sum = 0;\n    size_t i = 0;\n    for (; i + 7 < n; i += 8) {\n      __m256i vd16 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(d_ptr + i));\n      __m256i vd32_lo = _mm256_cvtepu16_epi32(_mm256_castsi256_si128(vd16));\n      __m256i vd32_hi = _mm256_cvtepu16_epi32(_mm256_extracti128_si256(vd16, 1));\n\n      __m256i vval_lo = _mm256_add_epi32(vd32_lo, vbase);\n      __m256i vval_hi = _mm256_add_epi32(vd32_hi, vbase);\n\n      __m256i diff_lo_low = _mm256_sub_epi32(vval_lo, vlow);\n      __m256i diff_lo_high = _mm256_sub_epi32(vhigh, vval_lo);\n      __m256i out_lo = _mm256_or_si256(_mm256_cmpgt_epi32(vzero, diff_lo_low), _mm256_cmpgt_epi32(vzero, diff_lo_high));\n      __m256i masked_lo = _mm256_andnot_si256(out_lo, vval_lo);\n      __m256i s_lo = _mm256_add_epi32(masked_lo, _mm256_srli_si256(masked_lo, 4));\n      s_lo = _mm256_add_epi32(s_lo, _mm256_srli_si256(s_lo, 8));\n      s_lo = _mm256_add_epi32(s_lo, _mm256_srli_si256(s_lo, 16));\n      uint32_t sum_lo = _mm256_extract_epi32(s_lo, 0);\n\n      __m256i diff_hi_low = _mm256_sub_epi32(vval_hi, vlow);\n      __m256i diff_hi_high = _mm256_sub_epi32(vhigh, vval_hi);\n      __m256i out_hi = _mm256_or_si256(_mm256_cmpgt_epi32(vzero, diff_hi_low), _mm256_cmpgt_epi32(vzero, diff_hi_high));\n      __m256i masked_hi = _mm256_andnot_si256(out_hi, vval_hi);\n      __m256i s_hi = _mm256_add_epi32(masked_hi, _mm256_srli_si256(masked_hi, 4));\n      s_hi = _mm256_add_epi32(s_hi, _mm256_srli_si256(s_hi, 8));\n      s_hi = _mm256_add_epi32(s_hi, _mm256_srli_si256(s_hi, 16));\n      uint32_t sum_hi = _mm256_extract_epi32(s_hi, 0);\n\n      iter_sum += sum_lo + sum_hi;\n    }\n    for (; i < n; ++i) {\n      uint32_t val = base + d_ptr[i];\n      if (val >= low && val <= high) {\n        iter_sum += val;\n      }\n    }\n    sum = iter_sum;\n  }\n  return sum;\n}",
+  "baseline": {
+    "task_id": "frame_of_reference_filter_sum_v500_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 309274144,
+    "min_elapsed_ns": 293660157,
+    "max_elapsed_ns": 367154111,
+    "all_elapsed_ns": [
+      367154111,
+      309274144,
+      293660157
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 367154111,
+      "expected_sum": 60288614400,
+      "actual_sum": 60288614400
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "frame_of_reference_filter_sum_v500_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 185749108,
+    "min_elapsed_ns": 181572152,
+    "max_elapsed_ns": 196957179,
+    "all_elapsed_ns": [
+      196957179,
+      181572152,
+      185749108
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 196957179,
+      "expected_sum": 60288614400,
+      "actual_sum": 60288614400
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "frame_of_reference_filter_sum_v500_i",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/frame_of_reference_filter_sum_v500_i/harness', 'executable_tasks/frame_of_reference_filter_sum_v500_i/harness/benchmark_main.cpp', 'executable_tasks/frame_of_reference_filter_sum_v500_i/candidate/qwen__qwen3.6-27b/solution.cpp', '-o', 'build/frame_of_reference_filter_sum_v500_i/candidate/bench']' returned non-zero exit status 1."
+  }
+}

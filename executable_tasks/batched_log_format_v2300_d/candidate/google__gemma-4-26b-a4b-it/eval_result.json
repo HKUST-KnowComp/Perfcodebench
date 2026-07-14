@@ -1,0 +1,72 @@
+{
+  "task_id": "batched_log_format_v2300_d",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/batched_log_format_v2300_d/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <string>\n#include <vector>\n#include <cstring>\n\nnamespace {\n\n// Fast integer to string conversion writing directly to a buffer\ninline char* append_uint(char* ptr, uint32_t val) {\n    if (val == 0) {\n        *ptr++ = '0';\n        return ptr;\n    }\n    char buf[10];\n    int len = 0;\n    while (val > 0) {\n        buf[len++] = static_cast<char>('0' + (val % 10));\n        val /= 10;\n    }\n    for (int i = len - 1; i >= 0; --i) {\n        *ptr++ = buf[i];\n    }\n    return ptr;\n}\n\ninline char* append_uint16(char* ptr, uint16_t val) {\n    if (val == 0) {\n        *ptr++ = '0';\n        return ptr;\n    }\n    char buf[5];\n    int len = 0;\n    while (val > 0) {\n        buf[len++] = static_cast<char>('0' + (val % 10));\n        val /= 10;\n    }\n    for (int i = len - 1; i >= 0; --i) {\n        *ptr++ = buf[i];\n    }\n    return ptr;\n}\n\n// FNV-1a hash implementation\ninline uint64_t update_hash(uint64_t hash, const char* start, const char* end) {\n    for (const char* p = start; p < end; ++p) {\n        hash ^= static_cast<uint64_t>(static_cast<unsigned char>(*p));\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\n} // namespace\n\nuint64_t batched_log_checksum(\n    const std::vector<uint32_t>& timestamps,\n    const std::vector<uint32_t>& ids,\n    const std::vector<uint16_t>& levels,\n    const std::vector<std::string>& messages,\n    int iters) {\n    \n    if (ids.empty()) return 1469598103934665603ULL;\n\n    // Pre-calculate maximum possible size to avoid reallocations\n    // Max uint32 is 10 digits, max uint16 is 5, plus separators and newline\n    size_t max_line_size = 11 + 11 + 6 + 1 + 1; // timestamp|id|level|msg\\n\n    // We use a large buffer to avoid reallocations. \n    // In a real production environment, we might use a more sophisticated growth strategy.\n    std::vector<char> buffer;\n    buffer.reserve(ids.size() * 128); \n\n    uint64_t final_hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        buffer.clear();\n        // We use a local pointer to write into the vector's data\n        // To ensure safety, we resize the vector first.\n        // However, since we don't know the exact size, we'll use a growing approach or a large enough estimate.\n        // For performance, let's estimate size.\n        size_t estimated_size = 0;\n        for(size_t i=0; i<ids.size(); ++i) {\n            estimated_size += 15 + messages[i].size();\n        }\n        if (buffer.capacity() < estimated_size) buffer.resize(estimated_size);\n        \n        char* ptr = buffer.data();\n        char* end_ptr = ptr + estimated_size;\n\n        for (std::size_t i = 0; i < ids.size(); ++i) {\n            ptr = append_uint(ptr, timestamps[i]);\n            *ptr++ = '|';\n            ptr = append_uint(ptr, ids[i]);\n            *ptr++ = '|';\n            ptr = append_uint16(ptr, levels[i]);\n            *ptr++ = '|';\n            \n            const std::string& msg = messages[i];\n            std::memcpy(ptr, msg.data(), msg.size());\n            ptr += msg.size();\n            *ptr++ = '\\n';\n        }\n\n        // Calculate hash on the written portion\n        uint64_t hash = 1469598103934665603ULL;\n        // The actual data written is from buffer.data() to ptr\n        for (char* p = buffer.data(); p < ptr; ++p) {\n            hash ^= static_cast<uint64_t>(static_cast<unsigned char>(*p));\n            hash *= 1099511628211ULL;\n        }\n        final_hash = hash;\n    }\n\n    return final_hash;\n}\n",
+  "baseline": {
+    "task_id": "batched_log_format_v2300_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1223455576,
+    "min_elapsed_ns": 1216738152,
+    "max_elapsed_ns": 1664684316,
+    "all_elapsed_ns": [
+      1223455576,
+      1216738152,
+      1664684316
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1223455576,
+      "expected_checksum": 1481436141625552306,
+      "actual_checksum": 1481436141625552306
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "batched_log_format_v2300_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 578144597,
+    "min_elapsed_ns": 561611581,
+    "max_elapsed_ns": 586776875,
+    "all_elapsed_ns": [
+      561611581,
+      578144597,
+      586776875
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 561611581,
+      "expected_checksum": 1481436141625552306,
+      "actual_checksum": 1481436141625552306
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "batched_log_format_v2300_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 472133299,
+    "min_elapsed_ns": 469745691,
+    "max_elapsed_ns": 482456051,
+    "all_elapsed_ns": [
+      472133299,
+      469745691,
+      482456051
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 472133299,
+      "expected_checksum": 1481436141625552306,
+      "actual_checksum": 1481436141625552306
+    },
+    "status": "ok"
+  }
+}

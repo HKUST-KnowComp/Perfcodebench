@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_thrust_reduce_f32_v19",
+  "model": "qwen/qwen3.6-max-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_thrust_reduce_f32_v19/candidate/qwen__qwen3.6-max-preview/solution.cu",
+  "benchmark_timeout_sec": 13,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n__global__ void reduce_kernel(const float* input, float* output, int n) {\n    __shared__ float sdata[256];\n    int tid = threadIdx.x;\n    int i = blockIdx.x * blockDim.x + threadIdx.x;\n    int gridSize = blockDim.x * gridDim.x;\n    \n    float sum = 0.0f;\n    while (i < n) {\n        sum += input[i];\n        i += gridSize;\n    }\n    sdata[tid] = sum;\n    __syncthreads();\n    \n    for (int s = blockDim.x / 2; s > 0; s >>= 1) {\n        if (tid < s) {\n            sdata[tid] += sdata[tid + s];\n        }\n        __syncthreads();\n    }\n    \n    if (tid == 0) {\n        atomicAdd(output, sdata[0]);\n    }\n}\n}  // namespace\n\nfloat reduce_f32(const float* input, int n, int iters) {\n    float* d_out = nullptr;\n    cudaMalloc(&d_out, sizeof(float));\n    float actual = 0.0f;\n    \n    int blockSize = 256;\n    int numBlocks = (n + blockSize - 1) / blockSize;\n    if (numBlocks > 1024) numBlocks = 1024;\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(d_out, 0, sizeof(float));\n        reduce_kernel<<<numBlocks, blockSize>>>(input, d_out, n);\n    }\n    cudaMemcpy(&actual, d_out, sizeof(float), cudaMemcpyDeviceToHost);\n    cudaFree(d_out);\n    return actual;\n}",
+  "baseline": {
+    "task_id": "cuda_thrust_reduce_f32_v19",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2400603271,
+    "min_elapsed_ns": 2399641845,
+    "max_elapsed_ns": 2414243896,
+    "all_elapsed_ns": [
+      2414243896,
+      2400603271,
+      2399641845
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2414243896,
+      "expected_sum": 100663000.0,
+      "actual_sum": 99668500.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_thrust_reduce_f32_v19",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8198816,
+    "min_elapsed_ns": 627359,
+    "max_elapsed_ns": 8887040,
+    "all_elapsed_ns": [
+      8887040,
+      627359,
+      8198816
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8887040,
+      "expected_sum": 100663000.0,
+      "actual_sum": 100663000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_thrust_reduce_f32_v19",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_thrust_reduce_f32_v19/candidate/bench']' timed out after 13 seconds"
+  }
+}

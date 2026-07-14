@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_dimension_join_sum_v1100_f",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_dimension_join_sum_v1100_f/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 15,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <algorithm>\n\nuint64_t join_sum(\n    const std::vector<uint32_t>& dim_keys,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n\n  // Build direct-indexed lookup table for O(1) access\n  // Find max key to size the table\n  uint32_t max_key = 0;\n  const std::size_t dim_size = dim_keys.size();\n  for (std::size_t i = 0; i < dim_size; ++i) {\n    if (dim_keys[i] > max_key) max_key = dim_keys[i];\n  }\n\n  // Create lookup table: index = key, value = dim_values[corresponding index]\n  std::vector<uint32_t> lookup(static_cast<std::size_t>(max_key) + 1, 0);\n  for (std::size_t i = 0; i < dim_size; ++i) {\n    lookup[dim_keys[i]] = dim_values[i];\n  }\n\n  const uint32_t* __restrict__ lut = lookup.data();\n  const uint32_t* __restrict__ pkeys = probe_keys.data();\n  const uint32_t* __restrict__ pweights = probe_weights.data();\n  const std::size_t probe_size = probe_keys.size();\n\n  uint64_t sum = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t s0 = 0, s1 = 0, s2 = 0, s3 = 0;\n    std::size_t i = 0;\n    const std::size_t unroll_limit = probe_size & ~static_cast<std::size_t>(3);\n\n    // Prefetch ahead\n    for (; i < unroll_limit; i += 4) {\n      // Prefetch future keys\n      if (i + 16 < probe_size) {\n        __builtin_prefetch(&lut[pkeys[i + 16]], 0, 1);\n        __builtin_prefetch(&lut[pkeys[i + 17]], 0, 1);\n        __builtin_prefetch(&lut[pkeys[i + 18]], 0, 1);\n        __builtin_prefetch(&lut[pkeys[i + 19]], 0, 1);\n      }\n\n      const uint32_t k0 = pkeys[i];\n      const uint32_t k1 = pkeys[i + 1];\n      const uint32_t k2 = pkeys[i + 2];\n      const uint32_t k3 = pkeys[i + 3];\n\n      const uint32_t v0 = lut[k0];\n      const uint32_t v1 = lut[k1];\n      const uint32_t v2 = lut[k2];\n      const uint32_t v3 = lut[k3];\n\n      const uint32_t w0 = pweights[i];\n      const uint32_t w1 = pweights[i + 1];\n      const uint32_t w2 = pweights[i + 2];\n      const uint32_t w3 = pweights[i + 3];\n\n      s0 += static_cast<uint64_t>(v0) * static_cast<uint64_t>(w0);\n      s1 += static_cast<uint64_t>(v1) * static_cast<uint64_t>(w1);\n      s2 += static_cast<uint64_t>(v2) * static_cast<uint64_t>(w2);\n      s3 += static_cast<uint64_t>(v3) * static_cast<uint64_t>(w3);\n    }\n\n    // Handle remainder\n    for (; i < probe_size; ++i) {\n      s0 += static_cast<uint64_t>(lut[pkeys[i]]) * static_cast<uint64_t>(pweights[i]);\n    }\n\n    sum = s0 + s1 + s2 + s3;\n  }\n\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "dense_dimension_join_sum_v1100_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 9400044103,
+    "min_elapsed_ns": 9370373927,
+    "max_elapsed_ns": 10310045014,
+    "all_elapsed_ns": [
+      9370373927,
+      9400044103,
+      10310045014
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9370373927,
+      "expected_sum": 73207382016,
+      "actual_sum": 73207382016
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_dimension_join_sum_v1100_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 121895705,
+    "min_elapsed_ns": 120852931,
+    "max_elapsed_ns": 160509320,
+    "all_elapsed_ns": [
+      121895705,
+      120852931,
+      160509320
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 121895705,
+      "expected_sum": 73207382016,
+      "actual_sum": 73207382016
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_dimension_join_sum_v1100_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 93302723,
+    "min_elapsed_ns": 88227503,
+    "max_elapsed_ns": 97600137,
+    "all_elapsed_ns": [
+      97600137,
+      88227503,
+      93302723
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 97600137,
+      "expected_sum": 73207382016,
+      "actual_sum": 73207382016
+    },
+    "status": "ok"
+  }
+}

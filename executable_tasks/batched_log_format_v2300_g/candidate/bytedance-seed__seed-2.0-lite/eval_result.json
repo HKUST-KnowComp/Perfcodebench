@@ -1,0 +1,72 @@
+{
+  "task_id": "batched_log_format_v2300_g",
+  "model": "bytedance-seed/seed-2.0-lite",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/batched_log_format_v2300_g/candidate/bytedance-seed__seed-2.0-lite/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <string>\n#include <vector>\n\nnamespace {\n\ntemplate <typename T>\nint write_uint(char* buf, T value) {\n    if (value == 0) {\n        *buf = '0';\n        return 1;\n    }\n    char tmp[20];\n    int len = 0;\n    T v = value;\n    while (v > 0) {\n        tmp[len++] = '0' + (v % 10);\n        v /= 10;\n    }\n    for (int i = 0; i < len; ++i) {\n        buf[i] = tmp[len - 1 - i];\n    }\n    return len;\n}\n\nvoid update_hash(uint64_t& hash, unsigned char c) {\n    hash ^= static_cast<uint64_t>(c);\n    hash *= 1099511628211ULL;\n}\n\n} // namespace\n\nuint64_t batched_log_checksum(\n    const std::vector<uint32_t>& timestamps,\n    const std::vector<uint32_t>& ids,\n    const std::vector<uint16_t>& levels,\n    const std::vector<std::string>& messages,\n    int iters) {\n    const size_t n = ids.size();\n    std::string out;\n    size_t total_cap = 0;\n    for (size_t i = 0; i < n; ++i) {\n        total_cap += messages[i].size() + 28; // 10+1+10+1+5+1 max numeric + separators\n    }\n    out.reserve(total_cap);\n    uint64_t final_hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        out.clear();\n        out.resize(out.capacity());\n        char* write_ptr = out.data();\n        uint64_t hash = 1469598103934665603ULL;\n\n        for (size_t i = 0; i < n; ++i) {\n            // Write timestamp\n            int ts_len = write_uint(write_ptr, timestamps[i]);\n            for (int j = 0; j < ts_len; ++j) update_hash(hash, static_cast<unsigned char>(write_ptr[j]));\n            write_ptr += ts_len;\n            // Write separator\n            *write_ptr = '|';\n            update_hash(hash, '|');\n            write_ptr += 1;\n            // Write id\n            int id_len = write_uint(write_ptr, ids[i]);\n            for (int j = 0; j < id_len; ++j) update_hash(hash, static_cast<unsigned char>(write_ptr[j]));\n            write_ptr += id_len;\n            // Write separator\n            *write_ptr = '|';\n            update_hash(hash, '|');\n            write_ptr += 1;\n            // Write level\n            int lvl_len = write_uint(write_ptr, levels[i]);\n            for (int j = 0; j < lvl_len; ++j) update_hash(hash, static_cast<unsigned char>(write_ptr[j]));\n            write_ptr += lvl_len;\n            // Write separator\n            *write_ptr = '|';\n            update_hash(hash, '|');\n            write_ptr += 1;\n            // Write message\n            const std::string& msg = messages[i];\n            for (char c : msg) {\n                *write_ptr = c;\n                update_hash(hash, static_cast<unsigned char>(c));\n                write_ptr += 1;\n            }\n            // Write newline\n            *write_ptr = '\\n';\n            update_hash(hash, '\\n');\n            write_ptr += 1;\n        }\n        out.resize(write_ptr - out.data());\n        final_hash = hash;\n    }\n    return final_hash;\n}",
+  "baseline": {
+    "task_id": "batched_log_format_v2300_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 834816361,
+    "min_elapsed_ns": 796934519,
+    "max_elapsed_ns": 893526664,
+    "all_elapsed_ns": [
+      796934519,
+      893526664,
+      834816361
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 796934519,
+      "expected_checksum": 5121932965671420145,
+      "actual_checksum": 5121932965671420145
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "batched_log_format_v2300_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 380531242,
+    "min_elapsed_ns": 354195894,
+    "max_elapsed_ns": 381989345,
+    "all_elapsed_ns": [
+      381989345,
+      380531242,
+      354195894
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 381989345,
+      "expected_checksum": 5121932965671420145,
+      "actual_checksum": 5121932965671420145
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "batched_log_format_v2300_g",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 208465440,
+    "min_elapsed_ns": 208378530,
+    "max_elapsed_ns": 270805540,
+    "all_elapsed_ns": [
+      270805540,
+      208465440,
+      208378530
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 270805540,
+      "expected_checksum": 5121932965671420145,
+      "actual_checksum": 5121932965671420145
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "prefix_cache_block_lookup_v1800_c",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup_v1800_c/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n#include <unordered_set>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n}\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t hash_space,\n    int iters) {\n    \n    // Use a boolean vector for O(1) lookup if hash_space is manageable,\n    // otherwise use a sorted vector with std::binary_search (which is already done).\n    // However, the bottleneck is the repeated binary search. \n    // Let's use a more efficient lookup: a sorted vector is good for cache, \n    // but we can optimize the inner loop.\n    \n    // Pre-calculate existence in a way that is fast to access.\n    // Since we don't know the size of hash_space, we check if it's small enough for a bitset.\n    // If not, we stick to binary search but optimize the loop.\n    \n    bool use_bitset = (hash_space <= 10000000);\n    std::vector<bool> exists_bitset;\n    if (use_bitset) {\n        exists_bitset.assign(hash_space + 1, false);\n        for (uint32_t key : sorted_cache_keys) {\n            if (key <= hash_space) exists_bitset[key] = true;\n        }\n    }\n\n    uint64_t total_hash = 0;\n    const size_t num_requests = request_offsets.size() - 1;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t hash = 1469598103934665603ULL;\n        for (size_t r = 0; r < num_requests; ++r) {\n            uint64_t prefix = 0;\n            int start = request_offsets[r];\n            int end = request_offsets[r + 1];\n            \n            for (int i = start; i < end; ++i) {\n                uint32_t block = request_blocks[static_cast<size_t>(i)];\n                bool found = false;\n                if (use_bitset) {\n                    if (block <= hash_space && exists_bitset[block]) {\n                        found = true;\n                    }\n                } else {\n                    found = std::binary_search(sorted_cache_keys.begin(), sorted_cache_keys.end(), block);\n                }\n\n                if (found) {\n                    ++prefix;\n                } else {\n                    break;\n                }\n            }\n            hash = mix(hash, prefix);\n        }\n        total_hash = hash;\n    }\n\n    return total_hash;\n}",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup_v1800_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1052360788,
+    "min_elapsed_ns": 1051266302,
+    "max_elapsed_ns": 1102572145,
+    "all_elapsed_ns": [
+      1052360788,
+      1051266302,
+      1102572145
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1052360788,
+      "expected_checksum": 11113062817540119305,
+      "actual_checksum": 11113062817540119305
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup_v1800_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8804401,
+    "min_elapsed_ns": 7540996,
+    "max_elapsed_ns": 10122560,
+    "all_elapsed_ns": [
+      8804401,
+      7540996,
+      10122560
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8804401,
+      "expected_checksum": 11113062817540119305,
+      "actual_checksum": 11113062817540119305
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup_v1800_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 12656354,
+    "min_elapsed_ns": 10674974,
+    "max_elapsed_ns": 13827382,
+    "all_elapsed_ns": [
+      12656354,
+      13827382,
+      10674974
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12656354,
+      "expected_checksum": 11113062817540119305,
+      "actual_checksum": 11113062817540119305
+    },
+    "status": "ok"
+  }
+}

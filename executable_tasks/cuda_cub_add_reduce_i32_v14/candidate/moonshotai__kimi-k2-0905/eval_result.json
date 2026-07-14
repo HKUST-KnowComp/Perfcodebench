@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v14",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v14/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cub/cub.cuh>\n#include <cstdint>\n\nnamespace {\n\nconstexpr int BLOCK = 256;\nconstexpr int ITEMS_PER_THREAD = 16;\n\n__global__ void reduce_kernel(const int* __restrict__ in,\n                              int64_t* __restrict__ blockSums,\n                              int n) {\n    typedef cub::BlockReduce<int64_t, BLOCK> BlockReduce;\n    __shared__ typename BlockReduce::TempStorage temp;\n\n    int64_t threadSum = 0;\n    int tid = blockIdx.x * blockDim.x + threadIdx.x;\n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; ++i) {\n        int idx = tid + i * gridDim.x * blockDim.x;\n        if (idx < n) threadSum += static_cast<int64_t>(in[idx]);\n    }\n    int64_t blockSum = BlockReduce(temp).Sum(threadSum);\n    if (threadIdx.x == 0) blockSums[blockIdx.x] = blockSum;\n}\n\n__global__ void final_reduce_kernel(const int64_t* __restrict__ blockSums,\n                                    int numBlocks,\n                                    int* __restrict__ out) {\n    typedef cub::BlockReduce<int64_t, BLOCK> BlockReduce;\n    __shared__ typename BlockReduce::TempStorage temp;\n\n    int64_t threadSum = 0;\n    for (int i = threadIdx.x; i < numBlocks; i += blockDim.x)\n        threadSum += blockSums[i];\n    int64_t blockSum = BlockReduce(temp).Sum(threadSum);\n    if (threadIdx.x == 0) *out = static_cast<int32_t>(blockSum);\n}\n\nint64_t* d_tmp = nullptr;\nint maxBlocks = 0;\n\nvoid ensure_workspace(int n) {\n    int needed = (n + BLOCK * ITEMS_PER_THREAD - 1) / (BLOCK * ITEMS_PER_THREAD);\n    if (needed > maxBlocks) {\n        cudaFree(d_tmp);\n        maxBlocks = needed;\n        cudaMalloc(&d_tmp, maxBlocks * sizeof(int64_t));\n    }\n}\n\n}  // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    ensure_workspace(n);\n    int numBlocks = (n + BLOCK * ITEMS_PER_THREAD - 1) / (BLOCK * ITEMS_PER_THREAD);\n    for (int iter = 0; iter < iters; ++iter) {\n        reduce_kernel<<<numBlocks, BLOCK>>>(input, d_tmp, n);\n        final_reduce_kernel<<<1, BLOCK>>>(d_tmp, numBlocks, output);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v14",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 99215393,
+    "min_elapsed_ns": 97356033,
+    "max_elapsed_ns": 99385566,
+    "all_elapsed_ns": [
+      99215393,
+      99385566,
+      97356033
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 99215393,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v14",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8134431,
+    "min_elapsed_ns": 8060256,
+    "max_elapsed_ns": 8172991,
+    "all_elapsed_ns": [
+      8172991,
+      8134431,
+      8060256
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8172991,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v14",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v14/candidate/bench']' timed out after 5 seconds"
+  }
+}

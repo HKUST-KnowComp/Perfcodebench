@@ -1,0 +1,59 @@
+{
+  "task_id": "genomic_kmer_histogram_checksum_v2600_g",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/genomic_kmer_histogram_checksum_v2600_g/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <string>\n#include <vector>\n#include <algorithm>\n\nnamespace {\n\n// Fast lookup table to map DNA characters to 2-bit values\n// A=0, C=1, G=2, T=3\nstatic const uint8_t dna_map[256] = [] {\n    uint8_t m[256] = {0};\n    m['A'] = 0;\n    m['C'] = 1;\n    m['G'] = 2;\n    m['T'] = 3;\n    return m;\n}();\n\ninline uint64_t compute_fnv1a(const std::vector<uint32_t>& counts) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (uint32_t count : counts) {\n        hash ^= static_cast<uint64_t>(count);\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\n} // namespace\n\nuint64_t kmer_histogram_checksum(const std::string& dna, int k, int iters) {\n    if (dna.size() < static_cast<size_t>(k)) {\n        // Handle case where dna is shorter than k\n        const size_t bins = 1u << (2 * k);\n        std::vector<uint32_t> dense(bins, 0);\n        uint64_t final_hash = 0;\n        for (int i = 0; i < iters; ++i) {\n            final_hash = compute_fnv1a(dense);\n        }\n        return final_hash;\n    }\n\n    const size_t bins = 1u << (2 * k);\n    std::vector<uint32_t> dense(bins);\n    const uint32_t mask = (1u << (2 * k)) - 1;\n    uint64_t last_hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        std::fill(dense.begin(), dense.end(), 0u);\n        \n        uint32_t current_kmer = 0;\n        // Initialize first k-mer\n        for (int i = 0; i < k; ++i) {\n            current_kmer = (current_kmer << 2) | dna_map[static_cast<unsigned char>(dna[i])];\n        }\n        dense[current_kmer]++;\n\n        // Slide window\n        for (size_t i = 1; i <= dna.size() - k; ++i) {\n            current_kmer = ((current_kmer << 2) | dna_map[static_cast<unsigned char>(dna[i + k - 1])]) & mask;\n            dense[current_kmer]++;\n        }\n        \n        last_hash = compute_fnv1a(dense);\n    }\n\n    return last_hash;\n}",
+  "baseline": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 154789702,
+    "min_elapsed_ns": 152948729,
+    "max_elapsed_ns": 156678026,
+    "all_elapsed_ns": [
+      154789702,
+      152948729,
+      156678026
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 154789702,
+      "expected_checksum": 14622708574311835007,
+      "actual_checksum": 14622708574311835007
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 12008801,
+    "min_elapsed_ns": 11994575,
+    "max_elapsed_ns": 12024633,
+    "all_elapsed_ns": [
+      12024633,
+      12008801,
+      11994575
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12024633,
+      "expected_checksum": 14622708574311835007,
+      "actual_checksum": 14622708574311835007
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_g",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/genomic_kmer_histogram_checksum_v2600_g/harness', 'executable_tasks/genomic_kmer_histogram_checksum_v2600_g/harness/benchmark_main.cpp', 'executable_tasks/genomic_kmer_histogram_checksum_v2600_g/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/genomic_kmer_histogram_checksum_v2600_g/candidate/bench']' returned non-zero exit status 1."
+  }
+}

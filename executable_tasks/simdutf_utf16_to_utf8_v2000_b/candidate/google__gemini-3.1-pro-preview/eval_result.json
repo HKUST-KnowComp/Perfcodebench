@@ -1,0 +1,72 @@
+{
+  "task_id": "simdutf_utf16_to_utf8_v2000_b",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdutf_utf16_to_utf8_v2000_b/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"simdutf.h\"\n#include <vector>\n#include <memory>\n\n/**\n * Performance Engineer Optimization:\n * 1. Use simdutf::convert_utf16_to_utf8 for high-performance SIMD-accelerated transcoding.\n * 2. Pre-calculate or over-allocate the output buffer to avoid std::string's growth overhead.\n * 3. Use a tight loop for the FNV-1a checksum calculation on the raw output buffer.\n */\n\nuint64_t transcode_checksum(const std::u16string& input) {\n    if (input.empty()) {\n        return 1469598103934665603ULL;\n    }\n\n    // UTF-16 to UTF-8 expansion is at most 3 bytes per 2-byte code unit \n    // (except for surrogate pairs which are 4 bytes for 4 bytes of input).\n    // A safe upper bound is input.size() * 3.\n    size_t max_utf8_len = input.size() * 3;\n    \n    // Use a unique_ptr for a raw buffer to avoid zero-initialization overhead of std::vector or std::string.\n    std::unique_ptr<char[]> buffer(new char[max_utf8_len]);\n\n    // Perform the conversion using SIMD-optimized simdutf.\n    // std::u16string uses char16_t which matches simdutf's expectations.\n    size_t utf8_len = simdutf::convert_utf16_to_utf8(\n        reinterpret_cast<const char16_t*>(input.data()), \n        input.size(), \n        buffer.get()\n    );\n\n    // FNV-1a 64-bit hash implementation.\n    // We process the resulting UTF-8 bytes directly from the buffer.\n    uint64_t hash = 1469598103934665603ULL;\n    const uint64_t fnv_prime = 1099511628211ULL;\n    const uint8_t* ptr = reinterpret_cast<const uint8_t*>(buffer.get());\n    const uint8_t* end = ptr + utf8_len;\n\n    while (ptr < end) {\n        hash ^= static_cast<uint64_t>(*ptr++);\n        hash *= fnv_prime;\n    }\n\n    return hash;\n}\n",
+  "baseline": {
+    "task_id": "simdutf_utf16_to_utf8_v2000_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2516296,
+    "min_elapsed_ns": 2511112,
+    "max_elapsed_ns": 2543320,
+    "all_elapsed_ns": [
+      2511112,
+      2543320,
+      2516296
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2511112,
+      "expected_checksum": 1416464748350586442,
+      "actual_checksum": 1416464748350586442
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdutf_utf16_to_utf8_v2000_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 940283,
+    "min_elapsed_ns": 936765,
+    "max_elapsed_ns": 1075342,
+    "all_elapsed_ns": [
+      1075342,
+      940283,
+      936765
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1075342,
+      "expected_checksum": 1416464748350586442,
+      "actual_checksum": 1416464748350586442
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdutf_utf16_to_utf8_v2000_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 887517,
+    "min_elapsed_ns": 877244,
+    "max_elapsed_ns": 925565,
+    "all_elapsed_ns": [
+      925565,
+      877244,
+      887517
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 925565,
+      "expected_checksum": 1416464748350586442,
+      "actual_checksum": 1416464748350586442
+    },
+    "status": "ok"
+  }
+}

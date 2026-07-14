@@ -1,0 +1,59 @@
+{
+  "task_id": "rapidjson_stringify_v2400_f",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/rapidjson_stringify_v2400_f/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <rapidjson/writer.h>\n\n#include <cstdint>\n#include <string>\n#include <vector>\n\nnamespace {\n\nclass StringBuffer {\n public:\n  StringBuffer() = default;\n\n  void Put(char c) { buffer_.push_back(c); }\n  void Flush() {}\n\n  void Reserve(std::size_t n) { buffer_.reserve(n); }\n\n  const std::string& GetString() const { return buffer_; }\n  std::string&& MoveString() { return std::move(buffer_); }\n\n private:\n  std::string buffer_;\n};\n\nstatic inline std::size_t count_digits_u32(uint32_t v) {\n  if (v >= 1000000000u) return 10;\n  if (v >= 100000000u) return 9;\n  if (v >= 10000000u) return 8;\n  if (v >= 1000000u) return 7;\n  if (v >= 100000u) return 6;\n  if (v >= 10000u) return 5;\n  if (v >= 1000u) return 4;\n  if (v >= 100u) return 3;\n  if (v >= 10u) return 2;\n  return 1;\n}\n\nstatic inline std::size_t estimate_size(\n    const std::vector<uint32_t>& ids,\n    const std::vector<uint32_t>& values,\n    const std::vector<std::string>& names) {\n  const std::size_t n = ids.size();\n  if (n == 0) return 2;\n\n  std::size_t total = 2 + (n - 1);  // [ ] and commas between objects\n  for (std::size_t i = 0; i < n; ++i) {\n    total += 35;  // punctuation + keys + boolean literal baseline\n    total += count_digits_u32(ids[i]);\n    total += count_digits_u32(values[i]);\n    total += names[i].size() + 8;  // rough extra room for escaping\n  }\n  return total;\n}\n\n}  // namespace\n\nstd::string build_json(\n    const std::vector<uint32_t>& ids,\n    const std::vector<uint32_t>& values,\n    const std::vector<std::string>& names) {\n  StringBuffer buffer;\n  buffer.Reserve(estimate_size(ids, values, names));\n\n  rapidjson::Writer<StringBuffer> writer(buffer);\n  writer.StartArray();\n\n  const std::size_t n = ids.size();\n  for (std::size_t i = 0; i < n; ++i) {\n    writer.StartObject();\n\n    writer.Key(\"id\", 2);\n    writer.Uint(ids[i]);\n\n    writer.Key(\"flag\", 4);\n    writer.Bool((ids[i] % 3u) == 0u);\n\n    writer.Key(\"value\", 5);\n    writer.Uint(values[i]);\n\n    writer.Key(\"name\", 4);\n    writer.String(names[i].data(), static_cast<rapidjson::SizeType>(names[i].size()));\n\n    writer.EndObject();\n  }\n\n  writer.EndArray();\n  return buffer.MoveString();\n}\n",
+  "baseline": {
+    "task_id": "rapidjson_stringify_v2400_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 19413641,
+    "min_elapsed_ns": 18749738,
+    "max_elapsed_ns": 26899618,
+    "all_elapsed_ns": [
+      26899618,
+      18749738,
+      19413641
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 26899618,
+      "expected_size": 1381380,
+      "actual_size": 1381380
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "rapidjson_stringify_v2400_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2374328,
+    "min_elapsed_ns": 2096486,
+    "max_elapsed_ns": 3575701,
+    "all_elapsed_ns": [
+      3575701,
+      2374328,
+      2096486
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3575701,
+      "expected_size": 1381380,
+      "actual_size": 1381380
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "rapidjson_stringify_v2400_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/rapidjson_stringify_v2400_f/harness', '-Iexternal/nlohmann_json/single_include', '-Iexternal/rapidjson_src/include', 'executable_tasks/rapidjson_stringify_v2400_f/harness/benchmark_main.cpp', 'executable_tasks/rapidjson_stringify_v2400_f/candidate/gpt-5.4/solution.cpp', '-o', 'build/rapidjson_stringify_v2400_f/candidate/bench']' returned non-zero exit status 1."
+  }
+}

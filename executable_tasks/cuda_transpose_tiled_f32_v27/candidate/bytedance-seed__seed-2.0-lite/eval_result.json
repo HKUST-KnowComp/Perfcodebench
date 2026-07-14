@@ -1,0 +1,69 @@
+{
+  "task_id": "cuda_transpose_tiled_f32_v27",
+  "model": "bytedance-seed/seed-2.0-lite",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_transpose_tiled_f32_v27/candidate/bytedance-seed__seed-2.0-lite/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\nconstexpr int kTileDim = 32;\nconstexpr int kBlockRows = 8;\n\n__global__ void transpose_optimized_kernel(const float* __restrict__ input, float* __restrict__ output, int width, int height) {\n    // Shared memory tile with 1-element padding to eliminate shared memory bank conflicts\n    __shared__ float tile[33][32];\n\n    const int block_base_x = blockIdx.x * kTileDim;\n    const int block_base_y = blockIdx.y * kTileDim;\n\n    // Load input tile into shared memory with coalesced global reads\n    for (int j = 0; j < kTileDim; j += kBlockRows) {\n        const int y = block_base_y + threadIdx.y + j;\n        const int x = block_base_x + threadIdx.x;\n        if (x < width && y < height) {\n            tile[threadIdx.y + j][threadIdx.x] = input[y * width + x];\n        }\n    }\n\n    // Synchronize to ensure full tile is loaded before writing\n    __syncthreads();\n\n    // Write transposed tile to output with coalesced global writes\n    const int transposed_base_x = blockIdx.y * kTileDim;\n    const int transposed_base_y = blockIdx.x * kTileDim;\n\n    for (int j = 0; j < kTileDim; j += kBlockRows) {\n        const int y = transposed_base_y + threadIdx.y + j;\n        const int x = transposed_base_x + threadIdx.x;\n        if (x < height && y < width) {\n            output[y * height + x] = tile[threadIdx.x][threadIdx.y + j];\n        }\n    }\n}\n\n} // namespace\n\nvoid transpose_f32(const float* input, float* output, int width, int height, int iters) {\n    const dim3 block(kTileDim, kBlockRows);\n    const dim3 grid((width + kTileDim - 1) / kTileDim, (height + kTileDim - 1) / kTileDim);\n    for (int iter = 0; iter < iters; ++iter) {\n        transpose_optimized_kernel<<<grid, block>>>(input, output, width, height);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_transpose_tiled_f32_v27",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 29377855,
+    "min_elapsed_ns": 26981664,
+    "max_elapsed_ns": 32984127,
+    "all_elapsed_ns": [
+      26981664,
+      32984127,
+      29377855
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 26981664,
+      "checksum": 1327100000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_transpose_tiled_f32_v27",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2864480,
+    "min_elapsed_ns": 2574719,
+    "max_elapsed_ns": 4885503,
+    "all_elapsed_ns": [
+      4885503,
+      2574719,
+      2864480
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4885503,
+      "checksum": 1327100000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_transpose_tiled_f32_v27",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 39365951,
+    "min_elapsed_ns": 37442752,
+    "max_elapsed_ns": 54200031,
+    "all_elapsed_ns": [
+      54200031,
+      39365951,
+      37442752
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 54200031,
+      "checksum": 1327100000.0
+    },
+    "status": "ok"
+  }
+}

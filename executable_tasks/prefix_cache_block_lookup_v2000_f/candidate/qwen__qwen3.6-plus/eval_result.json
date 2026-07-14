@@ -1,0 +1,59 @@
+{
+  "task_id": "prefix_cache_block_lookup_v2000_f",
+  "model": "qwen/qwen3.6-plus",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup_v2000_f/candidate/qwen__qwen3.6-plus/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <cstdint>\n\nnamespace {\n\nuint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t hash_space,\n    int iters) {\n  (void)hash_space;\n  \n  const size_t n = sorted_cache_keys.size();\n  const size_t num_requests = request_offsets.size();\n  const uint32_t* blocks = request_blocks.data();\n  const int* offsets = request_offsets.data();\n  \n  if (n == 0) {\n    uint64_t hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n      hash = 1469598103934665603ULL;\n      for (size_t r = 0; r + 1 < num_requests; ++r) {\n        hash = mix(hash, 0);\n      }\n    }\n    return hash;\n  }\n  \n  size_t cap = 1;\n  while (cap < n * 2) cap <<= 1;\n  \n  std::vector<uint32_t> ht_keys(cap);\n  std::vector<uint8_t> ht_used(cap, 0);\n  uint32_t mask = static_cast<uint32_t>(cap - 1);\n  \n  const uint32_t* src = sorted_cache_keys.data();\n  uint32_t* k_ptr = ht_keys.data();\n  uint8_t* u_ptr = ht_used.data();\n  \n  for (size_t i = 0; i < n; ++i) {\n    uint32_t k = src[i];\n    uint32_t h = k * 0x9E3779B9;\n    uint32_t idx = h & mask;\n    while (u_ptr[idx]) {\n      idx = (idx + 1) & mask;\n    }\n    k_ptr[idx] = k;\n    u_ptr[idx] = 1;\n  }\n  \n  const uint32_t* k_data = ht_keys.data();\n  const uint8_t* u_data = ht_used.data();\n  \n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    for (size_t r = 0; r + 1 < num_requests; ++r) {\n      uint64_t prefix = 0;\n      int start = offsets[r];\n      int end = offsets[r + 1];\n      for (int i = start; i < end; ++i) {\n        uint32_t k = blocks[static_cast<size_t>(i)];\n        uint32_t h = k * 0x9E3779B9;\n        uint32_t idx = h & mask;\n        bool found = false;\n        while (u_data[idx]) {\n          if (k_data[idx] == k) {\n            found = true;\n            break;\n          }\n          idx = (idx + 1) & mask;\n        }\n        if (!found) break;\n        ++prefix;\n      }\n      hash = mix(hash, prefix);\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup_v2000_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 157110397,
+    "min_elapsed_ns": 156032549,
+    "max_elapsed_ns": 166683324,
+    "all_elapsed_ns": [
+      157110397,
+      156032549,
+      166683324
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 157110397,
+      "expected_checksum": 11548637948046092892,
+      "actual_checksum": 11548637948046092892
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup_v2000_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5136391,
+    "min_elapsed_ns": 5079776,
+    "max_elapsed_ns": 7723725,
+    "all_elapsed_ns": [
+      7723725,
+      5136391,
+      5079776
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7723725,
+      "expected_checksum": 11548637948046092892,
+      "actual_checksum": 11548637948046092892
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup_v2000_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/prefix_cache_block_lookup_v2000_f/harness', 'executable_tasks/prefix_cache_block_lookup_v2000_f/harness/benchmark_main.cpp', 'executable_tasks/prefix_cache_block_lookup_v2000_f/candidate/qwen__qwen3.6-plus/solution.cpp', '-o', 'build/prefix_cache_block_lookup_v2000_f/candidate/bench']' returned non-zero exit status 1."
+  }
+}

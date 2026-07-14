@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_thrust_reduce_f32_v31",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_thrust_reduce_f32_v31/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cstddef>\n\nnamespace {\n\nconstexpr int BLOCK = 256;          // power of two, good occupancy on all architectures\nconstexpr int MAX_BLOCKS = 1024;    // upper bound to limit scratch size\n\n__global__ void reduce_kernel(const float* __restrict__ in, float* __restrict__ partial, int n) {\n    __shared__ float smem[BLOCK];\n    int tid = threadIdx.x;\n    int i = blockIdx.x * blockDim.x + tid;\n\n    // grid-stride load and first add\n    float sum = 0.0f;\n    while (i < n) {\n        sum += in[i];\n        i += gridDim.x * blockDim.x;\n    }\n    smem[tid] = sum;\n    __syncthreads();\n\n    // shared-memory reduction\n    for (int offset = blockDim.x / 2; offset > 32; offset >>= 1) {\n        if (tid < offset) smem[tid] += smem[tid + offset];\n        __syncthreads();\n    }\n\n    // warp shuffle reduction (last warp)\n    if (tid < 32) {\n        float val = smem[tid];\n        for (int offset = 32 / 2; offset > 0; offset /= 2)\n            val += __shfl_down_sync(0xFFFFFFFF, val, offset);\n        if (tid == 0) partial[blockIdx.x] = val;\n    }\n}\n\n__global__ void reduce_single_block(const float* __restrict__ in, float* __restrict__ out, int n) {\n    __shared__ float smem[BLOCK];\n    int tid = threadIdx.x;\n    float sum = 0.0f;\n    for (int i = tid; i < n; i += blockDim.x)\n        sum += in[i];\n    smem[tid] = sum;\n    __syncthreads();\n\n    for (int offset = blockDim.x / 2; offset > 32; offset >>= 1) {\n        if (tid < offset) smem[tid] += smem[tid + offset];\n        __syncthreads();\n    }\n\n    if (tid < 32) {\n        float val = smem[tid];\n        for (int offset = 32 / 2; offset > 0; offset /= 2)\n            val += __shfl_down_sync(0xFFFFFFFF, val, offset);\n        if (tid == 0) *out = val;\n    }\n}\n\n} // anonymous namespace\n\nfloat reduce_f32(const float* input, int n, int iters) {\n    float* d_part = nullptr;\n    float* d_out  = nullptr;\n    cudaMalloc(&d_part, MAX_BLOCKS * sizeof(float));\n    cudaMalloc(&d_out,  sizeof(float));\n\n    int num_blocks = (n + BLOCK - 1) / BLOCK;\n    if (num_blocks > MAX_BLOCKS) num_blocks = MAX_BLOCKS;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        if (num_blocks > 1) {\n            reduce_kernel<<<num_blocks, BLOCK>>>(input, d_part, n);\n            reduce_single_block<<<1, BLOCK>>>(d_part, d_out, num_blocks);\n        } else {\n            reduce_single_block<<<1, BLOCK>>>(input, d_out, n);\n        }\n    }\n\n    float result = 0.0f;\n    cudaMemcpy(&result, d_out, sizeof(float), cudaMemcpyDeviceToHost);\n    cudaFree(d_part);\n    cudaFree(d_out);\n    return result;\n}",
+  "baseline": {
+    "task_id": "cuda_thrust_reduce_f32_v31",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 489574554,
+    "min_elapsed_ns": 489554016,
+    "max_elapsed_ns": 492319244,
+    "all_elapsed_ns": [
+      489574554,
+      489554016,
+      492319244
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 489574554,
+      "expected_sum": 25165700.0,
+      "actual_sum": 24949500.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_thrust_reduce_f32_v31",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 734368,
+    "min_elapsed_ns": 697088,
+    "max_elapsed_ns": 12423968,
+    "all_elapsed_ns": [
+      697088,
+      734368,
+      12423968
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 697088,
+      "expected_sum": 25165700.0,
+      "actual_sum": 25165700.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_thrust_reduce_f32_v31",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_thrust_reduce_f32_v31/candidate/bench']' returned non-zero exit status 2."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "c_topk_selection_checksum_v3400_044",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_topk_selection_checksum_v3400_044/candidate/google__gemma-4-26b-a4b-it/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include <stdint.h>\n#include <stdlib.h>\n\ntypedef struct {\n  uint32_t score;\n  uint32_t index;\n} Pair;\n\nstatic inline int compare_pairs(const Pair a, const Pair b) {\n  if (a.score != b.score) {\n    return b.score - a.score; // Descending score\n  }\n  return (int)a.index - (int)b.index; // Ascending index\n}\n\nstatic void swap(Pair* a, Pair* b) {\n  Pair temp = *a;\n  *a = *b;\n  *b = temp;\n}\n\nstatic int partition(Pair* arr, int left, int right) {\n  Pair pivot = arr[right];\n  int i = left;\n  for (int j = left; j < right; j++) {\n    // We want descending order for top-k, so 'smaller' means higher score\n    if (compare_pairs(arr[j], pivot) < 0) {\n      swap(&arr[i], &arr[j]);\n      i++;\n    }\n  }\n  swap(&arr[i], &arr[right]);\n  return i;\n}\n\nstatic void quickselect(Pair* arr, int n, int k) {\n  int left = 0, right = n - 1;\n  while (left < right) {\n    int pivotIndex = left + (right - left) / 2;\n    // Simple median-of-three or just middle to avoid worst case on sorted data\n    Pair midVal = arr[pivotIndex];\n    if (compare_pairs(midVal, arr[left]) < 0) swap(&arr[left], &arr[pivotIndex]);\n    if (compare_pairs(midVal, arr[right]) < 0) swap(&arr[right], &arr[pivotIndex]);\n    // After swap, pivot is at pivotIndex, but let's just use standard partition\n    \n    // Using a more robust partition for the sake of the implementation\n    int p = partition(arr, left, right);\n    if (p == k) return;\n    if (p < k) left = p + 1;\n    else right = p - 1;\n  }\n}\n\n// Since we need the top k to be EXACTLY ordered for the checksum,\n// we use quickselect to find the k-th element, then sort only the first k elements.\n// This is O(N + k log k).\n\nstatic int qsort_cmp(const void* a, const void* b) {\n  const Pair* pa = (const Pair*)a;\n  const Pair* pb = (const Pair*)b;\n  if (pa->score != pb->score) return (pb->score > pa->score) ? 1 : -1;\n  return (pa->index > pb->index) ? 1 : -1;\n}\n\nuint64_t run(const uint32_t* scores, size_t n, int k, int iters) {\n  if (n == 0 || k <= 0) return 0;\n  Pair* pairs = (Pair*)malloc(n * sizeof(Pair));\n  if (!pairs) return 0;\n\n  uint64_t h = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    for (size_t i = 0; i < n; ++i) {\n      pairs[i].score = scores[i];\n      pairs[i].index = (uint32_t)i;\n    }\n\n    // Partial sort: Quickselect to get top k elements in the first k positions\n    // Note: quickselect doesn't guarantee order within the partition, \n    // but it guarantees elements [0...k-1] are the top k.\n    int left = 0, right = (int)n - 1;\n    int target = k - 1;\n    while (left < right) {\n      int pivotIdx = left + (right - left) / 2;\n      Pair pivot = pairs[pivotIdx];\n      // Partition around pivot\n      int i = left, j = right;\n      while (i <= j) {\n        while (compare_pairs(pairs[i], pivot) < 0) i++;\n        while (compare_pairs(pairs[j], pivot) > 0) j--;\n        if (i <= j) {\n          swap(&pairs[i], &pairs[j]);\n          i++;\n          j--;\n        }\n      }\n      if (target <= j) right = j;\n      else if (target >= i) left = i;\n      else break;\n    }\n\n    // The top k elements are now in pairs[0...k-1], but they are not necessarily sorted.\n    // The checksum requires them to be ordered.\n    qsort(pairs, k, sizeof(Pair), qsort_cmp);\n\n    h = 1469598103934665603ULL;\n    for (int i = 0; i < k; ++i) {\n      h ^= ((uint64_t)pairs[i].score << 32) ^ pairs[i].index;\n      h *= 1099511628211ULL;\n    }\n  }\n\n  free(pairs);\n  return h;\n}\n",
+  "baseline": {
+    "task_id": "c_topk_selection_checksum_v3400_044",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 589497000,
+    "min_elapsed_ns": 588763000,
+    "max_elapsed_ns": 596269000,
+    "all_elapsed_ns": [
+      588763000,
+      589497000,
+      596269000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 588763000,
+      "expected_checksum": 7480820600355561820,
+      "actual_checksum": 7480820600355561820
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_topk_selection_checksum_v3400_044",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4603000,
+    "min_elapsed_ns": 3108000,
+    "max_elapsed_ns": 4659000,
+    "all_elapsed_ns": [
+      3108000,
+      4659000,
+      4603000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3108000,
+      "expected_checksum": 7480820600355561820,
+      "actual_checksum": 7480820600355561820
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_topk_selection_checksum_v3400_044",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 576028000,
+    "min_elapsed_ns": 559626000,
+    "max_elapsed_ns": 594629000,
+    "all_elapsed_ns": [
+      559626000,
+      576028000,
+      594629000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 559626000,
+      "expected_checksum": 7480820600355561820,
+      "actual_checksum": 7480820600355561820
+    },
+    "status": "ok"
+  }
+}

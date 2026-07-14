@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v10",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v10/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\ntemplate<int UNROLL>\n__global__ __launch_bounds__(256, 4)\nvoid reduce_kernel(const int* __restrict__ input,\n                   int*           __restrict__ block_sums,\n                   int                        N)\n{\n    const int tid = threadIdx.x;\n    const int gtid = blockIdx.x * blockDim.x + tid;\n\n    __shared__ int smem[256];\n    smem[tid] = 0;\n\n    for (int base = gtid; base < N; base += gridDim.x * blockDim.x * UNROLL) {\n        int sum = 0;\n        #pragma unroll\n        for (int u = 0; u < UNROLL && base + u * blockDim.x * gridDim.x < N; ++u) {\n            sum += input[base + u * blockDim.x * gridDim.x];\n        }\n        smem[tid] += sum;\n    }\n\n    // block-level reduction\n    typedef int T;\n    for (int off = blockDim.x >> 1; off > 0; off >>= 1) {\n        __syncthreads();\n        if (tid < off) smem[tid] += smem[tid + off];\n    }\n    if (tid == 0) block_sums[blockIdx.x] = smem[0];\n}\n\n__global__ void final_reduce(int* __restrict__ block_sums, int* __restrict__ out) {\n    __shared__ int smem[256];\n    int bid = blockIdx.x;\n    if (bid > 0) return;               // only block 0 does the final work\n    int tid = threadIdx.x;\n    int val = 0;\n    for (int i = tid; i < gridDim.x; i += blockDim.x) val += block_sums[i];\n    smem[tid] = val;\n    __syncthreads();\n    for (int off = blockDim.x >> 1; off > 0; off >>= 1) {\n        __syncthreads();\n        if (tid < off) smem[tid] += smem[tid + off];\n    }\n    if (tid == 0) *out = smem[0];\n}\n\nstatic const int UNROLL = 32;\nstatic const int BLOCK  = 256;\nstatic int* d_tmp = nullptr;\nstatic size_t cap = 0;\n}  // anon namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    int blocks = (n + BLOCK * UNROLL - 1) / (BLOCK * UNROLL);\n    if (blocks > 0) blocks = (blocks < 1024) ? blocks : 1024;\n    size_t tmp_bytes = blocks * sizeof(int);\n    if (tmp_bytes > cap) {\n        cudaFree(d_tmp);\n        cudaMalloc(&d_tmp, tmp_bytes);\n        cap = tmp_bytes;\n    }\n    for (int iter = 0; iter < iters; ++iter) {\n        reduce_kernel<UNROLL><<<blocks, BLOCK>>>((const int*)input, d_tmp, n);\n        final_reduce<<<1, BLOCK>>>(d_tmp, output);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v10",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 40198974,
+    "min_elapsed_ns": 40193313,
+    "max_elapsed_ns": 40216129,
+    "all_elapsed_ns": [
+      40198974,
+      40193313,
+      40216129
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 40198974,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v10",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2687328,
+    "min_elapsed_ns": 2681567,
+    "max_elapsed_ns": 2707007,
+    "all_elapsed_ns": [
+      2707007,
+      2681567,
+      2687328
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2707007,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v10",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v10/candidate/bench']' returned non-zero exit status 2."
+  }
+}

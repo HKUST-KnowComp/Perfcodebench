@@ -1,0 +1,33 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32/candidate/gpt-5.4/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n// Warp-level reduction using shuffle instructions.\n__device__ __forceinline__ int warp_reduce_sum(int v) {\n  unsigned mask = 0xffffffffu;\n  v += __shfl_down_sync(mask, v, 16);\n  v += __shfl_down_sync(mask, v, 8);\n  v += __shfl_down_sync(mask, v, 4);\n  v += __shfl_down_sync(mask, v, 2);\n  v += __shfl_down_sync(mask, v, 1);\n  return v;\n}\n\n// Single-kernel reduction: each block accumulates a grid-stride chunk,\n// reduces locally, then performs one atomic add per block.\n__global__ void block_reduce_kernel(const int* __restrict__ input,\n                                    int* __restrict__ output,\n                                    int n) {\n  __shared__ int warp_sums[8];  // 256 threads / 32 = 8 warps\n\n  int sum = 0;\n  int idx = blockIdx.x * blockDim.x + threadIdx.x;\n  int stride = blockDim.x * gridDim.x;\n\n  for (int i = idx; i < n; i += stride) {\n    sum += input[i];\n  }\n\n  int lane = threadIdx.x & 31;\n  int warp = threadIdx.x >> 5;\n\n  sum = warp_reduce_sum(sum);\n  if (lane == 0) warp_sums[warp] = sum;\n  __syncthreads();\n\n  if (warp == 0) {\n    int block_sum = (lane < (blockDim.x >> 5)) ? warp_sums[lane] : 0;\n    block_sum = warp_reduce_sum(block_sum);\n    if (lane == 0) atomicAdd(output, block_sum);\n  }\n}\n\n}  // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n  if (iters <= 0) return;\n\n  constexpr int block_size = 256;\n  int grid_size = 0;\n\n  cudaDeviceProp prop;\n  int device = 0;\n  if (cudaGetDevice(&device) == cudaSuccess &&\n      cudaGetDeviceProperties(&prop, device) == cudaSuccess) {\n    // Use a moderate multiple of SM count to provide enough work while\n    // minimizing atomic contention at the block-output stage.\n    grid_size = prop.multiProcessorCount * 4;\n  } else {\n    grid_size = 256;\n  }\n\n  if (n > 0) {\n    int max_useful = (n + block_size - 1) / block_size;\n    if (max_useful < 1) max_useful = 1;\n    if (grid_size > max_useful) grid_size = max_useful;\n  } else {\n    grid_size = 1;\n  }\n\n  for (int iter = 0; iter < iters; ++iter) {\n    cudaMemset(output, 0, sizeof(int));\n    block_reduce_kernel<<<grid_size, block_size>>>(input, output, n);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_cub_add_reduce_i32/baseline/bench']' returned non-zero exit status 1."
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32",
+    "variant": "reference",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32/reference/bench']' timed out after 5 seconds"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32/candidate/bench']' timed out after 5 seconds"
+  }
+}

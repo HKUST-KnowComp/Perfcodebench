@@ -1,0 +1,59 @@
+{
+  "task_id": "rapidjson_ondemand_parse_v2400_j",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/rapidjson_ondemand_parse_v2400_j/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"rapidjson/reader.h\"\n#include <string>\n\nusing namespace rapidjson;\n\nstruct ChecksumHandler : public BaseReaderHandler<UTF8<>, ChecksumHandler> {\n    uint64_t sum = 0;\n    int level = 0;\n    bool in_nested = false;\n    const char* current_key = nullptr;\n\n    bool Key(const char* str, SizeType length, EventHandler* abortHandler) {\n        current_key = str;\n        // We only care about keys at level 1 (inside array objects) or level 2 (inside 'nested')\n        if (level == 1 && std::string_view(str, length) == \"nested\") {\n            in_nested = true;\n        } else if (level == 1) {\n            in_nested = false;\n        }\n        return true;\n    }\n\n    bool Uint64(uint64_t val, EventHandler* abortHandler) {\n        if (level == 1 && current_key && std::string_view(current_key) == \"id\") {\n            sum += val;\n        } else if (level == 2 && current_key) {\n            if (std::string_view(current_key) == \"a\" || std::string_view(current_key) == \"b\") {\n                sum += val;\n            }\n        }\n        return true;\n    }\n\n    bool Int(int val, EventHandler* abortHandler) {\n        return Uint64(static_cast<uint64_t>(val), abortHandler);\n    }\n\n    bool StartObject() { \n        level++; \n        return true; \n    }\n    \n    bool EndObject() { \n        level--; \n        return true; \n    }\n    \n    bool StartArray() { \n        level++; \n        return true; \n    }\n    \n    bool EndArray() { \n        level--; \n        return true; \n    }\n};\n\nuint64_t compute_checksum(const std::string& json_input) {\n    ChecksumHandler handler;\n    Reader reader;\n    StringStream ss(json_input.c_str());\n    reader.Parse(ss, handler);\n    return handler.sum;\n}",
+  "baseline": {
+    "task_id": "rapidjson_ondemand_parse_v2400_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 397106552,
+    "min_elapsed_ns": 359939825,
+    "max_elapsed_ns": 491404931,
+    "all_elapsed_ns": [
+      359939825,
+      397106552,
+      491404931
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 359939825,
+      "expected_checksum": 140000700000,
+      "actual_checksum": 140000700000
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "rapidjson_ondemand_parse_v2400_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 56558783,
+    "min_elapsed_ns": 53654850,
+    "max_elapsed_ns": 72731805,
+    "all_elapsed_ns": [
+      56558783,
+      72731805,
+      53654850
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 56558783,
+      "expected_checksum": 140000700000,
+      "actual_checksum": 140000700000
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "rapidjson_ondemand_parse_v2400_j",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/rapidjson_ondemand_parse_v2400_j/harness', '-Iexternal/nlohmann_json/single_include', '-Iexternal/rapidjson_src/include', 'executable_tasks/rapidjson_ondemand_parse_v2400_j/harness/benchmark_main.cpp', 'executable_tasks/rapidjson_ondemand_parse_v2400_j/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/rapidjson_ondemand_parse_v2400_j/candidate/bench']' returned non-zero exit status 1."
+  }
+}

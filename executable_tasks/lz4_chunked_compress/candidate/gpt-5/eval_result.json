@@ -1,0 +1,69 @@
+{
+  "task_id": "lz4_chunked_compress",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/lz4_chunked_compress/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include \"lz4.h\"\n\n#include <vector>\n\nnamespace {\nconstexpr std::size_t kChunkSize = 1 << 16; // 64 KiB\n}\n\nint compress_chunks(const std::string& input, std::vector<std::string>& chunks) {\n  chunks.clear();\n  if (input.empty()) {\n    return 0;\n  }\n\n  // Reserve space to avoid vector reallocation overhead\n  const std::size_t nChunks = (input.size() + kChunkSize - 1) / kChunkSize;\n  chunks.reserve(nChunks);\n\n  // Allocate reusable compression state for fast compressor\n  const int stateSize = LZ4_sizeofState();\n  std::vector<char> state(static_cast<std::size_t>(stateSize));\n\n  const char* src = input.data();\n  std::size_t offset = 0;\n  std::size_t remaining = input.size();\n  int total = 0;\n\n  // Choose an acceleration factor favoring throughput\n  const int acceleration = 7;\n\n  // Precompute bound for full-size chunks\n  const int fullChunkSize = static_cast<int>(kChunkSize);\n  const int fullChunkBound = LZ4_compressBound(fullChunkSize);\n\n  while (remaining > 0) {\n    const std::size_t take = remaining >= kChunkSize ? kChunkSize : remaining;\n    const int srcSize = static_cast<int>(take);\n    const int maxDst = (srcSize == fullChunkSize) ? fullChunkBound : LZ4_compressBound(srcSize);\n\n    chunks.emplace_back();\n    std::string& out = chunks.back();\n    out.resize(static_cast<std::size_t>(maxDst));\n\n    const int n = LZ4_compress_fast_extState(\n        state.data(), src + offset, out.data(), srcSize, maxDst, acceleration);\n    if (n <= 0) {\n      chunks.pop_back();\n      return -1;\n    }\n\n    out.resize(static_cast<std::size_t>(n));\n    total += n;\n\n    offset += take;\n    remaining -= take;\n  }\n\n  return total;\n}\n",
+  "baseline": {
+    "task_id": "lz4_chunked_compress",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 65427501,
+    "min_elapsed_ns": 55425408,
+    "max_elapsed_ns": 65631763,
+    "all_elapsed_ns": [
+      65631763,
+      65427501,
+      55425408
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 65631763,
+      "compressed_size": 867798
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "lz4_chunked_compress",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4440573,
+    "min_elapsed_ns": 3972969,
+    "max_elapsed_ns": 4693884,
+    "all_elapsed_ns": [
+      4693884,
+      3972969,
+      4440573
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4693884,
+      "compressed_size": 978021
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "lz4_chunked_compress",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1199278,
+    "min_elapsed_ns": 1042536,
+    "max_elapsed_ns": 1266963,
+    "all_elapsed_ns": [
+      1042536,
+      1199278,
+      1266963
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1042536,
+      "compressed_size": 1047039
+    },
+    "status": "ok"
+  }
+}

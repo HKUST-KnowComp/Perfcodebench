@@ -1,0 +1,59 @@
+{
+  "task_id": "selection_vector_gather_sum_v1000_h",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/selection_vector_gather_sum_v1000_h/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <cstdint>\n\nuint64_t selection_gather_sum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint8_t>& flags,\n    const std::vector<uint32_t>& payloads,\n    uint32_t threshold,\n    int iters)\n{\n    const uint32_t*  k = keys.data();\n    const uint8_t*   f = flags.data();\n    const uint32_t*  p = payloads.data();\n    const size_t     n = keys.size();\n\n    uint64_t total = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t sum = 0;\n        size_t i = 0;\n\n        // Manual 4-way unroll to increase ILP\n        for (; i + 3 < n; i += 4) {\n            uint32_t k0 = k[i+0], k1 = k[i+1], k2 = k[i+2], k3 = k[i+3];\n            uint8_t  f0 = f[i+0], f1 = f[i+1], f2 = f[i+2], f3 = f[i+3];\n\n            if (f0 && k0 < threshold && ((k0 & 7u) == 0u)) sum += p[i+0];\n            if (f1 && k1 < threshold && ((k1 & 7u) == 0u)) sum += p[i+1];\n            if (f2 && k2 < threshold && ((k2 & 7u) == 0u)) sum += p[i+2];\n            if (f3 && k3 < threshold && ((k3 & 7u) == 0u)) sum += p[i+3];\n        }\n        // Tail\n        for (; i < n; ++i) {\n            uint32_t kv = k[i];\n            if (f[i] && kv < threshold && ((kv & 7u) == 0u))\n                sum += p[i];\n        }\n        total = sum;   // keep side-effect on iter\n    }\n    return total;\n}",
+  "baseline": {
+    "task_id": "selection_vector_gather_sum_v1000_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1929316797,
+    "min_elapsed_ns": 1886123321,
+    "max_elapsed_ns": 2179909492,
+    "all_elapsed_ns": [
+      1929316797,
+      2179909492,
+      1886123321
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1929316797,
+      "expected_sum": 274574260164,
+      "actual_sum": 274574260164
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "selection_vector_gather_sum_v1000_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1732753999,
+    "min_elapsed_ns": 1638323169,
+    "max_elapsed_ns": 2217847117,
+    "all_elapsed_ns": [
+      1638323169,
+      1732753999,
+      2217847117
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1638323169,
+      "expected_sum": 274574260164,
+      "actual_sum": 274574260164
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "selection_vector_gather_sum_v1000_h",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/selection_vector_gather_sum_v1000_h/harness', 'executable_tasks/selection_vector_gather_sum_v1000_h/harness/benchmark_main.cpp', 'executable_tasks/selection_vector_gather_sum_v1000_h/candidate/moonshotai__kimi-k2-0905/solution.cpp', '-o', 'build/selection_vector_gather_sum_v1000_h/candidate/bench']' returned non-zero exit status 1."
+  }
+}

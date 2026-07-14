@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v21",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v21/candidate/gpt-5.4/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int kBins = 256;\nconstexpr int kBlock = 256;\nconstexpr int kItemsPerThread = 16;\n\n__device__ __forceinline__ void warp_agg_add(unsigned int* smem, unsigned int bin) {\n  unsigned int active = __activemask();\n  unsigned int peers = __match_any_sync(active, bin);\n  int leader = __ffs((int)peers) - 1;\n  int lane = threadIdx.x & 31;\n  if (lane == leader) {\n    atomicAdd(&smem[bin], (unsigned int)__popc(peers));\n  }\n}\n\n__global__ void histogram_partial_kernel(const unsigned char* __restrict__ input,\n                                         unsigned int* __restrict__ partial,\n                                         int n) {\n  __shared__ unsigned int smem[kBins];\n\n  for (int i = threadIdx.x; i < kBins; i += blockDim.x) {\n    smem[i] = 0;\n  }\n  __syncthreads();\n\n  const int tid = blockIdx.x * blockDim.x + threadIdx.x;\n  const int stride = blockDim.x * gridDim.x;\n  int idx = tid * kItemsPerThread;\n  const int vec_stride = stride * kItemsPerThread;\n\n  while (idx < n) {\n#pragma unroll\n    for (int j = 0; j < kItemsPerThread; ++j) {\n      int pos = idx + j;\n      if (pos < n) {\n        unsigned int bin = input[pos];\n        warp_agg_add(smem, bin);\n      }\n    }\n    idx += vec_stride;\n  }\n\n  __syncthreads();\n\n  unsigned int* block_partial = partial + blockIdx.x * kBins;\n  for (int i = threadIdx.x; i < kBins; i += blockDim.x) {\n    block_partial[i] = smem[i];\n  }\n}\n\n__global__ void reduce_partial_kernel(const unsigned int* __restrict__ partial,\n                                      unsigned int* __restrict__ output,\n                                      int num_blocks) {\n  int bin = threadIdx.x;\n  if (bin >= kBins) return;\n\n  unsigned int sum = 0;\n  const unsigned int* p = partial + bin;\n  for (int b = 0; b < num_blocks; ++b) {\n    sum += p[b * kBins];\n  }\n  output[bin] = sum;\n}\n\n}  // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters) {\n  if (iters <= 0) return;\n\n  int device = 0;\n  cudaGetDevice(&device);\n  cudaDeviceProp prop;\n  cudaGetDeviceProperties(&prop, device);\n\n  int sm_count = prop.multiProcessorCount > 0 ? prop.multiProcessorCount : 1;\n  int grid = sm_count * 8;\n  if (grid < 1) grid = 1;\n  if (grid > 4096) grid = 4096;\n\n  unsigned int* partial = nullptr;\n  cudaMalloc(&partial, (size_t)grid * kBins * sizeof(unsigned int));\n\n  for (int iter = 0; iter < iters; ++iter) {\n    histogram_partial_kernel<<<grid, kBlock>>>(input, partial, n);\n    reduce_partial_kernel<<<1, kBins>>>(partial, output, grid);\n  }\n\n  cudaFree(partial);\n}\n",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v21",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 64656066,
+    "min_elapsed_ns": 64652832,
+    "max_elapsed_ns": 64656478,
+    "all_elapsed_ns": [
+      64656478,
+      64656066,
+      64652832
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 64656478,
+      "checksum": 1077936128
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v21",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 463712,
+    "min_elapsed_ns": 462687,
+    "max_elapsed_ns": 465312,
+    "all_elapsed_ns": [
+      462687,
+      463712,
+      465312
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 462687,
+      "checksum": 1077936128
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v21",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_histogram256_shared_u8_v21/candidate/bench']' timed out after 5 seconds"
+  }
+}

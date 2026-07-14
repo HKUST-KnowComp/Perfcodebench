@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_allpairs_l1_v1400_c",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_allpairs_l1_v1400_c/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nstatic inline void sort_int32_inplace(int32_t* a, int n) {\n  if (n <= 1) return;\n\n  int32_t* stack_l[64];\n  int32_t* stack_r[64];\n  int top = 0;\n  stack_l[top] = a;\n  stack_r[top] = a + (n - 1);\n  ++top;\n\n  while (top) {\n    --top;\n    int32_t* l = stack_l[top];\n    int32_t* r = stack_r[top];\n\n    while (l < r) {\n      int32_t* i = l;\n      int32_t* j = r;\n      const int32_t pivot = l[((r - l) >> 1)];\n\n      do {\n        while (*i < pivot) ++i;\n        while (*j > pivot) --j;\n        if (i <= j) {\n          const int32_t tmp = *i;\n          *i = *j;\n          *j = tmp;\n          ++i;\n          --j;\n        }\n      } while (i <= j);\n\n      if (j - l < r - i) {\n        if (i < r) {\n          stack_l[top] = i;\n          stack_r[top] = r;\n          ++top;\n        }\n        r = j;\n      } else {\n        if (l < j) {\n          stack_l[top] = l;\n          stack_r[top] = j;\n          ++top;\n        }\n        l = i;\n      }\n    }\n  }\n}\n\nstatic inline int64_t sorted_pairwise_l1_1d(const int32_t* a, int n) {\n  int64_t prefix = 0;\n  int64_t total = 0;\n  for (int i = 0; i < n; ++i) {\n    const int64_t v = static_cast<int64_t>(a[i]);\n    total += v * i - prefix;\n    prefix += v;\n  }\n  return total;\n}\n\n}  // namespace\n\nint64_t allpairs_l1_sum(const std::vector<int32_t>& xs, const std::vector<int32_t>& ys, int iters) {\n  const int n = static_cast<int>(xs.size());\n  if (iters <= 0 || n <= 1) return 0;\n\n  int64_t result = 0;\n\n  #pragma omp parallel\n  {\n    std::vector<int32_t> xbuf;\n    std::vector<int32_t> ybuf;\n    xbuf.resize(n);\n    ybuf.resize(n);\n\n    int64_t local_result = 0;\n\n    #pragma omp for schedule(static)\n    for (int iter = 0; iter < iters; ++iter) {\n      for (int i = 0; i < n; ++i) {\n        xbuf[i] = xs[i];\n        ybuf[i] = ys[i];\n      }\n\n      sort_int32_inplace(xbuf.data(), n);\n      sort_int32_inplace(ybuf.data(), n);\n\n      local_result = sorted_pairwise_l1_1d(xbuf.data(), n) +\n                     sorted_pairwise_l1_1d(ybuf.data(), n);\n    }\n\n    #pragma omp single\n    {\n      result = local_result;\n    }\n  }\n\n  return result;\n}\n",
+  "baseline": {
+    "task_id": "openmp_allpairs_l1_v1400_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 15583105,
+    "min_elapsed_ns": 15224831,
+    "max_elapsed_ns": 15620646,
+    "all_elapsed_ns": [
+      15583105,
+      15620646,
+      15224831
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15583105,
+      "expected_sum": 17895680000,
+      "actual_sum": 17895680000
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_allpairs_l1_v1400_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3877883,
+    "min_elapsed_ns": 3876865,
+    "max_elapsed_ns": 3943026,
+    "all_elapsed_ns": [
+      3943026,
+      3876865,
+      3877883
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3943026,
+      "expected_sum": 17895680000,
+      "actual_sum": 17895680000
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_allpairs_l1_v1400_c",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/openmp_allpairs_l1_v1400_c/candidate/bench']' returned non-zero exit status 1."
+  }
+}

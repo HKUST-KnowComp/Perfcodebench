@@ -1,0 +1,59 @@
+{
+  "task_id": "row_group_minmax_prune_v1000_a",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/row_group_minmax_prune_v1000_a/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <immintrin.h>\n#include <cstdint>\n#include <vector>\n\nuint64_t row_group_range_sum(\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& mins,\n    const std::vector<uint32_t>& maxs,\n    uint32_t low,\n    uint32_t high,\n    uint32_t block_size,\n    int iters) {\n\n    if (values.empty() || iters <= 0) return 0;\n\n    const uint32_t *v = values.data();\n    const size_t n = values.size();\n    const size_t groups = mins.size();\n\n    // Pre-compute masks used in fine scan\n    const __m256i vlow  = _mm256_set1_epi32(static_cast<int32_t>(low));\n    const __m256i vhigh = _mm256_set1_epi32(static_cast<int32_t>(high));\n\n    uint64_t total = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t sum = 0;\n\n        // ---------- metadata pass ----------\n        size_t idx = 0;\n        for (size_t g = 0; g < groups; ++g) {\n            const uint32_t mn = mins[g];\n            const uint32_t mx = maxs[g];\n\n            if (mn > high || mx < low) {\n                idx += block_size;\n                continue;\n            }\n            if (mn >= low && mx <= high) {\n                // whole block in range\n                const size_t end = idx + block_size;\n                for (; idx + 7 < end; idx += 8) {\n                    __m256i val = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(v + idx));\n                    __m256i lo  = _mm256_unpacklo_epi32(val, _mm256_setzero_si256());\n                    __m256i hi  = _mm256_unpackhi_epi32(val, _mm256_setzero_si256());\n                    sum += static_cast<uint64_t>(_mm256_extract_epi64(lo, 0)) +\n                           static_cast<uint64_t>(_mm256_extract_epi64(lo, 1)) +\n                           static_cast<uint64_t>(_mm256_extract_epi64(lo, 2)) +\n                           static_cast<uint64_t>(_mm256_extract_epi64(lo, 3)) +\n                           static_cast<uint64_t>(_mm256_extract_epi64(hi, 0)) +\n                           static_cast<uint64_t>(_mm256_extract_epi64(hi, 1)) +\n                           static_cast<uint64_t>(_mm256_extract_epi64(hi, 2)) +\n                           static_cast<uint64_t>(_mm256_extract_epi64(hi, 3));\n                }\n                for (; idx < end; ++idx) sum += v[idx];\n            } else {\n                // fine scan\n                const size_t end = idx + block_size;\n                for (; idx + 7 < end; idx += 8) {\n                    __m256i val = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(v + idx));\n                    __m256i mask = _mm256_and_si256(_mm256_cmpgt_epi32(val, _mm256_sub_epi32(vlow, _mm256_set1_epi32(1))),\n                                                   _mm256_cmpgt_epi32(vhigh, _mm256_sub_epi32(val, _mm256_set1_epi32(1))));\n                    const int m = _mm256_movemask_ps(_mm256_castsi256_ps(mask));\n                    if (m == 0) continue;\n\n                    uint32_t buf[8];\n                    _mm256_storeu_si256((__m256i*)buf, val);\n                    for (int k = 0; k < 8; ++k) {\n                        uint32_t x = buf[k];\n                        sum += (x >= low && x <= high) ? x : 0;\n                    }\n                }\n                for (; idx < end; ++idx) {\n                    uint32_t x = v[idx];\n                    sum += (x >= low && x <= high) ? x : 0;\n                }\n            }\n        }\n\n        // tail elements beyond last complete block\n        for (; idx < n; ++idx) {\n            uint32_t x = v[idx];\n            sum += (x >= low && x <= high) ? x : 0;\n        }\n\n        total = sum;\n    }\n\n    return total;\n}",
+  "baseline": {
+    "task_id": "row_group_minmax_prune_v1000_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 54091035,
+    "min_elapsed_ns": 52693789,
+    "max_elapsed_ns": 61676071,
+    "all_elapsed_ns": [
+      52693789,
+      54091035,
+      61676071
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 52693789,
+      "expected_sum": 27615140,
+      "actual_sum": 27615140
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "row_group_minmax_prune_v1000_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 898360,
+    "min_elapsed_ns": 841844,
+    "max_elapsed_ns": 1019962,
+    "all_elapsed_ns": [
+      841844,
+      1019962,
+      898360
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 841844,
+      "expected_sum": 27615140,
+      "actual_sum": 27615140
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "row_group_minmax_prune_v1000_a",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/row_group_minmax_prune_v1000_a/harness', 'executable_tasks/row_group_minmax_prune_v1000_a/harness/benchmark_main.cpp', 'executable_tasks/row_group_minmax_prune_v1000_a/candidate/moonshotai__kimi-k2-0905/solution.cpp', '-o', 'build/row_group_minmax_prune_v1000_a/candidate/bench']' returned non-zero exit status 1."
+  }
+}

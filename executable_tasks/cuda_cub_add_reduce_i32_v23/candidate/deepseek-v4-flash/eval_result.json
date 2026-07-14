@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v23",
+  "model": "deepseek-v4-flash",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v23/candidate/deepseek-v4-flash/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void reduce_kernel(const int* input, int* output, int n) {\n    extern __shared__ int sdata[];\n    int tid = threadIdx.x;\n    int blockStart = blockIdx.x * blockDim.x;\n    int idx = blockStart + tid;\n\n    // Load data into shared memory with boundary check\n    sdata[tid] = (idx < n) ? input[idx] : 0;\n    __syncthreads();\n\n    // Tree reduction in shared memory\n    for (int s = blockDim.x / 2; s > 0; s >>= 1) {\n        if (tid < s) {\n            sdata[tid] += sdata[tid + s];\n        }\n        __syncthreads();\n    }\n\n    // First thread of each block atomically adds block sum to global output\n    if (tid == 0) {\n        atomicAdd(output, sdata[0]);\n    }\n}\n\n} // anonymous namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    const int blockSize = 256;\n    const int gridSize = (n + blockSize - 1) / blockSize;\n    const int sharedMemSize = blockSize * sizeof(int);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, sizeof(int));\n        reduce_kernel<<<gridSize, blockSize, sharedMemSize>>>(input, output, n);\n    }\n}\n",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v23",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 315008,
+    "min_elapsed_ns": 314815,
+    "max_elapsed_ns": 315647,
+    "all_elapsed_ns": [
+      314815,
+      315647,
+      315008
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 314815,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v23",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2504352,
+    "min_elapsed_ns": 2469536,
+    "max_elapsed_ns": 2531968,
+    "all_elapsed_ns": [
+      2504352,
+      2469536,
+      2531968
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2504352,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v23",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v23/candidate/bench']' timed out after 5 seconds"
+  }
+}

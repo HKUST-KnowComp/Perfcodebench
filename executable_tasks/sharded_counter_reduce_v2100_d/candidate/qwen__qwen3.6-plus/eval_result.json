@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce_v2100_d",
+  "model": "qwen/qwen3.6-plus",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v2100_d/candidate/qwen__qwen3.6-plus/solution.cpp",
+  "benchmark_timeout_sec": 8,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <thread>\n#include <vector>\n\nnamespace {\n\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  const std::size_t ks = static_cast<std::size_t>(key_space);\n  const std::size_t n_threads = static_cast<std::size_t>(num_threads);\n  const std::size_t total_keys = keys.size();\n  const std::size_t chunk = total_keys / n_threads;\n\n  std::vector<uint64_t> local_counts(n_threads * ks, 0);\n  std::vector<uint64_t> counts(ks);\n\n  const uint32_t* keys_ptr = keys.data();\n  const uint32_t* values_ptr = values.data();\n  uint64_t* local_ptr = local_counts.data();\n\n  uint64_t hash = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    std::fill(local_ptr, local_ptr + n_threads * ks, 0);\n\n    std::vector<std::thread> threads;\n    threads.reserve(n_threads);\n\n    for (std::size_t t = 0; t < n_threads; ++t) {\n      const std::size_t begin = t * chunk;\n      const std::size_t end = (t + 1 == n_threads) ? total_keys : begin + chunk;\n      const std::size_t offset = t * ks;\n\n      threads.emplace_back([begin, end, offset, keys_ptr, values_ptr, local_ptr]() {\n        for (std::size_t i = begin; i < end; ++i) {\n          local_ptr[offset + static_cast<std::size_t>(keys_ptr[i])] += static_cast<uint64_t>(values_ptr[i]);\n        }\n      });\n    }\n\n    for (std::thread& th : threads) {\n      th.join();\n    }\n\n    std::fill(counts.begin(), counts.end(), 0);\n    for (std::size_t t = 0; t < n_threads; ++t) {\n      const std::size_t offset = t * ks;\n      for (std::size_t k = 0; k < ks; ++k) {\n        counts[k] += local_ptr[offset + k];\n      }\n    }\n\n    hash = checksum_u64(counts);\n  }\n\n  return hash;\n}",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v2100_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5388416717,
+    "min_elapsed_ns": 4562184212,
+    "max_elapsed_ns": 6434659752,
+    "all_elapsed_ns": [
+      4562184212,
+      6434659752,
+      5388416717
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4562184212,
+      "expected_checksum": 4927837675318346627,
+      "actual_checksum": 4927837675318346627
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v2100_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 27082010,
+    "min_elapsed_ns": 12706070,
+    "max_elapsed_ns": 34598151,
+    "all_elapsed_ns": [
+      12706070,
+      34598151,
+      27082010
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12706070,
+      "expected_checksum": 4927837675318346627,
+      "actual_checksum": 4927837675318346627
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v2100_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 13012889,
+    "min_elapsed_ns": 12940787,
+    "max_elapsed_ns": 13392120,
+    "all_elapsed_ns": [
+      12940787,
+      13012889,
+      13392120
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12940787,
+      "expected_checksum": 4927837675318346627,
+      "actual_checksum": 4927837675318346627
+    },
+    "status": "ok"
+  }
+}

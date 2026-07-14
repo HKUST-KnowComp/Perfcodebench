@@ -1,0 +1,56 @@
+#include "interface.h"
+
+#include <string>
+#include <vector>
+
+namespace {
+
+uint64_t mix(uint64_t hash, uint64_t value) {
+  hash ^= value;
+  hash *= 1099511628211ULL;
+  return hash;
+}
+
+}  // namespace
+
+uint64_t dictionary_groupby_checksum(
+    const std::vector<std::string>& dictionary,
+    const std::vector<uint16_t>& codes,
+    const std::vector<uint32_t>& values,
+    int iters) {
+  uint64_t hash = 0;
+  const std::size_t dict_size = dictionary.size();
+  
+  // Use stack allocation for small dictionaries, heap for larger
+  constexpr std::size_t STACK_THRESHOLD = 4096;
+  uint64_t stack_sums[STACK_THRESHOLD];
+  std::vector<uint64_t> heap_sums;
+  uint64_t* sums;
+  
+  if (dict_size <= STACK_THRESHOLD) {
+    sums = stack_sums;
+  } else {
+    heap_sums.resize(dict_size);
+    sums = heap_sums.data();
+  }
+  
+  for (int iter = 0; iter < iters; ++iter) {
+    // Clear sums array
+    for (std::size_t i = 0; i < dict_size; ++i) {
+      sums[i] = 0;
+    }
+    
+    // Aggregate directly using codes as indices
+    for (std::size_t i = 0; i < codes.size(); ++i) {
+      sums[codes[i]] += static_cast<uint64_t>(values[i]);
+    }
+    
+    // Compute checksum in dictionary order
+    hash = 1469598103934665603ULL;
+    for (std::size_t i = 0; i < dict_size; ++i) {
+      hash = mix(hash, sums[i]);
+    }
+  }
+  
+  return hash;
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce_v2200_j",
+  "model": "deepseek-v4-pro",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v2200_j/candidate/deepseek-v4-pro/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <thread>\n#include <vector>\n\nnamespace {\n\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  std::vector<uint64_t> counts(static_cast<std::size_t>(key_space), 0);\n\n  // Per-thread accumulators to eliminate lock contention\n  std::vector<std::vector<uint64_t>> local_counts(\n      static_cast<std::size_t>(num_threads),\n      std::vector<uint64_t>(static_cast<std::size_t>(key_space), 0));\n\n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    // Reset global counts for this iteration\n    std::fill(counts.begin(), counts.end(), 0);\n\n    // Reset thread-local counters (needed only after the first iteration,\n    // but unconditional fill keeps the logic simple and is cheap for small key_space)\n    for (int t = 0; t < num_threads; ++t) {\n      std::fill(local_counts[t].begin(), local_counts[t].end(), 0);\n    }\n\n    // Partition the work and run threads\n    std::vector<std::thread> threads;\n    const std::size_t total_keys = keys.size();\n    const std::size_t chunk = total_keys / static_cast<std::size_t>(num_threads);\n    for (int t = 0; t < num_threads; ++t) {\n      const std::size_t begin = static_cast<std::size_t>(t) * chunk;\n      const std::size_t end = (t + 1 == num_threads) ? total_keys : begin + chunk;\n      threads.emplace_back([&, t, begin, end]() {\n        auto& local = local_counts[static_cast<std::size_t>(t)];\n        for (std::size_t i = begin; i < end; ++i) {\n          local[static_cast<std::size_t>(keys[i])] +=\n              static_cast<uint64_t>(values[i]);\n        }\n      });\n    }\n\n    // Wait for all threads to finish\n    for (auto& th : threads) {\n      th.join();\n    }\n\n    // Reduce: merge local accumulators into the global array\n    for (int t = 0; t < num_threads; ++t) {\n      const auto& local = local_counts[static_cast<std::size_t>(t)];\n      for (std::size_t k = 0; k < key_space; ++k) {\n        counts[k] += local[k];\n      }\n    }\n\n    // Compute checksum of the final counter state for this iteration\n    hash = checksum_u64(counts);\n  }\n\n  return hash;\n}",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v2200_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 389751380,
+    "min_elapsed_ns": 302347519,
+    "max_elapsed_ns": 427470364,
+    "all_elapsed_ns": [
+      427470364,
+      389751380,
+      302347519
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 427470364,
+      "expected_checksum": 17784583430431138691,
+      "actual_checksum": 17784583430431138691
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v2200_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 7089668,
+    "min_elapsed_ns": 2124699,
+    "max_elapsed_ns": 18529534,
+    "all_elapsed_ns": [
+      7089668,
+      2124699,
+      18529534
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7089668,
+      "expected_checksum": 17784583430431138691,
+      "actual_checksum": 17784583430431138691
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v2200_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 2064538,
+    "min_elapsed_ns": 2013664,
+    "max_elapsed_ns": 2078704,
+    "all_elapsed_ns": [
+      2078704,
+      2013664,
+      2064538
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2078704,
+      "expected_checksum": 17784583430431138691,
+      "actual_checksum": 17784583430431138691
+    },
+    "status": "ok"
+  }
+}

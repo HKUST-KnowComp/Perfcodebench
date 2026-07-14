@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_dimension_join_sum_v1100_h",
+  "model": "deepseek-v4-pro",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_dimension_join_sum_v1100_h/candidate/deepseek-v4-pro/solution.cpp",
+  "benchmark_timeout_sec": 16,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <algorithm>\n#include <unordered_map>\n\nuint64_t join_sum(\n    const std::vector<uint32_t>& dim_keys,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n    if (dim_keys.empty() || probe_keys.empty()) return 0;\n\n    const uint32_t min_key = dim_keys.front();\n    const uint32_t max_key = dim_keys.back();\n    const std::size_t dim_size = dim_keys.size();\n    const bool is_dense = (static_cast<std::size_t>(max_key - min_key) + 1 == dim_size);\n\n    if (is_dense) {\n        // Dense dimension: create offset mapping\n        std::vector<uint32_t> lut(dim_size);\n        for (std::size_t i = 0; i < dim_size; ++i) {\n            lut[dim_keys[i] - min_key] = dim_values[i];\n        }\n\n        uint64_t sum = 0;\n        for (int iter = 0; iter < iters; ++iter) {\n            sum = 0;\n            const uint32_t* __restrict lut_ptr = lut.data();\n            const uint32_t* __restrict pkeys = probe_keys.data();\n            const uint32_t* __restrict pweights = probe_weights.data();\n            const std::size_t psize = probe_keys.size();\n            for (std::size_t i = 0; i < psize; ++i) {\n                sum += static_cast<uint64_t>(lut_ptr[pkeys[i] - min_key]) *\n                       static_cast<uint64_t>(pweights[i]);\n            }\n        }\n        return sum;\n    } else {\n        // Fallback: build a hash map for non-dense keys\n        std::unordered_map<uint32_t, uint32_t> map;\n        map.reserve(dim_size);\n        for (std::size_t i = 0; i < dim_size; ++i) {\n            map[dim_keys[i]] = dim_values[i];\n        }\n\n        uint64_t sum = 0;\n        for (int iter = 0; iter < iters; ++iter) {\n            sum = 0;\n            for (std::size_t i = 0; i < probe_keys.size(); ++i) {\n                auto it = map.find(probe_keys[i]);\n                if (it != map.end()) {\n                    sum += static_cast<uint64_t>(it->second) *\n                           static_cast<uint64_t>(probe_weights[i]);\n                }\n                // Missing keys are ignored (matching original UB by not adding,\n                // but the test harness is expected to provide only valid keys).\n            }\n        }\n        return sum;\n    }\n}\n",
+  "baseline": {
+    "task_id": "dense_dimension_join_sum_v1100_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 9859054425,
+    "min_elapsed_ns": 9731585090,
+    "max_elapsed_ns": 10768325917,
+    "all_elapsed_ns": [
+      10768325917,
+      9731585090,
+      9859054425
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10768325917,
+      "expected_sum": 73207382016,
+      "actual_sum": 73207382016
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_dimension_join_sum_v1100_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 65506561,
+    "min_elapsed_ns": 62206159,
+    "max_elapsed_ns": 82241480,
+    "all_elapsed_ns": [
+      65506561,
+      82241480,
+      62206159
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 65506561,
+      "expected_sum": 73207382016,
+      "actual_sum": 73207382016
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_dimension_join_sum_v1100_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 60701903,
+    "min_elapsed_ns": 58897397,
+    "max_elapsed_ns": 62662748,
+    "all_elapsed_ns": [
+      60701903,
+      58897397,
+      62662748
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 60701903,
+      "expected_sum": 73207382016,
+      "actual_sum": 73207382016
+    },
+    "status": "ok"
+  }
+}

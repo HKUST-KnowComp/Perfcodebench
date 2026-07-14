@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce_v2200_b",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v2200_b/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 8,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <atomic>\n#include <mutex>\n#include <thread>\n#include <vector>\n\nnamespace {\n\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  std::vector<uint64_t> counts(static_cast<std::size_t>(key_space), 0);\n\n  // One spin-lock per 64 counters (power-of-two sized)\n  constexpr std::size_t LOCK_STRIDE = 64;\n  const std::size_t num_locks = (key_space + LOCK_STRIDE - 1) / LOCK_STRIDE;\n  std::vector<std::mutex> locks(num_locks);\n\n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    std::fill(counts.begin(), counts.end(), 0);\n    std::vector<std::thread> threads;\n    const std::size_t chunk = keys.size() / static_cast<std::size_t>(num_threads);\n    for (int t = 0; t < num_threads; ++t) {\n      const std::size_t begin = static_cast<std::size_t>(t) * chunk;\n      const std::size_t end = (t + 1 == num_threads) ? keys.size() : begin + chunk;\n      threads.emplace_back([&, begin, end]() {\n        // Thread-local buffer to batch updates\n        std::vector<std::pair<uint32_t, uint64_t>> local;\n        local.reserve(1024);\n        for (std::size_t i = begin; i < end; ++i) {\n          local.emplace_back(keys[i], static_cast<uint64_t>(values[i]));\n          if (local.size() == local.capacity()) {\n            // Flush buffer\n            for (const auto& p : local) {\n              const std::size_t idx = static_cast<std::size_t>(p.first);\n              const std::size_t lock_idx = idx / LOCK_STRIDE;\n              std::lock_guard<std::mutex> guard(locks[lock_idx]);\n              counts[idx] += p.second;\n            }\n            local.clear();\n          }\n        }\n        // Flush remainder\n        for (const auto& p : local) {\n          const std::size_t idx = static_cast<std::size_t>(p.first);\n          const std::size_t lock_idx = idx / LOCK_STRIDE;\n          std::lock_guard<std::mutex> guard(locks[lock_idx]);\n          counts[idx] += p.second;\n        }\n      });\n    }\n    for (std::thread& th : threads) {\n      th.join();\n    }\n    hash = checksum_u64(counts);\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v2200_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5034576366,
+    "min_elapsed_ns": 4669696897,
+    "max_elapsed_ns": 6031129087,
+    "all_elapsed_ns": [
+      4669696897,
+      6031129087,
+      5034576366
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4669696897,
+      "expected_checksum": 12324317024754664323,
+      "actual_checksum": 12324317024754664323
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v2200_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 91444524,
+    "min_elapsed_ns": 87860725,
+    "max_elapsed_ns": 103709236,
+    "all_elapsed_ns": [
+      91444524,
+      87860725,
+      103709236
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 91444524,
+      "expected_checksum": 12324317024754664323,
+      "actual_checksum": 12324317024754664323
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v2200_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 460438517,
+    "min_elapsed_ns": 309562368,
+    "max_elapsed_ns": 630298392,
+    "all_elapsed_ns": [
+      630298392,
+      460438517,
+      309562368
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 630298392,
+      "expected_checksum": 12324317024754664323,
+      "actual_checksum": 12324317024754664323
+    },
+    "status": "ok"
+  }
+}

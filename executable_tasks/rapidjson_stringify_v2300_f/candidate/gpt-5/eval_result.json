@@ -1,0 +1,72 @@
+{
+  "task_id": "rapidjson_stringify_v2300_f",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/rapidjson_stringify_v2300_f/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <rapidjson/writer.h>\n\nnamespace {\n\n// Minimal output stream for RapidJSON Writer that appends to std::string\nstruct StringAppender {\n  using Ch = char;\n  explicit StringAppender(std::string& out) : s(out) {}\n  void Put(Ch c) { s.push_back(c); }\n  void Flush() {}\n  // Optional optimization used by Writer in some paths\n  void PutN(Ch c, rapidjson::SizeType n) { s.append(static_cast<std::size_t>(n), c); }\n\n  std::string& s;\n};\n\ninline std::size_t estimate_capacity(std::size_t n, std::size_t total_name_len) {\n  if (n == 0) return 2; // \"[]\"\n  // Rough per-object overhead without the name content: braces, commas, colons, quotes for keys,\n  // boolean/number digits (padded generously), and quotes for the string value itself.\n  // Keys overhead: {\"id\":, \"flag\":, \"value\":, \"name\":} with commas -> ~34 chars baseline\n  // Add allowance for digits/bool/comma -> ~16\n  const std::size_t per_obj_overhead = 50; // conservative\n  // Array commas between objects: (n - 1)\n  return 2 + (n * per_obj_overhead) + total_name_len + (n - 1);\n}\n\n} // namespace\n\nstd::string build_json(\n    const std::vector<uint32_t>& ids,\n    const std::vector<uint32_t>& values,\n    const std::vector<std::string>& names) {\n  const std::size_t n = ids.size();\n\n  // Precompute capacity\n  std::size_t total_name_len = 0;\n  for (const auto& nm : names) total_name_len += nm.size();\n\n  std::string out;\n  out.reserve(estimate_capacity(n, total_name_len));\n\n  StringAppender app(out);\n  rapidjson::Writer<StringAppender> writer(app);\n\n  writer.StartArray();\n\n  if (n) {\n    // Predefined keys with known lengths to avoid strlen\n    constexpr const char kId[] = \"id\";\n    constexpr const char kFlag[] = \"flag\";\n    constexpr const char kValue[] = \"value\";\n    constexpr const char kName[] = \"name\";\n\n    const rapidjson::SizeType kIdLen = static_cast<rapidjson::SizeType>(sizeof(kId) - 1);\n    const rapidjson::SizeType kFlagLen = static_cast<rapidjson::SizeType>(sizeof(kFlag) - 1);\n    const rapidjson::SizeType kValueLen = static_cast<rapidjson::SizeType>(sizeof(kValue) - 1);\n    const rapidjson::SizeType kNameLen = static_cast<rapidjson::SizeType>(sizeof(kName) - 1);\n\n    for (std::size_t i = 0; i < n; ++i) {\n      writer.StartObject();\n\n      writer.Key(kId, kIdLen);\n      writer.Uint(ids[i]);\n\n      writer.Key(kFlag, kFlagLen);\n      writer.Bool((ids[i] % 3U) == 0U);\n\n      writer.Key(kValue, kValueLen);\n      writer.Uint(values[i]);\n\n      writer.Key(kName, kNameLen);\n      const std::string& nm = names[i];\n      writer.String(nm.data(), static_cast<rapidjson::SizeType>(nm.size()));\n\n      writer.EndObject();\n    }\n  }\n\n  writer.EndArray();\n\n  return out;\n}\n",
+  "baseline": {
+    "task_id": "rapidjson_stringify_v2300_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 19851534,
+    "min_elapsed_ns": 17588589,
+    "max_elapsed_ns": 20700193,
+    "all_elapsed_ns": [
+      20700193,
+      19851534,
+      17588589
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 20700193,
+      "expected_size": 1381380,
+      "actual_size": 1381380
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "rapidjson_stringify_v2300_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2713157,
+    "min_elapsed_ns": 2227103,
+    "max_elapsed_ns": 3584182,
+    "all_elapsed_ns": [
+      3584182,
+      2713157,
+      2227103
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3584182,
+      "expected_size": 1381380,
+      "actual_size": 1381380
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "rapidjson_stringify_v2300_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 2247498,
+    "min_elapsed_ns": 1798094,
+    "max_elapsed_ns": 2434453,
+    "all_elapsed_ns": [
+      2247498,
+      2434453,
+      1798094
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2247498,
+      "expected_size": 1381380,
+      "actual_size": 1381380
+    },
+    "status": "ok"
+  }
+}

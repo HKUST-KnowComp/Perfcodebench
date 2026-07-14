@@ -1,0 +1,72 @@
+{
+  "task_id": "xxhash_line_hash_mixed_xlarge",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/xxhash_line_hash_mixed_xlarge/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include \"xxhash.h\"\n#include <cstring>\n\n#ifdef __SSE2__\n#include <emmintrin.h>\n#endif\n\nstatic inline const char* find_newline_simd(const char* p, const char* end) {\n#ifdef __SSE2__\n  const char* aligned_end = end - 15;\n  if (p < aligned_end) {\n    __m128i newline = _mm_set1_epi8('\\n');\n    while (p < aligned_end) {\n      __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(p));\n      __m128i cmp = _mm_cmpeq_epi8(chunk, newline);\n      int mask = _mm_movemask_epi8(cmp);\n      if (mask) {\n        return p + __builtin_ctz(mask);\n      }\n      p += 16;\n    }\n  }\n#endif\n  while (p < end && *p != '\\n') {\n    ++p;\n  }\n  return p;\n}\n\nuint64_t hash_lines(const std::string& input) {\n  uint64_t acc = 1469598103934665603ULL;\n  const char* p = input.data();\n  const char* const end = p + input.size();\n  \n  constexpr uint64_t FNV_PRIME = 1099511628211ULL;\n  \n  while (p < end) {\n    const char* line_end = find_newline_simd(p, end);\n    std::size_t len = static_cast<std::size_t>(line_end - p);\n    \n    uint64_t h1 = XXH64(p, len, 0);\n    acc ^= h1;\n    acc *= FNV_PRIME;\n    \n    p = line_end;\n    if (p < end && *p == '\\n') {\n      ++p;\n      \n      if (p < end) {\n        line_end = find_newline_simd(p, end);\n        len = static_cast<std::size_t>(line_end - p);\n        uint64_t h2 = XXH64(p, len, 0);\n        acc ^= h2;\n        acc *= FNV_PRIME;\n        p = line_end;\n        if (p < end && *p == '\\n') {\n          ++p;\n        }\n      }\n    }\n  }\n  \n  return acc;\n}",
+  "baseline": {
+    "task_id": "xxhash_line_hash_mixed_xlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 16040945,
+    "min_elapsed_ns": 16019310,
+    "max_elapsed_ns": 16239509,
+    "all_elapsed_ns": [
+      16040945,
+      16239509,
+      16019310
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 16040945,
+      "expected_hash": 11043115061801353868,
+      "actual_hash": 11043115061801353868
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "xxhash_line_hash_mixed_xlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 10524164,
+    "min_elapsed_ns": 10476673,
+    "max_elapsed_ns": 11701922,
+    "all_elapsed_ns": [
+      10524164,
+      10476673,
+      11701922
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10524164,
+      "expected_hash": 11043115061801353868,
+      "actual_hash": 11043115061801353868
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "xxhash_line_hash_mixed_xlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 10085079,
+    "min_elapsed_ns": 10046101,
+    "max_elapsed_ns": 10258184,
+    "all_elapsed_ns": [
+      10046101,
+      10085079,
+      10258184
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10046101,
+      "expected_hash": 11043115061801353868,
+      "actual_hash": 11043115061801353868
+    },
+    "status": "ok"
+  }
+}

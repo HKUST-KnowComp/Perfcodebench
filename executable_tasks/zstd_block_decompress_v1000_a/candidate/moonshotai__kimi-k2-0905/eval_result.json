@@ -1,0 +1,59 @@
+{
+  "task_id": "zstd_block_decompress_v1000_a",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/zstd_block_decompress_v1000_a/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include \"zstd.h\"\n\n#include <immintrin.h>\n#include <string>\n#include <cstdint>\n\nnamespace {\n\nuint64_t checksum_bytes(const std::string& data) {\n    const uint8_t* ptr = reinterpret_cast<const uint8_t*>(data.data());\n    size_t len = data.size();\n\n    uint64_t hash = 1469598103934665603ULL;\n\n#if defined(__AVX512F__)\n    const __m512i prime = _mm512_set1_epi64(1099511628211ULL);\n    __m512i acc = _mm512_set1_epi64(hash);\n    size_t i = 0;\n    for (; i + 64 <= len; i += 64) {\n        __m512i chunk = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(ptr + i));\n        acc = _mm512_xor_si512(acc, chunk);\n        acc = _mm512_mullo_epi64(acc, prime);\n    }\n    uint64_t tmp[8];\n    _mm512_storeu_si512(tmp, acc);\n    for (int k = 0; k < 8; ++k) hash ^= tmp[k];\n    for (; i < len; ++i) {\n        hash ^= ptr[i];\n        hash *= 1099511628211ULL;\n    }\n#elif defined(__AVX2__)\n    const __m256i prime = _mm256_set1_epi64x(1099511628211ULL);\n    __m256i acc = _mm256_set1_epi64x(hash);\n    size_t i = 0;\n    for (; i + 32 <= len; i += 32) {\n        __m256i chunk = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(ptr + i));\n        acc = _mm256_xor_si256(acc, chunk);\n        acc = _mm256_mullo_epi64(acc, prime);\n    }\n    uint64_t tmp[4];\n    _mm256_storeu_si256(reinterpret_cast<__m256i*>(tmp), acc);\n    for (int k = 0; k < 4; ++k) hash ^= tmp[k];\n    for (; i < len; ++i) {\n        hash ^= ptr[i];\n        hash *= 1099511628211ULL;\n    }\n#elif defined(__SSE2__)\n    const __m128i prime = _mm_set1_epi64x(1099511628211ULL);\n    __m128i acc = _mm_set1_epi64x(hash);\n    size_t i = 0;\n    for (; i + 16 <= len; i += 16) {\n        __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(ptr + i));\n        acc = _mm_xor_si128(acc, chunk);\n        acc = _mm_mullo_epi64(acc, prime);\n    }\n    uint64_t tmp[2];\n    _mm_storeu_si128(reinterpret_cast<__m128i*>(tmp), acc);\n    for (int k = 0; k < 2; ++k) hash ^= tmp[k];\n    for (; i < len; ++i) {\n        hash ^= ptr[i];\n        hash *= 1099511628211ULL;\n    }\n#else\n    for (size_t i = 0; i < len; ++i) {\n        hash ^= static_cast<uint64_t>(ptr[i]);\n        hash *= 1099511628211ULL;\n    }\n#endif\n    return hash;\n}\n\n} // namespace\n\nuint64_t decompress_checksum(const std::string& compressed, std::size_t decompressed_size) {\n    std::string restored;\n    restored.resize(decompressed_size);\n    const size_t n = ZSTD_decompress(\n        restored.data(), restored.size(), compressed.data(), compressed.size());\n    if (ZSTD_isError(n) || n != decompressed_size) {\n        return 0;\n    }\n    return checksum_bytes(restored);\n}",
+  "baseline": {
+    "task_id": "zstd_block_decompress_v1000_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 851471,
+    "min_elapsed_ns": 816209,
+    "max_elapsed_ns": 931467,
+    "all_elapsed_ns": [
+      931467,
+      851471,
+      816209
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 931467,
+      "expected_checksum": 5830449159394229294,
+      "actual_checksum": 5830449159394229294
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "zstd_block_decompress_v1000_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 832340,
+    "min_elapsed_ns": 825970,
+    "max_elapsed_ns": 867848,
+    "all_elapsed_ns": [
+      867848,
+      832340,
+      825970
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 867848,
+      "expected_checksum": 5830449159394229294,
+      "actual_checksum": 5830449159394229294
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "zstd_block_decompress_v1000_a",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-DZSTD_DISABLE_ASM=1', '-Iexecutable_tasks/zstd_block_decompress_v1000_a/harness', '-Iexternal/zstd/lib', 'executable_tasks/zstd_block_decompress_v1000_a/harness/benchmark_main.cpp', 'executable_tasks/zstd_block_decompress_v1000_a/candidate/moonshotai__kimi-k2-0905/solution.cpp', 'external/zstd/lib/common/debug.c', 'external/zstd/lib/common/entropy_common.c', 'external/zstd/lib/common/error_private.c', 'external/zstd/lib/common/fse_decompress.c', 'external/zstd/lib/common/pool.c', 'external/zstd/lib/common/threading.c', 'external/zstd/lib/common/xxhash.c', 'external/zstd/lib/common/zstd_common.c', 'external/zstd/lib/compress/fse_compress.c', 'external/zstd/lib/compress/hist.c', 'external/zstd/lib/compress/huf_compress.c', 'external/zstd/lib/compress/zstd_compress.c', 'external/zstd/lib/compress/zstd_compress_literals.c', 'external/zstd/lib/compress/zstd_compress_sequences.c', 'external/zstd/lib/compress/zstd_compress_superblock.c', 'external/zstd/lib/compress/zstd_double_fast.c', 'external/zstd/lib/compress/zstd_fast.c', 'external/zstd/lib/compress/zstd_lazy.c', 'external/zstd/lib/compress/zstd_ldm.c', 'external/zstd/lib/compress/zstd_opt.c', 'external/zstd/lib/compress/zstd_preSplit.c', 'external/zstd/lib/compress/zstdmt_compress.c', 'external/zstd/lib/decompress/huf_decompress.c', 'external/zstd/lib/decompress/zstd_ddict.c', 'external/zstd/lib/decompress/zstd_decompress.c', 'external/zstd/lib/decompress/zstd_decompress_block.c', '-o', 'build/zstd_block_decompress_v1000_a/candidate/bench']' returned non-zero exit status 1."
+  }
+}

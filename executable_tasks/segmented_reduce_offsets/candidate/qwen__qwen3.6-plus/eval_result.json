@@ -1,0 +1,59 @@
+{
+  "task_id": "segmented_reduce_offsets",
+  "model": "qwen/qwen3.6-plus",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/segmented_reduce_offsets/candidate/qwen__qwen3.6-plus/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n\nnamespace {\n\nuint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t segmented_reduce_checksum(\n    const std::vector<uint32_t>& segment_ids,\n    const std::vector<uint32_t>& values,\n    uint32_t segments,\n    int iters) {\n    \n  std::vector<uint32_t> offsets(segments + 1, 0);\n  std::vector<uint64_t> sums(segments, 0);\n\n  uint32_t current_seg = 0;\n  uint64_t current_sum = 0;\n  const size_t n = segment_ids.size();\n  \n  for (size_t i = 0; i < n; ++i) {\n    uint32_t seg = segment_ids[i];\n    while (current_seg < seg) {\n      offsets[current_seg + 1] = static_cast<uint32_t>(i);\n      sums[current_seg] = current_sum;\n      current_sum = 0;\n      ++current_seg;\n    }\n    current_sum += values[i];\n  }\n  while (current_seg < segments) {\n    offsets[current_seg + 1] = static_cast<uint32_t>(n);\n    sums[current_seg] = current_sum;\n    current_sum = 0;\n    ++current_seg;\n  }\n\n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    for (uint32_t v : offsets) {\n      hash = mix(hash, v);\n    }\n    for (uint64_t v : sums) {\n      hash = mix(hash, v);\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "segmented_reduce_offsets",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 80918011,
+    "min_elapsed_ns": 69326744,
+    "max_elapsed_ns": 86849576,
+    "all_elapsed_ns": [
+      69326744,
+      80918011,
+      86849576
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 69326744,
+      "expected_checksum": 6033742172595962434,
+      "actual_checksum": 6033742172595962434
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "segmented_reduce_offsets",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 25579233,
+    "min_elapsed_ns": 25103356,
+    "max_elapsed_ns": 27928617,
+    "all_elapsed_ns": [
+      25579233,
+      27928617,
+      25103356
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 25579233,
+      "expected_checksum": 6033742172595962434,
+      "actual_checksum": 6033742172595962434
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "segmented_reduce_offsets",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/segmented_reduce_offsets/harness', 'executable_tasks/segmented_reduce_offsets/harness/benchmark_main.cpp', 'executable_tasks/segmented_reduce_offsets/candidate/qwen__qwen3.6-plus/solution.cpp', '-o', 'build/segmented_reduce_offsets/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_jacobi_2d_v1700_f",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v1700_f/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n} // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  if (rows <= 0 || cols <= 0) return 0;\n  \n  std::vector<uint32_t> a = input;\n  std::vector<uint32_t> b(a.size(), 0);\n  \n  // Pre-copy boundaries to b to ensure they remain constant\n  // and handle the case where rows/cols < 3\n  for (int r = 0; r < rows; ++r) {\n    for (int c = 0; c < cols; ++c) {\n      if (r == 0 || c == 0 || r == rows - 1 || c == cols - 1) {\n        b[r * cols + c] = a[r * cols + c];\n      }\n    }\n  }\n\n  for (int step = 0; step < steps; ++step) {\n    #pragma omp parallel for schedule(static)\n    for (int r = 1; r < rows - 1; ++r) {\n      const std::size_t row_offset = static_cast<std::size_t>(r) * cols;\n      const std::size_t prev_row_offset = row_offset - cols;\n      const std::size_t next_row_offset = row_offset + cols;\n\n      // Handle boundaries of the row\n      b[row_offset] = a[row_offset];\n      b[row_offset + cols - 1] = a[row_offset + cols - 1];\n\n      // Main computational kernel\n      #pragma omp simd\n      for (int c = 1; c < cols - 1; ++c) {\n        const std::size_t idx = row_offset + c;\n        b[idx] = (a[idx] * 4u + a[idx - 1] + a[idx + 1] + \n                  a[prev_row_offset + c] + a[next_row_offset + c]) / 8u;\n      }\n    }\n    \n    // Ensure boundaries are preserved in b for the next iteration\n    // (Though they are copied from a, which is b from previous step)\n    // The logic above handles the interior and row-ends. \n    // We must ensure the first and last rows are also correct.\n    #pragma omp parallel\n    {\n      #pragma omp single\n      {\n        for (int c = 0; c < cols; ++c) {\n          b[c] = a[c];\n          b[static_cast<std::size_t>(rows - 1) * cols + c] = a[static_cast<std::size_t>(rows - 1) * cols + c];\n        }\n      }\n    }\n\n    a.swap(b);\n  }\n\n  return checksum_u32(a);\n}",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v1700_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 123989468,
+    "min_elapsed_ns": 109350042,
+    "max_elapsed_ns": 251747799,
+    "all_elapsed_ns": [
+      109350042,
+      123989468,
+      251747799
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 109350042,
+      "expected_checksum": 18219294193654688755,
+      "actual_checksum": 18219294193654688755
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v1700_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 145790256,
+    "min_elapsed_ns": 120485204,
+    "max_elapsed_ns": 1133583251,
+    "all_elapsed_ns": [
+      1133583251,
+      145790256,
+      120485204
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1133583251,
+      "expected_checksum": 18219294193654688755,
+      "actual_checksum": 18219294193654688755
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v1700_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/openmp_jacobi_2d_v1700_f/candidate/bench']' timed out after 5 seconds"
+  }
+}

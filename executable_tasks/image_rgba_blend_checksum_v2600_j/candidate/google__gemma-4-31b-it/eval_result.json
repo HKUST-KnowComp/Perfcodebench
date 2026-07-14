@@ -1,0 +1,59 @@
+{
+  "task_id": "image_rgba_blend_checksum_v2600_j",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/image_rgba_blend_checksum_v2600_j/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\n// Fast division by 255: (val + 127) / 255 is approximately (val + 1 + (val >> 8)) >> 8\n// For the specific formula (s*a + d*(255-a) + 127) / 255:\n// Let x = s*a + d*(255-a). The result is (x + 127) / 255.\n// A very accurate fast version for (x + 127) / 255 where x is in [0, 255*255] is:\n// return (uint8_t)((x + 128) * 0x01010101 >> 24);\n// However, the standard fast approximation for (x + 127) / 255 is (x + 127 + ((x + 127) >> 8)) >> 8.\n// Let's use the precise integer math for correctness as per the baseline.\n\ninline uint8_t blend_byte_fast(uint8_t s, uint8_t d, uint8_t a) {\n    uint32_t x = static_cast<uint32_t>(s) * a + static_cast<uint32_t>(d) * (255u - a);\n    return static_cast<uint8_t>((x + 127u) / 255u);\n}\n\n} // namespace\n\nuint64_t blend_checksum(\n    const std::vector<uint8_t>& src,\n    const std::vector<uint8_t>& dst,\n    int width,\n    int height,\n    int iters) {\n    (void)width;\n    (void)height;\n    \n    const size_t size = src.size();\n    const uint8_t* src_ptr = src.data();\n    const uint8_t* dst_ptr = dst.data();\n    uint64_t final_hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t hash = 1469598103934665603ULL;\n        const uint64_t prime = 1099511628211ULL;\n        \n        for (size_t i = 0; i < size; i += 4) {\n            const uint8_t a = src_ptr[i + 3];\n            \n            // R\n            uint8_t r = blend_byte_fast(src_ptr[i], dst_ptr[i], a);\n            hash ^= static_cast<uint64_t>(r);\n            hash *= prime;\n            \n            // G\n            uint8_t g = blend_byte_fast(src_ptr[i + 1], dst_ptr[i + 1], a);\n            hash ^= static_cast<uint64_t>(g);\n            hash *= prime;\n            \n            // B\n            uint8_t b = blend_byte_fast(src_ptr[i + 2], dst_ptr[i + 2], a);\n            hash ^= static_cast<uint64_t>(b);\n            hash *= prime;\n            \n            // A (always 255)\n            hash ^= static_cast<uint64_t>(255);\n            hash *= prime;\n        }\n        final_hash = hash;\n    }\n    \n    return final_hash;\n}",
+  "baseline": {
+    "task_id": "image_rgba_blend_checksum_v2600_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 20724014,
+    "min_elapsed_ns": 18889936,
+    "max_elapsed_ns": 26719692,
+    "all_elapsed_ns": [
+      20724014,
+      26719692,
+      18889936
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 20724014,
+      "expected_checksum": 6514825888525066718,
+      "actual_checksum": 6514825888525066718
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "image_rgba_blend_checksum_v2600_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 15484104,
+    "min_elapsed_ns": 15359516,
+    "max_elapsed_ns": 17704568,
+    "all_elapsed_ns": [
+      15359516,
+      15484104,
+      17704568
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15359516,
+      "expected_checksum": 6514825888525066718,
+      "actual_checksum": 6514825888525066718
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "image_rgba_blend_checksum_v2600_j",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/image_rgba_blend_checksum_v2600_j/harness', 'executable_tasks/image_rgba_blend_checksum_v2600_j/harness/benchmark_main.cpp', 'executable_tasks/image_rgba_blend_checksum_v2600_j/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/image_rgba_blend_checksum_v2600_j/candidate/bench']' returned non-zero exit status 1."
+  }
+}

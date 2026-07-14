@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_id_remap_checksum_v500_i",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_id_remap_checksum_v500_i/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 20,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t remap_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& probes,\n    int iters) {\n  if (keys.empty()) return 0;\n\n  // Find the range of keys to build a lookup table\n  uint32_t min_key = keys.front();\n  uint32_t max_key = keys.back();\n  \n  // The problem implies dense IDs. We create a lookup table for the range [min_key, max_key].\n  // Since keys are sorted (implied by lower_bound usage), we can map them linearly.\n  std::vector<uint32_t> lookup(max_key - min_key + 1);\n  \n  for (size_t i = 0; i < keys.size(); ++i) {\n    lookup[keys[i] - min_key] = values[i];\n  }\n\n  uint64_t final_hash = 0;\n  const uint32_t* probe_ptr = probes.data();\n  size_t probe_size = probes.size();\n  const uint32_t* lookup_ptr = lookup.data();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (size_t i = 0; i < probe_size; ++i) {\n      uint32_t probe = probe_ptr[i];\n      // The original code used lower_bound, which returns the first element >= probe.\n      // If probe > max_key, it returns keys.end(), and values[keys.size()] is accessed (UB).\n      // Assuming probes are within [min_key, max_key] based on \"dense id\" context.\n      // To strictly mimic lower_bound for values outside the range:\n      if (probe <= max_key) {\n        if (probe < min_key) {\n          hash = mix(hash, values[0]);\n        } else {\n          hash = mix(hash, lookup_ptr[probe - min_key]);\n        }\n      } else {\n        // This case corresponds to it == keys.end(), which is values[keys.size()] in baseline.\n        // However, in a real scenario, this is UB. We follow the logic of the baseline's index.\n        hash = mix(hash, values[keys.size()]); \n      }\n    }\n    final_hash = hash;\n  }\n  return final_hash;\n}\n",
+  "baseline": {
+    "task_id": "dense_id_remap_checksum_v500_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 12888289999,
+    "min_elapsed_ns": 12631323380,
+    "max_elapsed_ns": 12909840065,
+    "all_elapsed_ns": [
+      12631323380,
+      12888289999,
+      12909840065
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12631323380,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_id_remap_checksum_v500_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 147373096,
+    "min_elapsed_ns": 143431709,
+    "max_elapsed_ns": 147726238,
+    "all_elapsed_ns": [
+      147373096,
+      147726238,
+      143431709
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 147373096,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_id_remap_checksum_v500_i",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 150803570,
+    "min_elapsed_ns": 147654314,
+    "max_elapsed_ns": 151252507,
+    "all_elapsed_ns": [
+      151252507,
+      150803570,
+      147654314
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 151252507,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "packed12_decode_filter_sum_v1200_c",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/packed12_decode_filter_sum_v1200_c/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <immintrin.h>\n#include <cstdint>\n#include <vector>\n\nuint64_t packed12_filter_sum(const std::vector<uint8_t>& packed, uint16_t threshold, int iters) {\n    const size_t n = packed.size();\n    const size_t num_triplets = n / 3;\n    const uint8_t* data = packed.data();\n    uint64_t total_sum = 0;\n\n    // Pre-calculate SIMD constants\n    const __m256i shuffle_mask = _mm256_setr_epi8(\n        0, 1, 1, 2, 3, 4, 4, 5, 6, 7, 7, 8, // Lane 0: 8 integers from 12 bytes\n        -1, -1, -1, -1,                     // Padding\n        0, 1, 1, 2, 3, 4, 4, 5, 6, 7, 7, 8, // Lane 1: 8 integers from 12 bytes\n        -1, -1, -1, -1                      // Padding\n    );\n    const __m256i mask_even = _mm256_set1_epi16(0x0FFF);\n    const __m256i thresh_vec = _mm256_set1_epi16(static_cast<int16_t>(threshold));\n    const __m256i ones = _mm256_set1_epi16(1);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        __m256i acc_64 = _mm256_setzero_si256();\n        size_t i = 0;\n\n        // Process 24 bytes (16 integers) at a time using AVX2\n        // We need 24 bytes to produce 16 integers. \n        // We load 32 bytes but only use 12 bytes from each 16-byte lane.\n        if (num_triplets >= 8) {\n            for (; i + 24 <= n; i += 24) {\n                // Load 32 bytes. Lane 0: [0..15], Lane 1: [16..31]\n                // We want Lane 0 to use [0..11] and Lane 1 to use [12..23]\n                // To align Lane 1, we use a permute or load carefully.\n                __m256i raw = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(data + i));\n                \n                // Fix Lane 1: it currently has [16..31], we want [12..27]\n                // Use _mm256_permutevar8x32_epi32 to shift the window for the second lane\n                // Specifically, we want bytes [0..15] in lane 0 and [12..27] in lane 1.\n                // This is complex; simpler: load two 128-bit parts.\n                __m128i low_lane = _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + i));\n                __m128i high_lane = _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + i + 12));\n                __m256i combined = _mm256_set_m128i(high_lane, low_lane);\n\n                __m256i shuffled = _mm256_shuffle_epi8(combined, shuffle_mask);\n\n                // Extract 12-bit values\n                // Even indices (0, 2, ...): (val & 0x0FFF)\n                // Odd indices (1, 3, ...): (val >> 4)\n                __m256i even_vals = _mm256_and_si256(shuffled, mask_even);\n                __m256i odd_vals = _mm256_srli_epi16(shuffled, 4);\n\n                // Blend even and odd to get the 16 integers in one register\n                // Pattern: E O E O E O E O ...\n                __m256i vals = _mm256_blend_epi16(even_vals, odd_vals, 0xAA);\n\n                // Filter: vals > threshold\n                __m256i mask = _mm256_cmpgt_epi16(vals, thresh_vec);\n                __m256i filtered = _mm256_and_si256(vals, mask);\n\n                // Sum filtered values: madd converts 16-bit to 32-bit sums\n                __m256i sums_32 = _mm256_madd_epi16(filtered, ones);\n                \n                // Accumulate 32-bit sums into 64-bit to avoid overflow\n                acc_64 = _mm256_add_epi64(acc_64, _mm256_unpacklo_epi32(sums_32, _mm256_setzero_si256()));\n                acc_64 = _mm256_add_epi64(acc_64, _mm256_unpackhi_epi32(sums_32, _mm256_setzero_si256()));\n            }\n        }\n\n        // Horizontal sum of acc_64\n        uint64_t current_sum = 0;\n        alignas(32) uint64_t temp_sum[4];\n        _mm256_store_si256(reinterpret_cast<__m256i*>(temp_sum), acc_64);\n        current_sum = temp_sum[0] + temp_sum[1] + temp_sum[2] + temp_sum[3];\n\n        // Remainder scalar processing\n        for (; i + 2 < n; i += 3) {\n            uint32_t a = static_cast<uint32_t>(data[i]) | (static_cast<uint32_t>(data[i + 1] & 0x0f) << 8);\n            uint32_t b = (static_cast<uint32_t>(data[i + 1] >> 4)) | (static_cast<uint32_t>(data[i + 2]) << 4);\n            if (a > threshold) current_sum += a;\n            if (b > threshold) current_sum += b;\n        }\n        total_sum = current_sum;\n    }\n\n    return total_sum;\n}\n",
+  "baseline": {
+    "task_id": "packed12_decode_filter_sum_v1200_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 198264388,
+    "min_elapsed_ns": 183098691,
+    "max_elapsed_ns": 199912662,
+    "all_elapsed_ns": [
+      198264388,
+      199912662,
+      183098691
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 198264388,
+      "expected_sum": 8051694504,
+      "actual_sum": 8051694504
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "packed12_decode_filter_sum_v1200_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 88417291,
+    "min_elapsed_ns": 84214745,
+    "max_elapsed_ns": 112208940,
+    "all_elapsed_ns": [
+      112208940,
+      84214745,
+      88417291
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 112208940,
+      "expected_sum": 8051694504,
+      "actual_sum": 8051694504
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "packed12_decode_filter_sum_v1200_c",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/packed12_decode_filter_sum_v1200_c/harness', 'executable_tasks/packed12_decode_filter_sum_v1200_c/harness/benchmark_main.cpp', 'executable_tasks/packed12_decode_filter_sum_v1200_c/candidate/google__gemini-3.1-pro-preview/solution.cpp', '-o', 'build/packed12_decode_filter_sum_v1200_c/candidate/bench']' returned non-zero exit status 1."
+  }
+}

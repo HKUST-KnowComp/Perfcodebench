@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v21",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v21/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cub/cub.cuh>\n\nnamespace {\n\n__global__ void reduce_kernel(const int* __restrict__ input,\n                              int* __restrict__ output,\n                              int n) {\n    using BlockReduce = cub::BlockReduce<int, 256>;   // 256 threads per block\n    __shared__ typename BlockReduce::TempStorage temp;\n\n    int sum = 0;\n    for (int idx = blockIdx.x * blockDim.x + threadIdx.x;\n         idx < n;\n         idx += blockDim.x * gridDim.x) {\n        sum += input[idx];\n    }\n    sum = BlockReduce(temp).Sum(sum);\n\n    if (threadIdx.x == 0) {\n        atomicAdd(output, sum);\n    }\n}\n\n}  // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    const int block_size = 256;\n    const int num_blocks = (n + block_size - 1) / block_size;\n    const int max_blocks = 4 * 1024;  // empirical sweet spot (\u2248SM count * 4)\n    const int grid_size  = min(num_blocks, max_blocks);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, sizeof(int));\n        reduce_kernel<<<grid_size, block_size>>>(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v21",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 24129760,
+    "min_elapsed_ns": 24127264,
+    "max_elapsed_ns": 24134656,
+    "all_elapsed_ns": [
+      24127264,
+      24129760,
+      24134656
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 24127264,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v21",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1603456,
+    "min_elapsed_ns": 1603360,
+    "max_elapsed_ns": 1614303,
+    "all_elapsed_ns": [
+      1603456,
+      1614303,
+      1603360
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1603456,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v21",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v21/candidate/bench']' timed out after 5 seconds"
+  }
+}

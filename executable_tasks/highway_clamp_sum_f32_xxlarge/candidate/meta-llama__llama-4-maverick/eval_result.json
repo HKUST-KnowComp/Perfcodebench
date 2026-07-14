@@ -1,0 +1,59 @@
+{
+  "task_id": "highway_clamp_sum_f32_xxlarge",
+  "model": "meta-llama/llama-4-maverick",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_clamp_sum_f32_xxlarge/candidate/meta-llama__llama-4-maverick/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"hwy/highway.h\"\n\nfloat clamp_sum(const float* data, std::size_t n) {\n  namespace hn = hwy::HWY_NAMESPACE;\n  using hwy::float32_t = hn::TFromD<hwy::N::Simd<float, 0, 0>>;\n  using hwy::N::ZeroIfNegative;\n  using hwy::N::Mul;\n  using hwy::N::SumOfLanes;\n  using hwy::N::LoadU;\n\n  float sum = 0.0f;\n  const hwy::N::ScalableTag<float> d;\n  const auto zero = hn::Zero(d);\n  const size_t N = hn::Lanes(d);\n  size_t i = 0;\n  auto sum_vec = zero;\n  for (; i + N <= n; i += N) {\n    const auto loaded = LoadU(d, data + i);\n    const auto clamped = ZeroIfNegative(loaded);\n    sum_vec = Mul(sum_vec, loaded > zero, loaded);\n    sum_vec = hn::Add(sum_vec, clamped);\n  }\n  sum = SumOfLanes(d, sum_vec);\n  for (; i < n; ++i) {\n    sum += data[i] > 0.0f ? data[i] : 0.0f;\n  }\n  return sum;\n}",
+  "baseline": {
+    "task_id": "highway_clamp_sum_f32_xxlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6041656,
+    "min_elapsed_ns": 6010725,
+    "max_elapsed_ns": 6043926,
+    "all_elapsed_ns": [
+      6041656,
+      6043926,
+      6010725
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6041656,
+      "expected_sum": 419515000.0,
+      "actual_sum": 419059000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_clamp_sum_f32_xxlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3285209,
+    "min_elapsed_ns": 3209552,
+    "max_elapsed_ns": 3326310,
+    "all_elapsed_ns": [
+      3209552,
+      3326310,
+      3285209
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3209552,
+      "expected_sum": 419515000.0,
+      "actual_sum": 419520000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_clamp_sum_f32_xxlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/highway_clamp_sum_f32_xxlarge/harness', '-Iexternal/highway', 'executable_tasks/highway_clamp_sum_f32_xxlarge/harness/benchmark_main.cpp', 'executable_tasks/highway_clamp_sum_f32_xxlarge/candidate/meta-llama__llama-4-maverick/solution.cpp', 'external/highway/hwy/abort.cc', 'external/highway/hwy/targets.cc', 'external/highway/hwy/aligned_allocator.cc', 'external/highway/hwy/per_target.cc', '-o', 'build/highway_clamp_sum_f32_xxlarge/candidate/bench']' returned non-zero exit status 1."
+  }
+}

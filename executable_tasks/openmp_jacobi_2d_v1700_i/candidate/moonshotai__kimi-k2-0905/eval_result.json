@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_jacobi_2d_v1700_i",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v1700_i/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\ninline uint64_t checksum_u32(const uint32_t* __restrict data, std::size_t n) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (std::size_t i = 0; i < n; ++i) {\n        hash ^= static_cast<uint64_t>(data[i]);\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\n}  // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n    const int R = rows;\n    const int C = cols;\n    const int S = steps;\n\n    std::vector<uint32_t> buf0(input);\n    std::vector<uint32_t> buf1(input.size());\n\n    uint32_t* __restrict a = buf0.data();\n    uint32_t* __restrict b = buf1.data();\n\n    const int C2 = C + C; // 2*C\n\n    #pragma omp parallel\n    {\n        for (int s = 0; s < S; ++s) {\n            #pragma omp for schedule(dynamic, 64)\n            for (int row = 1; row < R - 1; ++row) {\n                const uint32_t* __restrict ar = a + (std::size_t)row * C;\n                uint32_t* __restrict br = b + (std::size_t)row * C;\n\n                // left ghost\n                br[0] = ar[0];\n                // right ghost\n                br[C - 1] = ar[C - 1];\n\n                // inner 4-way unrolled\n                int col = 1;\n                const int end4 = C - 1 - 3;\n                for (; col < end4; col += 4) {\n                    const uint32_t v0 = ar[col];\n                    const uint32_t v1 = ar[col + 1];\n                    const uint32_t v2 = ar[col + 2];\n                    const uint32_t v3 = ar[col + 3];\n\n                    const uint32_t s0 = ar[col - 1] + ar[col + 1];\n                    const uint32_t s1 = ar[col]     + ar[col + 2];\n                    const uint32_t s2 = ar[col + 1] + ar[col + 3];\n                    const uint32_t s3 = ar[col + 2] + ar[col + 4];\n\n                    const uint32_t u0 = ar[col - C] + ar[col + C];\n                    const uint32_t u1 = ar[col - C + 1] + ar[col + C + 1];\n                    const uint32_t u2 = ar[col - C + 2] + ar[col + C + 2];\n                    const uint32_t u3 = ar[col - C + 3] + ar[col + C + 3];\n\n                    br[col]     = (v0 * 4u + s0 + u0) >> 3;\n                    br[col + 1] = (v1 * 4u + s1 + u1) >> 3;\n                    br[col + 2] = (v2 * 4u + s2 + u2) >> 3;\n                    br[col + 3] = (v3 * 4u + s3 + u3) >> 3;\n                }\n                for (; col < C - 1; ++col) {\n                    const uint32_t v = ar[col];\n                    const uint32_t s = ar[col - 1] + ar[col + 1];\n                    const uint32_t u = ar[col - C] + ar[col + C];\n                    br[col] = (v * 4u + s + u) >> 3;\n                }\n            }\n\n            // ghost rows (top/bottom)\n            #pragma omp single\n            {\n                for (int c = 0; c < C; ++c) {\n                    b[c] = a[c];\n                    b[(R - 1) * C + c] = a[(R - 1) * C + c];\n                }\n            }\n\n            // swap pointers\n            #pragma omp single\n            std::swap(a, b);\n        }\n    }\n\n    return checksum_u32(a, (std::size_t)R * C);\n}",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v1700_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 157165203,
+    "min_elapsed_ns": 129841030,
+    "max_elapsed_ns": 183231825,
+    "all_elapsed_ns": [
+      129841030,
+      183231825,
+      157165203
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 129841030,
+      "expected_checksum": 2090076965995993664,
+      "actual_checksum": 2090076965995993664
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v1700_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 167752209,
+    "min_elapsed_ns": 64262215,
+    "max_elapsed_ns": 479281059,
+    "all_elapsed_ns": [
+      479281059,
+      64262215,
+      167752209
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 479281059,
+      "expected_checksum": 2090076965995993664,
+      "actual_checksum": 2090076965995993664
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v1700_i",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1195884720,
+    "min_elapsed_ns": 1106996072,
+    "max_elapsed_ns": 1258410592,
+    "all_elapsed_ns": [
+      1258410592,
+      1195884720,
+      1106996072
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1258410592,
+      "expected_checksum": 2090076965995993664,
+      "actual_checksum": 2090076965995993664
+    },
+    "status": "ok"
+  }
+}

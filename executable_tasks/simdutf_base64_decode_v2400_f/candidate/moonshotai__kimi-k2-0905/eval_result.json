@@ -1,0 +1,72 @@
+{
+  "task_id": "simdutf_base64_decode_v2400_f",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdutf_base64_decode_v2400_f/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <simdutf.h>\n#include <cstdint>\n#include <cstring>\n\nnamespace {\n\ninline uint64_t update_fnv1a(uint64_t h, uint8_t b) noexcept {\n    h ^= static_cast<uint64_t>(b);\n    h *= 1099511628211ULL;\n    return h;\n}\n\n} // anonymous namespace\n\nuint64_t decode_checksum(const std::string& input) {\n    const char* src = input.data();\n    size_t src_len = input.size();\n\n    // simdutf wants to know the expected binary length.\n    // base64_to_binary will write the actual bytes consumed and produced.\n    size_t max_binary_len = simdutf::maximal_binary_length_from_base64(src, src_len);\n    if (max_binary_len == 0) {\n        // empty or only whitespace / padding\n        return 1469598103934665603ULL; // FNV-1a offset_basis\n    }\n\n    // Small on-stack buffer to avoid heap traffic for typical inputs.\n    constexpr size_t STACK_BUF = 4096;\n    uint8_t stack_buf[STACK_BUF];\n    uint8_t* dst = stack_buf;\n    bool heap_allocated = false;\n\n    if (max_binary_len > STACK_BUF) {\n        dst = new uint8_t[max_binary_len];\n        heap_allocated = true;\n    }\n\n    // Perform the actual decoding.\n    simdutf::result res = simdutf::base64_to_binary(src, src_len,\n                                                     reinterpret_cast<char*>(dst),\n                                                     simdutf::base64_default);\n\n    // If input is invalid, simdutf returns an error; we treat it as zero bytes.\n    size_t binary_len = (res.error == simdutf::error_code::SUCCESS) ? res.count : 0;\n\n    // Compute FNV-1a checksum over the decoded bytes.\n    uint64_t hash = 1469598103934665603ULL; // FNV-1a offset_basis\n    for (size_t i = 0; i < binary_len; ++i) {\n        hash = update_fnv1a(hash, dst[i]);\n    }\n\n    if (heap_allocated) delete[] dst;\n    return hash;\n}",
+  "baseline": {
+    "task_id": "simdutf_base64_decode_v2400_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4144799,
+    "min_elapsed_ns": 4122803,
+    "max_elapsed_ns": 4185431,
+    "all_elapsed_ns": [
+      4185431,
+      4144799,
+      4122803
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4185431,
+      "expected_checksum": 5409491009210789070,
+      "actual_checksum": 5409491009210789070
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdutf_base64_decode_v2400_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 785961,
+    "min_elapsed_ns": 763300,
+    "max_elapsed_ns": 830827,
+    "all_elapsed_ns": [
+      830827,
+      785961,
+      763300
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 830827,
+      "expected_checksum": 5409491009210789070,
+      "actual_checksum": 5409491009210789070
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdutf_base64_decode_v2400_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 634791,
+    "min_elapsed_ns": 620098,
+    "max_elapsed_ns": 687795,
+    "all_elapsed_ns": [
+      620098,
+      687795,
+      634791
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 620098,
+      "expected_checksum": 5409491009210789070,
+      "actual_checksum": 5409491009210789070
+    },
+    "status": "ok"
+  }
+}

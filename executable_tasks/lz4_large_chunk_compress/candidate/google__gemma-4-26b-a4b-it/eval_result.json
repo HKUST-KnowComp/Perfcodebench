@@ -1,0 +1,69 @@
+{
+  "task_id": "lz4_large_chunk_compress",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/lz4_large_chunk_compress/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"lz4.h\"\n#include <algorithm>\n#include <vector>\n#include <string>\n\nnamespace {\nconstexpr std::size_t kChunkSize = 1 << 16;\n}\n\nint compress_chunks(const std::string& input, std::vector<std::string>& chunks) {\n    chunks.clear();\n    if (input.empty()) {\n        return 0;\n    }\n\n    const std::size_t input_size = input.size();\n    const std::size_t num_chunks = (input_size + kChunkSize - 1) / kChunkSize;\n    chunks.reserve(num_chunks);\n\n    // Pre-calculate the maximum possible size a single chunk can take to avoid repeated allocations.\n    const int max_compressed_size = LZ4_compressBound(static_cast<int>(kChunkSize));\n    \n    // Use a reusable buffer to avoid zero-initializing a new string's memory every iteration.\n    std::vector<char> scratch_buffer(max_compressed_size);\n\n    int total_compressed_size = 0;\n\n    for (std::size_t offset = 0; offset < input_size; offset += kChunkSize) {\n        const std::size_t current_chunk_size = std::min(kChunkSize, input_size - offset);\n        \n        const int compressed_size = LZ4_compress_default(\n            input.data() + offset,\n            scratch_buffer.data(),\n            static_cast<int>(current_chunk_size),\n            max_compressed_size\n        );\n\n        if (compressed_size <= 0) {\n            return -1;\n        }\n\n        // Construct the string directly from the scratch buffer to minimize copies.\n        chunks.emplace_back(scratch_buffer.data(), static_cast<std::size_t>(compressed_size));\n        total_compressed_size += compressed_size;\n    }\n\n    return total_compressed_size;\n}",
+  "baseline": {
+    "task_id": "lz4_large_chunk_compress",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 18881274,
+    "min_elapsed_ns": 18576101,
+    "max_elapsed_ns": 18895243,
+    "all_elapsed_ns": [
+      18576101,
+      18881274,
+      18895243
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 18576101,
+      "compressed_size": 3108041
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "lz4_large_chunk_compress",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 17520482,
+    "min_elapsed_ns": 16664286,
+    "max_elapsed_ns": 19131799,
+    "all_elapsed_ns": [
+      19131799,
+      16664286,
+      17520482
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 19131799,
+      "compressed_size": 3270667
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "lz4_large_chunk_compress",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 18212743,
+    "min_elapsed_ns": 17317913,
+    "max_elapsed_ns": 19221774,
+    "all_elapsed_ns": [
+      17317913,
+      18212743,
+      19221774
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 17317913,
+      "compressed_size": 3108041
+    },
+    "status": "ok"
+  }
+}

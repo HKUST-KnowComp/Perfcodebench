@@ -1,0 +1,72 @@
+{
+  "task_id": "graph_bfs_level_checksum_v2600_d",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/graph_bfs_level_checksum_v2600_d/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <cstring>\n#include <vector>\n\nnamespace {\n\ninline uint64_t checksum_levels(const int32_t* levels, uint32_t n) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (uint32_t i = 0; i < n; ++i) {\n        hash ^= static_cast<uint64_t>(static_cast<uint32_t>(levels[i] + 1));\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\n}  // namespace\n\nuint64_t bfs_level_checksum(\n    const std::vector<uint32_t>& offsets,\n    const std::vector<uint32_t>& edges,\n    uint32_t source,\n    int iters) {\n    \n    const uint32_t n = static_cast<uint32_t>(offsets.size() - 1u);\n    if (n == 0) return 1469598103934665603ULL;\n    \n    const uint64_t m = edges.size();\n    \n    std::vector<int32_t> levels(n);\n    std::vector<uint32_t> frontier;\n    std::vector<uint32_t> next_frontier;\n    frontier.reserve(n);\n    next_frontier.reserve(n);\n    \n    // Bitmap for frontier membership (for bottom-up)\n    const uint32_t bitmap_size = (n + 63) / 64;\n    std::vector<uint64_t> frontier_bitmap(bitmap_size);\n    std::vector<uint64_t> visited_bitmap(bitmap_size);\n    \n    uint64_t hash = 0;\n    \n    // Threshold for switching to bottom-up\n    const uint64_t alpha = 14;  // edges_to_check / remaining_edges threshold\n    const uint32_t beta = 24;   // frontier size threshold for switching back to top-down\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        std::memset(levels.data(), -1, n * sizeof(int32_t));\n        std::memset(visited_bitmap.data(), 0, bitmap_size * sizeof(uint64_t));\n        std::memset(frontier_bitmap.data(), 0, bitmap_size * sizeof(uint64_t));\n        \n        frontier.clear();\n        frontier.push_back(source);\n        levels[source] = 0;\n        visited_bitmap[source / 64] |= (1ULL << (source % 64));\n        frontier_bitmap[source / 64] |= (1ULL << (source % 64));\n        \n        int32_t depth = 0;\n        uint64_t edges_to_check = offsets[source + 1] - offsets[source];\n        uint64_t unvisited_count = n - 1;\n        bool use_bottom_up = false;\n        \n        while (!frontier.empty()) {\n            next_frontier.clear();\n            \n            // Decide direction\n            // edges_to_check = sum of degrees of frontier nodes\n            // Switch to bottom-up when frontier is large relative to unvisited\n            uint64_t remaining_edges = 0;\n            for (uint32_t i = 0; i < n; ++i) {\n                if (levels[i] == -1) {\n                    remaining_edges += offsets[i + 1] - offsets[i];\n                }\n            }\n            \n            if (!use_bottom_up && edges_to_check > remaining_edges / alpha && frontier.size() > beta) {\n                use_bottom_up = true;\n            } else if (use_bottom_up && frontier.size() < beta) {\n                use_bottom_up = false;\n            }\n            \n            if (use_bottom_up) {\n                // Bottom-up BFS: iterate over unvisited nodes\n                for (uint32_t v = 0; v < n; ++v) {\n                    if (levels[v] != -1) continue;\n                    \n                    // Check if any neighbor is in frontier\n                    bool found = false;\n                    for (uint32_t idx = offsets[v]; idx < offsets[v + 1]; ++idx) {\n                        uint32_t u = edges[idx];\n                        if ((frontier_bitmap[u / 64] >> (u % 64)) & 1) {\n                            found = true;\n                            break;\n                        }\n                    }\n                    \n                    if (found) {\n                        levels[v] = depth + 1;\n                        visited_bitmap[v / 64] |= (1ULL << (v % 64));\n                        next_frontier.push_back(v);\n                    }\n                }\n            } else {\n                // Top-down BFS: iterate over frontier nodes\n                for (uint32_t u : frontier) {\n                    for (uint32_t idx = offsets[u]; idx < offsets[u + 1]; ++idx) {\n                        uint32_t v = edges[idx];\n                        if (levels[v] == -1) {\n                            levels[v] = depth + 1;\n                            visited_bitmap[v / 64] |= (1ULL << (v % 64));\n                            next_frontier.push_back(v);\n                        }\n                    }\n                }\n                \n                // Remove duplicates from next_frontier\n                std::sort(next_frontier.begin(), next_frontier.end());\n                next_frontier.erase(std::unique(next_frontier.begin(), next_frontier.end()), next_frontier.end());\n                \n                // Fix levels for duplicates that were added multiple times\n                // (they all got the same level, so this is fine)\n            }\n            \n            // Update frontier bitmap\n            std::memset(frontier_bitmap.data(), 0, bitmap_size * sizeof(uint64_t));\n            edges_to_check = 0;\n            for (uint32_t v : next_frontier) {\n                frontier_bitmap[v / 64] |= (1ULL << (v % 64));\n                edges_to_check += offsets[v + 1] - offsets[v];\n            }\n            \n            unvisited_count -= next_frontier.size();\n            frontier.swap(next_frontier);\n            ++depth;\n        }\n        \n        hash = checksum_levels(levels.data(), n);\n    }\n    \n    return hash;\n}",
+  "baseline": {
+    "task_id": "graph_bfs_level_checksum_v2600_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 59502609,
+    "min_elapsed_ns": 59303381,
+    "max_elapsed_ns": 60120123,
+    "all_elapsed_ns": [
+      59502609,
+      59303381,
+      60120123
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 59502609,
+      "expected_checksum": 10745048189125691381,
+      "actual_checksum": 10745048189125691381
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "graph_bfs_level_checksum_v2600_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3846732,
+    "min_elapsed_ns": 3370485,
+    "max_elapsed_ns": 4628930,
+    "all_elapsed_ns": [
+      4628930,
+      3370485,
+      3846732
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4628930,
+      "expected_checksum": 10745048189125691381,
+      "actual_checksum": 10745048189125691381
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "graph_bfs_level_checksum_v2600_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 9769701,
+    "min_elapsed_ns": 9738688,
+    "max_elapsed_ns": 10320611,
+    "all_elapsed_ns": [
+      9769701,
+      10320611,
+      9738688
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9769701,
+      "expected_checksum": 10745048189125691381,
+      "actual_checksum": 10745048189125691381
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "merge_dedup_keep_last_checksum_v1300_b",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/merge_dedup_keep_last_checksum_v1300_b/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstdint>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t merge_keep_last_hash(\n    const std::vector<uint32_t>& left_keys,\n    const std::vector<uint32_t>& left_values,\n    const std::vector<uint32_t>& right_keys,\n    const std::vector<uint32_t>& right_values,\n    int iters) {\n  \n  const size_t ln = left_keys.size();\n  const size_t rn = right_keys.size();\n  \n  // Pre-allocate output buffer once outside the loop\n  std::vector<uint64_t> merged_kv;\n  merged_kv.reserve(ln + rn);\n  \n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    merged_kv.clear();\n    \n    // Merge from right to left (descending order)\n    // This way we naturally see the \"last\" occurrence first for duplicates\n    // Right side values take precedence on duplicate keys\n    \n    size_t li = ln;\n    size_t ri = rn;\n    \n    while (li > 0 && ri > 0) {\n      uint32_t lk = left_keys[li - 1];\n      uint32_t rk = right_keys[ri - 1];\n      \n      if (lk > rk) {\n        // Left key is larger, take it\n        merged_kv.push_back((static_cast<uint64_t>(lk) << 32) | left_values[li - 1]);\n        --li;\n      } else if (rk > lk) {\n        // Right key is larger, take it\n        merged_kv.push_back((static_cast<uint64_t>(rk) << 32) | right_values[ri - 1]);\n        --ri;\n      } else {\n        // Equal keys - take right value (keep-last semantics)\n        merged_kv.push_back((static_cast<uint64_t>(rk) << 32) | right_values[ri - 1]);\n        --li;\n        --ri;\n      }\n    }\n    \n    // Drain remaining left\n    while (li > 0) {\n      --li;\n      merged_kv.push_back((static_cast<uint64_t>(left_keys[li]) << 32) | left_values[li]);\n    }\n    \n    // Drain remaining right\n    while (ri > 0) {\n      --ri;\n      merged_kv.push_back((static_cast<uint64_t>(right_keys[ri]) << 32) | right_values[ri]);\n    }\n    \n    // Compute hash in ascending order (reverse of how we built it)\n    hash = 1469598103934665603ULL;\n    for (size_t i = merged_kv.size(); i > 0; --i) {\n      uint64_t kv = merged_kv[i - 1];\n      uint32_t key = static_cast<uint32_t>(kv >> 32);\n      uint32_t val = static_cast<uint32_t>(kv);\n      hash = mix(hash, key);\n      hash = mix(hash, val);\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "merge_dedup_keep_last_checksum_v1300_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 683491011,
+    "min_elapsed_ns": 631184064,
+    "max_elapsed_ns": 699966076,
+    "all_elapsed_ns": [
+      631184064,
+      683491011,
+      699966076
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 631184064,
+      "expected_checksum": 7377711440882270809,
+      "actual_checksum": 7377711440882270809
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "merge_dedup_keep_last_checksum_v1300_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 145184790,
+    "min_elapsed_ns": 145018529,
+    "max_elapsed_ns": 145608148,
+    "all_elapsed_ns": [
+      145184790,
+      145608148,
+      145018529
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 145184790,
+      "expected_checksum": 7377711440882270809,
+      "actual_checksum": 7377711440882270809
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "merge_dedup_keep_last_checksum_v1300_b",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/merge_dedup_keep_last_checksum_v1300_b/harness', 'executable_tasks/merge_dedup_keep_last_checksum_v1300_b/harness/benchmark_main.cpp', 'executable_tasks/merge_dedup_keep_last_checksum_v1300_b/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/merge_dedup_keep_last_checksum_v1300_b/candidate/bench']' returned non-zero exit status 1."
+  }
+}

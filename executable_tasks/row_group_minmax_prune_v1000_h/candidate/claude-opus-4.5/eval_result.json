@@ -1,0 +1,59 @@
+{
+  "task_id": "row_group_minmax_prune_v1000_h",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/row_group_minmax_prune_v1000_h/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <immintrin.h>\n\nuint64_t row_group_range_sum(\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& mins,\n    const std::vector<uint32_t>& maxs,\n    uint32_t low,\n    uint32_t high,\n    uint32_t block_size,\n    int iters) {\n  \n  const size_t n = values.size();\n  const size_t num_blocks = mins.size();\n  const uint32_t* __restrict vptr = values.data();\n  const uint32_t* __restrict minptr = mins.data();\n  const uint32_t* __restrict maxptr = maxs.data();\n  \n  uint64_t sum = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    \n    for (size_t b = 0; b < num_blocks; ++b) {\n      uint32_t block_min = minptr[b];\n      uint32_t block_max = maxptr[b];\n      \n      // Skip block entirely if no overlap with [low, high]\n      if (block_max < low || block_min > high) {\n        continue;\n      }\n      \n      size_t start = b * block_size;\n      size_t end = start + block_size;\n      if (end > n) end = n;\n      \n      // Include entire block if fully contained in [low, high]\n      if (block_min >= low && block_max <= high) {\n        // Sum all values in block\n        size_t i = start;\n        uint64_t block_sum = 0;\n        \n        // AVX2 vectorized sum\n        __m256i vsum = _mm256_setzero_si256();\n        for (; i + 8 <= end; i += 8) {\n          __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(vptr + i));\n          // Extend to 64-bit and accumulate\n          __m128i lo = _mm256_castsi256_si128(v);\n          __m128i hi = _mm256_extracti128_si256(v, 1);\n          __m256i lo64 = _mm256_cvtepu32_epi64(lo);\n          __m256i hi64 = _mm256_cvtepu32_epi64(hi);\n          vsum = _mm256_add_epi64(vsum, lo64);\n          vsum = _mm256_add_epi64(vsum, hi64);\n        }\n        \n        // Horizontal sum\n        __m128i vsum_lo = _mm256_castsi256_si128(vsum);\n        __m128i vsum_hi = _mm256_extracti128_si256(vsum, 1);\n        __m128i vsum128 = _mm_add_epi64(vsum_lo, vsum_hi);\n        block_sum = _mm_extract_epi64(vsum128, 0) + _mm_extract_epi64(vsum128, 1);\n        \n        // Scalar remainder\n        for (; i < end; ++i) {\n          block_sum += vptr[i];\n        }\n        \n        sum += block_sum;\n      } else {\n        // Partial overlap - need to check each value\n        size_t i = start;\n        uint64_t block_sum = 0;\n        \n        // AVX2 vectorized filtered sum\n        __m256i vlow = _mm256_set1_epi32(low);\n        __m256i vhigh = _mm256_set1_epi32(high);\n        __m256i vsum = _mm256_setzero_si256();\n        \n        for (; i + 8 <= end; i += 8) {\n          __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(vptr + i));\n          \n          // Check v >= low: use signed comparison trick\n          // For unsigned: a >= b iff max(a,b) == a\n          __m256i ge_low = _mm256_cmpeq_epi32(_mm256_max_epu32(v, vlow), v);\n          // Check v <= high: max(v, high) == high\n          __m256i le_high = _mm256_cmpeq_epi32(_mm256_max_epu32(v, vhigh), vhigh);\n          __m256i mask = _mm256_and_si256(ge_low, le_high);\n          \n          // Zero out values not in range\n          __m256i masked_v = _mm256_and_si256(v, mask);\n          \n          // Extend to 64-bit and accumulate\n          __m128i lo = _mm256_castsi256_si128(masked_v);\n          __m128i hi = _mm256_extracti128_si256(masked_v, 1);\n          __m256i lo64 = _mm256_cvtepu32_epi64(lo);\n          __m256i hi64 = _mm256_cvtepu32_epi64(hi);\n          vsum = _mm256_add_epi64(vsum, lo64);\n          vsum = _mm256_add_epi64(vsum, hi64);\n        }\n        \n        // Horizontal sum\n        __m128i vsum_lo = _mm256_castsi256_si128(vsum);\n        __m128i vsum_hi = _mm256_extracti128_si256(vsum, 1);\n        __m128i vsum128 = _mm_add_epi64(vsum_lo, vsum_hi);\n        block_sum = _mm_extract_epi64(vsum128, 0) + _mm_extract_epi64(vsum128, 1);\n        \n        // Scalar remainder\n        for (; i < end; ++i) {\n          uint32_t val = vptr[i];\n          if (val >= low && val <= high) {\n            block_sum += val;\n          }\n        }\n        \n        sum += block_sum;\n      }\n    }\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "row_group_minmax_prune_v1000_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 24550072,
+    "min_elapsed_ns": 24438594,
+    "max_elapsed_ns": 24801282,
+    "all_elapsed_ns": [
+      24801282,
+      24550072,
+      24438594
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 24801282,
+      "expected_sum": 57990458,
+      "actual_sum": 57990458
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "row_group_minmax_prune_v1000_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 885180,
+    "min_elapsed_ns": 851132,
+    "max_elapsed_ns": 908848,
+    "all_elapsed_ns": [
+      851132,
+      908848,
+      885180
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 851132,
+      "expected_sum": 57990458,
+      "actual_sum": 57990458
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "row_group_minmax_prune_v1000_h",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/row_group_minmax_prune_v1000_h/harness', 'executable_tasks/row_group_minmax_prune_v1000_h/harness/benchmark_main.cpp', 'executable_tasks/row_group_minmax_prune_v1000_h/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/row_group_minmax_prune_v1000_h/candidate/bench']' returned non-zero exit status 1."
+  }
+}

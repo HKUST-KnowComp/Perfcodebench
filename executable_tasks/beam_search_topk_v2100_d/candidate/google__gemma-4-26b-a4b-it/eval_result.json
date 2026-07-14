@@ -1,0 +1,72 @@
+{
+  "task_id": "beam_search_topk_v2100_d",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v2100_d/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <utility>\n#include <vector>\n\nnamespace {\n\n// Tie-breaking: higher logit first, then lower index first.\n// To use std::nth_element/std::sort, we define a strict weak ordering.\n// We want the 'top' elements to be at the beginning.\nstruct Element {\n    int32_t logit;\n    int32_t index;\n\n    // Returns true if 'a' is better than 'b'\n    bool operator>(const Element& other) const {\n        if (logit != other.logit) {\n            return logit > other.logit;\n        }\n        return index < other.index;\n    }\n};\n\n// Comparator for std::nth_element and std::sort to match the 'better' logic.\n// We want the elements that satisfy 'better' to come first.\nstruct BetterComparator {\n    bool operator()(const Element& a, const Element& b) const {\n        if (a.logit != b.logit) {\n            return a.logit > b.logit;\n        }\n        return a.index < b.index;\n    }\n};\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n} // namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits, int beams, int vocab, int topk, int iters) {\n    if (vocab <= 0 || beams <= 0 || topk <= 0) return 0;\n    \n    // Pre-allocate buffer to avoid repeated allocations\n    std::vector<Element> row(static_cast<size_t>(vocab));\n    uint64_t hash = 0;\n    const BetterComparator comp;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        hash = 1469598103934665603ULL;\n        for (int b = 0; b < beams; ++b) {\n            const size_t base = static_cast<size_t>(b) * static_cast<size_t>(vocab);\n            \n            // Fill the buffer\n            for (int v = 0; v < vocab; ++v) {\n                row[v] = {logits[base + v], v};\n            }\n\n            // Use nth_element to find the top-k elements in O(V) average time\n            // instead of O(V log V) full sort.\n            if (topk < vocab) {\n                std::nth_element(row.begin(), row.begin() + topk, row.end(), comp);\n                // The top-k elements are now in [begin, begin + topk), but not necessarily sorted.\n                // We must sort them to ensure deterministic checksum calculation.\n                std::sort(row.begin(), row.begin() + topk, comp);\n            } else {\n                std::sort(row.begin(), row.end(), comp);\n            }\n\n            // Calculate hash for the top-k elements\n            int actual_topk = std::min(topk, vocab);\n            for (int k = 0; k < actual_topk; ++k) {\n                hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(row[k].logit)));\n                hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(row[k].index)));\n            }\n        }\n    }\n    return hash;\n}\n",
+  "baseline": {
+    "task_id": "beam_search_topk_v2100_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 135471005,
+    "min_elapsed_ns": 132221958,
+    "max_elapsed_ns": 156822789,
+    "all_elapsed_ns": [
+      135471005,
+      132221958,
+      156822789
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 135471005,
+      "expected_checksum": 17579167458887634272,
+      "actual_checksum": 17579167458887634272
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v2100_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1834528,
+    "min_elapsed_ns": 1601251,
+    "max_elapsed_ns": 1900700,
+    "all_elapsed_ns": [
+      1601251,
+      1900700,
+      1834528
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1601251,
+      "expected_checksum": 17579167458887634272,
+      "actual_checksum": 17579167458887634272
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v2100_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 20759878,
+    "min_elapsed_ns": 19496465,
+    "max_elapsed_ns": 21522230,
+    "all_elapsed_ns": [
+      21522230,
+      20759878,
+      19496465
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 21522230,
+      "expected_checksum": 17579167458887634272,
+      "actual_checksum": 17579167458887634272
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_allpairs_l1_v1700_a",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_allpairs_l1_v1700_a/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nstatic inline int64_t sum_abs_pairs_sorted(std::vector<int32_t> v) {\n  const std::size_t n = v.size();\n  if (n < 2) return 0;\n\n  #pragma omp parallel\n  {\n    #pragma omp single nowait\n    {\n      #pragma omp taskgroup\n      {\n        #pragma omp task shared(v)\n        {\n          if (!v.empty()) {\n            #pragma omp taskwait\n          }\n        }\n      }\n    }\n  }\n\n  // Use OpenMP-enabled sort if available through the compiler/runtime.\n  // Fallback is standard sequential behavior by the implementation.\n  // No extra headers allowed, so use a simple in-place iterative quicksort.\n  struct Range { std::size_t l, r; };\n  std::vector<Range> stack;\n  stack.reserve(64);\n  stack.push_back({0, n - 1});\n\n  while (!stack.empty()) {\n    Range cur = stack.back();\n    stack.pop_back();\n    std::size_t l = cur.l;\n    std::size_t r = cur.r;\n    while (l < r) {\n      int32_t pivot = v[l + ((r - l) >> 1)];\n      std::size_t i = l;\n      std::size_t j = r;\n      for (;;) {\n        while (v[i] < pivot) ++i;\n        while (v[j] > pivot) --j;\n        if (i > j) break;\n        int32_t tmp = v[i];\n        v[i] = v[j];\n        v[j] = tmp;\n        ++i;\n        if (j == 0) break;\n        --j;\n      }\n      if (j > l && (j - l) < (r > i ? r - i : 0)) {\n        if (i < r) stack.push_back({i, r});\n        r = j;\n      } else {\n        if (l < j) stack.push_back({l, j});\n        l = i;\n      }\n    }\n  }\n\n  int64_t prefix = 0;\n  int64_t total = 0;\n  for (std::size_t i = 0; i < n; ++i) {\n    const int64_t x = static_cast<int64_t>(v[i]);\n    total += x * static_cast<int64_t>(i) - prefix;\n    prefix += x;\n  }\n  return total;\n}\n\n}  // namespace\n\nint64_t allpairs_l1_sum(const std::vector<int32_t>& xs, const std::vector<int32_t>& ys, int iters) {\n  if (iters <= 0) return 0;\n  const std::size_t n = xs.size();\n  if (n < 2) return 0;\n\n  int64_t total = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    int64_t sx = 0;\n    int64_t sy = 0;\n\n    #pragma omp parallel sections\n    {\n      #pragma omp section\n      {\n        sx = sum_abs_pairs_sorted(xs);\n      }\n      #pragma omp section\n      {\n        sy = sum_abs_pairs_sorted(ys);\n      }\n    }\n\n    total = sx + sy;\n  }\n  return total;\n}\n",
+  "baseline": {
+    "task_id": "openmp_allpairs_l1_v1700_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1885948,
+    "min_elapsed_ns": 1853763,
+    "max_elapsed_ns": 1887805,
+    "all_elapsed_ns": [
+      1887805,
+      1885948,
+      1853763
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1887805,
+      "expected_sum": 1613918604,
+      "actual_sum": 1613918604
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_allpairs_l1_v1700_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 742569,
+    "min_elapsed_ns": 729994,
+    "max_elapsed_ns": 805295,
+    "all_elapsed_ns": [
+      729994,
+      805295,
+      742569
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 729994,
+      "expected_sum": 1613918604,
+      "actual_sum": 1613918604
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_allpairs_l1_v1700_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 190697443,
+    "min_elapsed_ns": 118427620,
+    "max_elapsed_ns": 200966896,
+    "all_elapsed_ns": [
+      200966896,
+      190697443,
+      118427620
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 200966896,
+      "expected_sum": 1613918604,
+      "actual_sum": 1613918604
+    },
+    "status": "ok"
+  }
+}

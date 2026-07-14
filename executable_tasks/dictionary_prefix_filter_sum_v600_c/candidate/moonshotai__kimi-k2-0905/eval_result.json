@@ -1,0 +1,59 @@
+{
+  "task_id": "dictionary_prefix_filter_sum_v600_c",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dictionary_prefix_filter_sum_v600_c/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <cstring>\n\nnamespace {\n\nalignas(64) static thread_local uint64_t dict_mask[16];   // 1024-bit bitset\n\ninline bool matches_prefix(const std::string& s) noexcept {\n    return s.size() >= 2 && s[0] == 'q' && s[1] <= 'm';\n}\n\n} // anonymous namespace\n\nuint64_t dictionary_prefix_weight_sum(\n    const std::vector<std::string>& dictionary,\n    const std::vector<uint16_t>& codes,\n    const std::vector<uint32_t>& weights,\n    int iters)\n{\n    const std::size_t dict_size = dictionary.size();\n    const std::size_t row_count = codes.size();\n\n    // ----- 1.  one-time setup: mark qualifying dictionary entries -----\n    std::memset(dict_mask, 0, sizeof(dict_mask));\n    for (std::size_t i = 0; i < dict_size; ++i) {\n        if (matches_prefix(dictionary[i])) {\n            const std::size_t word_idx = i;\n            const std::size_t block     = word_idx >> 6;\n            const std::size_t bit       = word_idx & 63;\n            dict_mask[block] |= (1ULL << bit);\n        }\n    }\n\n    // ----- 2.  hot loop: only sum rows whose code maps to a marked entry -----\n    uint64_t sum = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t local_sum = 0;\n        const uint16_t* __restrict code_ptr  = codes.data();\n        const uint32_t* __restrict weight_ptr = weights.data();\n\n        std::size_t i = 0;\n        // manual 8-way unroll to hide latency and help auto-vectorisation\n        for (; i + 8 <= row_count; i += 8) {\n            for (std::size_t k = 0; k < 8; ++k) {\n                const uint16_t c = code_ptr[i + k];\n                const uint64_t block = dict_mask[c >> 6];\n                const uint64_t bit   = 1ULL << (c & 63);\n                if (block & bit) {\n                    local_sum += static_cast<uint64_t>(weight_ptr[i + k]);\n                }\n            }\n        }\n        // tail\n        for (; i < row_count; ++i) {\n            const uint16_t c = code_ptr[i];\n            const uint64_t block = dict_mask[c >> 6];\n            const uint64_t bit   = 1ULL << (c & 63);\n            if (block & bit) {\n                local_sum += static_cast<uint64_t>(weight_ptr[i]);\n            }\n        }\n        sum = local_sum;   // store back so the loop is not optimised away\n    }\n    return sum;\n}",
+  "baseline": {
+    "task_id": "dictionary_prefix_filter_sum_v600_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 48879169,
+    "min_elapsed_ns": 48451484,
+    "max_elapsed_ns": 49855214,
+    "all_elapsed_ns": [
+      48879169,
+      49855214,
+      48451484
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 48879169,
+      "expected_sum": 712704,
+      "actual_sum": 712704
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dictionary_prefix_filter_sum_v600_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3501334,
+    "min_elapsed_ns": 3450437,
+    "max_elapsed_ns": 4874382,
+    "all_elapsed_ns": [
+      4874382,
+      3450437,
+      3501334
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4874382,
+      "expected_sum": 712704,
+      "actual_sum": 712704
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dictionary_prefix_filter_sum_v600_c",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/dictionary_prefix_filter_sum_v600_c/candidate/bench']' died with <Signals.SIGABRT: 6>."
+  }
+}

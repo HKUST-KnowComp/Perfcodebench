@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_transpose_tiled_f32_v14",
+  "model": "qwen/qwen3.6-plus",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_transpose_tiled_f32_v14/candidate/qwen__qwen3.6-plus/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int BD = 32;\n\n__global__ void transpose_kernel(const float* __restrict__ input, float* __restrict__ output, int width, int height) {\n    __shared__ float tile[BD][BD + 1];\n    \n    int col = blockIdx.x * BD + threadIdx.x;\n    int row = blockIdx.y * BD + threadIdx.y;\n    \n    if (col < width && row < height) {\n        tile[threadIdx.y][threadIdx.x] = input[row * width + col];\n    }\n    __syncthreads();\n    \n    col = blockIdx.y * BD + threadIdx.x;\n    row = blockIdx.x * BD + threadIdx.y;\n    \n    if (col < height && row < width) {\n        output[row * height + col] = tile[threadIdx.x][threadIdx.y];\n    }\n}\n\n} // namespace\n\nvoid transpose_f32(const float* input, float* output, int width, int height, int iters) {\n    dim3 block(BD, BD);\n    dim3 grid((width + BD - 1) / BD, (height + BD - 1) / BD);\n    \n    for (int i = 0; i < iters; ++i) {\n        transpose_kernel<<<grid, block>>>(input, output, width, height);\n    }\n}\n",
+  "baseline": {
+    "task_id": "cuda_transpose_tiled_f32_v14",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 11023039,
+    "min_elapsed_ns": 10860416,
+    "max_elapsed_ns": 11112319,
+    "all_elapsed_ns": [
+      10860416,
+      11112319,
+      11023039
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10860416,
+      "checksum": 331775000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_transpose_tiled_f32_v14",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 718559,
+    "min_elapsed_ns": 693247,
+    "max_elapsed_ns": 718688,
+    "all_elapsed_ns": [
+      718688,
+      718559,
+      693247
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 718688,
+      "checksum": 331775000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_transpose_tiled_f32_v14",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_transpose_tiled_f32_v14/candidate/bench']' timed out after 5 seconds"
+  }
+}

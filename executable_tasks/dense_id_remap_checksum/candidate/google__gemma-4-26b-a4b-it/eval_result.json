@@ -1,0 +1,59 @@
+{
+  "task_id": "dense_id_remap_checksum",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_id_remap_checksum/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 14,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n} // namespace\n\nuint64_t remap_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& probes,\n    int iters) {\n    \n    if (keys.empty()) return 0;\n\n    // Find the range of keys to build a direct lookup table.\n    // Since the task implies dense remapping, we assume keys are a contiguous or near-contiguous range.\n    // To handle the 'lower_bound' logic from the baseline, we find the max key.\n    uint32_t max_key = keys.back();\n    \n    // Pre-compute a lookup table for O(1) access.\n    // We use a vector where lookup_table[key] = values[index_of_key].\n    // The baseline used std::lower_bound, which effectively maps a probe to the smallest key >= probe.\n    // However, in a dense remapping context, it usually implies keys[i] is the ID.\n    // To preserve exact correctness of the baseline's lower_bound behavior:\n    std::vector<uint32_t> lookup_table(max_key + 1);\n    \n    // The baseline: it = lower_bound(keys, probe); idx = it - keys.begin();\n    // This means if probe is not in keys, it finds the next largest key.\n    // To replicate this exactly with O(1), we fill the table such that \n    // lookup_table[p] = values[index of first key >= p].\n    \n    // Initialize with the value corresponding to the last key (for probes > max_key, \n    // though the baseline would return keys.end() which is UB/out of bounds if not careful).\n    // Looking at the baseline: idx = it - keys.begin(). If it == keys.end(), idx == keys.size().\n    // This would cause values[idx] to be out of bounds. We assume probes are within valid range.\n    \n    // Correctly replicate lower_bound behavior for all possible probe values up to max_key:\n    // We iterate backwards to propagate the 'next' key's value to smaller indices.\n    uint32_t current_val_idx = keys.size() - 1;\n    for (int32_t i = static_cast<int32_t>(max_key); i >= 0; --i) {\n        while (current_val_idx > 0 && keys[current_val_idx] > (uint32_t)i) {\n            // This is slightly complex. Let's use a simpler approach:\n            // The baseline finds the first key >= probe.\n        }\n    }\n\n    // Re-evaluating: The most efficient way to replicate lower_bound for all i in [0, max_key]\n    // is to fill the table using the keys.\n    std::vector<uint32_t> fast_map(max_key + 1);\n    size_t k_idx = 0;\n    for (uint32_t i = 0; i <= max_key; ++i) {\n        while (k_idx + 1 < keys.size() && keys[k_idx] < i) {\n            k_idx++;\n        }\n        // If keys[k_idx] < i, then lower_bound would return keys.end().\n        // But the baseline uses values[idx]. We must ensure idx < values.size().\n        if (k_idx < keys.size() && keys[k_idx] >= i) {\n            fast_map[i] = values[k_idx];\n        } else {\n            // This case handles probes > max_key if they exist, \n            // though the baseline would crash if idx == keys.size().\n            // We'll assume probes are within a safe range or match the baseline's behavior.\n            fast_map[i] = values[keys.size() - 1]; \n        }\n    }\n\n    uint64_t hash = 0;\n    const uint64_t FNV_OFFSET = 1469598103934665603ULL;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        hash = FNV_OFFSET;\n        for (uint32_t probe : probes) {\n            // Direct lookup\n            uint32_t val = (probe <= max_key) ? fast_map[probe] : values[keys.size()-1];\n            hash = mix(hash, val);\n        }\n    }\n    return hash;\n}",
+  "baseline": {
+    "task_id": "dense_id_remap_checksum",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 8600797916,
+    "min_elapsed_ns": 8179743877,
+    "max_elapsed_ns": 8615142491,
+    "all_elapsed_ns": [
+      8179743877,
+      8615142491,
+      8600797916
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8179743877,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_id_remap_checksum",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 100206945,
+    "min_elapsed_ns": 98216448,
+    "max_elapsed_ns": 100469892,
+    "all_elapsed_ns": [
+      100206945,
+      98216448,
+      100469892
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 100206945,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_id_remap_checksum",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/dense_id_remap_checksum/candidate/bench']' timed out after 14 seconds"
+  }
+}

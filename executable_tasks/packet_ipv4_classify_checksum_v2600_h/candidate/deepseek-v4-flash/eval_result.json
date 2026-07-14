@@ -1,0 +1,72 @@
+{
+  "task_id": "packet_ipv4_classify_checksum_v2600_h",
+  "model": "deepseek-v4-flash",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/packet_ipv4_classify_checksum_v2600_h/candidate/deepseek-v4-flash/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <vector>\n\nuint64_t classify_packets_checksum(\n    const std::vector<uint8_t>& packets,\n    std::size_t packet_count,\n    int iters) {\n  // Precompute keys for all packets (classification invariant across iterations)\n  std::vector<uint32_t> keys(packet_count);\n  const uint8_t* base = packets.data();\n  constexpr std::size_t kPacketSize = 64;\n\n  for (std::size_t i = 0; i < packet_count; ++i) {\n    const uint8_t* pkt = base + i * kPacketSize;\n\n    // Read fields directly\n    uint8_t protocol = pkt[9];\n    uint8_t ttl = pkt[8];\n    uint32_t ttl_bucket = static_cast<uint32_t>(ttl >> 6);\n\n    // Compute port bucket\n    uint16_t dst_port = (static_cast<uint16_t>(pkt[22]) << 8) | pkt[23];\n    uint32_t port_bucket;\n    if (protocol == 6 || protocol == 17) {\n      port_bucket = (dst_port < 1024) ? 0 : ((dst_port < 8192) ? 1 : 2);\n    } else {\n      port_bucket = 3;\n    }\n\n    // Private IP detection (using bytes 12-15, need only first two)\n    uint8_t a = pkt[12];\n    uint8_t b = pkt[13];\n    bool is_private = (a == 10) ||\n                     (a == 172 && b >= 16 && b < 32) ||\n                     (a == 192 && b == 168);\n    uint32_t ip_flag = is_private ? 5u : 11u;\n\n    // Combine\n    keys[i] = static_cast<uint32_t>(protocol) * 131u +\n              ttl_bucket * 17u +\n              ip_flag +\n              port_bucket * 23u;\n  }\n\n  // Iterative FNV-1a hash\n  uint64_t hash = 0;\n  constexpr uint64_t kOffsetBasis = 1469598103934665603ULL;\n  constexpr uint64_t kPrime = 1099511628211ULL;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = kOffsetBasis;\n    for (std::size_t i = 0; i < packet_count; ++i) {\n      hash ^= keys[i];\n      hash *= kPrime;\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2126626,
+    "min_elapsed_ns": 1865783,
+    "max_elapsed_ns": 2234157,
+    "all_elapsed_ns": [
+      1865783,
+      2126626,
+      2234157
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1865783,
+      "expected_checksum": 15720879676828501607,
+      "actual_checksum": 15720879676828501607
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2043440,
+    "min_elapsed_ns": 1783887,
+    "max_elapsed_ns": 2112174,
+    "all_elapsed_ns": [
+      2043440,
+      2112174,
+      1783887
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2043440,
+      "expected_checksum": 15720879676828501607,
+      "actual_checksum": 15720879676828501607
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1721126,
+    "min_elapsed_ns": 1688133,
+    "max_elapsed_ns": 1759920,
+    "all_elapsed_ns": [
+      1759920,
+      1721126,
+      1688133
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1759920,
+      "expected_checksum": 15720879676828501607,
+      "actual_checksum": 15720879676828501607
+    },
+    "status": "ok"
+  }
+}

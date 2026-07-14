@@ -1,0 +1,59 @@
+{
+  "task_id": "simdutf_utf8_to_utf16_v2000_j",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdutf_utf8_to_utf16_v2000_j/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"simdutf.h\"\n#include <vector>\n\nnamespace {\n\nuint64_t compute_checksum(const char16_t* data, size_t length) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (size_t i = 0; i < length; ++i) {\n    hash ^= static_cast<uint64_t>(data[i]);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t transcode_checksum(const std::string& input) {\n  if (input.empty()) {\n    return 1469598103934665603ULL;\n  }\n\n  // Pre-calculate the required size for the UTF-16 output buffer\n  // simdutf::convert_utf8_to_utf16 requires a destination buffer of sufficient size.\n  // The maximum possible size for UTF-16 is input.size() * 2 (for 1-byte UTF-8 chars),\n  // but more accurately, it's input.size() if all are 1-byte, or less if multi-byte.\n  // A safe upper bound is input.size() * 2, but we can use simdutf's size estimation if available\n  // or just allocate a buffer that is guaranteed to fit.\n  \n  // For performance, we use a vector to manage memory, but we reserve based on a reasonable heuristic\n  // or the worst case. Since we need the exact checksum, correctness is priority.\n  std::vector<char16_t> out;\n  out.resize(input.size()); // Heuristic: most UTF-8 strings don't expand beyond their byte length in UTF-16\n\n  const char8_t* src = reinterpret_cast<const char8_t*>(input.data());\n  size_t src_len = input.size();\n  char16_t* dst = out.data();\n  size_t dst_len = out.size();\n\n  // Use simdutf for high-performance transcoding\n  // convert_utf8_to_utf16 returns the number of UTF-16 code units written\n  auto result = simdutf::convert_utf8_to_utf16(src, src_len, dst, dst_len);\n\n  if (result.error == simdutf::utf8_to_utf16_result::error_insufficient_destination_buffer) {\n    // Handle buffer overflow by resizing and retrying\n    // The required size is provided by the result\n    out.resize(result.destination_length);\n    result = simdutf::convert_utf8_to_utf16(src, src_len, out.data(), out.size());\n  }\n\n  return compute_checksum(out.data(), result.destination_length);\n}",
+  "baseline": {
+    "task_id": "simdutf_utf8_to_utf16_v2000_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 7070518,
+    "min_elapsed_ns": 7069693,
+    "max_elapsed_ns": 7699761,
+    "all_elapsed_ns": [
+      7699761,
+      7070518,
+      7069693
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7699761,
+      "expected_checksum": 12561146795485615290,
+      "actual_checksum": 12561146795485615290
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdutf_utf8_to_utf16_v2000_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2857498,
+    "min_elapsed_ns": 2772600,
+    "max_elapsed_ns": 3319781,
+    "all_elapsed_ns": [
+      3319781,
+      2857498,
+      2772600
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3319781,
+      "expected_checksum": 12561146795485615290,
+      "actual_checksum": 12561146795485615290
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdutf_utf8_to_utf16_v2000_j",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/simdutf_utf8_to_utf16_v2000_j/harness', '-Iexternal/simdutf/singleheader', 'executable_tasks/simdutf_utf8_to_utf16_v2000_j/harness/benchmark_main.cpp', 'executable_tasks/simdutf_utf8_to_utf16_v2000_j/candidate/google__gemma-4-31b-it/solution.cpp', 'external/simdutf/singleheader/simdutf.cpp', '-o', 'build/simdutf_utf8_to_utf16_v2000_j/candidate/bench']' returned non-zero exit status 1."
+  }
+}

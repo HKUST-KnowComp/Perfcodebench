@@ -1,0 +1,72 @@
+{
+  "task_id": "frame_pack_prealloc_v2500_a",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/frame_pack_prealloc_v2500_a/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <string>\n#include <cstring>\n#include <cstdint>\n\nnamespace {\n\n// Optimized FNV-1a checksum implementation working on raw memory\ninline uint64_t checksum_bytes_fast(const uint8_t* data, size_t size) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (size_t i = 0; i < size; ++i) {\n        hash ^= static_cast<uint64_t>(data[i]);\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\n} // namespace\n\nuint64_t frame_pack_checksum(const std::vector<std::string>& frames, int iters) {\n    if (frames.empty()) {\n        // If no frames, the packed buffer is empty. FNV-1a of empty is the offset basis.\n        return 1469598103934665603ULL;\n    }\n\n    // Pre-calculate total size needed for the buffer to avoid reallocations\n    // Each frame adds 2 bytes for the uint16_t length prefix\n    size_t total_size = 0;\n    for (const auto& frame : frames) {\n        total_size += 2 + frame.size();\n    }\n\n    // Pre-allocate buffer once\n    std::vector<uint8_t> buffer(total_size);\n    uint8_t* ptr = buffer.data();\n    uint64_t last_hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint8_t* current = ptr;\n        for (const auto& frame : frames) {\n            uint16_t len = static_cast<uint16_t>(frame.size());\n            \n            // Write length (little-endian as per original write_len)\n            *reinterpret_cast<uint16_t*>(current) = len;\n            current += 2;\n            \n            // Write frame content\n            if (len > 0) {\n                std::memcpy(current, frame.data(), len);\n                current += len;\n            }\n        }\n        // Calculate checksum on the packed buffer\n        last_hash = checksum_bytes_fast(ptr, total_size);\n    }\n\n    return last_hash;\n}\n",
+  "baseline": {
+    "task_id": "frame_pack_prealloc_v2500_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 64252324,
+    "min_elapsed_ns": 64065386,
+    "max_elapsed_ns": 66060452,
+    "all_elapsed_ns": [
+      64252324,
+      64065386,
+      66060452
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 64252324,
+      "expected_checksum": 98816152674866536,
+      "actual_checksum": 98816152674866536
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "frame_pack_prealloc_v2500_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 61066124,
+    "min_elapsed_ns": 58711679,
+    "max_elapsed_ns": 61906046,
+    "all_elapsed_ns": [
+      61906046,
+      61066124,
+      58711679
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 61906046,
+      "expected_checksum": 98816152674866536,
+      "actual_checksum": 98816152674866536
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "frame_pack_prealloc_v2500_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 58130641,
+    "min_elapsed_ns": 57941107,
+    "max_elapsed_ns": 61836240,
+    "all_elapsed_ns": [
+      61836240,
+      57941107,
+      58130641
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 61836240,
+      "expected_checksum": 98816152674866536,
+      "actual_checksum": 98816152674866536
+    },
+    "status": "ok"
+  }
+}

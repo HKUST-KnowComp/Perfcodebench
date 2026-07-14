@@ -1,0 +1,59 @@
+{
+  "task_id": "rapidjson_ondemand_parse_v2400_d",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/rapidjson_ondemand_parse_v2400_d/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <rapidjson/reader.h>\n#include <rapidjson/stream.h>\n#include <cstdint>\n\nusing namespace rapidjson;\n\nclass ChecksumHandler : public BaseReaderHandler<UTF8<>, ChecksumHandler> {\npublic:\n    ChecksumHandler() : state_(ExpectArrayStart), sum_(0) {}\n\n    bool Uint64(uint64_t u) {\n        switch (state_) {\n            case ExpectId:      sum_ += u; state_ = ExpectCommaAfterId; return true;\n            case ExpectNestedA: sum_ += u; state_ = ExpectCommaAfterA; return true;\n            case ExpectNestedB: sum_ += u; state_ = ExpectCommaAfterB; return true;\n            default: return true;\n        }\n    }\n\n    bool StartArray()   { return state_ == ExpectArrayStart; }\n    bool EndArray(SizeType) { return true; }\n\n    bool StartObject() {\n        switch (state_) {\n            case ExpectObjectStart:\n            case ExpectCommaAfterObject:\n                state_ = ExpectKey;\n                return true;\n            case ExpectNestedObject:\n                state_ = ExpectNestedKey;\n                return true;\n            default:\n                return true;\n        }\n    }\n\n    bool EndObject(SizeType) {\n        switch (state_) {\n            case ExpectCommaAfterB:\n                state_ = ExpectCommaAfterObject;\n                return true;\n            default:\n                return true;\n        }\n    }\n\n    bool Key(const char* str, SizeType len, bool) {\n        switch (state_) {\n            case ExpectKey:\n                if (len == 2 && std::memcmp(str, \"id\", 2) == 0) {\n                    state_ = ExpectColonAfterKey;\n                } else if (len == 6 && std::memcmp(str, \"nested\", 6) == 0) {\n                    state_ = ExpectColonAfterNested;\n                }\n                return true;\n            case ExpectNestedKey:\n                if (len == 1 && str[0] == 'a') {\n                    state_ = ExpectColonAfterNestedA;\n                } else if (len == 1 && str[0] == 'b') {\n                    state_ = ExpectColonAfterNestedB;\n                }\n                return true;\n            default:\n                return true;\n        }\n    }\n\n    bool Default() { return true; }\n\n    uint64_t checksum() const { return sum_; }\n\nprivate:\n    enum State {\n        ExpectArrayStart,\n        ExpectObjectStart,\n        ExpectKey,\n        ExpectColonAfterKey,\n        ExpectId,\n        ExpectCommaAfterId,\n        ExpectColonAfterNested,\n        ExpectNestedObject,\n        ExpectNestedKey,\n        ExpectColonAfterNestedA,\n        ExpectNestedA,\n        ExpectCommaAfterA,\n        ExpectColonAfterNestedB,\n        ExpectNestedB,\n        ExpectCommaAfterB,\n        ExpectCommaAfterObject\n    } state_;\n    uint64_t sum_;\n};\n\nuint64_t compute_checksum(const std::string& json_input) {\n    StringStream ss(json_input.c_str());\n    ChecksumHandler handler;\n    Reader reader;\n    reader.Parse(ss, handler);\n    return handler.checksum();\n}",
+  "baseline": {
+    "task_id": "rapidjson_ondemand_parse_v2400_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 17671218,
+    "min_elapsed_ns": 17405438,
+    "max_elapsed_ns": 18171711,
+    "all_elapsed_ns": [
+      17671218,
+      17405438,
+      18171711
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 17671218,
+      "expected_checksum": 350035000,
+      "actual_checksum": 350035000
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "rapidjson_ondemand_parse_v2400_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4155745,
+    "min_elapsed_ns": 2716119,
+    "max_elapsed_ns": 4731802,
+    "all_elapsed_ns": [
+      2716119,
+      4155745,
+      4731802
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2716119,
+      "expected_checksum": 350035000,
+      "actual_checksum": 350035000
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "rapidjson_ondemand_parse_v2400_d",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/rapidjson_ondemand_parse_v2400_d/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "top1_per_group_checksum_large",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/top1_per_group_checksum_large/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstdint>\n#include <cstring>\n#include <algorithm>\n\n#ifdef __AVX2__\n#include <immintrin.h>\n#endif\n\n#ifdef _OPENMP\n#include <omp.h>\n#endif\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t top1_group_hash(\n    const std::vector<uint32_t>& groups,\n    const std::vector<uint32_t>& values,\n    uint32_t group_count,\n    int iters) {\n  \n  const size_t n = groups.size();\n  const uint32_t* __restrict g_ptr = groups.data();\n  const uint32_t* __restrict v_ptr = values.data();\n  \n  uint64_t hash = 0;\n  \n  // Use flat vector instead of hash map for dense groups\n  std::vector<uint32_t> best(group_count);\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    // Clear the best array\n    std::memset(best.data(), 0, group_count * sizeof(uint32_t));\n    \n    // Main aggregation loop - find max per group\n#ifdef _OPENMP\n    #pragma omp parallel\n    {\n      // Thread-local best array\n      std::vector<uint32_t> local_best(group_count, 0);\n      \n      #pragma omp for nowait\n      for (size_t i = 0; i < n; ++i) {\n        uint32_t grp = g_ptr[i];\n        uint32_t val = v_ptr[i];\n        if (val > local_best[grp]) {\n          local_best[grp] = val;\n        }\n      }\n      \n      // Merge local results into global\n      #pragma omp critical\n      {\n        for (uint32_t g = 0; g < group_count; ++g) {\n          if (local_best[g] > best[g]) {\n            best[g] = local_best[g];\n          }\n        }\n      }\n    }\n#else\n    // Sequential version\n    for (size_t i = 0; i < n; ++i) {\n      uint32_t grp = g_ptr[i];\n      uint32_t val = v_ptr[i];\n      if (val > best[grp]) {\n        best[grp] = val;\n      }\n    }\n#endif\n    \n    // Compute hash over all groups in order\n    hash = 1469598103934665603ULL;\n    const uint32_t* best_ptr = best.data();\n    \n    for (uint32_t g = 0; g < group_count; ++g) {\n      hash = mix(hash, best_ptr[g]);\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "top1_per_group_checksum_large",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1199396566,
+    "min_elapsed_ns": 1172720454,
+    "max_elapsed_ns": 1574361262,
+    "all_elapsed_ns": [
+      1574361262,
+      1199396566,
+      1172720454
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1574361262,
+      "expected_checksum": 2605013602663146371,
+      "actual_checksum": 2605013602663146371
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "top1_per_group_checksum_large",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 279569007,
+    "min_elapsed_ns": 276520432,
+    "max_elapsed_ns": 336656849,
+    "all_elapsed_ns": [
+      276520432,
+      336656849,
+      279569007
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 276520432,
+      "expected_checksum": 2605013602663146371,
+      "actual_checksum": 2605013602663146371
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "top1_per_group_checksum_large",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 308618635,
+    "min_elapsed_ns": 305307356,
+    "max_elapsed_ns": 309478272,
+    "all_elapsed_ns": [
+      309478272,
+      305307356,
+      308618635
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 309478272,
+      "expected_checksum": 2605013602663146371,
+      "actual_checksum": 2605013602663146371
+    },
+    "status": "ok"
+  }
+}

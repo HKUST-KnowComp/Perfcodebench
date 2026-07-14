@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_histogram_privatized_v1400_d",
+  "model": "deepseek-v4-flash",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_histogram_privatized_v1400_d/candidate/deepseek-v4-flash/solution.cpp",
+  "benchmark_timeout_sec": 8,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <cstring>\n#include <omp.h>\n#include <vector>\n\nnamespace {\n\nint num_threads() {\n  return std::max(1, std::min(8, omp_get_max_threads()));\n}\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t histogram_checksum(const std::vector<uint8_t>& input, int bins, int iters) {\n  omp_set_num_threads(num_threads());\n  const int nt = omp_get_max_threads();\n  const std::size_t total_private = static_cast<std::size_t>(nt) * bins;\n  std::vector<uint32_t> private_hist(total_private);\n  std::vector<uint32_t> counts(static_cast<std::size_t>(bins), 0);\n\n  for (int iter = 0; iter < iters; ++iter) {\n#pragma omp parallel\n    {\n      int tid = omp_get_thread_num();\n      uint32_t* local = &private_hist[static_cast<std::size_t>(tid) * bins];\n      // zero local histogram\n      for (int b = 0; b < bins; ++b) {\n        local[b] = 0;\n      }\n#pragma omp for schedule(static)\n      for (std::size_t i = 0; i < input.size(); ++i) {\n        ++local[input[i]];\n      }\n    }\n    // combine private histograms into counts\n#pragma omp parallel for\n    for (int b = 0; b < bins; ++b) {\n      uint32_t sum = 0;\n      for (int t = 0; t < nt; ++t) {\n        sum += private_hist[static_cast<std::size_t>(t) * bins + b];\n      }\n      counts[static_cast<std::size_t>(b)] = sum;\n    }\n  }\n\n  return checksum_u32(counts);\n}\n",
+  "baseline": {
+    "task_id": "openmp_histogram_privatized_v1400_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5721037680,
+    "min_elapsed_ns": 5276064267,
+    "max_elapsed_ns": 7072410483,
+    "all_elapsed_ns": [
+      5721037680,
+      7072410483,
+      5276064267
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5721037680,
+      "expected_checksum": 10348961173882274353,
+      "actual_checksum": 10348961173882274353
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_histogram_privatized_v1400_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 98499725,
+    "min_elapsed_ns": 17082456,
+    "max_elapsed_ns": 113104091,
+    "all_elapsed_ns": [
+      98499725,
+      17082456,
+      113104091
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 98499725,
+      "expected_checksum": 10348961173882274353,
+      "actual_checksum": 10348961173882274353
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_histogram_privatized_v1400_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 134889297,
+    "min_elapsed_ns": 36187142,
+    "max_elapsed_ns": 429898900,
+    "all_elapsed_ns": [
+      36187142,
+      134889297,
+      429898900
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 36187142,
+      "expected_checksum": 10348961173882274353,
+      "actual_checksum": 10348961173882274353
+    },
+    "status": "ok"
+  }
+}

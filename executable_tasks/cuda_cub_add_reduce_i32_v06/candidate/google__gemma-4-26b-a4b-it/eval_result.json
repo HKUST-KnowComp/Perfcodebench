@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v06",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v06/candidate/google__gemma-4-26b-a4b-it/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void reduce_kernel(const int* __restrict__ input, int* __restrict__ output, int n) {\n    // Shared memory for block-level reduction\n    extern __shared__ int sdata[];\n\n    int tid = threadIdx.x;\n    int i = blockIdx.x * blockDim.x + threadIdx.x;\n    int sum = 0;\n\n    // Grid-stride loop to handle large n and ensure all elements are processed\n    // Each thread accumulates its own local sum first to reduce shared memory pressure\n    int stride = blockDim.x * gridDim.x;\n    for (; i < n; i += stride) {\n        sum += input[i];\n    }\n\n    sdata[tid] = sum;\n    __syncthreads();\n\n    // Warp-level reduction using shuffle instructions\n    for (int offset = blockDim.x / 2; offset > 0; offset >>= 1) {\n        if (tid < offset) {\n            sdata[tid] += sdata[tid + offset];\n        }\n        __syncthreads();\n    }\n\n    // Single thread per block writes to global memory via atomicAdd\n    if (tid == 0) {\n        atomicAdd(output, sdata[0]);\n    }\n}\n\n} // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0) return;\n\n    // Configuration: Use a reasonable number of blocks to saturate the GPU\n    // but not so many that we cause excessive overhead.\n    const int threads_per_block = 256;\n    const int blocks_per_grid = 256; \n    const size_t shared_mem_size = threads_per_block * sizeof(int);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        // Reset output\n        cudaMemset(output, 0, sizeof(int));\n\n        // Launch reduction kernel\n        // We use a grid-stride approach to ensure correctness regardless of n\n        reduce_kernel<<<blocks_per_grid, threads_per_block, shared_mem_size>>>(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v06",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 8059967,
+    "min_elapsed_ns": 8051615,
+    "max_elapsed_ns": 8061440,
+    "all_elapsed_ns": [
+      8061440,
+      8059967,
+      8051615
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8061440,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v06",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 555136,
+    "min_elapsed_ns": 551648,
+    "max_elapsed_ns": 555935,
+    "all_elapsed_ns": [
+      555935,
+      555136,
+      551648
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 555935,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v06",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v06/candidate/bench']' timed out after 5 seconds"
+  }
+}

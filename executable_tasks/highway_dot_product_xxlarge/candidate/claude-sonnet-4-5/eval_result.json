@@ -1,0 +1,72 @@
+{
+  "task_id": "highway_dot_product_xxlarge",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_dot_product_xxlarge/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <hwy/highway.h>\n\nnamespace hn = hwy::HWY_NAMESPACE;\n\nfloat dot_product(const float* a, const float* b, std::size_t n) {\n  const hn::ScalableTag<float> d;\n  const size_t N = hn::Lanes(d);\n  \n  if (n == 0) return 0.0f;\n  \n  // Process 4 vectors at a time for better throughput\n  const size_t n_unroll = (n / (N * 4)) * (N * 4);\n  \n  auto sum0 = hn::Zero(d);\n  auto sum1 = hn::Zero(d);\n  auto sum2 = hn::Zero(d);\n  auto sum3 = hn::Zero(d);\n  \n  size_t i = 0;\n  for (; i < n_unroll; i += N * 4) {\n    auto va0 = hn::LoadU(d, a + i);\n    auto vb0 = hn::LoadU(d, b + i);\n    sum0 = hn::MulAdd(va0, vb0, sum0);\n    \n    auto va1 = hn::LoadU(d, a + i + N);\n    auto vb1 = hn::LoadU(d, b + i + N);\n    sum1 = hn::MulAdd(va1, vb1, sum1);\n    \n    auto va2 = hn::LoadU(d, a + i + N * 2);\n    auto vb2 = hn::LoadU(d, b + i + N * 2);\n    sum2 = hn::MulAdd(va2, vb2, sum2);\n    \n    auto va3 = hn::LoadU(d, a + i + N * 3);\n    auto vb3 = hn::LoadU(d, b + i + N * 3);\n    sum3 = hn::MulAdd(va3, vb3, sum3);\n  }\n  \n  // Combine the 4 accumulators\n  sum0 = hn::Add(sum0, sum1);\n  sum2 = hn::Add(sum2, sum3);\n  sum0 = hn::Add(sum0, sum2);\n  \n  // Process remaining full vectors\n  for (; i + N <= n; i += N) {\n    auto va = hn::LoadU(d, a + i);\n    auto vb = hn::LoadU(d, b + i);\n    sum0 = hn::MulAdd(va, vb, sum0);\n  }\n  \n  // Horizontal reduction\n  float result = hn::ReduceSum(d, sum0);\n  \n  // Handle tail elements with Kahan summation for accuracy\n  float c = 0.0f;\n  for (; i < n; ++i) {\n    float prod = a[i] * b[i];\n    float y = prod - c;\n    float t = result + y;\n    c = (t - result) - y;\n    result = t;\n  }\n  \n  return result;\n}\n",
+  "baseline": {
+    "task_id": "highway_dot_product_xxlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6499402,
+    "min_elapsed_ns": 6440938,
+    "max_elapsed_ns": 6507922,
+    "all_elapsed_ns": [
+      6440938,
+      6507922,
+      6499402
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6440938,
+      "expected_dot": 2631150.0,
+      "actual_dot": 2631600.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_dot_product_xxlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5361025,
+    "min_elapsed_ns": 5229245,
+    "max_elapsed_ns": 5536127,
+    "all_elapsed_ns": [
+      5536127,
+      5361025,
+      5229245
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5536127,
+      "expected_dot": 2631150.0,
+      "actual_dot": 2631140.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_dot_product_xxlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 9274578,
+    "min_elapsed_ns": 6998421,
+    "max_elapsed_ns": 9488456,
+    "all_elapsed_ns": [
+      6998421,
+      9274578,
+      9488456
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6998421,
+      "expected_dot": 2631150.0,
+      "actual_dot": 2631180.0
+    },
+    "status": "ok"
+  }
+}

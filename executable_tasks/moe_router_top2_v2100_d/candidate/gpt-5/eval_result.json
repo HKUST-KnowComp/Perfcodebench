@@ -1,0 +1,72 @@
+{
+  "task_id": "moe_router_top2_v2100_d",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/moe_router_top2_v2100_d/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t moe_router_checksum(const std::vector<int32_t>& logits, int tokens, int experts, int iters) {\n  const int32_t* base = logits.data();\n  uint64_t hash = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;  // FNV offset basis\n    const int32_t* p = base;\n\n    for (int t = 0; t < tokens; ++t) {\n      // Assume experts >= 2 as per task semantics\n      // Initialize top-2 using first two experts with correct tie-breaking\n      int32_t v0 = p[0];\n      int32_t v1 = p[1];\n\n      int best1_idx;\n      int best2_idx;\n      int32_t best1_val;\n      int32_t best2_val;\n\n      if (v1 > v0) {\n        best1_val = v1; best1_idx = 1;\n        best2_val = v0; best2_idx = 0;\n      } else { // v1 <= v0; ties prefer lower index (0)\n        best1_val = v0; best1_idx = 0;\n        best2_val = v1; best2_idx = 1;\n      }\n\n      for (int e = 2; e < experts; ++e) {\n        int32_t v = p[e];\n        if (v > best1_val || (v == best1_val && e < best1_idx)) {\n          // Promote to best1, demote previous best1 to best2\n          best2_val = best1_val; best2_idx = best1_idx;\n          best1_val = v; best1_idx = e;\n        } else if (v > best2_val || (v == best2_val && e < best2_idx)) {\n          best2_val = v; best2_idx = e;\n        }\n      }\n\n      // Mix results exactly as baseline (value cast to uint32_t -> uint64_t)\n      hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(best1_val)));\n      hash = mix(hash, static_cast<uint64_t>(best1_idx));\n      hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(best2_val)));\n      hash = mix(hash, static_cast<uint64_t>(best2_idx));\n\n      p += experts;\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "moe_router_top2_v2100_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1815940,
+    "min_elapsed_ns": 1644310,
+    "max_elapsed_ns": 1925200,
+    "all_elapsed_ns": [
+      1815940,
+      1925200,
+      1644310
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1815940,
+      "expected_checksum": 12409451272583453862,
+      "actual_checksum": 12409451272583453862
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "moe_router_top2_v2100_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1443394,
+    "min_elapsed_ns": 1165751,
+    "max_elapsed_ns": 1502235,
+    "all_elapsed_ns": [
+      1165751,
+      1502235,
+      1443394
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1165751,
+      "expected_checksum": 12409451272583453862,
+      "actual_checksum": 12409451272583453862
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "moe_router_top2_v2100_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 920818,
+    "min_elapsed_ns": 918312,
+    "max_elapsed_ns": 962102,
+    "all_elapsed_ns": [
+      920818,
+      962102,
+      918312
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 920818,
+      "expected_checksum": 12409451272583453862,
+      "actual_checksum": 12409451272583453862
+    },
+    "status": "ok"
+  }
+}

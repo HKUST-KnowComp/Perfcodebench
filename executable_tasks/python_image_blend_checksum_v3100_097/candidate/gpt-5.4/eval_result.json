@@ -1,0 +1,72 @@
+{
+  "task_id": "python_image_blend_checksum_v3100_097",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/python_image_blend_checksum_v3100_097/candidate/gpt-5.4/solution.py",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "MASK64 = (1 << 64) - 1\nFNV_OFFSET = 1469598103934665603\nFNV_PRIME = 1099511628211\n\n\ndef blend_byte(s: int, d: int, a: int) -> int:\n    return ((s * a) + (d * (255 - a)) + 127) // 255\n\n\ndef checksum_bytes(data: bytes) -> int:\n    h = FNV_OFFSET\n    for b in data:\n        h ^= b\n        h = (h * FNV_PRIME) & MASK64\n    return h\n\n\ndef run(src: bytearray, dst: bytearray, width: int, height: int, iters: int) -> int:\n    pixels = width * height\n    n = pixels * 4\n\n    # Reuse output buffer across iterations.\n    out = bytearray(n)\n\n    # Precompute exact rounded division-by-255 blend table.\n    # table[a][x] == (x + 127) // 255 for x in [0, 255*255]\n    # Flattened for faster indexing: table[a * 65536 + x]\n    table = [0] * (256 * 65536)\n    for a in range(256):\n        base = a << 16\n        ia = 255 - a\n        row = table\n        for s in range(256):\n            sa = s * a\n            off = base + (s << 8)\n            for d in range(256):\n                row[off + d] = (sa + d * ia + 127) // 255\n\n    src_mv = memoryview(src)\n    dst_mv = memoryview(dst)\n    out_mv = memoryview(out)\n\n    h = 0\n    for _ in range(iters):\n        j = 0\n        for i in range(0, n, 4):\n            a = src_mv[i + 3]\n            tbase = a << 16\n            out_mv[j] = table[tbase + (src_mv[i] << 8) + dst_mv[i]]\n            out_mv[j + 1] = table[tbase + (src_mv[i + 1] << 8) + dst_mv[i + 1]]\n            out_mv[j + 2] = table[tbase + (src_mv[i + 2] << 8) + dst_mv[i + 2]]\n            out_mv[j + 3] = 255\n            j += 4\n\n        hh = FNV_OFFSET\n        for b in out_mv:\n            hh ^= b\n            hh = (hh * FNV_PRIME) & MASK64\n        h = hh\n\n    return h\n",
+  "baseline": {
+    "task_id": "python_image_blend_checksum_v3100_097",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 950910133,
+    "min_elapsed_ns": 910729123,
+    "max_elapsed_ns": 1002118671,
+    "all_elapsed_ns": [
+      1002118671,
+      910729123,
+      950910133
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1002118671,
+      "expected_checksum": 13340231922271541813,
+      "actual_checksum": 13340231922271541813
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "python_image_blend_checksum_v3100_097",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 880968558,
+    "min_elapsed_ns": 811676839,
+    "max_elapsed_ns": 959388687,
+    "all_elapsed_ns": [
+      959388687,
+      811676839,
+      880968558
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 959388687,
+      "expected_checksum": 13340231922271541813,
+      "actual_checksum": 13340231922271541813
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "python_image_blend_checksum_v3100_097",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 3080610800,
+    "min_elapsed_ns": 2899942318,
+    "max_elapsed_ns": 3592570531,
+    "all_elapsed_ns": [
+      3592570531,
+      2899942318,
+      3080610800
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3592570531,
+      "expected_checksum": 13340231922271541813,
+      "actual_checksum": 13340231922271541813
+    },
+    "status": "ok"
+  }
+}

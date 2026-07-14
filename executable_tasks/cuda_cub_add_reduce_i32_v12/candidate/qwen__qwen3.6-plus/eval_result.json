@@ -1,0 +1,33 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v12",
+  "model": "qwen/qwen3.6-plus",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v12/candidate/qwen__qwen3.6-plus/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n__global__ void fast_reduce_kernel(const int* input, int* output, int n) {\n    int tid = threadIdx.x;\n    int bid = blockIdx.x;\n    int bdim = blockDim.x;\n    int gridSize = bdim * gridDim.x;\n    \n    int sum = 0;\n    for (int i = bid * bdim + tid; i < n; i += gridSize) {\n        sum += input[i];\n    }\n    \n    // Warp-level reduction using shuffle\n    for (int offset = 16; offset > 0; offset /= 2) {\n        sum += __shfl_down_sync(0xffffffff, sum, offset);\n    }\n    \n    // Store warp leaders' sums in shared memory\n    __shared__ int warp_sums[8];\n    if (tid % 32 == 0) {\n        warp_sums[tid / 32] = sum;\n    }\n    __syncthreads();\n    \n    // Final reduction in the first warp\n    if (tid < 32) {\n        int val = (tid < 8) ? warp_sums[tid] : 0;\n        for (int offset = 16; offset > 0; offset /= 2) {\n            val += __shfl_down_sync(0xffffffff, val, offset);\n        }\n        if (tid == 0) {\n            atomicAdd(output, val);\n        }\n    }\n}\n} // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, sizeof(int));\n        fast_reduce_kernel<<<1024, 256>>>(input, output, n);\n    }\n}\n",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v12",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v12/baseline/bench']' timed out after 5 seconds"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v12",
+    "variant": "reference",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v12/reference/bench']' timed out after 5 seconds"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v12",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v12/candidate/bench']' timed out after 5 seconds"
+  }
+}

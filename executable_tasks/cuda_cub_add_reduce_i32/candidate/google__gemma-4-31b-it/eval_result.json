@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32/candidate/google__gemma-4-31b-it/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cub/cub.cub>\n\nnamespace {\n\n__global__ void reduce_kernel(const int* __restrict__ input, int* __restrict__ output, int n) {\n    // Use CUB BlockReduce for efficient intra-block reduction\n    typedef cub::BlockReduce<int, 256> BlockReduce;\n    __shared__ typename BlockReduce::TempStorage temp_storage;\n\n    int tid = threadIdx.x;\n    int grid_size = gridDim.x * blockDim.x;\n    int local_sum = 0;\n\n    // Grid-stride loop to handle arbitrary n\n    for (int i = blockIdx.x * blockDim.x + tid; i < n; i += grid_size) {\n        local_sum += input[i];\n    }\n\n    // Reduce local sums within the block\n    int block_sum = BlockReduce(temp_storage).Sum(local_sum);\n\n    // Only one thread per block performs the global atomic add\n    if (tid == 0) {\n        atomicAdd(output, block_sum);\n    }\n}\n\n} // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    // Optimize block and grid size\n    const int block_size = 256;\n    // Limit grid size to avoid excessive atomic contention while saturating SMs\n    int grid_size = (n + block_size - 1) / block_size;\n    if (grid_size > 512) grid_size = 512;\n    if (grid_size == 0) grid_size = 1;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemsetAsync(output, 0, sizeof(int), 0);\n        reduce_kernel<<<grid_size, block_size>>>(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 435556030,
+    "min_elapsed_ns": 435161163,
+    "max_elapsed_ns": 460200134,
+    "all_elapsed_ns": [
+      435161163,
+      460200134,
+      435556030
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 435161163,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 33235103,
+    "min_elapsed_ns": 33160446,
+    "max_elapsed_ns": 33878047,
+    "all_elapsed_ns": [
+      33235103,
+      33878047,
+      33160446
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 33235103,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['nvcc', '-O3', '-std=c++17', '-Iexecutable_tasks/cuda_cub_add_reduce_i32/harness', '-gencode=arch=compute_80,code=sm_80', '-gencode=arch=compute_80,code=compute_80', 'executable_tasks/cuda_cub_add_reduce_i32/harness/benchmark_main.cu', 'executable_tasks/cuda_cub_add_reduce_i32/candidate/google__gemma-4-31b-it/solution.cu', '-o', 'build/cuda_cub_add_reduce_i32/candidate/bench']' returned non-zero exit status 1."
+  }
+}

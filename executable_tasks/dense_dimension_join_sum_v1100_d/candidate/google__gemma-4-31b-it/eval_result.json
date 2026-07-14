@@ -1,0 +1,59 @@
+{
+  "task_id": "dense_dimension_join_sum_v1100_d",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_dimension_join_sum_v1100_d/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 8,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstdint>\n\nuint64_t join_sum(\n    const std::vector<uint32_t>& dim_keys,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n    if (dim_keys.empty() || probe_keys.empty()) return 0;\n\n    // Since it's a \"dense dimension\", we check if we can use a direct mapping array.\n    // We find the max key to determine if a lookup table is feasible.\n    uint32_t max_key = 0;\n    for (uint32_t k : dim_keys) if (k > max_key) max_key = k;\n\n    // Use a lookup table for O(1) access if the range is reasonable.\n    // If the range is too large, we'd fall back to binary search, but for \"dense\" tasks,\n    // a mapping array is usually the intended optimization.\n    // We use a vector to avoid stack overflow for large ranges.\n    std::vector<uint32_t> lookup(max_key + 1, 0);\n    for (size_t i = 0; i < dim_keys.size(); ++i) {\n        lookup[dim_keys[i]] = dim_values[i];\n    }\n\n    uint64_t total_sum = 0;\n    const size_t probe_size = probe_keys.size();\n    const uint32_t* pk = probe_keys.data();\n    const uint32_t* pw = probe_weights.data();\n    const uint32_t* lut = lookup.data();\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t iter_sum = 0;\n        for (size_t i = 0; i < probe_size; ++i) {\n            iter_sum += static_cast<uint64_t>(lut[pk[i]]) * static_cast<uint64_t>(pw[i]);\n        }\n        total_sum = iter_sum; // The baseline resets sum = 0 each iter and returns the last one\n    }\n\n    return total_sum;\n}",
+  "baseline": {
+    "task_id": "dense_dimension_join_sum_v1100_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5080764313,
+    "min_elapsed_ns": 4880918925,
+    "max_elapsed_ns": 5119483771,
+    "all_elapsed_ns": [
+      5119483771,
+      4880918925,
+      5080764313
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5119483771,
+      "expected_sum": 9150922752,
+      "actual_sum": 9150922752
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_dimension_join_sum_v1100_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 33590509,
+    "min_elapsed_ns": 31501258,
+    "max_elapsed_ns": 78183779,
+    "all_elapsed_ns": [
+      33590509,
+      78183779,
+      31501258
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 33590509,
+      "expected_sum": 9150922752,
+      "actual_sum": 9150922752
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_dimension_join_sum_v1100_d",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/dense_dimension_join_sum_v1100_d/harness', 'executable_tasks/dense_dimension_join_sum_v1100_d/harness/benchmark_main.cpp', 'executable_tasks/dense_dimension_join_sum_v1100_d/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/dense_dimension_join_sum_v1100_d/candidate/bench']' returned non-zero exit status 1."
+  }
+}

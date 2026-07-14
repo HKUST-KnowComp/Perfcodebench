@@ -1,0 +1,59 @@
+{
+  "task_id": "highway_clamp_sum_f32_xlarge",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_clamp_sum_f32_xlarge/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <hwy/highway.h>\n\nnamespace hn = hwy::HWY_NAMESPACE;\n\nfloat clamp_sum(const float* data, std::size_t n) {\n  const hwy::ScalableTag<float> d;\n  const auto vl = hwy::Lanes(d);\n  float total_sum = 0.0f;\n  std::size_t i = 0;\n\n  // Process in SIMD chunks\n  for (; i + vl <= n; i += vl) {\n    auto v = hn::Load(d, data + i);\n    // Create a mask where elements > 0.0f\n    auto mask = hn::Greater(v, hn::Zero(d));\n    // Select element if mask is true, else select 0.0f\n    auto clamped = hn::Select(mask, v, hn::Zero(d));\n    // Accumulate into a running vector sum\n    static auto v_sum = hn::Zero(d);\n    // Note: To avoid state issues in multi-threaded environments, \n    // we use a local accumulator for the loop and reduce at the end.\n  }\n\n  // Corrected SIMD implementation for thread safety and performance\n  total_sum = 0.0f;\n  auto v_acc = hn::Zero(d);\n  \n  for (; i + vl <= n; i += vl) {\n    auto v = hn::Load(d, data + i);\n    auto mask = hn::Greater(v, hn::Zero(d));\n    auto clamped = hn::Select(mask, v, hn::Zero(d));\n    v_acc = hn::Add(v_acc, clamped);\n  }\n\n  // Horizontal sum of the SIMD register\n  auto reduced = hn::ReduceSum(d, v_acc);\n  hn::Store(reduced, &total_sum);\n\n  // Tail processing for remaining elements\n  for (; i < n; ++i) {\n    float val = data[i];\n    total_sum += (val > 0.0f) ? val : 0.0f;\n  }\n\n  return total_sum;\n}",
+  "baseline": {
+    "task_id": "highway_clamp_sum_f32_xlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2974725,
+    "min_elapsed_ns": 2970739,
+    "max_elapsed_ns": 2979977,
+    "all_elapsed_ns": [
+      2970739,
+      2979977,
+      2974725
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2970739,
+      "expected_sum": 209707000.0,
+      "actual_sum": 209587000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_clamp_sum_f32_xlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1452860,
+    "min_elapsed_ns": 1428666,
+    "max_elapsed_ns": 1546179,
+    "all_elapsed_ns": [
+      1546179,
+      1452860,
+      1428666
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1546179,
+      "expected_sum": 209707000.0,
+      "actual_sum": 209709000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_clamp_sum_f32_xlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/highway_clamp_sum_f32_xlarge/harness', '-Iexternal/highway', 'executable_tasks/highway_clamp_sum_f32_xlarge/harness/benchmark_main.cpp', 'executable_tasks/highway_clamp_sum_f32_xlarge/candidate/google__gemma-4-26b-a4b-it/solution.cpp', 'external/highway/hwy/abort.cc', 'external/highway/hwy/targets.cc', 'external/highway/hwy/aligned_allocator.cc', 'external/highway/hwy/per_target.cc', '-o', 'build/highway_clamp_sum_f32_xlarge/candidate/bench']' returned non-zero exit status 1."
+  }
+}

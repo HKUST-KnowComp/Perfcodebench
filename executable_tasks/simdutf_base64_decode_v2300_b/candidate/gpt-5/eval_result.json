@@ -1,0 +1,72 @@
+{
+  "task_id": "simdutf_base64_decode_v2300_b",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdutf_base64_decode_v2300_b/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <string>\n\nnamespace {\n\n// Returns a pointer to a 256-entry lookup table for Base64 decoding.\n// Mapping:\n//  - 'A'-'Z' -> 0..25\n//  - 'a'-'z' -> 26..51\n//  - '0'-'9' -> 52..61\n//  - '+' -> 62\n//  - '/' -> 63\n//  - '=' -> 0xFE (padding)\n//  - others -> 0xFF (invalid)\ninline const uint8_t* b64_table() {\n  static uint8_t tbl[256];\n  static bool inited = false;\n  if (!inited) {\n    for (int i = 0; i < 256; ++i) tbl[i] = 0xFF;\n    for (int c = 'A'; c <= 'Z'; ++c) tbl[c] = static_cast<uint8_t>(c - 'A');\n    for (int c = 'a'; c <= 'z'; ++c) tbl[c] = static_cast<uint8_t>(c - 'a' + 26);\n    for (int c = '0'; c <= '9'; ++c) tbl[c] = static_cast<uint8_t>(c - '0' + 52);\n    tbl[static_cast<unsigned char>('+')] = 62;\n    tbl[static_cast<unsigned char>('/')] = 63;\n    tbl[static_cast<unsigned char>('=')] = 0xFE; // padding\n    inited = true;\n  }\n  return tbl;\n}\n\n} // namespace\n\nuint64_t decode_checksum(const std::string& input) {\n  const size_t len = input.size();\n  const uint8_t* ptr = reinterpret_cast<const uint8_t*>(input.data());\n  const uint8_t* T = b64_table();\n\n  // FNV-1a 64-bit\n  uint64_t hash = 1469598103934665603ULL;\n  const uint64_t FNV_PRIME = 1099511628211ULL;\n\n  // Assume valid Base64 input; process in 4-char blocks.\n  // If length is not a multiple of 4, safely handle the remaining part by guarding accesses.\n  size_t i = 0;\n  const size_t full = (len / 4) * 4;\n  for (; i < full; i += 4) {\n    uint8_t c0 = ptr[i + 0];\n    uint8_t c1 = ptr[i + 1];\n    uint8_t c2 = ptr[i + 2];\n    uint8_t c3 = ptr[i + 3];\n\n    uint8_t v0 = T[c0];\n    uint8_t v1 = T[c1];\n    uint8_t v2 = T[c2];\n    uint8_t v3 = T[c3];\n\n    // Compute bytes: b0 always valid\n    uint8_t b0 = static_cast<uint8_t>((v0 << 2) | (v1 >> 4));\n    hash ^= static_cast<uint64_t>(b0);\n    hash *= FNV_PRIME;\n\n    if (v2 != 0xFE) { // not padding\n      uint8_t b1 = static_cast<uint8_t>(((v1 & 0x0F) << 4) | (v2 >> 2));\n      hash ^= static_cast<uint64_t>(b1);\n      hash *= FNV_PRIME;\n\n      if (v3 != 0xFE) { // not padding\n        uint8_t b2 = static_cast<uint8_t>(((v2 & 0x03) << 6) | v3);\n        hash ^= static_cast<uint64_t>(b2);\n        hash *= FNV_PRIME;\n      }\n    }\n  }\n\n  // Handle any trailing incomplete block conservatively (should not occur for valid base64).\n  if (i < len) {\n    // Build a safe 4-tuple with padding for missing characters.\n    uint8_t c0 = ptr[i + 0];\n    uint8_t c1 = (i + 1 < len) ? ptr[i + 1] : static_cast<uint8_t>('=');\n    uint8_t c2 = (i + 2 < len) ? ptr[i + 2] : static_cast<uint8_t>('=');\n    uint8_t c3 = (i + 3 < len) ? ptr[i + 3] : static_cast<uint8_t>('=');\n\n    const uint8_t* T2 = T;\n    uint8_t v0 = T2[c0];\n    uint8_t v1 = T2[c1];\n    uint8_t v2 = T2[c2];\n    uint8_t v3 = T2[c3];\n\n    uint8_t b0 = static_cast<uint8_t>((v0 << 2) | (v1 >> 4));\n    hash ^= static_cast<uint64_t>(b0);\n    hash *= FNV_PRIME;\n\n    if (v2 != 0xFE) {\n      uint8_t b1 = static_cast<uint8_t>(((v1 & 0x0F) << 4) | (v2 >> 2));\n      hash ^= static_cast<uint64_t>(b1);\n      hash *= FNV_PRIME;\n      if (v3 != 0xFE) {\n        uint8_t b2 = static_cast<uint8_t>(((v2 & 0x03) << 6) | v3);\n        hash ^= static_cast<uint64_t>(b2);\n        hash *= FNV_PRIME;\n      }\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "simdutf_base64_decode_v2300_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1852210,
+    "min_elapsed_ns": 1851051,
+    "max_elapsed_ns": 1857690,
+    "all_elapsed_ns": [
+      1851051,
+      1857690,
+      1852210
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1851051,
+      "expected_checksum": 4114140233232313950,
+      "actual_checksum": 4114140233232313950
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdutf_base64_decode_v2300_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 402327,
+    "min_elapsed_ns": 361995,
+    "max_elapsed_ns": 413122,
+    "all_elapsed_ns": [
+      413122,
+      402327,
+      361995
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 413122,
+      "expected_checksum": 4114140233232313950,
+      "actual_checksum": 4114140233232313950
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdutf_base64_decode_v2300_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 194323,
+    "min_elapsed_ns": 187342,
+    "max_elapsed_ns": 209328,
+    "all_elapsed_ns": [
+      209328,
+      194323,
+      187342
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 209328,
+      "expected_checksum": 4114140233232313950,
+      "actual_checksum": 4114140233232313950
+    },
+    "status": "ok"
+  }
+}

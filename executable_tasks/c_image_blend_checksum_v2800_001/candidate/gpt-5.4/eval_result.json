@@ -1,0 +1,72 @@
+{
+  "task_id": "c_image_blend_checksum_v2800_001",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_image_blend_checksum_v2800_001/candidate/gpt-5.4/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\n#define FNV_OFFSET_BASIS 1469598103934665603ULL\n#define FNV_PRIME 1099511628211ULL\n\nstatic uint16_t g_blend_lut[256][256];\nstatic int g_blend_lut_init = 0;\n\nstatic void init_blend_lut(void) {\n  if (g_blend_lut_init) return;\n  for (uint32_t a = 0; a < 256u; ++a) {\n    for (uint32_t x = 0; x < 256u; ++x) {\n      g_blend_lut[a][x] = (uint16_t)((x * a + 127u) / 255u);\n    }\n  }\n  g_blend_lut_init = 1;\n}\n\nstatic inline uint64_t fnv1a_u8(uint64_t h, uint8_t v) {\n  h ^= (uint64_t)v;\n  h *= FNV_PRIME;\n  return h;\n}\n\nstatic inline uint8_t blend_lut(uint8_t s, uint8_t d, uint8_t a) {\n  return (uint8_t)(g_blend_lut[a][s] + g_blend_lut[255u - a][d]);\n}\n\nuint64_t run(const uint8_t* src, const uint8_t* dst, int width, int height, int iters) {\n  init_blend_lut();\n\n  size_t pixels = (size_t)width * (size_t)height;\n  size_t total_bytes = pixels * 4u;\n  uint64_t hash = 0;\n\n  if (iters <= 0) return 0;\n\n  uint8_t* out = (uint8_t*)malloc(total_bytes);\n  if (!out) return 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t h = FNV_OFFSET_BASIS;\n    size_t i = 0;\n\n    for (; i + 4u <= pixels; i += 4u) {\n      size_t idx = i * 4u;\n\n      for (unsigned k = 0; k < 4u; ++k) {\n        size_t p = idx + ((size_t)k << 2);\n        uint8_t a = src[p + 3u];\n        uint8_t r, g, b;\n\n        if (a == 0u) {\n          r = dst[p];\n          g = dst[p + 1u];\n          b = dst[p + 2u];\n        } else if (a == 255u) {\n          r = src[p];\n          g = src[p + 1u];\n          b = src[p + 2u];\n        } else {\n          r = blend_lut(src[p], dst[p], a);\n          g = blend_lut(src[p + 1u], dst[p + 1u], a);\n          b = blend_lut(src[p + 2u], dst[p + 2u], a);\n        }\n\n        out[p] = r;\n        out[p + 1u] = g;\n        out[p + 2u] = b;\n        out[p + 3u] = 255u;\n\n        h = fnv1a_u8(h, r);\n        h = fnv1a_u8(h, g);\n        h = fnv1a_u8(h, b);\n        h = fnv1a_u8(h, 255u);\n      }\n    }\n\n    for (; i < pixels; ++i) {\n      size_t idx = i * 4u;\n      uint8_t a = src[idx + 3u];\n      uint8_t r, g, b;\n\n      if (a == 0u) {\n        r = dst[idx];\n        g = dst[idx + 1u];\n        b = dst[idx + 2u];\n      } else if (a == 255u) {\n        r = src[idx];\n        g = src[idx + 1u];\n        b = src[idx + 2u];\n      } else {\n        r = blend_lut(src[idx], dst[idx], a);\n        g = blend_lut(src[idx + 1u], dst[idx + 1u], a);\n        b = blend_lut(src[idx + 2u], dst[idx + 2u], a);\n      }\n\n      out[idx] = r;\n      out[idx + 1u] = g;\n      out[idx + 2u] = b;\n      out[idx + 3u] = 255u;\n\n      h = fnv1a_u8(h, r);\n      h = fnv1a_u8(h, g);\n      h = fnv1a_u8(h, b);\n      h = fnv1a_u8(h, 255u);\n    }\n\n    hash = h;\n  }\n\n  free(out);\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "c_image_blend_checksum_v2800_001",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1207000,
+    "min_elapsed_ns": 1195000,
+    "max_elapsed_ns": 1216000,
+    "all_elapsed_ns": [
+      1207000,
+      1195000,
+      1216000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1207000,
+      "expected_checksum": 120814221177348444,
+      "actual_checksum": 120814221177348444
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_image_blend_checksum_v2800_001",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1199000,
+    "min_elapsed_ns": 1196000,
+    "max_elapsed_ns": 1268000,
+    "all_elapsed_ns": [
+      1268000,
+      1196000,
+      1199000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1268000,
+      "expected_checksum": 120814221177348444,
+      "actual_checksum": 120814221177348444
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_image_blend_checksum_v2800_001",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1214000,
+    "min_elapsed_ns": 1211000,
+    "max_elapsed_ns": 1240000,
+    "all_elapsed_ns": [
+      1240000,
+      1211000,
+      1214000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1240000,
+      "expected_checksum": 120814221177348444,
+      "actual_checksum": 120814221177348444
+    },
+    "status": "ok"
+  }
+}

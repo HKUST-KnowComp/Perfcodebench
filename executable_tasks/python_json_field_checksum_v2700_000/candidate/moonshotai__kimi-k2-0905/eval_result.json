@@ -1,0 +1,72 @@
+{
+  "task_id": "python_json_field_checksum_v2700_000",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/python_json_field_checksum_v2700_000/candidate/moonshotai__kimi-k2-0905/solution.py",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "import re\n\n# The JSON we expect looks like:\n# {\"u\":<int>,\"s\":<int>,\"f\":<true|false>}\n# or permutations of the keys.\n#\n# We will scan each line once, extract the three values, and compute the hash.\n\n_DIGIT = {b'0'[0]: 0, b'1'[0]: 1, b'2'[0]: 2, b'3'[0]: 3, b'4'[0]: 4,\n          b'5'[0]: 5, b'6'[0]: 6, b'7'[0]: 7, b'8'[0]: 8, b'9'[0]: 9}\n_TRUE = b'true'\n_FALSE = b'false'\n\n\ndef run(rows: list[str]) -> int:\n    h = 1469598103934665603\n    for row in rows:\n        # Work on bytes for speed\n        b = row.encode('utf-8')  # ASCII subset is fine\n        n = len(b)\n        i = 0\n\n        u = s = None\n        f = None\n\n        # Scan to find the three keys and their values\n        while i < n:\n            # Look for '\"' to start a key\n            if b[i] == ord('\"'):\n                i += 1\n                # Minimum key size is 1 char + quote\n                if i + 1 >= n:\n                    break\n                key_start = i\n                # Find closing quote\n                while i < n and b[i] != ord('\"'):\n                    i += 1\n                if i >= n:\n                    break\n                key = b[key_start:i]\n                i += 1  # skip closing quote\n\n                # Expect colon\n                while i < n and b[i] in (ord(' '), ord('\\t'), ord('\\n'), ord('\\r')):\n                    i += 1\n                if i >= n or b[i] != ord(':'):\n                    break\n                i += 1\n                while i < n and b[i] in (ord(' '), ord('\\t'), ord('\\n'), ord('\\r')):\n                    i += 1\n\n                # Parse value\n                if key == b'u' and u is None:\n                    # Parse integer\n                    negative = False\n                    if b[i] == ord('-'):\n                        negative = True\n                        i += 1\n                    val = 0\n                    while i < n and b[i] >= ord('0') and b[i] <= ord('9'):\n                        val = val * 10 + _DIGIT[b[i]]\n                        i += 1\n                    if negative:\n                        val = -val\n                    u = val\n                elif key == b's' and s is None:\n                    # Parse integer\n                    negative = False\n                    if b[i] == ord('-'):\n                        negative = True\n                        i += 1\n                    val = 0\n                    while i < n and b[i] >= ord('0') and b[i] <= ord('9'):\n                        val = val * 10 + _DIGIT[b[i]]\n                        i += 1\n                    if negative:\n                        val = -val\n                    s = val\n                elif key == b'f' and f is None:\n                    # Parse boolean\n                    if b[i] == ord('t'):\n                        # true\n                        if i + 4 <= n and b[i:i+4] == _TRUE:\n                            f = True\n                            i += 4\n                    elif b[i] == ord('f'):\n                        # false\n                        if i + 5 <= n and b[i:i+5] == _FALSE:\n                            f = False\n                            i += 5\n                else:\n                    # Skip value\n                    if b[i] == ord('\"'):\n                        i += 1\n                        while i < n and b[i] != ord('\"'):\n                            i += 1\n                        if i < n:\n                            i += 1\n                    elif b[i] == ord('t') or b[i] == ord('f'):\n                        if b[i] == ord('t') and i + 4 <= n and b[i:i+4] == _TRUE:\n                            i += 4\n                        elif b[i] == ord('f') and i + 5 <= n and b[i:i+5] == _FALSE:\n                            i += 5\n                    elif b[i] == ord('n') and i + 4 <= n and b[i:i+4] == b'null':\n                        i += 4\n                    elif b[i] == ord('-') or (b[i] >= ord('0') and b[i] <= ord('9')):\n                        if b[i] == ord('-'):\n                            i += 1\n                        while i < n and (b[i] >= ord('0') and b[i] <= ord('9')):\n                            i += 1\n            else:\n                i += 1\n\n        # Compute v and hash\n        v = (u & 1023) + s + (17 if f else 0)\n        h ^= v + 1\n        h *= 1099511628211\n        h &= (1 << 64) - 1\n\n    return h",
+  "baseline": {
+    "task_id": "python_json_field_checksum_v2700_000",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 10172723,
+    "min_elapsed_ns": 8817295,
+    "max_elapsed_ns": 15866928,
+    "all_elapsed_ns": [
+      15866928,
+      10172723,
+      8817295
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15866928,
+      "expected_checksum": 4831818828574849249,
+      "actual_checksum": 4831818828574849249
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "python_json_field_checksum_v2700_000",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 9747607,
+    "min_elapsed_ns": 8473063,
+    "max_elapsed_ns": 10011995,
+    "all_elapsed_ns": [
+      10011995,
+      9747607,
+      8473063
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10011995,
+      "expected_checksum": 4831818828574849249,
+      "actual_checksum": 4831818828574849249
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "python_json_field_checksum_v2700_000",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 20362431,
+    "min_elapsed_ns": 19963484,
+    "max_elapsed_ns": 21537046,
+    "all_elapsed_ns": [
+      19963484,
+      20362431,
+      21537046
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 19963484,
+      "expected_checksum": 4831818828574849249,
+      "actual_checksum": 4831818828574849249
+    },
+    "status": "ok"
+  }
+}

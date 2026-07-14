@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_jacobi_2d_v1500_d",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v1500_d/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nstatic inline uint64_t fnv1a_u32_seq(const uint32_t* data, std::size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (std::size_t i = 0; i < n; ++i) {\n    hash ^= static_cast<uint64_t>(data[i]);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\nstatic inline uint64_t pow_fnv_prime(std::size_t exp) {\n  uint64_t base = 1099511628211ULL;\n  uint64_t result = 1ULL;\n  while (exp) {\n    if (exp & 1U) result *= base;\n    base *= base;\n    exp >>= 1U;\n  }\n  return result;\n}\n\n}  // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  const std::size_t total = input.size();\n  if (total == 0) {\n    return 1469598103934665603ULL;\n  }\n\n  std::vector<uint32_t> a = input;\n  if (steps <= 0) {\n    return fnv1a_u32_seq(a.data(), total);\n  }\n\n  std::vector<uint32_t> b(total);\n\n  const int r = rows;\n  const int c = cols;\n\n  if (r <= 0 || c <= 0) {\n    return fnv1a_u32_seq(a.data(), total);\n  }\n\n  if (r < 3 || c < 3) {\n    return fnv1a_u32_seq(a.data(), total);\n  }\n\n  for (int step = 0; step < steps; ++step) {\n    const uint32_t* __restrict src = a.data();\n    uint32_t* __restrict dst = b.data();\n\n    // Copy top and bottom rows unchanged.\n    #pragma omp parallel for schedule(static)\n    for (int j = 0; j < c; ++j) {\n      dst[j] = src[j];\n      dst[static_cast<std::size_t>(r - 1) * static_cast<std::size_t>(c) + static_cast<std::size_t>(j)] =\n          src[static_cast<std::size_t>(r - 1) * static_cast<std::size_t>(c) + static_cast<std::size_t>(j)];\n    }\n\n    // Process interior rows; copy left/right borders and compute interior without branches.\n    #pragma omp parallel for schedule(static)\n    for (int i = 1; i < r - 1; ++i) {\n      const std::size_t base = static_cast<std::size_t>(i) * static_cast<std::size_t>(c);\n      const std::size_t up = base - static_cast<std::size_t>(c);\n      const std::size_t down = base + static_cast<std::size_t>(c);\n\n      dst[base] = src[base];\n      dst[base + static_cast<std::size_t>(c - 1)] = src[base + static_cast<std::size_t>(c - 1)];\n\n      for (int j = 1; j < c - 1; ++j) {\n        const std::size_t idx = base + static_cast<std::size_t>(j);\n        dst[idx] = (src[idx] * 4u + src[idx - 1] + src[idx + 1] + src[up + static_cast<std::size_t>(j)] +\n                    src[down + static_cast<std::size_t>(j)]) /\n                   8u;\n      }\n    }\n\n    a.swap(b);\n  }\n\n  const uint32_t* data = a.data();\n\n  int max_threads = omp_get_max_threads();\n  if (max_threads < 1) max_threads = 1;\n  if (total < static_cast<std::size_t>(max_threads) * 1024ULL) {\n    return fnv1a_u32_seq(data, total);\n  }\n\n  std::vector<uint64_t> chunk_hash(static_cast<std::size_t>(max_threads));\n  std::vector<std::size_t> chunk_len(static_cast<std::size_t>(max_threads));\n\n  #pragma omp parallel\n  {\n    const int tid = omp_get_thread_num();\n    const int nth = omp_get_num_threads();\n    const std::size_t t = static_cast<std::size_t>(tid);\n    const std::size_t nthreads = static_cast<std::size_t>(nth);\n\n    const std::size_t begin = (total * t) / nthreads;\n    const std::size_t end = (total * (t + 1)) / nthreads;\n\n    uint64_t h = 1469598103934665603ULL;\n    for (std::size_t i = begin; i < end; ++i) {\n      h ^= static_cast<uint64_t>(data[i]);\n      h *= 1099511628211ULL;\n    }\n    chunk_hash[t] = h;\n    chunk_len[t] = end - begin;\n  }\n\n  uint64_t hash = 1469598103934665603ULL;\n  for (int t = 0; t < max_threads; ++t) {\n    const std::size_t len = chunk_len[static_cast<std::size_t>(t)];\n    if (len == 0) continue;\n    const uint64_t h = chunk_hash[static_cast<std::size_t>(t)];\n    hash = h ^ (hash * pow_fnv_prime(len));\n  }\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v1500_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4978647,
+    "min_elapsed_ns": 3791601,
+    "max_elapsed_ns": 10642084,
+    "all_elapsed_ns": [
+      10642084,
+      4978647,
+      3791601
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10642084,
+      "expected_checksum": 5311671338593182502,
+      "actual_checksum": 5311671338593182502
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v1500_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 38293917,
+    "min_elapsed_ns": 23177464,
+    "max_elapsed_ns": 124592178,
+    "all_elapsed_ns": [
+      38293917,
+      23177464,
+      124592178
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 38293917,
+      "expected_checksum": 5311671338593182502,
+      "actual_checksum": 5311671338593182502
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v1500_d",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/openmp_jacobi_2d_v1500_d/candidate/bench']' timed out after 5 seconds"
+  }
+}

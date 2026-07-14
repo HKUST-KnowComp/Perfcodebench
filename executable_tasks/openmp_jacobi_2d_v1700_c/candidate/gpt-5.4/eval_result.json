@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_jacobi_2d_v1700_c",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v1700_c/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nstatic inline uint64_t checksum_u32_ptr(const uint32_t* data, std::size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (std::size_t i = 0; i < n; ++i) {\n    hash ^= static_cast<uint64_t>(data[i]);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  const std::size_t total = static_cast<std::size_t>(rows) * static_cast<std::size_t>(cols);\n  if (total == 0) {\n    return checksum_u32_ptr(nullptr, 0);\n  }\n\n  std::vector<uint32_t> a = input;\n  if (steps <= 0 || rows <= 1 || cols <= 1) {\n    return checksum_u32_ptr(a.data(), total);\n  }\n\n  std::vector<uint32_t> b(total);\n\n  const int last_row = rows - 1;\n  const int last_col = cols - 1;\n  const std::size_t cols_sz = static_cast<std::size_t>(cols);\n\n  for (int step = 0; step < steps; ++step) {\n    const uint32_t* __restrict src = a.data();\n    uint32_t* __restrict dst = b.data();\n\n    // Copy top and bottom rows.\n    for (int c = 0; c < cols; ++c) {\n      const std::size_t idx_top = static_cast<std::size_t>(c);\n      const std::size_t idx_bot = static_cast<std::size_t>(last_row) * cols_sz + static_cast<std::size_t>(c);\n      dst[idx_top] = src[idx_top];\n      dst[idx_bot] = src[idx_bot];\n    }\n\n    if (rows > 2) {\n#pragma omp parallel for schedule(static)\n      for (int r = 1; r < last_row; ++r) {\n        const std::size_t base = static_cast<std::size_t>(r) * cols_sz;\n        const std::size_t up = base - cols_sz;\n        const std::size_t down = base + cols_sz;\n\n        dst[base] = src[base];\n\n        for (int c = 1; c < last_col; ++c) {\n          const std::size_t idx = base + static_cast<std::size_t>(c);\n          dst[idx] = (src[idx] * 4u + src[idx - 1] + src[idx + 1] + src[up + static_cast<std::size_t>(c)] +\n                      src[down + static_cast<std::size_t>(c)]) /\n                     8u;\n        }\n\n        dst[base + static_cast<std::size_t>(last_col)] = src[base + static_cast<std::size_t>(last_col)];\n      }\n    }\n\n    a.swap(b);\n  }\n\n  return checksum_u32_ptr(a.data(), total);\n}\n",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v1700_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 250226361,
+    "min_elapsed_ns": 243523211,
+    "max_elapsed_ns": 335401218,
+    "all_elapsed_ns": [
+      250226361,
+      335401218,
+      243523211
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 250226361,
+      "expected_checksum": 16103514754554193683,
+      "actual_checksum": 16103514754554193683
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v1700_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 114703508,
+    "min_elapsed_ns": 114552658,
+    "max_elapsed_ns": 117937255,
+    "all_elapsed_ns": [
+      114552658,
+      117937255,
+      114703508
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 114552658,
+      "expected_checksum": 16103514754554193683,
+      "actual_checksum": 16103514754554193683
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v1700_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1431823240,
+    "min_elapsed_ns": 725217203,
+    "max_elapsed_ns": 1575705655,
+    "all_elapsed_ns": [
+      725217203,
+      1431823240,
+      1575705655
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 725217203,
+      "expected_checksum": 16103514754554193683,
+      "actual_checksum": 16103514754554193683
+    },
+    "status": "ok"
+  }
+}

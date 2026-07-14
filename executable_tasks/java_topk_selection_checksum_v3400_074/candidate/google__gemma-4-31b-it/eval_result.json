@@ -1,0 +1,59 @@
+{
+  "task_id": "java_topk_selection_checksum_v3400_074",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/java_topk_selection_checksum_v3400_074/candidate/google__gemma-4-31b-it/Solution.java",
+  "benchmark_timeout_sec": 6,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "import java.util.*;\n\npublic class Solution {\n    public static long run(int[] scores, int k, int iters) {\n        int n = scores.length;\n        long[] packed = new long[n];\n        \n        long h = 0;\n        for (int iter = 0; iter < iters; iter++) {\n            for (int i = 0; i < n; i++) {\n                // Pack score and index into a long for efficient sorting.\n                // Score is shifted to high bits. \n                // Since we want descending score and ascending index,\n                // we store score as is (but handle sign) and index as (max_int - index).\n                // However, a simpler way for descending score and ascending index:\n                // Use (long)score << 32 and (long)(Integer.MAX_VALUE - i).\n                // But since we need the exact top-k, we can just use a custom comparator logic in Quickselect.\n                // To use primitive longs: high 32 bits = score, low 32 bits = -index.\n                // This way, larger score is better, and for same score, larger (-index) is better (which means smaller index).\n                packed[i] = (((long) scores[i]) << 32) | (0xFFFFFFFFL - i);\n            }\n            \n            quickSelect(packed, 0, n - 1, k);\n            \n            // The top k are now in packed[0...k-1], but not necessarily sorted.\n            // The problem requires the checksum over the ORDERED winners.\n            // So we must sort the top k elements.\n            Arrays.sort(packed, 0, k);\n            // Arrays.sort sorts ascending. Our packing makes the 'best' elements the largest.\n            // So the top k are the largest k elements. \n            // Let's refine: we want the k largest elements, then sort them descending.\n            \n            h = 1469598103934665603L;\n            for (int i = k - 1; i >= 0; i--) {\n                long val = packed[i];\n                int score = (int) (val >> 32);\n                int index = (int) (0xFFFFFFFFL - (val & 0xFFFFFFFFL));\n                h ^= (((long) score) << 32) ^ (index & 0xffffffffL);\n                h *= 1099511628211L;\n            }\n        }\n        return h;\n    }\n\n    private static void quickSelect(long[] a, int left, int right, int k) {\n        if (left >= right) return;\n        int pivotIndex = partition(a, left, right);\n        if (pivotIndex == nMinusK(a, k)) return;\n        if (pivotIndex < nMinusK(a, k)) {\n            quickSelect(a, pivotIndex + 1, right, k);\n        } else {\n            quickSelect(a, left, pivotIndex - 1, k);\n        }\n    }\n\n    private static int nMinusK(long[] a, int k) {\n        return a.length - k;\n    }\n\n    private static int partition(long[] a, int left, int right) {\n        long pivot = a[left + (right - left) / 2];\n        int i = left - 1;\n        int j = right + 1;\n        while (true) {\n            do { i++; } while (a[i] < pivot);\n            do { j--; } while (a[j] > pivot);\n            if (i >= j) return j;\n            long temp = a[i];\n            a[i] = a[j];\n            a[j] = temp;\n        }\n    }\n\n    // Redoing the logic to be cleaner and strictly correct regarding the ordering\n    public static long runFixed(int[] scores, int k, int iters) {\n        int n = scores.length;\n        long[] packed = new long[n];\n        long h = 0;\n        for (int iter = 0; iter < iters; iter++) {\n            for (int i = 0; i < n; i++) {\n                // Pack: score in high 32, (MAX_INT - index) in low 32\n                // This makes the 'best' (highest score, lowest index) the largest long\n                packed[i] = (((long) scores[i]) << 32) | (0xFFFFFFFFL - i);\n            }\n            \n            // We need the k largest elements\n            nthElement(packed, 0, n - 1, n - k);\n            \n            // Sort the k largest elements in descending order\n            Arrays.sort(packed, n - k, n);\n            \n            h = 1469598103934665603L;\n            for (int i = n - 1; i >= n - k; i--) {\n                long val = packed[i];\n                int score = (int) (val >> 32);\n                int index = (int) (0xFFFFFFFFL - (val & 0xFFFFFFFFL));\n                h ^= (((long) score) << 32) ^ (index & 0xffffffffL);\n                h *= 1099511628211L;\n            }\n        }\n        return h;\n    }\n\n    private static void nthElement(long[] a, int left, int right, int n) {\n        while (left < right) {\n            int pivotIndex = partition(a, left, right);\n            if (pivotIndex == n) return;\n            if (pivotIndex < n) left = pivotIndex + 1;\n            else right = pivotIndex;\n        }\n    }\n\n    private static int partition(long[] a, int left, int right) {\n        long pivot = a[left + (right - left) / 2];\n        int i = left, j = right;\n        while (i <= j) {\n            while (a[i] < pivot) i++;\n            while (a[j] > pivot) j--;\n            if (i <= j) {\n                long temp = a[i];\n                a[i] = a[j];\n                a[j] = temp;\n                i++;\n                j--;\n            }\n        }\n        return i;\n    }\n\n    // The actual entry point used by the harness\n    public static long run(int[] scores, int k, int iters) {\n        return runFixed(scores, k, iters);\n    }\n}",
+  "baseline": {
+    "task_id": "java_topk_selection_checksum_v3400_074",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2570599034,
+    "min_elapsed_ns": 2536682571,
+    "max_elapsed_ns": 2834977182,
+    "all_elapsed_ns": [
+      2570599034,
+      2834977182,
+      2536682571
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2570599034,
+      "expected_checksum": 4077409804352241885,
+      "actual_checksum": 4077409804352241885
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "java_topk_selection_checksum_v3400_074",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 123340006,
+    "min_elapsed_ns": 112057838,
+    "max_elapsed_ns": 123423813,
+    "all_elapsed_ns": [
+      112057838,
+      123340006,
+      123423813
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 112057838,
+      "expected_checksum": 4077409804352241885,
+      "actual_checksum": 4077409804352241885
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "java_topk_selection_checksum_v3400_074",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['javac', '-d', 'build/java_topk_selection_checksum_v3400_074/candidate', 'executable_tasks/java_topk_selection_checksum_v3400_074/harness/BenchmarkMain.java', 'executable_tasks/java_topk_selection_checksum_v3400_074/candidate/google__gemma-4-31b-it/Solution.java']' returned non-zero exit status 1."
+  }
+}

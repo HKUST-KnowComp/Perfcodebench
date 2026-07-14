@@ -1,0 +1,59 @@
+{
+  "task_id": "croaring_many_union_cardinality",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/croaring_many_union_cardinality/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"roaring.h\"\n#include <vector>\n\nuint64_t many_union_cardinality(\n    const std::vector<uint32_t>& offsets,\n    const std::vector<uint32_t>& values) {\n  if (offsets.size() < 2) {\n    return 0;\n  }\n\n  std::vector<roaring_bitmap_t*> bitmaps;\n  bitmaps.reserve(offsets.size() - 1);\n\n  for (std::size_t shard = 0; shard + 1 < offsets.size(); ++shard) {\n    const uint32_t begin = offsets[shard];\n    const uint32_t end = offsets[shard + 1];\n    \n    if (begin >= end) continue;\n\n    roaring_bitmap_t* rb = roaring_bitmap_create();\n    for (uint32_t i = begin; i < end; ++i) {\n      roaring_bitmap_add(rb, values[i]);\n    }\n    bitmaps.push_back(rb);\n  }\n\n  if (bitmaps.empty()) {\n    return 0;\n  }\n\n  roaring_bitmap_t* union_rb = roaring_bitmap_union_many(bitmaps.size(), bitmaps.data());\n  uint64_t cardinality = roaring_bitmap_get_cardinality(union_rb);\n\n  // Cleanup\n  for (auto rb : bitmaps) {\n    roaring_bitmap_destroy(rb);\n  }\n  roaring_bitmap_destroy(union_rb);\n\n  return cardinality;\n}",
+  "baseline": {
+    "task_id": "croaring_many_union_cardinality",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 269192088,
+    "min_elapsed_ns": 257097796,
+    "max_elapsed_ns": 270532459,
+    "all_elapsed_ns": [
+      269192088,
+      257097796,
+      270532459
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 269192088,
+      "expected_cardinality": 880817,
+      "actual_cardinality": 880817
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "croaring_many_union_cardinality",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 14075951,
+    "min_elapsed_ns": 14055640,
+    "max_elapsed_ns": 15294297,
+    "all_elapsed_ns": [
+      15294297,
+      14075951,
+      14055640
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15294297,
+      "expected_cardinality": 880817,
+      "actual_cardinality": 880817
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "croaring_many_union_cardinality",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/croaring_many_union_cardinality/harness', '-Iexternal/croaring_amalg', 'executable_tasks/croaring_many_union_cardinality/harness/benchmark_main.cpp', 'executable_tasks/croaring_many_union_cardinality/candidate/google__gemma-4-26b-a4b-it/solution.cpp', 'external/croaring_amalg/roaring.c', '-o', 'build/croaring_many_union_cardinality/candidate/bench']' returned non-zero exit status 1."
+  }
+}

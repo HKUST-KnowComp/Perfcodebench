@@ -1,0 +1,69 @@
+{
+  "task_id": "lz4_medium_chunk_compress",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/lz4_medium_chunk_compress/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"lz4.h\"\n#include <algorithm>\n#include <vector>\n#include <string>\n#include <memory>\n\nnamespace {\n// 16KB is a standard medium chunk size that fits well in L1/L2 caches.\nconstexpr std::size_t kChunkSize = 1 << 14;\n\n// Use a custom deleter for the LZ4 state to manage it with unique_ptr\nstruct LZ4Deleter {\n    void operator()(void* state) const {\n        if (state) free(state);\n    }\n};\n}\n\nint compress_chunks(const std::string& input, std::vector<std::string>& chunks) {\n    const std::size_t input_size = input.size();\n    chunks.clear();\n    \n    if (input_size == 0) {\n        return 0;\n    }\n\n    const std::size_t num_chunks = (input_size + kChunkSize - 1) / kChunkSize;\n    chunks.reserve(num_chunks);\n\n    // Allocate LZ4 state once to reuse across all chunks.\n    // LZ4_compress_fast_extState is faster than LZ4_compress_default because it avoids \n    // the overhead of zeroing the state on every call.\n    std::unique_ptr<void, LZ4Deleter> state(malloc(LZ4_sizeofState()));\n    if (!state) return -1;\n\n    int total_compressed_size = 0;\n    const char* input_ptr = input.data();\n    const int acceleration = 1; // Default acceleration for LZ4_compress_fast\n\n    for (std::size_t offset = 0; offset < input_size; offset += kChunkSize) {\n        const std::size_t take = std::min(kChunkSize, input_size - offset);\n        const int max_dst_size = LZ4_compressBound(static_cast<int>(take));\n\n        chunks.emplace_back();\n        std::string& compressed = chunks.back();\n        \n        // Pre-allocate the maximum possible size for the compressed chunk.\n        compressed.resize(max_dst_size);\n\n        // Perform compression using the pre-allocated state.\n        const int compressed_bytes = LZ4_compress_fast_extState(\n            state.get(),\n            input_ptr + offset,\n            &compressed[0],\n            static_cast<int>(take),\n            max_dst_size,\n            acceleration\n        );\n\n        if (compressed_bytes <= 0) {\n            return -1;\n        }\n\n        // Shrink the string to the actual compressed size.\n        compressed.resize(static_cast<std::size_t>(compressed_bytes));\n        total_compressed_size += compressed_bytes;\n    }\n\n    return total_compressed_size;\n}\n",
+  "baseline": {
+    "task_id": "lz4_medium_chunk_compress",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 18914795,
+    "min_elapsed_ns": 18809393,
+    "max_elapsed_ns": 19573277,
+    "all_elapsed_ns": [
+      18914795,
+      18809393,
+      19573277
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 18914795,
+      "compressed_size": 3237289
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "lz4_medium_chunk_compress",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 11013566,
+    "min_elapsed_ns": 10947399,
+    "max_elapsed_ns": 11057440,
+    "all_elapsed_ns": [
+      11057440,
+      11013566,
+      10947399
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11057440,
+      "compressed_size": 3816844
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "lz4_medium_chunk_compress",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 25509639,
+    "min_elapsed_ns": 20958222,
+    "max_elapsed_ns": 48480207,
+    "all_elapsed_ns": [
+      20958222,
+      25509639,
+      48480207
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 20958222,
+      "compressed_size": 3237289
+    },
+    "status": "ok"
+  }
+}

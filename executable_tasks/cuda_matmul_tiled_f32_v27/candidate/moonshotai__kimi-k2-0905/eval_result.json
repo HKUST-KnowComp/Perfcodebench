@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_matmul_tiled_f32_v27",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_matmul_tiled_f32_v27/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int BM = 128;   // tile height for A/C\nconstexpr int BN = 8;     // tile width  for B/C\nconstexpr int BK = 8;     // reduction dimension tile size\n\nconstexpr int TM = 2;     // per-thread rows in A tile\nconstexpr int TN = 2;     // per-thread cols in B tile\n\n__global__ void gemm_tiled(const float* __restrict__ A,\n                           const float* __restrict__ B,\n                           float*       __restrict__ C,\n                           int n) {\n  __shared__ float tileA[BM * BK];\n  __shared__ float tileB[BK * BN];\n\n  const int tx = threadIdx.x;\n  const int ty = threadIdx.y;\n  const int bx = blockIdx.x;\n  const int by = blockIdx.y;\n\n  const int rowA = ty * TM + (tx / 4) * TM;  // 128 threads -> 128/8 = 16 warps -> 8x16 threads\n  const int colA = (tx & 3) * 2;\n\n  const int rowB = tx / BN;\n  const int colB = tx % BN;\n\n  const int globalRowStart = by * BM;\n  const int globalColStart = bx * BN;\n\n  float accum[TM][TN] = {{0.0f}};\n\n  for (int bk = 0; bk < n; bk += BK) {\n    /* Load tileA (BM x BK) with vectorized float4 */\n    #pragma unroll\n    for (int i = 0; i < TM; ++i) {\n      int row = rowA + i;\n      if (row < BM && globalRowStart + row < n) {\n        const float4* src = reinterpret_cast<const float4*>(&A[(globalRowStart + row) * n + bk + colA]);\n        float4 val = *src;\n        tileA[(row) * BK + colA + 0] = val.x;\n        tileA[(row) * BK + colA + 1] = val.y;\n        if (colA + 2 < BK)\n          tileA[(row) * BK + colA + 2] = val.z;\n        if (colA + 3 < BK)\n          tileA[(row) * BK + colA + 3] = val.w;\n      }\n    }\n\n    /* Load tileB (BK x BN) with vectorized float4 */\n    #pragma unroll\n    for (int i = 0; i < 2; ++i) {\n      int row = rowB + i * 64;\n      if (row < BK && bk + row < n) {\n        float4 val = *reinterpret_cast<const float4*>(&B[(bk + row) * n + globalColStart + colB]);\n        tileB[(row) * BN + colB + 0] = val.x;\n        tileB[(row) * BN + colB + 1] = val.y;\n        tileB[(row) * BN + colB + 2] = val.z;\n        tileB[(row) * BN + colB + 3] = val.w;\n      }\n    }\n\n    __syncthreads();\n\n    /* Compute */\n    #pragma unroll\n    for (int k = 0; k < BK; ++k) {\n      #pragma unroll\n      for (int m = 0; m < TM; ++m) {\n        #pragma unroll\n        for (int n = 0; n < TN; ++n) {\n          accum[m][n] += tileA[(ty * TM + m) * BK + k] *\n                         tileB[k * BN + tx * TN + n];\n        }\n      }\n    }\n    __syncthreads();\n  }\n\n  /* Store C tile */\n  #pragma unroll\n  for (int m = 0; m < TM; ++m) {\n    #pragma unroll\n    for (int n = 0; n < TN; ++n) {\n      int globalRow = globalRowStart + ty * TM + m;\n      int globalCol = globalColStart + tx * TN + n;\n      if (globalRow < n && globalCol < n) {\n        C[globalRow * n + globalCol] = accum[m][n];\n      }\n    }\n  }\n}\n\n}  // namespace\n\nvoid matmul_f32(const float* a, const float* b, float* c, int n, int iters) {\n  dim3 blockDim(32, 8);                 // 256 threads\n  dim3 gridDim((n + BN - 1) / BN,\n               (n + BM - 1) / BM);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    gemm_tiled<<<gridDim, blockDim>>>(a, b, c, n);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_matmul_tiled_f32_v27",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 248927,
+    "min_elapsed_ns": 245343,
+    "max_elapsed_ns": 273856,
+    "all_elapsed_ns": [
+      273856,
+      248927,
+      245343
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 273856,
+      "max_abs_error": 0,
+      "checksum": 1947170000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_matmul_tiled_f32_v27",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 184863,
+    "min_elapsed_ns": 183359,
+    "max_elapsed_ns": 194815,
+    "all_elapsed_ns": [
+      184863,
+      183359,
+      194815
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 184863,
+      "max_abs_error": 0,
+      "checksum": 1947170000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_matmul_tiled_f32_v27",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_matmul_tiled_f32_v27/candidate/bench']' timed out after 5 seconds"
+  }
+}

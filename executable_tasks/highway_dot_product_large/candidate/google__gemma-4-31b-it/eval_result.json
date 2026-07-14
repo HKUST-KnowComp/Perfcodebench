@@ -1,0 +1,59 @@
+{
+  "task_id": "highway_dot_product_large",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_dot_product_large/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <hwy/highway.h>\n\nnamespace hw = hwy;\n\n// Define the target for Highway SIMD\nstruct DotProductTarget : hw::ScalarTarget {};\n\n// The vectorized kernel\nfloat ComputeDotProduct(const float* a, const float* b, std::size_t n) {\n    const hw::HWY_FLOAT f32 = hw::Constant(hw::HWY_FLOAT, 0.0f);\n    hw::HWY_FLOAT sum0 = f32;\n    hw::HWY_FLOAT sum1 = f32;\n    hw::HWY_FLOAT sum2 = f32;\n    hw::HWY_FLOAT sum3 = f32;\n\n    const std::size_t lane_size = hw::Lanes(hw::HWY_FLOAT);\n    const std::size_t block_size = lane_size * 4;\n    std::size_t i = 0;\n\n    // Unroll by 4 to improve ILP and hide latency of fma\n    for (; i + block_size <= n; i += block_size) {\n        sum0 = hw::Add(sum0, hw::Mul(hw::Load(a + i), hw::Load(b + i)));\n        sum1 = hw::Add(sum1, hw::Mul(hw::Load(a + i + lane_size), hw::Load(b + i + lane_size)));\n        sum2 = hw::Add(sum2, hw::Mul(hw::Load(a + i + 2 * lane_size), hw::Load(b + i + 2 * lane_size)));\n        sum3 = hw::Add(sum3, hw::Mul(hw::Load(a + i + 3 * lane_size), hw::Load(b + i + 3 * lane_size)));\n    }\n\n    // Handle remaining blocks of lane_size\n    for (; i + lane_size <= n; i += lane_size) {\n        sum0 = hw::Add(sum0, hw::Mul(hw::Load(a + i), hw::Load(b + i)));\n    }\n\n    // Combine the 4 accumulators\n    hw::HWY_FLOAT total_sum = hw::Add(hw::Add(sum0, sum1), hw::Add(sum2, sum3));\n\n    // Horizontal reduction of the SIMD register\n    float final_sum = hw::ReduceSum(total_sum);\n\n    // Handle remaining elements (tail)\n    for (; i < n; ++i) {\n        final_sum += a[i] * b[i];\n    }\n\n    return final_sum;\n}\n\n// Highway requires the kernel to be defined in a specific way for dispatch\n// However, for a simple dot product, we can use the target directly if we know the architecture\n// or use the generic dispatch mechanism. Here we use the standard Highway pattern.\n\nfloat dot_product(const float* a, const float* b, std::size_t n) {\n    if (n == 0) return 0.0f;\n    // We use the target-specific implementation\n    return ComputeDotProduct(a, b, n);\n}\n",
+  "baseline": {
+    "task_id": "highway_dot_product_large",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3183558,
+    "min_elapsed_ns": 3140221,
+    "max_elapsed_ns": 3491621,
+    "all_elapsed_ns": [
+      3491621,
+      3183558,
+      3140221
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3491621,
+      "expected_dot": 567738,
+      "actual_dot": 567738
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_dot_product_large",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2053923,
+    "min_elapsed_ns": 1961017,
+    "max_elapsed_ns": 2279511,
+    "all_elapsed_ns": [
+      2279511,
+      2053923,
+      1961017
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2279511,
+      "expected_dot": 567738,
+      "actual_dot": 567737
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_dot_product_large",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/highway_dot_product_large/harness', '-Iexternal/highway', 'executable_tasks/highway_dot_product_large/harness/benchmark_main.cpp', 'executable_tasks/highway_dot_product_large/candidate/google__gemma-4-31b-it/solution.cpp', 'external/highway/hwy/abort.cc', 'external/highway/hwy/targets.cc', 'external/highway/hwy/aligned_allocator.cc', 'external/highway/hwy/per_target.cc', '-o', 'build/highway_dot_product_large/candidate/bench']' returned non-zero exit status 1."
+  }
+}

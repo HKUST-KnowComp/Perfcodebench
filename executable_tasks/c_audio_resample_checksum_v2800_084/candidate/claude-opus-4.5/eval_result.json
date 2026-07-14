@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_084",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_084/candidate/claude-opus-4.5/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n  if (output_len <= 0 || input_len <= 0) return 0;\n  \n  int16_t* out = (int16_t*)malloc((size_t)output_len * sizeof(int16_t));\n  if (!out) return 0;\n  \n  uint64_t hash = 0;\n  \n  // Precompute fixed-point step: (input_len - 1) / (output_len - 1)\n  // Using 32 fractional bits for position\n  const uint64_t scale_num = (uint64_t)(input_len - 1);\n  const uint64_t scale_den = (uint64_t)(output_len - 1);\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    // Combined resampling and checksum in one pass\n    hash = 1469598103934665603ULL;\n    \n    for (int i = 0; i < output_len; ++i) {\n      // Calculate position using 64-bit arithmetic to avoid overflow\n      // pos = i * (input_len - 1) / (output_len - 1)\n      uint64_t num = (uint64_t)i * scale_num;\n      int left = (int)(num / scale_den);\n      uint64_t rem = num % scale_den;\n      \n      int right = left + 1;\n      if (right >= input_len) right = input_len - 1;\n      \n      // Linear interpolation: left * (1 - frac) + right * frac\n      // frac = rem / scale_den\n      // result = left_val + (right_val - left_val) * rem / scale_den\n      int32_t left_val = src[left];\n      int32_t right_val = src[right];\n      int32_t diff = right_val - left_val;\n      \n      // Compute interpolated value with rounding\n      // sample = left_val + diff * rem / scale_den\n      // We need to round: add scale_den/2 before division for positive, subtract for negative\n      int64_t interp = (int64_t)diff * (int64_t)rem;\n      int32_t sample;\n      \n      if (interp >= 0) {\n        sample = left_val + (int32_t)((interp + (int64_t)(scale_den / 2)) / (int64_t)scale_den);\n      } else {\n        sample = left_val + (int32_t)((interp - (int64_t)(scale_den / 2)) / (int64_t)scale_den);\n      }\n      \n      // Clamp to int16_t range (shouldn't be needed for valid input, but safe)\n      if (sample > 32767) sample = 32767;\n      if (sample < -32768) sample = -32768;\n      \n      out[i] = (int16_t)sample;\n      \n      // Inline checksum update\n      hash ^= (uint16_t)out[i];\n      hash *= 1099511628211ULL;\n    }\n  }\n  \n  free(out);\n  return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_084",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 12448000,
+    "min_elapsed_ns": 11788000,
+    "max_elapsed_ns": 13176000,
+    "all_elapsed_ns": [
+      11788000,
+      13176000,
+      12448000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11788000,
+      "expected_checksum": 10180140470447909299,
+      "actual_checksum": 10180140470447909299
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_084",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 12099000,
+    "min_elapsed_ns": 11668000,
+    "max_elapsed_ns": 12411000,
+    "all_elapsed_ns": [
+      12099000,
+      12411000,
+      11668000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12099000,
+      "expected_checksum": 10180140470447909299,
+      "actual_checksum": 10180140470447909299
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_084",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 390000,
+    "min_elapsed_ns": 383000,
+    "max_elapsed_ns": 433000,
+    "all_elapsed_ns": [
+      383000,
+      390000,
+      433000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 383000,
+      "expected_checksum": 10180140470447909299,
+      "actual_checksum": 10180140470447909299
+    },
+    "status": "ok"
+  }
+}

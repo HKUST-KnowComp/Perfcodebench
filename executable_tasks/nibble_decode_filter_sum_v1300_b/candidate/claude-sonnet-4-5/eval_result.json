@@ -1,0 +1,72 @@
+{
+  "task_id": "nibble_decode_filter_sum_v1300_b",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/nibble_decode_filter_sum_v1300_b/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\n#ifdef __SSE2__\n#include <emmintrin.h>\n#endif\n\n#ifdef __AVX2__\n#include <immintrin.h>\n#endif\n\nuint64_t nibble_filter_sum(const std::vector<uint8_t>& packed, uint8_t threshold, int iters) {\n    uint64_t sum = 0;\n    const std::size_t size = packed.size();\n    const uint8_t* data = packed.data();\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        sum = 0;\n        std::size_t i = 0;\n        \n#ifdef __AVX2__\n        // Process 32 bytes (64 nibbles) at a time with AVX2\n        const std::size_t simd_end = size - (size % 32);\n        const __m256i threshold_vec = _mm256_set1_epi8(threshold);\n        const __m256i mask_low = _mm256_set1_epi8(0x0F);\n        \n        for (; i < simd_end; i += 32) {\n            __m256i bytes = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(data + i));\n            \n            // Extract low nibbles\n            __m256i low_nibbles = _mm256_and_si256(bytes, mask_low);\n            // Extract high nibbles\n            __m256i high_nibbles = _mm256_and_si256(_mm256_srli_epi16(bytes, 4), mask_low);\n            \n            // Compare with threshold (unsigned)\n            __m256i low_mask = _mm256_cmpgt_epi8(low_nibbles, threshold_vec);\n            __m256i high_mask = _mm256_cmpgt_epi8(high_nibbles, threshold_vec);\n            \n            // Apply masks and accumulate\n            __m256i low_filtered = _mm256_and_si256(low_nibbles, low_mask);\n            __m256i high_filtered = _mm256_and_si256(high_nibbles, high_mask);\n            \n            // Horizontal sum - extract to scalar\n            alignas(32) uint8_t low_arr[32];\n            alignas(32) uint8_t high_arr[32];\n            _mm256_store_si256(reinterpret_cast<__m256i*>(low_arr), low_filtered);\n            _mm256_store_si256(reinterpret_cast<__m256i*>(high_arr), high_filtered);\n            \n            for (int j = 0; j < 32; ++j) {\n                sum += low_arr[j];\n                sum += high_arr[j];\n            }\n        }\n#elif defined(__SSE2__)\n        // Process 16 bytes (32 nibbles) at a time with SSE2\n        const std::size_t simd_end = size - (size % 16);\n        const __m128i threshold_vec = _mm_set1_epi8(threshold);\n        const __m128i mask_low = _mm_set1_epi8(0x0F);\n        \n        for (; i < simd_end; i += 16) {\n            __m128i bytes = _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + i));\n            \n            // Extract low nibbles\n            __m128i low_nibbles = _mm_and_si128(bytes, mask_low);\n            // Extract high nibbles\n            __m128i high_nibbles = _mm_and_si128(_mm_srli_epi16(bytes, 4), mask_low);\n            \n            // Compare with threshold\n            __m128i low_mask = _mm_cmpgt_epi8(low_nibbles, threshold_vec);\n            __m128i high_mask = _mm_cmpgt_epi8(high_nibbles, threshold_vec);\n            \n            // Apply masks\n            __m128i low_filtered = _mm_and_si128(low_nibbles, low_mask);\n            __m128i high_filtered = _mm_and_si128(high_nibbles, high_mask);\n            \n            // Extract to scalar\n            alignas(16) uint8_t low_arr[16];\n            alignas(16) uint8_t high_arr[16];\n            _mm_store_si128(reinterpret_cast<__m128i*>(low_arr), low_filtered);\n            _mm_store_si128(reinterpret_cast<__m128i*>(high_arr), high_filtered);\n            \n            for (int j = 0; j < 16; ++j) {\n                sum += low_arr[j];\n                sum += high_arr[j];\n            }\n        }\n#endif\n        \n        // Process remaining bytes with unrolled scalar code\n        const std::size_t unroll_end = size - (size % 4);\n        for (; i < unroll_end; i += 4) {\n            uint8_t b0 = data[i];\n            uint8_t b1 = data[i + 1];\n            uint8_t b2 = data[i + 2];\n            uint8_t b3 = data[i + 3];\n            \n            uint8_t low0 = b0 & 15u;\n            uint8_t high0 = b0 >> 4u;\n            uint8_t low1 = b1 & 15u;\n            uint8_t high1 = b1 >> 4u;\n            uint8_t low2 = b2 & 15u;\n            uint8_t high2 = b2 >> 4u;\n            uint8_t low3 = b3 & 15u;\n            uint8_t high3 = b3 >> 4u;\n            \n            sum += (low0 > threshold) ? low0 : 0;\n            sum += (high0 > threshold) ? high0 : 0;\n            sum += (low1 > threshold) ? low1 : 0;\n            sum += (high1 > threshold) ? high1 : 0;\n            sum += (low2 > threshold) ? low2 : 0;\n            sum += (high2 > threshold) ? high2 : 0;\n            sum += (low3 > threshold) ? low3 : 0;\n            sum += (high3 > threshold) ? high3 : 0;\n        }\n        \n        // Handle remaining bytes\n        for (; i < size; ++i) {\n            uint8_t byte = data[i];\n            uint8_t low = byte & 15u;\n            uint8_t high = byte >> 4u;\n            \n            if (low > threshold) {\n                sum += low;\n            }\n            if (high > threshold) {\n                sum += high;\n            }\n        }\n    }\n    \n    return sum;\n}\n",
+  "baseline": {
+    "task_id": "nibble_decode_filter_sum_v1300_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 571515357,
+    "min_elapsed_ns": 566838420,
+    "max_elapsed_ns": 610042562,
+    "all_elapsed_ns": [
+      571515357,
+      610042562,
+      566838420
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 571515357,
+      "expected_sum": 157286400,
+      "actual_sum": 157286400
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "nibble_decode_filter_sum_v1300_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 187335449,
+    "min_elapsed_ns": 185732029,
+    "max_elapsed_ns": 197975599,
+    "all_elapsed_ns": [
+      187335449,
+      197975599,
+      185732029
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 187335449,
+      "expected_sum": 157286400,
+      "actual_sum": 157286400
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "nibble_decode_filter_sum_v1300_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 66405470,
+    "min_elapsed_ns": 66327806,
+    "max_elapsed_ns": 67507709,
+    "all_elapsed_ns": [
+      67507709,
+      66327806,
+      66405470
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 67507709,
+      "expected_sum": 157286400,
+      "actual_sum": 157286400
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_reduce_sum_cub_i32_v23",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_reduce_sum_cub_i32_v23/candidate/gpt-5.4/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int kBlockSize = 256;\nconstexpr int kMaxBlocks = 1024;\n\n__global__ void reduce_stage1_kernel(const int* __restrict__ input,\n                                     int* __restrict__ partials,\n                                     int n) {\n  __shared__ int sdata[kBlockSize];\n\n  const int tid = threadIdx.x;\n  const int global_stride = blockDim.x * gridDim.x;\n  int idx = blockIdx.x * blockDim.x * 2 + tid;\n\n  int sum = 0;\n  while (idx < n) {\n    sum += input[idx];\n    const int idx2 = idx + blockDim.x;\n    if (idx2 < n) sum += input[idx2];\n    idx += global_stride * 2;\n  }\n\n  sdata[tid] = sum;\n  __syncthreads();\n\n  for (int stride = blockDim.x >> 1; stride > 32; stride >>= 1) {\n    if (tid < stride) sdata[tid] += sdata[tid + stride];\n    __syncthreads();\n  }\n\n  if (tid < 32) {\n    volatile int* vsmem = sdata;\n    vsmem[tid] += vsmem[tid + 32];\n    vsmem[tid] += vsmem[tid + 16];\n    vsmem[tid] += vsmem[tid + 8];\n    vsmem[tid] += vsmem[tid + 4];\n    vsmem[tid] += vsmem[tid + 2];\n    vsmem[tid] += vsmem[tid + 1];\n  }\n\n  if (tid == 0) partials[blockIdx.x] = sdata[0];\n}\n\n__global__ void reduce_stage2_kernel(const int* __restrict__ partials,\n                                     int* __restrict__ output,\n                                     int n) {\n  __shared__ int sdata[kBlockSize];\n\n  const int tid = threadIdx.x;\n  int sum = 0;\n\n  for (int idx = tid; idx < n; idx += blockDim.x) {\n    sum += partials[idx];\n  }\n\n  sdata[tid] = sum;\n  __syncthreads();\n\n  for (int stride = blockDim.x >> 1; stride > 32; stride >>= 1) {\n    if (tid < stride) sdata[tid] += sdata[tid + stride];\n    __syncthreads();\n  }\n\n  if (tid < 32) {\n    volatile int* vsmem = sdata;\n    vsmem[tid] += vsmem[tid + 32];\n    vsmem[tid] += vsmem[tid + 16];\n    vsmem[tid] += vsmem[tid + 8];\n    vsmem[tid] += vsmem[tid + 4];\n    vsmem[tid] += vsmem[tid + 2];\n    vsmem[tid] += vsmem[tid + 1];\n  }\n\n  if (tid == 0) *output = sdata[0];\n}\n\n}  // namespace\n\nvoid reduce_sum_i32(const int* input, int* output, int n, int iters) {\n  if (iters <= 0) return;\n\n  if (n <= 0) {\n    for (int iter = 0; iter < iters; ++iter) {\n      cudaMemset(output, 0, sizeof(int));\n    }\n    return;\n  }\n\n  int blocks = (n + (kBlockSize * 2 - 1)) / (kBlockSize * 2);\n  if (blocks < 1) blocks = 1;\n  if (blocks > kMaxBlocks) blocks = kMaxBlocks;\n\n  int* partials = nullptr;\n  cudaMalloc(&partials, static_cast<size_t>(blocks) * sizeof(int));\n\n  for (int iter = 0; iter < iters; ++iter) {\n    reduce_stage1_kernel<<<blocks, kBlockSize>>>(input, partials, n);\n    reduce_stage2_kernel<<<1, kBlockSize>>>(partials, output, blocks);\n  }\n\n  cudaFree(partials);\n}\n",
+  "baseline": {
+    "task_id": "cuda_reduce_sum_cub_i32_v23",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 564831,
+    "min_elapsed_ns": 563839,
+    "max_elapsed_ns": 564960,
+    "all_elapsed_ns": [
+      564960,
+      563839,
+      564831
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 564960,
+      "expected_sum": 7864320,
+      "actual_sum": 7864320
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_reduce_sum_cub_i32_v23",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 142368,
+    "min_elapsed_ns": 125824,
+    "max_elapsed_ns": 143455,
+    "all_elapsed_ns": [
+      142368,
+      125824,
+      143455
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 142368,
+      "expected_sum": 7864320,
+      "actual_sum": 7864320
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_reduce_sum_cub_i32_v23",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_reduce_sum_cub_i32_v23/candidate/bench']' timed out after 5 seconds"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_060",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_060/candidate/claude-opus-4.5/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n  if (output_len <= 0 || input_len <= 0) return 0;\n  \n  int16_t* out = (int16_t*)malloc((size_t)output_len * sizeof(int16_t));\n  if (!out) return 0;\n  \n  uint64_t hash = 0;\n  \n  /* Use fixed-point arithmetic with 32-bit fractional precision */\n  const uint64_t scale = (uint64_t)(input_len - 1) << 32;\n  const uint64_t step = scale / (uint64_t)(output_len - 1);\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t pos_fixed = 0;\n    hash = 1469598103934665603ULL;\n    \n    for (int i = 0; i < output_len; ++i) {\n      int left = (int)(pos_fixed >> 32);\n      uint32_t frac = (uint32_t)pos_fixed; /* fractional part in 0..2^32-1 */\n      \n      int right = left + 1;\n      if (right >= input_len) right = input_len - 1;\n      \n      int32_t s_left = src[left];\n      int32_t s_right = src[right];\n      \n      /* Linear interpolation: sample = s_left + (s_right - s_left) * frac */\n      /* frac is in [0, 2^32), so we compute (diff * frac) >> 32 */\n      int64_t diff = (int64_t)(s_right - s_left);\n      int64_t interp = (diff * (int64_t)frac) >> 32;\n      int32_t sample = s_left + (int32_t)interp;\n      \n      /* Rounding: the fixed-point interpolation already gives us the floor,\n         we need to add 0.5 and truncate for proper rounding.\n         Since frac represents the fractional position, we check if the\n         remainder would round up. */\n      /* For exact match with original: compute with higher precision */\n      /* Actually, let's compute the rounding more carefully */\n      \n      /* The fractional part that would cause rounding:\n         original: sample + 0.5 for positive, sample - 0.5 for negative\n         This is equivalent to: (sample * 2 + sign) / 2 with integer division */\n      \n      /* Recompute with proper rounding to match original */\n      /* sample_scaled = s_left * (1-frac) + s_right * frac\n         = s_left + (s_right - s_left) * frac\n         where frac = (pos_fixed & 0xFFFFFFFF) / 2^32 */\n      \n      /* For rounding: we need the fractional part of the result */\n      /* Let's use 48-bit precision for the interpolation */\n      int64_t sample_48 = ((int64_t)s_left << 16) + ((diff * (int64_t)frac) >> 16);\n      /* Now sample_48 has 16 fractional bits */\n      /* Round to nearest: add 0.5 (which is 1 << 15) and shift */\n      int16_t rounded;\n      if (sample_48 >= 0) {\n        rounded = (int16_t)((sample_48 + (1 << 15)) >> 16);\n      } else {\n        rounded = (int16_t)((sample_48 - (1 << 15)) >> 16);\n      }\n      \n      out[i] = rounded;\n      \n      /* Inline checksum computation */\n      hash ^= (uint16_t)rounded;\n      hash *= 1099511628211ULL;\n      \n      pos_fixed += step;\n    }\n  }\n  \n  free(out);\n  return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_060",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 9168000,
+    "min_elapsed_ns": 8354000,
+    "max_elapsed_ns": 9781000,
+    "all_elapsed_ns": [
+      8354000,
+      9168000,
+      9781000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8354000,
+      "expected_checksum": 2247157654259726880,
+      "actual_checksum": 2247157654259726880
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_060",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8512000,
+    "min_elapsed_ns": 8388000,
+    "max_elapsed_ns": 9280000,
+    "all_elapsed_ns": [
+      8388000,
+      8512000,
+      9280000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8388000,
+      "expected_checksum": 2247157654259726880,
+      "actual_checksum": 2247157654259726880
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_060",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 6876000,
+    "min_elapsed_ns": 6862000,
+    "max_elapsed_ns": 6938000,
+    "all_elapsed_ns": [
+      6876000,
+      6938000,
+      6862000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6876000,
+      "expected_checksum": 2247157654259726880,
+      "actual_checksum": 2247157654259726880
+    },
+    "status": "ok"
+  }
+}

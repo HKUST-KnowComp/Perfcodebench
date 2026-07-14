@@ -1,0 +1,72 @@
+{
+  "task_id": "nibble_decode_filter_sum_v1300_d",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/nibble_decode_filter_sum_v1300_d/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstddef>\n\n#if defined(__SSE2__) && defined(__SSE4_1__)\n#include <emmintrin.h>\n#include <smmintrin.h>\n#define USE_SSE 1\n#endif\n\nuint64_t nibble_filter_sum(const std::vector<uint8_t>& packed, uint8_t threshold, int iters) {\n    const uint8_t* data = packed.data();\n    const size_t n = packed.size();\n    uint64_t sum = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        sum = 0;\n        size_t i = 0;\n\n#if USE_SSE\n        if (n >= 16) {\n            __m128i mask_lo = _mm_set1_epi8(0x0F);\n            __m128i thresh = _mm_set1_epi8(static_cast<char>(threshold));\n            __m128i acc0 = _mm_setzero_si128();\n            __m128i acc1 = _mm_setzero_si128();\n            __m128i acc2 = _mm_setzero_si128();\n            __m128i acc3 = _mm_setzero_si128();\n            int batch_count = 0;\n\n            for (; i + 16 <= n; i += 16) {\n                __m128i v = _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + i));\n                __m128i lo = _mm_and_si128(v, mask_lo);\n                __m128i hi = _mm_and_si128(_mm_srli_epi16(v, 4), mask_lo);\n\n                // Compare greater than threshold (unsigned via max trick)\n                __m128i cmp_lo = _mm_cmpgt_epi8(_mm_max_epu8(lo, thresh), thresh);\n                __m128i cmp_hi = _mm_cmpgt_epi8(_mm_max_epu8(hi, thresh), thresh);\n\n                // Zero out values not above threshold\n                lo = _mm_and_si128(lo, cmp_lo);\n                hi = _mm_and_si128(hi, cmp_hi);\n\n                // Horizontal sum using SAD against zero\n                acc0 = _mm_add_epi64(acc0, _mm_sad_epu8(lo, _mm_setzero_si128()));\n                acc1 = _mm_add_epi64(acc1, _mm_sad_epu8(hi, _mm_setzero_si128()));\n\n                batch_count++;\n                if (batch_count == 255) {\n                    acc2 = _mm_add_epi64(acc2, acc0);\n                    acc3 = _mm_add_epi64(acc3, acc1);\n                    acc0 = _mm_setzero_si128();\n                    acc1 = _mm_setzero_si128();\n                    batch_count = 0;\n                }\n            }\n\n            acc2 = _mm_add_epi64(acc2, acc0);\n            acc3 = _mm_add_epi64(acc3, acc1);\n            __m128i total = _mm_add_epi64(acc2, acc3);\n            sum += static_cast<uint64_t>(_mm_extract_epi64(total, 0)) +\n                   static_cast<uint64_t>(_mm_extract_epi64(total, 1));\n        }\n#endif\n\n        // Scalar remainder\n        for (; i < n; ++i) {\n            uint8_t byte = data[i];\n            uint8_t lo = byte & 0x0Fu;\n            uint8_t hi = byte >> 4u;\n            if (lo > threshold) sum += lo;\n            if (hi > threshold) sum += hi;\n        }\n    }\n\n    return sum;\n}",
+  "baseline": {
+    "task_id": "nibble_decode_filter_sum_v1300_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 353864852,
+    "min_elapsed_ns": 352298549,
+    "max_elapsed_ns": 408648213,
+    "all_elapsed_ns": [
+      352298549,
+      353864852,
+      408648213
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 352298549,
+      "expected_sum": 22020096,
+      "actual_sum": 22020096
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "nibble_decode_filter_sum_v1300_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 146358784,
+    "min_elapsed_ns": 140380168,
+    "max_elapsed_ns": 146932093,
+    "all_elapsed_ns": [
+      140380168,
+      146932093,
+      146358784
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 140380168,
+      "expected_sum": 22020096,
+      "actual_sum": 22020096
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "nibble_decode_filter_sum_v1300_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 139892247,
+    "min_elapsed_ns": 139552058,
+    "max_elapsed_ns": 151917291,
+    "all_elapsed_ns": [
+      139552058,
+      151917291,
+      139892247
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 139552058,
+      "expected_sum": 22020096,
+      "actual_sum": 22020096
+    },
+    "status": "ok"
+  }
+}

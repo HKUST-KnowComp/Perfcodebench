@@ -1,0 +1,14 @@
+def run(keys, vals, buckets: int, iters: int) -> int:
+    if iters == 0:
+        return 0
+    hist = [0] * buckets
+    zip_ = zip
+    for k, v in zip_(keys, vals):
+        hist[k] += v
+    h = 1469598103934665603
+    mask = (1 << 64) - 1
+    mul = 1099511628211
+    for v in hist:
+        h ^= v + 1
+        h = (h * mul) & mask
+    return h

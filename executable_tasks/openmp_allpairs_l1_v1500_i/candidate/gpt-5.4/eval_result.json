@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_allpairs_l1_v1500_i",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_allpairs_l1_v1500_i/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nstatic inline void sort_int32_inplace(int32_t* a, int n) {\n  if (n <= 1) return;\n\n  int32_t* stack_l[64];\n  int32_t* stack_r[64];\n  int top = 0;\n  stack_l[top] = a;\n  stack_r[top] = a + (n - 1);\n  ++top;\n\n  while (top) {\n    --top;\n    int32_t* l = stack_l[top];\n    int32_t* r = stack_r[top];\n\n    while (l < r) {\n      int32_t* i = l;\n      int32_t* j = r;\n      const int32_t pivot = l[(r - l) >> 1];\n\n      do {\n        while (*i < pivot) ++i;\n        while (*j > pivot) --j;\n        if (i <= j) {\n          const int32_t tmp = *i;\n          *i = *j;\n          *j = tmp;\n          ++i;\n          --j;\n        }\n      } while (i <= j);\n\n      if (j - l < r - i) {\n        if (i < r) {\n          stack_l[top] = i;\n          stack_r[top] = r;\n          ++top;\n        }\n        r = j;\n      } else {\n        if (l < j) {\n          stack_l[top] = l;\n          stack_r[top] = j;\n          ++top;\n        }\n        l = i;\n      }\n    }\n  }\n}\n\nstatic inline int64_t axis_sum_sorted(const int32_t* a, int n) {\n  int64_t prefix = 0;\n  int64_t total = 0;\n  for (int i = 0; i < n; ++i) {\n    const int64_t v = static_cast<int64_t>(a[i]);\n    total += v * static_cast<int64_t>(i) - prefix;\n    prefix += v;\n  }\n  return total;\n}\n\n}  // namespace\n\nint64_t allpairs_l1_sum(const std::vector<int32_t>& xs, const std::vector<int32_t>& ys, int iters) {\n  const int n = static_cast<int>(xs.size());\n  if (iters <= 0 || n <= 1) return 0;\n\n  std::vector<int32_t> xbuf(xs.begin(), xs.end());\n  std::vector<int32_t> ybuf(ys.begin(), ys.end());\n\n  int64_t xsum = 0;\n  int64_t ysum = 0;\n\n#pragma omp parallel sections\n  {\n#pragma omp section\n    {\n      sort_int32_inplace(xbuf.data(), n);\n      xsum = axis_sum_sorted(xbuf.data(), n);\n    }\n#pragma omp section\n    {\n      sort_int32_inplace(ybuf.data(), n);\n      ysum = axis_sum_sorted(ybuf.data(), n);\n    }\n  }\n\n  const int64_t total = xsum + ysum;\n  (void)iters;\n  return total;\n}\n",
+  "baseline": {
+    "task_id": "openmp_allpairs_l1_v1500_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1337335892,
+    "min_elapsed_ns": 1281937608,
+    "max_elapsed_ns": 1523647970,
+    "all_elapsed_ns": [
+      1281937608,
+      1337335892,
+      1523647970
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1281937608,
+      "expected_sum": 8776814988,
+      "actual_sum": 8776814988
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_allpairs_l1_v1500_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1951167510,
+    "min_elapsed_ns": 1925450661,
+    "max_elapsed_ns": 3453234411,
+    "all_elapsed_ns": [
+      3453234411,
+      1951167510,
+      1925450661
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3453234411,
+      "expected_sum": 8776814988,
+      "actual_sum": 8776814988
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_allpairs_l1_v1500_i",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 17107423,
+    "min_elapsed_ns": 15231430,
+    "max_elapsed_ns": 26420579,
+    "all_elapsed_ns": [
+      26420579,
+      17107423,
+      15231430
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 26420579,
+      "expected_sum": 8776814988,
+      "actual_sum": 8776814988
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_thrust_reduce_f32_v12",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_thrust_reduce_f32_v12/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cooperative_groups.h>\nnamespace cg = cooperative_groups;\n\n__global__ void reduceBlock(const float* __restrict__ in, float* __restrict__ partial, int n) {\n    cg::thread_block block = cg::this_thread_block();\n    cg::thread_block_tile<32> warp = cg::tiled_partition<32>(block);\n    int tid = block.thread_rank();\n    int gtid = blockIdx.x * blockDim.x + tid;\n    float val = 0.0f;\n    for (int i = gtid; i < n; i += blockDim.x * gridDim.x) val += in[i];\n    __shared__ float smem[32];\n    int lane = tid & 31;\n    int wid  = tid >> 5;\n    val = cg::reduce(warp, val, cg::plus<float>());\n    if (lane == 0) smem[wid] = val;\n    block.sync();\n    if (wid == 0) {\n        val = (tid < (blockDim.x >> 5)) ? smem[lane] : 0.0f;\n        val = cg::reduce(warp, val, cg::plus<float>());\n        if (tid == 0) partial[blockIdx.x] = val;\n    }\n}\n\n__global__ void reduceFinal(const float* __restrict__ partial, float* __restrict__ out, int blocks) {\n    cg::thread_block block = cg::this_thread_block();\n    cg::thread_block_tile<32> warp = cg::tiled_partition<32>(block);\n    int tid = block.thread_rank();\n    float val = 0.0f;\n    for (int i = tid; i < blocks; i += blockDim.x) val += partial[i];\n    val = cg::reduce(warp, val, cg::plus<float>());\n    if (tid == 0) *out = val;\n}\n\nfloat reduce_f32(const float* input, int n, int iters) {\n    const int blockSize = 256;\n    const int numBlocks = std::min((n + blockSize - 1) / blockSize, 1024);\n    float *d_partial, *d_out;\n    cudaMalloc(&d_partial, numBlocks * sizeof(float));\n    cudaMalloc(&d_out, sizeof(float));\n    for (int i = 0; i < iters; ++i) {\n        reduceBlock<<<numBlocks, blockSize>>>(input, d_partial, n);\n        reduceFinal<<<1, blockSize>>>(d_partial, d_out, numBlocks);\n    }\n    float h_out;\n    cudaMemcpy(&h_out, d_out, sizeof(float), cudaMemcpyDeviceToHost);\n    cudaFree(d_partial);\n    cudaFree(d_out);\n    return h_out;\n}",
+  "baseline": {
+    "task_id": "cuda_thrust_reduce_f32_v12",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 62356960,
+    "min_elapsed_ns": 62342174,
+    "max_elapsed_ns": 69063842,
+    "all_elapsed_ns": [
+      69063842,
+      62356960,
+      62342174
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 69063842,
+      "expected_sum": 12582800.0,
+      "actual_sum": 12496400.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_thrust_reduce_f32_v12",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 407007,
+    "min_elapsed_ns": 331840,
+    "max_elapsed_ns": 465184,
+    "all_elapsed_ns": [
+      407007,
+      465184,
+      331840
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 407007,
+      "expected_sum": 12582800.0,
+      "actual_sum": 12582800.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_thrust_reduce_f32_v12",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['nvcc', '-O3', '-std=c++17', '-Iexecutable_tasks/cuda_thrust_reduce_f32_v12/harness', '-gencode=arch=compute_80,code=sm_80', '-gencode=arch=compute_80,code=compute_80', 'executable_tasks/cuda_thrust_reduce_f32_v12/harness/benchmark_main.cu', 'executable_tasks/cuda_thrust_reduce_f32_v12/candidate/moonshotai__kimi-k2-0905/solution.cu', '-o', 'build/cuda_thrust_reduce_f32_v12/candidate/bench']' returned non-zero exit status 2."
+  }
+}

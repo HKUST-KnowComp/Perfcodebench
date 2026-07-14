@@ -1,0 +1,59 @@
+{
+  "task_id": "c_delta_decode_prefix_sum_v2900_069",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_delta_decode_prefix_sum_v2900_069/candidate/google__gemma-4-31b-it/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\n/**\n * The original logic computes:\n * values[i] = sum_{j=0 to i} deltas[j]\n * total = sum_{i=0 to count-1} (values[i] + C)\n * where C = 0x9E3779B1LL\n * \n * Mathematically:\n * total = sum_{i=0 to count-1} (sum_{j=0 to i} deltas[j]) + count * C\n * total = sum_{j=0 to count-1} (deltas[j] * (count - j)) + count * C\n */\n\nuint64_t run(const int32_t* deltas, size_t count, int iters) {\n    if (count == 0) return 0;\n\n    const int64_t C = 0x9E3779B1LL;\n    uint64_t final_total = 0;\n\n    // Precompute the sum for one iteration\n    // We use int64_t for the intermediate sum to avoid overflow before the final cast to uint64_t\n    int64_t single_iter_sum = 0;\n    \n    // To optimize, we can use the property that deltas[j] is added (count - j) times.\n    // However, the original code does: total += (uint64_t)(values[i] + C).\n    // This means the addition of C happens for every i.\n    \n    // Let's implement the fused loop to avoid the O(N) memory allocation and the second pass.\n    // The original code: \n    // for (size_t i = 0; i < count; ++i) { current += deltas[i]; total += (uint64_t)(current + C); }\n    \n    // We can optimize this loop using SIMD or unrolling.\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        int64_t current_val = 0;\n        uint64_t iter_total = 0;\n        \n        size_t i = 0;\n        // Unroll loop to improve throughput\n        for (; i + 3 < count; i += 4) {\n            current_val += deltas[i];\n            iter_total += (uint64_t)(current_val + C);\n            current_val += deltas[i+1];\n            iter_total += (uint64_t)(current_val + C);\n            current_val += deltas[i+2];\n            iter_total += (uint64_t)(current_val + C);\n            current_val += deltas[i+3];\n            iter_total += (uint64_t)(current_val + C);\n        }\n        for (; i < count; ++i) {\n            current_val += deltas[i];\n            iter_total += (uint64_t)(current_val + C);\n        }\n        final_total = iter_total;\n    }\n\n    return final_total;\n}\n",
+  "baseline": {
+    "task_id": "c_delta_decode_prefix_sum_v2900_069",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4025000,
+    "min_elapsed_ns": 3623000,
+    "max_elapsed_ns": 4461000,
+    "all_elapsed_ns": [
+      4461000,
+      3623000,
+      4025000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4461000,
+      "expected_checksum": 742678247084645,
+      "actual_checksum": 742678247084645
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_delta_decode_prefix_sum_v2900_069",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1895000,
+    "min_elapsed_ns": 1894000,
+    "max_elapsed_ns": 1904000,
+    "all_elapsed_ns": [
+      1895000,
+      1894000,
+      1904000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1895000,
+      "expected_checksum": 742678247084645,
+      "actual_checksum": 742678247084645
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_delta_decode_prefix_sum_v2900_069",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/c_delta_decode_prefix_sum_v2900_069/candidate/bench']' returned non-zero exit status 1."
+  }
+}

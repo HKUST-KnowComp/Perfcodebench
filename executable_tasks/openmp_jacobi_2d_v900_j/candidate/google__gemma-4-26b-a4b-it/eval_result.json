@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_jacobi_2d_v900_j",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v900_j/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  if (input.empty()) return 0;\n\n  std::vector<uint32_t> a = input;\n  std::vector<uint32_t> b(a.size(), 0);\n  \n  const size_t total_size = static_cast<size_t>(rows) * cols;\n  const size_t c_size = static_cast<size_t>(cols);\n\n  for (int step = 0; step < steps; ++step) {\n    // Handle boundaries separately to keep the inner loop clean for vectorization\n    // 1. Top and Bottom rows\n    #pragma omp parallel for\n    for (int col = 0; col < cols; ++col) {\n      b[col] = a[col];\n      b[static_cast<size_t>(rows - 1) * c_size + col] = a[static_cast<size_t>(rows - 1) * c_size + col];\n    }\n\n    // 2. Left and Right columns (excluding corners already handled)\n    #pragma omp parallel for\n    for (int row = 1; row < rows - 1; ++row) {\n      b[static_cast<size_t>(row) * c_size] = a[static_cast<size_t>(row) * c_size];\n      b[static_cast<size_t>(row) * c_size + (cols - 1)] = a[static_cast<size_t>(row) * c_size + (cols - 1)];\n    }\n\n    // 3. Core computation\n    #pragma omp parallel for schedule(static)\n    for (int row = 1; row < rows - 1; ++row) {\n      const size_t row_offset = static_cast<size_t>(row) * c_size;\n      const size_t prev_row_offset = row_offset - c_size;\n      const size_t next_row_offset = row_offset + c_size;\n\n      // The compiler can vectorize this loop easily because there are no branches\n      #pragma omp simd\n      for (int col = 1; col < cols - 1; ++col) {\n        const size_t idx = row_offset + col;\n        b[idx] = (a[idx] * 4u + \n                  a[idx - 1] + \n                  a[idx + 1] + \n                  a[prev_row_offset + col] + \n                  a[next_row_offset + col]) / 8u;\n      }\n    }\n    a.swap(b);\n  }\n\n  return checksum_u32(a);\n}\n",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v900_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 515859840,
+    "min_elapsed_ns": 243409700,
+    "max_elapsed_ns": 707430930,
+    "all_elapsed_ns": [
+      243409700,
+      707430930,
+      515859840
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 243409700,
+      "expected_checksum": 12158263322720824940,
+      "actual_checksum": 12158263322720824940
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v900_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 353665680,
+    "min_elapsed_ns": 322822001,
+    "max_elapsed_ns": 419392469,
+    "all_elapsed_ns": [
+      353665680,
+      322822001,
+      419392469
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 353665680,
+      "expected_checksum": 12158263322720824940,
+      "actual_checksum": 12158263322720824940
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v900_j",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-fopenmp', '-Iexecutable_tasks/openmp_jacobi_2d_v900_j/harness', 'executable_tasks/openmp_jacobi_2d_v900_j/harness/benchmark_main.cpp', 'executable_tasks/openmp_jacobi_2d_v900_j/candidate/google__gemma-4-26b-a4b-it/solution.cpp', '-o', 'build/openmp_jacobi_2d_v900_j/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_id_remap_checksum_v500_a",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_id_remap_checksum_v500_a/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 7,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t remap_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& probes,\n    int iters) {\n  if (keys.empty()) return 0;\n\n  // Find the range of keys to build a lookup table\n  uint32_t max_key = keys.back();\n  std::vector<uint32_t> lookup(max_key + 1);\n\n  // The baseline uses std::lower_bound, which finds the first element \n  // not less than the probe. Since keys are sorted, we can pre-calculate\n  // the value associated with the lower_bound for every possible probe value.\n  size_t current_key_idx = 0;\n  for (uint32_t i = 0; i <= max_key; ++i) {\n    while (current_key_idx < keys.size() && keys[current_key_idx] < i) {\n      current_key_idx++;\n    }\n    // If i > max_key, lower_bound returns keys.end(), so idx = keys.size()\n    // However, the loop only goes up to max_key. \n    // If current_key_idx == keys.size(), it means i > all keys.\n    if (current_key_idx < keys.size()) {\n      lookup[i] = values[current_key_idx];\n    } else {\n      // This case handles probes that are larger than any key in the keys vector\n      // but we only fill the table up to max_key. \n      // The baseline would use values[keys.size()], which is out of bounds \n      // unless values.size() > keys.size(). \n      // Based on the baseline: idx = it - keys.begin(). \n      // If it == keys.end(), idx == keys.size().\n      // We must ensure we don't crash. \n      lookup[i] = (values.size() > keys.size()) ? values[keys.size()] : 0;\n    }\n  }\n\n  // Handle probes that might exceed max_key\n  uint32_t overflow_val = (values.size() > keys.size()) ? values[keys.size()] : 0;\n\n  uint64_t final_hash = 0;\n  const uint32_t* probe_ptr = probes.data();\n  size_t probe_count = probes.size();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t h = 1469598103934665603ULL;\n    for (size_t i = 0; i < probe_count; ++i) {\n      uint32_t p = probe_ptr[i];\n      uint32_t val = (p <= max_key) ? lookup[p] : overflow_val;\n      h = mix(h, val);\n    }\n    final_hash = h;\n  }\n\n  return final_hash;\n}",
+  "baseline": {
+    "task_id": "dense_id_remap_checksum_v500_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3232904716,
+    "min_elapsed_ns": 3231903248,
+    "max_elapsed_ns": 3277474957,
+    "all_elapsed_ns": [
+      3277474957,
+      3232904716,
+      3231903248
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3277474957,
+      "expected_checksum": 2667850489686459267,
+      "actual_checksum": 2667850489686459267
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_id_remap_checksum_v500_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 46572142,
+    "min_elapsed_ns": 46423609,
+    "max_elapsed_ns": 46648730,
+    "all_elapsed_ns": [
+      46648730,
+      46423609,
+      46572142
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 46648730,
+      "expected_checksum": 2667850489686459267,
+      "actual_checksum": 2667850489686459267
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_id_remap_checksum_v500_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 47397166,
+    "min_elapsed_ns": 46971162,
+    "max_elapsed_ns": 49418098,
+    "all_elapsed_ns": [
+      46971162,
+      49418098,
+      47397166
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 46971162,
+      "expected_checksum": 2667850489686459267,
+      "actual_checksum": 2667850489686459267
+    },
+    "status": "ok"
+  }
+}

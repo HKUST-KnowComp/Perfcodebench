@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_histogram_privatized_v900_j",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_histogram_privatized_v900_j/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 6,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstring>\n#include <omp.h>\n#include <vector>\n\nnamespace {\n\nint num_threads() {\n  return std::max(1, std::min(16, omp_get_max_threads()));\n}\n\nuint64_t checksum_u32(const uint32_t* data, int bins) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (int i = 0; i < bins; ++i) {\n    hash ^= static_cast<uint64_t>(data[i]);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t histogram_checksum(const std::vector<uint8_t>& input, int bins, int iters) {\n  const int nthreads = num_threads();\n  omp_set_num_threads(nthreads);\n  \n  // Padded histogram size to avoid false sharing (64-byte cache lines)\n  constexpr int CACHE_LINE = 64;\n  constexpr int PAD = CACHE_LINE / sizeof(uint32_t); // 16 uint32_t per cache line\n  const int padded_bins = ((bins + PAD - 1) / PAD) * PAD;\n  \n  // Allocate thread-local histograms with padding between them\n  std::vector<uint32_t> all_local(static_cast<size_t>(nthreads) * padded_bins, 0);\n  \n  // Final histogram\n  std::vector<uint32_t> counts(static_cast<size_t>(bins), 0);\n  \n  const size_t n = input.size();\n  const uint8_t* __restrict data = input.data();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    // Clear all local histograms\n    std::memset(all_local.data(), 0, all_local.size() * sizeof(uint32_t));\n    \n#pragma omp parallel\n    {\n      const int tid = omp_get_thread_num();\n      uint32_t* __restrict local = all_local.data() + static_cast<size_t>(tid) * padded_bins;\n      \n#pragma omp for schedule(static) nowait\n      for (size_t i = 0; i < n; ++i) {\n        local[data[i]]++;\n      }\n    }\n    \n    // Reduce all thread-local histograms into counts\n    std::memset(counts.data(), 0, counts.size() * sizeof(uint32_t));\n    \n#pragma omp parallel for schedule(static)\n    for (int b = 0; b < bins; ++b) {\n      uint32_t sum = 0;\n      for (int t = 0; t < nthreads; ++t) {\n        sum += all_local[static_cast<size_t>(t) * padded_bins + b];\n      }\n      counts[b] = sum;\n    }\n  }\n  \n  return checksum_u32(counts.data(), bins);\n}",
+  "baseline": {
+    "task_id": "openmp_histogram_privatized_v900_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3984569012,
+    "min_elapsed_ns": 3462602272,
+    "max_elapsed_ns": 4540770834,
+    "all_elapsed_ns": [
+      4540770834,
+      3984569012,
+      3462602272
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4540770834,
+      "expected_checksum": 1804883604008861243,
+      "actual_checksum": 1804883604008861243
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_histogram_privatized_v900_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 47973644,
+    "min_elapsed_ns": 34280287,
+    "max_elapsed_ns": 84554875,
+    "all_elapsed_ns": [
+      84554875,
+      47973644,
+      34280287
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 84554875,
+      "expected_checksum": 1804883604008861243,
+      "actual_checksum": 1804883604008861243
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_histogram_privatized_v900_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 95639808,
+    "min_elapsed_ns": 60842970,
+    "max_elapsed_ns": 148489238,
+    "all_elapsed_ns": [
+      95639808,
+      148489238,
+      60842970
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 95639808,
+      "expected_checksum": 1804883604008861243,
+      "actual_checksum": 1804883604008861243
+    },
+    "status": "ok"
+  }
+}

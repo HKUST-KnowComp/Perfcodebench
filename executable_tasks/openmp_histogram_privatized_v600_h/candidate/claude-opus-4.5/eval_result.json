@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_histogram_privatized_v600_h",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_histogram_privatized_v600_h/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <omp.h>\n#include <vector>\n#include <cstring>\n\nnamespace {\n\nint num_threads() {\n  return std::max(1, std::min(8, omp_get_max_threads()));\n}\n\nuint64_t checksum_u32(const uint32_t* data, int bins) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (int i = 0; i < bins; ++i) {\n    hash ^= static_cast<uint64_t>(data[i]);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t histogram_checksum(const std::vector<uint8_t>& input, int bins, int iters) {\n  const int nthreads = num_threads();\n  omp_set_num_threads(nthreads);\n  \n  const std::size_t n = input.size();\n  const uint8_t* __restrict data = input.data();\n  \n  // Padded to cache line (64 bytes = 16 uint32_t)\n  constexpr int CACHE_LINE_INTS = 16;\n  constexpr int PADDED_BINS = 256 + CACHE_LINE_INTS;\n  \n  // Allocate private histograms for all threads, cache-line padded\n  std::vector<uint32_t> all_private(static_cast<std::size_t>(nthreads) * PADDED_BINS, 0);\n  \n  // Final histogram\n  alignas(64) uint32_t counts[256];\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    // Clear private histograms\n    std::memset(all_private.data(), 0, all_private.size() * sizeof(uint32_t));\n    \n#pragma omp parallel\n    {\n      const int tid = omp_get_thread_num();\n      uint32_t* __restrict local_hist = all_private.data() + static_cast<std::size_t>(tid) * PADDED_BINS;\n      \n#pragma omp for schedule(static) nowait\n      for (std::size_t i = 0; i < n; ++i) {\n        local_hist[data[i]]++;\n      }\n    }\n    \n    // Merge all private histograms into counts\n    std::memset(counts, 0, sizeof(counts));\n    for (int t = 0; t < nthreads; ++t) {\n      const uint32_t* __restrict local_hist = all_private.data() + static_cast<std::size_t>(t) * PADDED_BINS;\n      for (int b = 0; b < 256; ++b) {\n        counts[b] += local_hist[b];\n      }\n    }\n  }\n  \n  return checksum_u32(counts, bins);\n}",
+  "baseline": {
+    "task_id": "openmp_histogram_privatized_v600_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2001433225,
+    "min_elapsed_ns": 1981639305,
+    "max_elapsed_ns": 2292336832,
+    "all_elapsed_ns": [
+      1981639305,
+      2001433225,
+      2292336832
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1981639305,
+      "expected_checksum": 7411219011088774539,
+      "actual_checksum": 7411219011088774539
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_histogram_privatized_v600_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 87605259,
+    "min_elapsed_ns": 63223917,
+    "max_elapsed_ns": 125095682,
+    "all_elapsed_ns": [
+      63223917,
+      125095682,
+      87605259
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 63223917,
+      "expected_checksum": 7411219011088774539,
+      "actual_checksum": 7411219011088774539
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_histogram_privatized_v600_h",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/openmp_histogram_privatized_v600_h/candidate/bench']' returned non-zero exit status 1."
+  }
+}

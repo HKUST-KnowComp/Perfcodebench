@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_allpairs_l1_v1600_f",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_allpairs_l1_v1600_f/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstdlib>\n#include <vector>\n#include <algorithm>\n#include <omp.h>\n\nint64_t allpairs_l1_sum(const std::vector<int32_t>& xs, const std::vector<int32_t>& ys, int iters) {\n    int64_t total = 0;\n    const size_t n = xs.size();\n    \n    if (n <= 1) {\n        return 0;\n    }\n    \n    // For sum of |a[i] - a[j]| over all i < j:\n    // Sort the array, then sum[i] = a[i] * (2*i - n + 1) for i in 0..n-1\n    // This works because after sorting, for element at position i:\n    // - There are i elements smaller (each contributes +a[i])\n    // - There are (n-1-i) elements larger (each contributes -a[i])\n    // - Net contribution: a[i] * (i - (n-1-i)) = a[i] * (2*i - n + 1)\n    \n    std::vector<int32_t> sorted_xs(n);\n    std::vector<int32_t> sorted_ys(n);\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        // Copy and sort both arrays in parallel\n        #pragma omp parallel sections\n        {\n            #pragma omp section\n            {\n                std::copy(xs.begin(), xs.end(), sorted_xs.begin());\n                std::sort(sorted_xs.begin(), sorted_xs.end());\n            }\n            #pragma omp section\n            {\n                std::copy(ys.begin(), ys.end(), sorted_ys.begin());\n                std::sort(sorted_ys.begin(), sorted_ys.end());\n            }\n        }\n        \n        int64_t sum_x = 0;\n        int64_t sum_y = 0;\n        \n        // Compute the weighted sums in parallel\n        #pragma omp parallel sections\n        {\n            #pragma omp section\n            {\n                int64_t local_sum = 0;\n                const int64_t n_val = static_cast<int64_t>(n);\n                for (size_t i = 0; i < n; ++i) {\n                    int64_t weight = 2 * static_cast<int64_t>(i) - n_val + 1;\n                    local_sum += static_cast<int64_t>(sorted_xs[i]) * weight;\n                }\n                sum_x = local_sum;\n            }\n            #pragma omp section\n            {\n                int64_t local_sum = 0;\n                const int64_t n_val = static_cast<int64_t>(n);\n                for (size_t i = 0; i < n; ++i) {\n                    int64_t weight = 2 * static_cast<int64_t>(i) - n_val + 1;\n                    local_sum += static_cast<int64_t>(sorted_ys[i]) * weight;\n                }\n                sum_y = local_sum;\n            }\n        }\n        \n        total = sum_x + sum_y;\n    }\n    \n    return total;\n}",
+  "baseline": {
+    "task_id": "openmp_allpairs_l1_v1600_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 9962262,
+    "min_elapsed_ns": 9957811,
+    "max_elapsed_ns": 11373431,
+    "all_elapsed_ns": [
+      9962262,
+      11373431,
+      9957811
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9962262,
+      "expected_sum": 35075532800,
+      "actual_sum": 35075532800
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_allpairs_l1_v1600_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2684130,
+    "min_elapsed_ns": 2650120,
+    "max_elapsed_ns": 4082505,
+    "all_elapsed_ns": [
+      4082505,
+      2650120,
+      2684130
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4082505,
+      "expected_sum": 35075532800,
+      "actual_sum": 35075532800
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_allpairs_l1_v1600_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 189429205,
+    "min_elapsed_ns": 148290184,
+    "max_elapsed_ns": 268451056,
+    "all_elapsed_ns": [
+      148290184,
+      189429205,
+      268451056
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 148290184,
+      "expected_sum": 35075532800,
+      "actual_sum": 35075532800
+    },
+    "status": "ok"
+  }
+}

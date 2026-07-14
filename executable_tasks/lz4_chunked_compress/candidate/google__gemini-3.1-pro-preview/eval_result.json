@@ -1,0 +1,69 @@
+{
+  "task_id": "lz4_chunked_compress",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/lz4_chunked_compress/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"lz4.h\"\n#include <algorithm>\n\nnamespace {\nconstexpr std::size_t kChunkSize = 1 << 16;\n}\n\nint compress_chunks(const std::string& input, std::vector<std::string>& chunks) {\n    const std::size_t input_size = input.size();\n    if (input_size == 0) {\n        chunks.clear();\n        return 0;\n    }\n\n    const std::size_t num_chunks = (input_size + kChunkSize - 1) / kChunkSize;\n    chunks.clear();\n    chunks.resize(num_chunks);\n\n    int total_compressed_size = 0;\n    const char* input_ptr = input.data();\n\n    for (std::size_t i = 0; i < num_chunks; ++i) {\n        const std::size_t offset = i * kChunkSize;\n        const std::size_t remaining = input_size - offset;\n        const int src_size = static_cast<int>(std::min(kChunkSize, remaining));\n        \n        // Calculate maximum possible compressed size for this chunk\n        const int max_dst_size = LZ4_compressBound(src_size);\n        \n        // Prepare the destination string\n        std::string& compressed = chunks[i];\n        compressed.resize(static_cast<std::size_t>(max_dst_size));\n\n        // Use LZ4_compress_default for significantly higher throughput than LZ4_compress_HC\n        const int compressed_size = LZ4_compress_default(\n            input_ptr + offset, \n            &compressed[0], \n            src_size, \n            max_dst_size\n        );\n\n        if (compressed_size <= 0) {\n            chunks.clear();\n            return -1;\n        }\n\n        // Shrink the string to the actual compressed size\n        compressed.resize(static_cast<std::size_t>(compressed_size));\n        total_compressed_size += compressed_size;\n    }\n\n    return total_compressed_size;\n}",
+  "baseline": {
+    "task_id": "lz4_chunked_compress",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 65427501,
+    "min_elapsed_ns": 55425408,
+    "max_elapsed_ns": 65631763,
+    "all_elapsed_ns": [
+      65631763,
+      65427501,
+      55425408
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 65631763,
+      "compressed_size": 867798
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "lz4_chunked_compress",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4440573,
+    "min_elapsed_ns": 3972969,
+    "max_elapsed_ns": 4693884,
+    "all_elapsed_ns": [
+      4693884,
+      3972969,
+      4440573
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4693884,
+      "compressed_size": 978021
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "lz4_chunked_compress",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 3568451,
+    "min_elapsed_ns": 3260878,
+    "max_elapsed_ns": 9164483,
+    "all_elapsed_ns": [
+      3568451,
+      3260878,
+      9164483
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3568451,
+      "compressed_size": 978021
+    },
+    "status": "ok"
+  }
+}

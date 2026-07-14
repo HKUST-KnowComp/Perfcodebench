@@ -1,0 +1,69 @@
+{
+  "task_id": "zstd_block_compress_v1200_h",
+  "model": "bytedance-seed/seed-2.0-lite",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/zstd_block_compress_v1200_h/candidate/bytedance-seed__seed-2.0-lite/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"zstd.h\"\n#include <string>\n\nint compress_payload(const std::string& input, std::string& compressed) {\n    // Thread-local compression context reused across all calls in a thread to avoid repeated alloc/init overhead\n    thread_local ZSTD_CCtx* cctx = nullptr;\n    if (!cctx) {\n        cctx = ZSTD_createCCtx();\n        if (!cctx) {\n            return -1;\n        }\n        // Match baseline compression level 19 to preserve identical compression output for correct roundtrip\n        const size_t init_err = ZSTD_CCtx_setParameter(cctx, ZSTD_c_compressionLevel, 19);\n        if (ZSTD_isError(init_err)) {\n            ZSTD_freeCCtx(cctx);\n            cctx = nullptr;\n            return -1;\n        }\n    }\n\n    // Eliminate baseline's unnecessary full input copy, use input directly to avoid large memcpy overhead\n    const size_t input_size = input.size();\n    const size_t max_compressed_size = ZSTD_compressBound(input_size);\n    compressed.resize(max_compressed_size);\n\n    // Use modern efficient ZSTD_compress2 API with preinitialized reusable context\n    const size_t compressed_size = ZSTD_compress2(\n        cctx,\n        compressed.data(), max_compressed_size,\n        input.data(), input_size\n    );\n\n    if (ZSTD_isError(compressed_size)) {\n        return -1;\n    }\n\n    compressed.resize(compressed_size);\n    return static_cast<int>(compressed_size);\n}",
+  "baseline": {
+    "task_id": "zstd_block_compress_v1200_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1510251692,
+    "min_elapsed_ns": 1453185566,
+    "max_elapsed_ns": 1561179421,
+    "all_elapsed_ns": [
+      1453185566,
+      1510251692,
+      1561179421
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1453185566,
+      "compressed_size": 902355
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "zstd_block_compress_v1200_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 9024398,
+    "min_elapsed_ns": 7778343,
+    "max_elapsed_ns": 10663215,
+    "all_elapsed_ns": [
+      10663215,
+      9024398,
+      7778343
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10663215,
+      "compressed_size": 907176
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "zstd_block_compress_v1200_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1170373583,
+    "min_elapsed_ns": 1104475561,
+    "max_elapsed_ns": 1238357994,
+    "all_elapsed_ns": [
+      1238357994,
+      1170373583,
+      1104475561
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1238357994,
+      "compressed_size": 902355
+    },
+    "status": "ok"
+  }
+}

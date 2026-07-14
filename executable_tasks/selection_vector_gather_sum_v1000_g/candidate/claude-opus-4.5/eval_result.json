@@ -1,0 +1,59 @@
+{
+  "task_id": "selection_vector_gather_sum_v1000_g",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/selection_vector_gather_sum_v1000_g/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 6,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstring>\n#include <immintrin.h>\n\nuint64_t selection_gather_sum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint8_t>& flags,\n    const std::vector<uint32_t>& payloads,\n    uint32_t threshold,\n    int iters) {\n\n  const std::size_t n = keys.size();\n  if (n == 0 || iters <= 0) return 0;\n\n  const uint32_t* __restrict kptr = keys.data();\n  const uint8_t*  __restrict fptr = flags.data();\n  const uint32_t* __restrict pptr = payloads.data();\n\n  // Pre-allocate selection buffer\n  uint32_t* selected = static_cast<uint32_t*>(std::aligned_alloc(64, (n + 32) * sizeof(uint32_t)));\n  if (!selected) {\n    // Fallback to scalar\n    std::vector<uint32_t> sel;\n    uint64_t sum = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n      sel.clear();\n      for (std::size_t i = 0; i < n; ++i) {\n        if (fptr[i] && kptr[i] < threshold && ((kptr[i] & 7u) == 0u)) {\n          sel.push_back(static_cast<uint32_t>(i));\n        }\n      }\n      sum = 0;\n      for (uint32_t idx : sel) {\n        sum += static_cast<uint64_t>(pptr[idx]);\n      }\n    }\n    return sum;\n  }\n\n  uint64_t sum = 0;\n\n  // AVX2 constants\n  const __m256i thresh_vec = _mm256_set1_epi32(static_cast<int>(threshold));\n  const __m256i mask7 = _mm256_set1_epi32(7);\n  const __m256i zero = _mm256_setzero_si256();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    std::size_t sel_count = 0;\n\n    std::size_t i = 0;\n\n    // Process 8 elements at a time with AVX2\n    const std::size_t vec_end = (n >= 8) ? (n - 7) : 0;\n    \n    while (i < vec_end) {\n      // Load 8 keys\n      __m256i k = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(kptr + i));\n\n      // Load 8 flags (as bytes, then expand)\n      uint64_t fbytes;\n      std::memcpy(&fbytes, fptr + i, 8);\n      __m128i f8 = _mm_cvtsi64_si128(static_cast<long long>(fbytes));\n      __m256i f32 = _mm256_cvtepu8_epi32(f8);\n\n      // flags != 0\n      __m256i cmp_flags = _mm256_cmpgt_epi32(f32, zero);\n\n      // keys < threshold (unsigned compare via offset trick)\n      // For unsigned: a < b iff (a ^ 0x80000000) < (b ^ 0x80000000) signed\n      const __m256i sign_bit = _mm256_set1_epi32(static_cast<int>(0x80000000u));\n      __m256i k_signed = _mm256_xor_si256(k, sign_bit);\n      __m256i t_signed = _mm256_xor_si256(thresh_vec, sign_bit);\n      __m256i cmp_thresh = _mm256_cmpgt_epi32(t_signed, k_signed);\n\n      // (keys & 7) == 0\n      __m256i k_and_7 = _mm256_and_si256(k, mask7);\n      __m256i cmp_mod = _mm256_cmpeq_epi32(k_and_7, zero);\n\n      // Combine all conditions\n      __m256i cmp_all = _mm256_and_si256(cmp_flags, _mm256_and_si256(cmp_thresh, cmp_mod));\n\n      // Extract mask\n      int mask = _mm256_movemask_ps(_mm256_castsi256_ps(cmp_all));\n\n      // Store selected indices\n      while (mask) {\n        int bit = __builtin_ctz(mask);\n        selected[sel_count++] = static_cast<uint32_t>(i + bit);\n        mask &= mask - 1;\n      }\n\n      i += 8;\n    }\n\n    // Scalar tail\n    for (; i < n; ++i) {\n      if (fptr[i] && kptr[i] < threshold && ((kptr[i] & 7u) == 0u)) {\n        selected[sel_count++] = static_cast<uint32_t>(i);\n      }\n    }\n\n    // Gather sum with unrolling\n    sum = 0;\n    std::size_t j = 0;\n    const std::size_t sel_end4 = (sel_count >= 4) ? (sel_count - 3) : 0;\n    \n    uint64_t s0 = 0, s1 = 0, s2 = 0, s3 = 0;\n    for (; j < sel_end4; j += 4) {\n      s0 += pptr[selected[j]];\n      s1 += pptr[selected[j + 1]];\n      s2 += pptr[selected[j + 2]];\n      s3 += pptr[selected[j + 3]];\n    }\n    sum = s0 + s1 + s2 + s3;\n    \n    for (; j < sel_count; ++j) {\n      sum += pptr[selected[j]];\n    }\n  }\n\n  std::free(selected);\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "selection_vector_gather_sum_v1000_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3803785004,
+    "min_elapsed_ns": 3743914604,
+    "max_elapsed_ns": 4323893914,
+    "all_elapsed_ns": [
+      3743914604,
+      4323893914,
+      3803785004
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3743914604,
+      "expected_sum": 17155933573,
+      "actual_sum": 17155933573
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "selection_vector_gather_sum_v1000_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3337151961,
+    "min_elapsed_ns": 3333542132,
+    "max_elapsed_ns": 3344625049,
+    "all_elapsed_ns": [
+      3337151961,
+      3344625049,
+      3333542132
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3337151961,
+      "expected_sum": 17155933573,
+      "actual_sum": 17155933573
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "selection_vector_gather_sum_v1000_g",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/selection_vector_gather_sum_v1000_g/harness', 'executable_tasks/selection_vector_gather_sum_v1000_g/harness/benchmark_main.cpp', 'executable_tasks/selection_vector_gather_sum_v1000_g/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/selection_vector_gather_sum_v1000_g/candidate/bench']' returned non-zero exit status 1."
+  }
+}

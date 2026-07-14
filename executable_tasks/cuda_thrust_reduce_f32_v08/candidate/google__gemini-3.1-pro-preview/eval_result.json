@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_thrust_reduce_f32_v08",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_thrust_reduce_f32_v08/candidate/google__gemini-3.1-pro-preview/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n/**\n * Optimized reduction kernel using grid-stride loops and warp shuffles.\n * Each thread accumulates multiple elements into a local sum, then performs\n * a warp-level reduction using __shfl_down_sync, and finally uses atomicAdd\n * to contribute the warp's result to the global output.\n */\n__global__ void fast_reduce_kernel(const float* __restrict__ input, float* __restrict__ output, int n) {\n    float sum = 0.0f;\n    int tid = blockIdx.x * blockDim.x + threadIdx.x;\n    int stride = blockDim.x * gridDim.x;\n\n    // Grid-stride loop to process all elements\n    for (int i = tid; i < n; i += stride) {\n        sum += input[i];\n    }\n\n    // Warp-level reduction using shuffle instructions\n    unsigned int mask = 0xFFFFFFFF;\n    for (int offset = 16; offset > 0; offset /= 2) {\n        sum += __shfl_down_sync(mask, sum, offset);\n    }\n\n    // The first thread of each warp adds the warp sum to the global output\n    if ((threadIdx.x & 31) == 0) {\n        atomicAdd(output, sum);\n    }\n}\n}  // namespace\n\nfloat reduce_f32(const float* input, int n, int iters) {\n    if (n <= 0) return 0.0f;\n\n    float* d_out = nullptr;\n    cudaMalloc(&d_out, sizeof(float));\n\n    // Heuristic for grid size: aim for high occupancy without excessive overhead\n    int threads_per_block = 256;\n    int blocks_per_grid = (n + threads_per_block - 1) / threads_per_block;\n    if (blocks_per_grid > 1024) blocks_per_grid = 1024;\n\n    float actual = 0.0f;\n    for (int iter = 0; iter < iters; ++iter) {\n        // Reset the output for each iteration\n        cudaMemset(d_out, 0, sizeof(float));\n        \n        // Launch the parallel reduction kernel\n        fast_reduce_kernel<<<blocks_per_grid, threads_per_block>>>(input, d_out, n);\n    }\n\n    // Copy the final result back to host\n    cudaMemcpy(&actual, d_out, sizeof(float), cudaMemcpyDeviceToHost);\n    cudaFree(d_out);\n\n    return actual;\n}",
+  "baseline": {
+    "task_id": "cuda_thrust_reduce_f32_v08",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 311700195,
+    "min_elapsed_ns": 310154357,
+    "max_elapsed_ns": 333036804,
+    "all_elapsed_ns": [
+      310154357,
+      333036804,
+      311700195
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 310154357,
+      "expected_sum": 12582800.0,
+      "actual_sum": 12496400.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_thrust_reduce_f32_v08",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 945855,
+    "min_elapsed_ns": 833055,
+    "max_elapsed_ns": 2792864,
+    "all_elapsed_ns": [
+      945855,
+      2792864,
+      833055
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 945855,
+      "expected_sum": 12582800.0,
+      "actual_sum": 12582800.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_thrust_reduce_f32_v08",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_thrust_reduce_f32_v08/candidate/bench']' timed out after 5 seconds"
+  }
+}

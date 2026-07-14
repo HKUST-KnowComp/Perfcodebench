@@ -1,0 +1,72 @@
+{
+  "task_id": "prefix_cache_block_lookup_v2000_a",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup_v2000_a/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nstatic inline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t hash_space,\n    int iters) {\n  const std::size_t num_requests =\n      request_offsets.empty() ? 0 : (request_offsets.size() - 1);\n\n  if (iters <= 0) {\n    return 0;\n  }\n\n  // Build a compact membership structure once and reuse across iterations.\n  // For small-request throughput, avoiding repeated binary_search calls is key.\n  uint64_t hash = 0;\n\n  if (hash_space != 0) {\n    // Dense direct-address table when key space is bounded by hash_space.\n    std::vector<uint8_t> present(static_cast<std::size_t>(hash_space), 0);\n    for (uint32_t k : sorted_cache_keys) {\n      if (k < hash_space) {\n        present[static_cast<std::size_t>(k)] = 1;\n      }\n    }\n\n    for (int iter = 0; iter < iters; ++iter) {\n      hash = 1469598103934665603ULL;\n      for (std::size_t r = 0; r < num_requests; ++r) {\n        const int begin = request_offsets[r];\n        const int end = request_offsets[r + 1];\n        uint64_t prefix = 0;\n        for (int i = begin; i < end; ++i) {\n          const uint32_t key = request_blocks[static_cast<std::size_t>(i)];\n          if (key >= hash_space ||\n              !present[static_cast<std::size_t>(key)]) {\n            break;\n          }\n          ++prefix;\n        }\n        hash = mix(hash, prefix);\n      }\n    }\n    return hash;\n  }\n\n  // Fallback: if hash_space is unusable, use a sorted linear scan with a moving\n  // lower_bound start to reduce repeated work versus full-range binary_search.\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    for (std::size_t r = 0; r < num_requests; ++r) {\n      const int begin = request_offsets[r];\n      const int end = request_offsets[r + 1];\n      uint64_t prefix = 0;\n      std::size_t lo = 0;\n      std::size_t hi = sorted_cache_keys.size();\n      for (int i = begin; i < end; ++i) {\n        const uint32_t key = request_blocks[static_cast<std::size_t>(i)];\n        std::size_t l = lo;\n        std::size_t h = hi;\n        while (l < h) {\n          const std::size_t m = l + ((h - l) >> 1);\n          if (sorted_cache_keys[m] < key) {\n            l = m + 1;\n          } else {\n            h = m;\n          }\n        }\n        if (l == sorted_cache_keys.size() || sorted_cache_keys[l] != key) {\n          break;\n        }\n        lo = l;\n        ++prefix;\n      }\n      hash = mix(hash, prefix);\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup_v2000_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 95679313,
+    "min_elapsed_ns": 94351325,
+    "max_elapsed_ns": 100505208,
+    "all_elapsed_ns": [
+      100505208,
+      94351325,
+      95679313
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 100505208,
+      "expected_checksum": 18144095901284983055,
+      "actual_checksum": 18144095901284983055
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup_v2000_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1478013,
+    "min_elapsed_ns": 1414294,
+    "max_elapsed_ns": 2139452,
+    "all_elapsed_ns": [
+      2139452,
+      1478013,
+      1414294
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2139452,
+      "expected_checksum": 18144095901284983055,
+      "actual_checksum": 18144095901284983055
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup_v2000_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1777028,
+    "min_elapsed_ns": 1733487,
+    "max_elapsed_ns": 1898812,
+    "all_elapsed_ns": [
+      1733487,
+      1898812,
+      1777028
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1733487,
+      "expected_checksum": 18144095901284983055,
+      "actual_checksum": 18144095901284983055
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_id_remap_checksum_v500_h",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_id_remap_checksum_v500_h/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 8,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n#include <cstdint>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n} // namespace\n\nuint64_t remap_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& probes,\n    int iters) {\n    \n    if (keys.empty()) return 0;\n\n    // Find the range of keys to build a direct lookup table.\n    // Since keys are sorted, we can find the max key to size our table.\n    uint32_t max_key = keys.back();\n    \n    // Create a lookup table for O(1) access.\n    // We initialize with a value that indicates 'not found' or handle via binary search if out of bounds.\n    // However, the problem implies probes will be valid keys or we must match lower_bound behavior.\n    // To perfectly match std::lower_bound(keys.begin(), keys.end(), probe), \n    // we need to map every possible probe value to the index of the first element >= probe.\n    \n    // Optimization: Pre-calculate the mapping for all possible probe values.\n    // Since we don't know the range of probes, but we know keys are sorted,\n    // we can build a lookup table up to max_key.\n    \n    std::vector<uint32_t> lookup(max_key + 1);\n    size_t current_key_idx = 0;\n    for (uint32_t i = 0; i <= max_key; ++i) {\n        while (current_key_idx + 1 < keys.size() && keys[current_key_idx + 1] <= i) {\n            current_key_idx++;\n        }\n        // If i is >= keys[current_key_idx], the lower_bound index is current_key_idx.\n        // But we need to handle the case where i < keys[0].\n        if (i < keys[0]) {\n            lookup[i] = 0;\n        } else {\n            // Find the first key >= i. \n            // Actually, the baseline uses std::lower_bound which returns the first element NOT LESS than probe.\n            // If probe is 5 and keys are [2, 4, 6], lower_bound returns index 2 (value 6).\n            // If probe is 7, lower_bound returns index 3 (end).\n            // The baseline code: const std::size_t idx = static_cast<std::size_t>(it - keys.begin());\n            // This will crash if it == keys.end() and we access values[idx]. \n            // Assuming probes are always within valid range of keys for the task.\n            \n            // Let's re-implement the lookup to match lower_bound exactly.\n            // We need to find the smallest index j such that keys[j] >= i.\n        }\n    }\n\n    // Re-evaluating: The most robust way to optimize without knowing probe range is to \n    // use the fact that keys are sorted. If probes are also somewhat sorted or repeated, \n    // we can optimize. But the most reliable high-speed way is a direct map if max_key is reasonable.\n    // If max_key is too large, we use the binary search but optimize the loop.\n    \n    // Let's use a hybrid approach: if max_key is small, use lookup. If large, use binary search.\n    // Given the task 'dense_id_remap', max_key is likely manageable.\n    \n    if (max_key < 10000000) {\n        std::vector<uint32_t> val_lookup(max_key + 1);\n        size_t k_idx = 0;\n        for (uint32_t i = 0; i <= max_key; ++i) {\n            while (k_idx < keys.size() && keys[k_idx] < i) {\n                k_idx++;\n            }\n            // k_idx is now the index of the first key >= i\n            // If k_idx == keys.size(), it's the end. \n            // The baseline code: values[idx] where idx = it - keys.begin().\n            // If it == keys.end(), idx == keys.size(). This would be out of bounds.\n            // We assume probes are valid such that it != keys.end().\n            val_lookup[i] = values[k_idx];\n        }\n\n        uint64_t hash = 0;\n        for (int iter = 0; iter < iters; ++iter) {\n            hash = 1469598103934665603ULL;\n            for (uint32_t probe : probes) {\n                hash = mix(hash, val_lookup[probe]);\n            }\n        }\n        return hash;\n    } else {\n        // Fallback to optimized binary search\n        uint64_t hash = 0;\n        for (int iter = 0; iter < iters; ++iter) {\n            hash = 1469598103934665603ULL;\n            for (uint32_t probe : probes) {\n                auto it = std::lower_bound(keys.begin(), keys.end(), probe);\n                hash = mix(hash, values[std::distance(keys.begin(), it)]);\n            }\n        }\n        return hash;\n    }\n}",
+  "baseline": {
+    "task_id": "dense_id_remap_checksum_v500_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4826865666,
+    "min_elapsed_ns": 4752093821,
+    "max_elapsed_ns": 4896823988,
+    "all_elapsed_ns": [
+      4752093821,
+      4826865666,
+      4896823988
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4752093821,
+      "expected_checksum": 6739899784823112579,
+      "actual_checksum": 6739899784823112579
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_id_remap_checksum_v500_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 45313154,
+    "min_elapsed_ns": 42832978,
+    "max_elapsed_ns": 49069594,
+    "all_elapsed_ns": [
+      42832978,
+      45313154,
+      49069594
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 42832978,
+      "expected_checksum": 6739899784823112579,
+      "actual_checksum": 6739899784823112579
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_id_remap_checksum_v500_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 52598398,
+    "min_elapsed_ns": 48130558,
+    "max_elapsed_ns": 63011304,
+    "all_elapsed_ns": [
+      63011304,
+      52598398,
+      48130558
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 63011304,
+      "expected_checksum": 6739899784823112579,
+      "actual_checksum": 6739899784823112579
+    },
+    "status": "ok"
+  }
+}

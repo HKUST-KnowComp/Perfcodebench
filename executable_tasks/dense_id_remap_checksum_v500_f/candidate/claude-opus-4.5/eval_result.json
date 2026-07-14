@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_id_remap_checksum_v500_f",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_id_remap_checksum_v500_f/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 23,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t remap_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& probes,\n    int iters) {\n  if (keys.empty() || probes.empty() || iters <= 0) {\n    return 0;\n  }\n\n  // Since keys are dense, we can use direct indexing\n  // Find the minimum key to compute offsets\n  const uint32_t min_key = keys.front(); // keys are sorted, so first element is minimum\n  const uint32_t* values_ptr = values.data();\n  const uint32_t* probes_ptr = probes.data();\n  const std::size_t probes_size = probes.size();\n\n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    \n    // Process with prefetching and unrolling\n    std::size_t i = 0;\n    const std::size_t unroll_limit = (probes_size >= 4) ? (probes_size - 3) : 0;\n    \n    // Unrolled loop with prefetching\n    for (; i < unroll_limit; i += 4) {\n      const std::size_t idx0 = probes_ptr[i] - min_key;\n      const std::size_t idx1 = probes_ptr[i + 1] - min_key;\n      const std::size_t idx2 = probes_ptr[i + 2] - min_key;\n      const std::size_t idx3 = probes_ptr[i + 3] - min_key;\n      \n      // Prefetch ahead\n      if (i + 8 < probes_size) {\n        __builtin_prefetch(&values_ptr[probes_ptr[i + 4] - min_key], 0, 0);\n        __builtin_prefetch(&values_ptr[probes_ptr[i + 5] - min_key], 0, 0);\n        __builtin_prefetch(&values_ptr[probes_ptr[i + 6] - min_key], 0, 0);\n        __builtin_prefetch(&values_ptr[probes_ptr[i + 7] - min_key], 0, 0);\n      }\n      \n      hash = mix(hash, values_ptr[idx0]);\n      hash = mix(hash, values_ptr[idx1]);\n      hash = mix(hash, values_ptr[idx2]);\n      hash = mix(hash, values_ptr[idx3]);\n    }\n    \n    // Handle remaining elements\n    for (; i < probes_size; ++i) {\n      const std::size_t idx = probes_ptr[i] - min_key;\n      hash = mix(hash, values_ptr[idx]);\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "dense_id_remap_checksum_v500_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 13758598281,
+    "min_elapsed_ns": 13536024433,
+    "max_elapsed_ns": 14093103165,
+    "all_elapsed_ns": [
+      13536024433,
+      14093103165,
+      13758598281
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 13536024433,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_id_remap_checksum_v500_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 142356752,
+    "min_elapsed_ns": 141681067,
+    "max_elapsed_ns": 151350886,
+    "all_elapsed_ns": [
+      141681067,
+      142356752,
+      151350886
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 141681067,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_id_remap_checksum_v500_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 150891877,
+    "min_elapsed_ns": 147587782,
+    "max_elapsed_ns": 152585377,
+    "all_elapsed_ns": [
+      152585377,
+      147587782,
+      150891877
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 152585377,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  }
+}

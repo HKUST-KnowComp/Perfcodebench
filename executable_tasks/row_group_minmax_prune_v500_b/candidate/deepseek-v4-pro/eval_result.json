@@ -1,0 +1,72 @@
+{
+  "task_id": "row_group_minmax_prune_v500_b",
+  "model": "deepseek-v4-pro",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/row_group_minmax_prune_v500_b/candidate/deepseek-v4-pro/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <algorithm>\n#include <cstdint>\n#include <vector>\n\nuint64_t row_group_range_sum(\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& mins,\n    const std::vector<uint32_t>& maxs,\n    uint32_t low,\n    uint32_t high,\n    uint32_t block_size,\n    int iters) {\n  if (iters <= 0) return 0;\n\n  const size_t num_values = values.size();\n  const size_t num_blocks = mins.size();\n  std::vector<uint64_t> block_sums(num_blocks);\n  std::vector<int> block_type(num_blocks); // 0 = skip, 1 = full, 2 = partial\n\n  // Precompute block sums and classify each block once\n  for (size_t i = 0; i < num_blocks; ++i) {\n    size_t start = i * block_size;\n    size_t end = std::min(start + block_size, num_values);\n    uint64_t bsum = 0;\n    for (size_t j = start; j < end; ++j) {\n      bsum += values[j];\n    }\n    block_sums[i] = bsum;\n\n    uint32_t bmin = mins[i];\n    uint32_t bmax = maxs[i];\n    if (bmax < low || bmin > high) {\n      block_type[i] = 0; // skip\n    } else if (bmin >= low && bmax <= high) {\n      block_type[i] = 1; // full\n    } else {\n      block_type[i] = 2; // partial\n    }\n  }\n\n  uint64_t sum = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    for (size_t i = 0; i < num_blocks; ++i) {\n      switch (block_type[i]) {\n        case 1: // fully inside range\n          sum += block_sums[i];\n          break;\n        case 2: { // partial overlap\n          size_t start = i * block_size;\n          size_t end = std::min(start + block_size, num_values);\n          for (size_t j = start; j < end; ++j) {\n            uint32_t v = values[j];\n            if (v >= low && v <= high) {\n              sum += v;\n            }\n          }\n          break;\n        }\n        default: // skip block\n          break;\n      }\n    }\n  }\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "row_group_minmax_prune_v500_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 62655620,
+    "min_elapsed_ns": 61480326,
+    "max_elapsed_ns": 62735889,
+    "all_elapsed_ns": [
+      62735889,
+      61480326,
+      62655620
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 62735889,
+      "expected_sum": 129907508,
+      "actual_sum": 129907508
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "row_group_minmax_prune_v500_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1673350,
+    "min_elapsed_ns": 1616908,
+    "max_elapsed_ns": 1732750,
+    "all_elapsed_ns": [
+      1616908,
+      1673350,
+      1732750
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1616908,
+      "expected_sum": 129907508,
+      "actual_sum": 129907508
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "row_group_minmax_prune_v500_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 3572970,
+    "min_elapsed_ns": 3321064,
+    "max_elapsed_ns": 3721427,
+    "all_elapsed_ns": [
+      3572970,
+      3721427,
+      3321064
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3572970,
+      "expected_sum": 129907508,
+      "actual_sum": 129907508
+    },
+    "status": "ok"
+  }
+}

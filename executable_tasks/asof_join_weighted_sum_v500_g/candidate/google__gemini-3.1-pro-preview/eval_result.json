@@ -1,0 +1,72 @@
+{
+  "task_id": "asof_join_weighted_sum_v500_g",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/asof_join_weighted_sum_v500_g/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <vector>\n\n/**\n * Optimized as-of join weighted sum.\n * \n * The problem specifies that probe timestamps are sorted. \n * Since both dim_ts and probe_ts are sorted, we can use a two-pointer approach \n * to find the 'latest not-greater' dimension timestamp for each probe timestamp.\n * This reduces the complexity from O(iters * M * log N) to O(iters * (N + M)).\n */\nuint64_t asof_join_sum(\n    const std::vector<uint32_t>& dim_ts,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_ts,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n    \n    if (probe_ts.empty()) return 0;\n    \n    const size_t dim_size = dim_ts.size();\n    const size_t probe_size = probe_ts.size();\n    const uint32_t* d_ts = dim_ts.data();\n    const uint32_t* d_val = dim_values.data();\n    const uint32_t* p_ts = probe_ts.data();\n    const uint32_t* p_w = probe_weights.data();\n\n    uint64_t total_sum = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t current_sum = 0;\n        size_t dim_idx = 0;\n\n        for (size_t i = 0; i < probe_size; ++i) {\n            const uint32_t current_probe_ts = p_ts[i];\n            \n            // Advance dim_idx to the largest index such that dim_ts[dim_idx] <= current_probe_ts\n            // We check the next element to see if it still satisfies the condition.\n            while (dim_idx + 1 < dim_size && d_ts[dim_idx + 1] <= current_probe_ts) {\n                dim_idx++;\n            }\n            \n            // The baseline implementation assumes dim_ts[0] <= probe_ts[i] or handles \n            // the underflow of (it - begin - 1) implicitly. \n            // We follow the logic: sum += dim_values[dim_idx] * probe_weights[i]\n            current_sum += static_cast<uint64_t>(d_val[dim_idx]) * static_cast<uint64_t>(p_w[i]);\n        }\n        total_sum = current_sum;\n    }\n\n    return total_sum;\n}\n",
+  "baseline": {
+    "task_id": "asof_join_weighted_sum_v500_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 542445364,
+    "min_elapsed_ns": 532555917,
+    "max_elapsed_ns": 622365853,
+    "all_elapsed_ns": [
+      622365853,
+      532555917,
+      542445364
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 622365853,
+      "expected_sum": 73588270107,
+      "actual_sum": 73588270107
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "asof_join_weighted_sum_v500_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 55126876,
+    "min_elapsed_ns": 53874029,
+    "max_elapsed_ns": 69799789,
+    "all_elapsed_ns": [
+      69799789,
+      53874029,
+      55126876
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 69799789,
+      "expected_sum": 73588270107,
+      "actual_sum": 73588270107
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "asof_join_weighted_sum_v500_g",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 55141203,
+    "min_elapsed_ns": 43456639,
+    "max_elapsed_ns": 55578325,
+    "all_elapsed_ns": [
+      43456639,
+      55578325,
+      55141203
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 43456639,
+      "expected_sum": 73588270107,
+      "actual_sum": 73588270107
+    },
+    "status": "ok"
+  }
+}

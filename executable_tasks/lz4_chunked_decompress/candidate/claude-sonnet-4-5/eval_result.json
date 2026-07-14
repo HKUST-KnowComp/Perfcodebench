@@ -1,0 +1,72 @@
+{
+  "task_id": "lz4_chunked_decompress",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/lz4_chunked_decompress/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include \"lz4.h\"\n\nuint64_t decompress_checksum(const std::vector<std::string>& chunks, const std::vector<int>& sizes) {\n  uint64_t sum = 0;\n  std::string restored;\n  \n  // Reserve capacity for the largest chunk to minimize reallocations\n  if (!sizes.empty()) {\n    int max_size = sizes[0];\n    for (int size : sizes) {\n      if (size > max_size) max_size = size;\n    }\n    restored.reserve(static_cast<std::size_t>(max_size));\n  }\n  \n  for (std::size_t i = 0; i < chunks.size(); ++i) {\n    const std::string& local = chunks[i];  // Use const reference instead of copy\n    const int expected_size = sizes[i];\n    restored.resize(static_cast<std::size_t>(expected_size));\n    \n    const int decoded = LZ4_decompress_safe(\n        local.data(), restored.data(), \n        static_cast<int>(local.size()), \n        expected_size);\n    \n    if (decoded != expected_size) {\n      return 0;\n    }\n    \n    // Compute checksum with loop unrolling for better ILP\n    const unsigned char* data = reinterpret_cast<const unsigned char*>(restored.data());\n    std::size_t len = static_cast<std::size_t>(expected_size);\n    std::size_t j = 0;\n    \n    // Process 8 bytes at a time\n    uint64_t sum0 = 0, sum1 = 0, sum2 = 0, sum3 = 0;\n    uint64_t sum4 = 0, sum5 = 0, sum6 = 0, sum7 = 0;\n    \n    for (; j + 7 < len; j += 8) {\n      sum0 += data[j];\n      sum1 += data[j + 1];\n      sum2 += data[j + 2];\n      sum3 += data[j + 3];\n      sum4 += data[j + 4];\n      sum5 += data[j + 5];\n      sum6 += data[j + 6];\n      sum7 += data[j + 7];\n    }\n    \n    sum += sum0 + sum1 + sum2 + sum3 + sum4 + sum5 + sum6 + sum7;\n    \n    // Handle remaining bytes\n    for (; j < len; ++j) {\n      sum += data[j];\n    }\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "lz4_chunked_decompress",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1733103,
+    "min_elapsed_ns": 1644776,
+    "max_elapsed_ns": 1816796,
+    "all_elapsed_ns": [
+      1733103,
+      1644776,
+      1816796
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1733103,
+      "expected_checksum": 438315734,
+      "actual_checksum": 438315734
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "lz4_chunked_decompress",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1427941,
+    "min_elapsed_ns": 1393204,
+    "max_elapsed_ns": 1515606,
+    "all_elapsed_ns": [
+      1427941,
+      1393204,
+      1515606
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1427941,
+      "expected_checksum": 438315734,
+      "actual_checksum": 438315734
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "lz4_chunked_decompress",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1603505,
+    "min_elapsed_ns": 1585502,
+    "max_elapsed_ns": 1635175,
+    "all_elapsed_ns": [
+      1585502,
+      1635175,
+      1603505
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1585502,
+      "expected_checksum": 438315734,
+      "actual_checksum": 438315734
+    },
+    "status": "ok"
+  }
+}

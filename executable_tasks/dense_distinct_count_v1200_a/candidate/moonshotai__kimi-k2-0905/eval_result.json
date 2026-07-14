@@ -1,0 +1,59 @@
+{
+  "task_id": "dense_distinct_count_v1200_a",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_distinct_count_v1200_a/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 13,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nuint64_t distinct_count(const std::vector<uint32_t>& keys,\n                        uint32_t key_space,\n                        int iters) {\n  // key_space \u2264 500 according to the task description, so a 512-bit bitmap\n  // (64 bytes) fits comfortably in L1 and is faster than std::unordered_set\n  // for such tiny sets that are cleared each iteration.\n  alignas(64) uint64_t bits[8] = {0};\n  uint64_t count = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    for (uint32_t k : keys) {\n      uint32_t idx = k >> 6;          // word index\n      uint32_t mask = 1ULL << (k & 63); // bit mask\n      bits[idx] |= mask;\n    }\n    // Popcount the words we have set; key_space\u2264500 so we need only 8 words.\n    uint64_t pop = __builtin_popcountll(bits[0])\n                   + __builtin_popcountll(bits[1])\n                   + __builtin_popcountll(bits[2])\n                   + __builtin_popcountll(bits[3])\n                   + __builtin_popcountll(bits[4])\n                   + __builtin_popcountll(bits[5])\n                   + __builtin_popcountll(bits[6])\n                   + __builtin_popcountll(bits[7]);\n    count = pop;\n\n    // Reset only the words we touched during this scan\n    if (bits[0]) bits[0] = 0;\n    if (bits[1]) bits[1] = 0;\n    if (bits[2]) bits[2] = 0;\n    if (bits[3]) bits[3] = 0;\n    if (bits[4]) bits[4] = 0;\n    if (bits[5]) bits[5] = 0;\n    if (bits[6]) bits[6] = 0;\n    if (bits[7]) bits[7] = 0;\n  }\n  return count;\n}",
+  "baseline": {
+    "task_id": "dense_distinct_count_v1200_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6500878106,
+    "min_elapsed_ns": 6481625496,
+    "max_elapsed_ns": 6607930868,
+    "all_elapsed_ns": [
+      6481625496,
+      6500878106,
+      6607930868
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6481625496,
+      "expected_count": 1048576,
+      "actual_count": 1048576
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_distinct_count_v1200_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 188731169,
+    "min_elapsed_ns": 176084510,
+    "max_elapsed_ns": 202277475,
+    "all_elapsed_ns": [
+      188731169,
+      176084510,
+      202277475
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 188731169,
+      "expected_count": 1048576,
+      "actual_count": 1048576
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_distinct_count_v1200_a",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/dense_distinct_count_v1200_a/candidate/bench']' died with <Signals.SIGSEGV: 11>."
+  }
+}

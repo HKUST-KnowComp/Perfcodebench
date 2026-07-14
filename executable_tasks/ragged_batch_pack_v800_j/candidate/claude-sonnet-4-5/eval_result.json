@@ -1,0 +1,72 @@
+{
+  "task_id": "ragged_batch_pack_v800_j",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/ragged_batch_pack_v800_j/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t ragged_pack_checksum(const std::vector<uint32_t>& padded_tokens, const std::vector<int>& lengths, int batch, int max_len, int iters) {\n  // Pre-compute total packed size\n  std::size_t total_packed = 0;\n  for (int b = 0; b < batch; ++b) {\n    total_packed += static_cast<std::size_t>(lengths[b]);\n  }\n  \n  // Allocate once with exact capacity\n  std::vector<uint32_t> packed_tokens;\n  std::vector<uint32_t> positions;\n  packed_tokens.reserve(total_packed);\n  positions.reserve(total_packed);\n  \n  uint64_t hash = 0;\n  const uint32_t* padded_ptr = padded_tokens.data();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    packed_tokens.clear();\n    positions.clear();\n    hash = 1469598103934665603ULL;\n    \n    for (int b = 0; b < batch; ++b) {\n      const int len = lengths[b];\n      const uint32_t* row_ptr = padded_ptr + static_cast<std::size_t>(b) * static_cast<std::size_t>(max_len);\n      \n      // Pack and hash in same loop for better cache locality\n      int i = 0;\n      // Unroll by 4 for better ILP\n      for (; i + 3 < len; i += 4) {\n        uint32_t t0 = row_ptr[i];\n        uint32_t t1 = row_ptr[i + 1];\n        uint32_t t2 = row_ptr[i + 2];\n        uint32_t t3 = row_ptr[i + 3];\n        \n        packed_tokens.push_back(t0);\n        packed_tokens.push_back(t1);\n        packed_tokens.push_back(t2);\n        packed_tokens.push_back(t3);\n        \n        positions.push_back(static_cast<uint32_t>(i));\n        positions.push_back(static_cast<uint32_t>(i + 1));\n        positions.push_back(static_cast<uint32_t>(i + 2));\n        positions.push_back(static_cast<uint32_t>(i + 3));\n        \n        hash = mix(hash, t0);\n        hash = mix(hash, static_cast<uint32_t>(i));\n        hash = mix(hash, t1);\n        hash = mix(hash, static_cast<uint32_t>(i + 1));\n        hash = mix(hash, t2);\n        hash = mix(hash, static_cast<uint32_t>(i + 2));\n        hash = mix(hash, t3);\n        hash = mix(hash, static_cast<uint32_t>(i + 3));\n      }\n      \n      // Handle remainder\n      for (; i < len; ++i) {\n        uint32_t token = row_ptr[i];\n        packed_tokens.push_back(token);\n        positions.push_back(static_cast<uint32_t>(i));\n        hash = mix(hash, token);\n        hash = mix(hash, static_cast<uint32_t>(i));\n      }\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "ragged_batch_pack_v800_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 57578573,
+    "min_elapsed_ns": 56714726,
+    "max_elapsed_ns": 58503097,
+    "all_elapsed_ns": [
+      57578573,
+      56714726,
+      58503097
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 57578573,
+      "expected_checksum": 251806334749441510,
+      "actual_checksum": 251806334749441510
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "ragged_batch_pack_v800_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 26558641,
+    "min_elapsed_ns": 26432609,
+    "max_elapsed_ns": 26612330,
+    "all_elapsed_ns": [
+      26432609,
+      26612330,
+      26558641
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 26432609,
+      "expected_checksum": 251806334749441510,
+      "actual_checksum": 251806334749441510
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "ragged_batch_pack_v800_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 37020664,
+    "min_elapsed_ns": 36525905,
+    "max_elapsed_ns": 39115714,
+    "all_elapsed_ns": [
+      36525905,
+      37020664,
+      39115714
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 36525905,
+      "expected_checksum": 251806334749441510,
+      "actual_checksum": 251806334749441510
+    },
+    "status": "ok"
+  }
+}

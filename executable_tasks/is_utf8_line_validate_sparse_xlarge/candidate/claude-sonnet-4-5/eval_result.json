@@ -1,0 +1,72 @@
+{
+  "task_id": "is_utf8_line_validate_sparse_xlarge",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/is_utf8_line_validate_sparse_xlarge/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n\n#ifdef __SSE4_2__\n#include <emmintrin.h>\n#include <smmintrin.h>\n#endif\n\n#ifdef __AVX2__\n#include <immintrin.h>\n#endif\n\nstd::size_t count_valid_lines(const std::string& input) {\n  auto valid_simd = [](const char* data, std::size_t len) -> bool {\n    const unsigned char* p = reinterpret_cast<const unsigned char*>(data);\n    const unsigned char* end = p + len;\n    \n#ifdef __AVX2__\n    // Fast path: process 32 bytes at a time for ASCII\n    while (end - p >= 32) {\n      __m256i chunk = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(p));\n      int mask = _mm256_movemask_epi8(chunk);\n      if (mask == 0) {\n        p += 32;\n        continue;\n      }\n      // Found non-ASCII, break to scalar processing\n      break;\n    }\n#elif defined(__SSE4_2__)\n    // Fast path: process 16 bytes at a time for ASCII\n    while (end - p >= 16) {\n      __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(p));\n      int mask = _mm_movemask_epi8(chunk);\n      if (mask == 0) {\n        p += 16;\n        continue;\n      }\n      break;\n    }\n#endif\n    \n    // Scalar processing with optimized validation\n    while (p < end) {\n      unsigned char c = *p++;\n      \n      // ASCII fast path\n      if (c <= 0x7F) continue;\n      \n      // 2-byte sequence\n      if (c <= 0xDF) {\n        if (c < 0xC2 || p >= end) return false;\n        if ((*p++ & 0xC0) != 0x80) return false;\n        continue;\n      }\n      \n      // 3-byte sequence\n      if (c <= 0xEF) {\n        if (end - p < 2) return false;\n        unsigned char b1 = *p++;\n        unsigned char b2 = *p++;\n        \n        if (c == 0xE0) {\n          if (b1 < 0xA0 || b1 > 0xBF || (b2 & 0xC0) != 0x80) return false;\n        } else if (c == 0xED) {\n          if (b1 < 0x80 || b1 > 0x9F || (b2 & 0xC0) != 0x80) return false;\n        } else {\n          if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80) return false;\n        }\n        continue;\n      }\n      \n      // 4-byte sequence\n      if (c <= 0xF4) {\n        if (end - p < 3) return false;\n        unsigned char b1 = *p++;\n        unsigned char b2 = *p++;\n        unsigned char b3 = *p++;\n        \n        if (c == 0xF0) {\n          if (b1 < 0x90 || b1 > 0xBF || (b2 & 0xC0) != 0x80 || (b3 & 0xC0) != 0x80) return false;\n        } else if (c == 0xF4) {\n          if (b1 < 0x80 || b1 > 0x8F || (b2 & 0xC0) != 0x80 || (b3 & 0xC0) != 0x80) return false;\n        } else {\n          if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80 || (b3 & 0xC0) != 0x80) return false;\n        }\n        continue;\n      }\n      \n      return false;\n    }\n    return true;\n  };\n\n  std::size_t count = 0;\n  const char* p = input.data();\n  const char* const end = p + input.size();\n  \n  while (p < end) {\n    // Find line end using optimized search\n    const char* line_end = p;\n    const char* search_end = end;\n    \n#ifdef __AVX2__\n    // SIMD newline search for long lines\n    __m256i newline_vec = _mm256_set1_epi8('\\n');\n    while (search_end - line_end >= 32) {\n      __m256i chunk = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(line_end));\n      __m256i cmp = _mm256_cmpeq_epi8(chunk, newline_vec);\n      int mask = _mm256_movemask_epi8(cmp);\n      if (mask != 0) {\n        line_end += __builtin_ctz(mask);\n        goto found_newline;\n      }\n      line_end += 32;\n    }\n#elif defined(__SSE4_2__)\n    __m128i newline_vec = _mm_set1_epi8('\\n');\n    while (search_end - line_end >= 16) {\n      __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(line_end));\n      __m128i cmp = _mm_cmpeq_epi8(chunk, newline_vec);\n      int mask = _mm_movemask_epi8(cmp);\n      if (mask != 0) {\n        line_end += __builtin_ctz(mask);\n        goto found_newline;\n      }\n      line_end += 16;\n    }\n#endif\n    \n    // Scalar search for remainder\n    while (line_end < search_end && *line_end != '\\n') {\n      ++line_end;\n    }\n    \nfound_newline:\n    count += valid_simd(p, static_cast<std::size_t>(line_end - p));\n    p = (line_end < end) ? (line_end + 1) : line_end;\n  }\n  \n  return count;\n}",
+  "baseline": {
+    "task_id": "is_utf8_line_validate_sparse_xlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 17357903,
+    "min_elapsed_ns": 17273123,
+    "max_elapsed_ns": 17592628,
+    "all_elapsed_ns": [
+      17357903,
+      17592628,
+      17273123
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 17357903,
+      "expected_count": 89312,
+      "actual_count": 89312
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "is_utf8_line_validate_sparse_xlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 7507184,
+    "min_elapsed_ns": 7498206,
+    "max_elapsed_ns": 7555344,
+    "all_elapsed_ns": [
+      7498206,
+      7555344,
+      7507184
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7498206,
+      "expected_count": 89312,
+      "actual_count": 89312
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "is_utf8_line_validate_sparse_xlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 16290171,
+    "min_elapsed_ns": 16035209,
+    "max_elapsed_ns": 22541429,
+    "all_elapsed_ns": [
+      22541429,
+      16035209,
+      16290171
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 22541429,
+      "expected_count": 89312,
+      "actual_count": 89312
+    },
+    "status": "ok"
+  }
+}

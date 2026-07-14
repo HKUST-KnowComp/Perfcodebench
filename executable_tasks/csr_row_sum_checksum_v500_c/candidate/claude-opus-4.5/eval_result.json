@@ -1,0 +1,72 @@
+{
+  "task_id": "csr_row_sum_checksum_v500_c",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/csr_row_sum_checksum_v500_c/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#endif\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\ninline uint64_t sum_row(const uint32_t* __restrict__ data, std::size_t len) {\n  uint64_t sum = 0;\n  std::size_t i = 0;\n\n#if defined(__AVX2__)\n  if (len >= 8) {\n    __m256i acc_lo = _mm256_setzero_si256();\n    __m256i acc_hi = _mm256_setzero_si256();\n    \n    for (; i + 7 < len; i += 8) {\n      __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(data + i));\n      // Unpack to 64-bit to avoid overflow\n      __m256i lo = _mm256_unpacklo_epi32(v, _mm256_setzero_si256());\n      __m256i hi = _mm256_unpackhi_epi32(v, _mm256_setzero_si256());\n      acc_lo = _mm256_add_epi64(acc_lo, lo);\n      acc_hi = _mm256_add_epi64(acc_hi, hi);\n    }\n    \n    __m256i acc = _mm256_add_epi64(acc_lo, acc_hi);\n    // Horizontal sum of 4 x 64-bit values\n    __m128i lo128 = _mm256_castsi256_si128(acc);\n    __m128i hi128 = _mm256_extracti128_si256(acc, 1);\n    __m128i sum128 = _mm_add_epi64(lo128, hi128);\n    sum = static_cast<uint64_t>(_mm_extract_epi64(sum128, 0)) + \n          static_cast<uint64_t>(_mm_extract_epi64(sum128, 1));\n  }\n#endif\n\n  // Scalar tail\n  for (; i < len; ++i) {\n    sum += static_cast<uint64_t>(data[i]);\n  }\n  \n  return sum;\n}\n\n}  // namespace\n\nuint64_t csr_row_hash(const std::vector<uint32_t>& row_ptr, const std::vector<uint32_t>& values, int iters) {\n  const std::size_t num_rows = row_ptr.size() > 0 ? row_ptr.size() - 1 : 0;\n  const uint32_t* __restrict__ rp = row_ptr.data();\n  const uint32_t* __restrict__ vals = values.data();\n  \n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    \n    for (std::size_t r = 0; r < num_rows; ++r) {\n      const std::size_t start = static_cast<std::size_t>(rp[r]);\n      const std::size_t end = static_cast<std::size_t>(rp[r + 1]);\n      const std::size_t len = end - start;\n      \n      uint64_t sum = sum_row(vals + start, len);\n      hash = mix(hash, sum);\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "csr_row_sum_checksum_v500_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 61227725,
+    "min_elapsed_ns": 47323538,
+    "max_elapsed_ns": 70090391,
+    "all_elapsed_ns": [
+      61227725,
+      47323538,
+      70090391
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 61227725,
+      "expected_checksum": 15910892647997057783,
+      "actual_checksum": 15910892647997057783
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "csr_row_sum_checksum_v500_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8045237,
+    "min_elapsed_ns": 7183508,
+    "max_elapsed_ns": 11943267,
+    "all_elapsed_ns": [
+      8045237,
+      7183508,
+      11943267
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8045237,
+      "expected_checksum": 15910892647997057783,
+      "actual_checksum": 15910892647997057783
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "csr_row_sum_checksum_v500_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 6276418,
+    "min_elapsed_ns": 5942167,
+    "max_elapsed_ns": 6415664,
+    "all_elapsed_ns": [
+      5942167,
+      6276418,
+      6415664
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5942167,
+      "expected_checksum": 15910892647997057783,
+      "actual_checksum": 15910892647997057783
+    },
+    "status": "ok"
+  }
+}

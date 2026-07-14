@@ -1,0 +1,59 @@
+{
+  "task_id": "fast_float_fortran_parse",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/fast_float_fortran_parse/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <fast_float/fast_float.h>\n\n#include <string>\n\nnamespace {\n\ninline bool parse_fortran_double(const char* begin, const char* end, double& out) {\n  const char* p = begin;\n  while (p < end && (*p == ' ' || *p == '\\t' || *p == '\\r')) {\n    ++p;\n  }\n  if (p == end) {\n    return false;\n  }\n\n  bool negative = false;\n  if (*p == '+' || *p == '-') {\n    negative = (*p == '-');\n    ++p;\n    if (p == end) {\n      return false;\n    }\n  }\n\n  const char* q = p;\n  while (q < end) {\n    const char c = *q;\n    if (c == 'd' || c == 'D') {\n      break;\n    }\n    ++q;\n  }\n\n  if (q == end) {\n    double value;\n    auto res = fast_float::from_chars(p, end, value);\n    if (res.ec != std::errc() || res.ptr != end) {\n      return false;\n    }\n    out = negative ? -value : value;\n    return true;\n  }\n\n  double mantissa;\n  auto res1 = fast_float::from_chars(p, q, mantissa);\n  if (res1.ec != std::errc() || res1.ptr != q) {\n    return false;\n  }\n\n  const char* e = q + 1;\n  if (e == end) {\n    return false;\n  }\n\n  bool exp_negative = false;\n  if (*e == '+' || *e == '-') {\n    exp_negative = (*e == '-');\n    ++e;\n    if (e == end) {\n      return false;\n    }\n  }\n\n  int exponent = 0;\n  const char* exp_ptr = e;\n  while (exp_ptr < end) {\n    const unsigned char ch = static_cast<unsigned char>(*exp_ptr);\n    if (ch < '0' || ch > '9') {\n      return false;\n    }\n    exponent = exponent * 10 + static_cast<int>(ch - '0');\n    ++exp_ptr;\n  }\n\n  if (exp_negative) {\n    exponent = -exponent;\n  }\n\n  out = fast_float::integer_times_pow10(mantissa, exponent);\n  if (negative) {\n    out = -out;\n  }\n  return true;\n}\n\n}  // namespace\n\ndouble parse_sum(const std::string& input) {\n  const char* p = input.data();\n  const char* end = p + input.size();\n  double sum = 0.0;\n\n  while (p < end) {\n    const char* line_end = p;\n    while (line_end < end && *line_end != '\\n') {\n      ++line_end;\n    }\n\n    double value;\n    if (parse_fortran_double(p, line_end, value)) {\n      sum += value;\n    } else {\n      break;\n    }\n\n    p = (line_end < end) ? (line_end + 1) : line_end;\n  }\n\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "fast_float_fortran_parse",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 33105120,
+    "min_elapsed_ns": 33067002,
+    "max_elapsed_ns": 33810555,
+    "all_elapsed_ns": [
+      33810555,
+      33105120,
+      33067002
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 33810555,
+      "expected_sum": 4942183041033.184,
+      "actual_sum": 4942183041033.184
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "fast_float_fortran_parse",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5281806,
+    "min_elapsed_ns": 5261517,
+    "max_elapsed_ns": 5299076,
+    "all_elapsed_ns": [
+      5261517,
+      5281806,
+      5299076
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5261517,
+      "expected_sum": 4942183041033.184,
+      "actual_sum": 4942183041033.184
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "fast_float_fortran_parse",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/fast_float_fortran_parse/harness', '-Iexternal/fast_float/include', 'executable_tasks/fast_float_fortran_parse/harness/benchmark_main.cpp', 'executable_tasks/fast_float_fortran_parse/candidate/gpt-5.4/solution.cpp', '-o', 'build/fast_float_fortran_parse/candidate/bench']' returned non-zero exit status 1."
+  }
+}

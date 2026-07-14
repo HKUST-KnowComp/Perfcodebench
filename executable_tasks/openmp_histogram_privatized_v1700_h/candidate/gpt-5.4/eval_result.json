@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_histogram_privatized_v1700_h",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_histogram_privatized_v1700_h/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 8,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <omp.h>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\ninline int num_threads() {\n  int mt = omp_get_max_threads();\n  if (mt < 1) return 1;\n  return mt > 8 ? 8 : mt;\n}\n\ninline uint64_t checksum_u32_ptr(const uint32_t* data, int n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (int i = 0; i < n; ++i) {\n    hash ^= static_cast<uint64_t>(data[i]);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t histogram_checksum(const std::vector<uint8_t>& input, int bins, int iters) {\n  omp_set_num_threads(num_threads());\n\n  if (bins <= 0) {\n    return 1469598103934665603ULL;\n  }\n\n  std::vector<uint32_t> counts(static_cast<std::size_t>(bins), 0u);\n\n  const int max_threads = num_threads();\n\n  // Pad each thread-local histogram to reduce false sharing between adjacent\n  // thread blocks. For the target workload bins is 256, but keep it generic.\n  const int pad = 16;\n  const int stride = bins + pad;\n  std::vector<uint32_t> locals(static_cast<std::size_t>(max_threads) * static_cast<std::size_t>(stride), 0u);\n\n  const uint8_t* in = input.empty() ? nullptr : input.data();\n  const std::size_t n = input.size();\n\n  for (int iter = 0; iter < iters; ++iter) {\n#pragma omp parallel\n    {\n      const int tid = omp_get_thread_num();\n      uint32_t* local = locals.data() + static_cast<std::size_t>(tid) * static_cast<std::size_t>(stride);\n\n      for (int b = 0; b < bins; ++b) local[b] = 0u;\n\n#pragma omp for schedule(static)\n      for (std::size_t i = 0; i < n; ++i) {\n        ++local[static_cast<int>(in[i])];\n      }\n\n#pragma omp for schedule(static)\n      for (int b = 0; b < bins; ++b) {\n        uint32_t sum = 0u;\n        for (int t = 0; t < max_threads; ++t) {\n          sum += locals[static_cast<std::size_t>(t) * static_cast<std::size_t>(stride) + static_cast<std::size_t>(b)];\n        }\n        counts[static_cast<std::size_t>(b)] = sum;\n      }\n    }\n  }\n\n  return checksum_u32_ptr(counts.data(), bins);\n}\n",
+  "baseline": {
+    "task_id": "openmp_histogram_privatized_v1700_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5458323883,
+    "min_elapsed_ns": 4763397090,
+    "max_elapsed_ns": 5856004411,
+    "all_elapsed_ns": [
+      4763397090,
+      5458323883,
+      5856004411
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4763397090,
+      "expected_checksum": 16422908603305828301,
+      "actual_checksum": 16422908603305828301
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_histogram_privatized_v1700_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 25873435,
+    "min_elapsed_ns": 16381219,
+    "max_elapsed_ns": 26329208,
+    "all_elapsed_ns": [
+      16381219,
+      25873435,
+      26329208
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 16381219,
+      "expected_checksum": 16422908603305828301,
+      "actual_checksum": 16422908603305828301
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_histogram_privatized_v1700_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 195996175,
+    "min_elapsed_ns": 90073089,
+    "max_elapsed_ns": 202142246,
+    "all_elapsed_ns": [
+      202142246,
+      195996175,
+      90073089
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 202142246,
+      "expected_checksum": 16422908603305828301,
+      "actual_checksum": 16422908603305828301
+    },
+    "status": "ok"
+  }
+}

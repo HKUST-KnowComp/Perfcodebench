@@ -1,0 +1,59 @@
+{
+  "task_id": "highway_dot_product_xxlarge",
+  "model": "deepseek-v4-pro",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_dot_product_xxlarge/candidate/deepseek-v4-pro/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <hwy/highway.h>\n\nnamespace hn = hwy::HWY_NAMESPACE;\n\nfloat dot_product(const float* a, const float* b, std::size_t n) {\n  const hn::ScalableTag<float> d;\n  using V = decltype(hn::Zero(d));\n  const size_t N = hn::Lanes(d);\n  size_t i = 0;\n  V sum0 = hn::Zero(d);\n  V sum1 = hn::Zero(d);\n  V sum2 = hn::Zero(d);\n  V sum3 = hn::Zero(d);\n\n  // Main loop: 4 vectors per iteration for better ILP\n  for (; i + 4 * N <= n; i += 4 * N) {\n    V a0 = hn::LoadU(d, a + i);\n    V b0 = hn::LoadU(d, b + i);\n    sum0 = hn::MulAdd(a0, b0, sum0);\n    V a1 = hn::LoadU(d, a + i + N);\n    V b1 = hn::LoadU(d, b + i + N);\n    sum1 = hn::MulAdd(a1, b1, sum1);\n    V a2 = hn::LoadU(d, a + i + 2 * N);\n    V b2 = hn::LoadU(d, b + i + 2 * N);\n    sum2 = hn::MulAdd(a2, b2, sum2);\n    V a3 = hn::LoadU(d, a + i + 3 * N);\n    V b3 = hn::LoadU(d, b + i + 3 * N);\n    sum3 = hn::MulAdd(a3, b3, sum3);\n  }\n\n  // Handle remaining full vectors (unrolled accumulators continue)\n  for (; i + N <= n; i += N) {\n    V a = hn::LoadU(d, a + i);\n    V b = hn::LoadU(d, b + i);\n    sum0 = hn::MulAdd(a, b, sum0);\n  }\n\n  // Combine the four accumulators\n  sum0 = hn::Add(hn::Add(sum0, sum1), hn::Add(sum2, sum3));\n  float result = hn::ReduceSum(d, sum0);\n\n  // Scalar tail\n  for (; i < n; ++i) {\n    result += a[i] * b[i];\n  }\n\n  return result;\n}",
+  "baseline": {
+    "task_id": "highway_dot_product_xxlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6499402,
+    "min_elapsed_ns": 6440938,
+    "max_elapsed_ns": 6507922,
+    "all_elapsed_ns": [
+      6440938,
+      6507922,
+      6499402
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6440938,
+      "expected_dot": 2631150.0,
+      "actual_dot": 2631600.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_dot_product_xxlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5361025,
+    "min_elapsed_ns": 5229245,
+    "max_elapsed_ns": 5536127,
+    "all_elapsed_ns": [
+      5536127,
+      5361025,
+      5229245
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5536127,
+      "expected_dot": 2631150.0,
+      "actual_dot": 2631140.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_dot_product_xxlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/highway_dot_product_xxlarge/harness', '-Iexternal/highway', 'executable_tasks/highway_dot_product_xxlarge/harness/benchmark_main.cpp', 'executable_tasks/highway_dot_product_xxlarge/candidate/deepseek-v4-pro/solution.cpp', 'external/highway/hwy/abort.cc', 'external/highway/hwy/targets.cc', 'external/highway/hwy/aligned_allocator.cc', 'external/highway/hwy/per_target.cc', '-o', 'build/highway_dot_product_xxlarge/candidate/bench']' returned non-zero exit status 1."
+  }
+}

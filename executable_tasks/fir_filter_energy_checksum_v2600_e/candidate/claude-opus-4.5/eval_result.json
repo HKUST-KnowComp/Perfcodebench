@@ -1,0 +1,72 @@
+{
+  "task_id": "fir_filter_energy_checksum_v2600_e",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/fir_filter_energy_checksum_v2600_e/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <immintrin.h>\n\nuint64_t fir_energy_checksum(\n    const std::vector<int16_t>& signal,\n    const std::vector<int16_t>& taps,\n    int iters) {\n  \n  const std::size_t sig_size = signal.size();\n  const std::size_t tap_size = taps.size();\n  \n  if (sig_size == 0 || tap_size == 0 || iters <= 0) {\n    uint64_t total = 1469598103934665603ULL;\n    for (int iter = 0; iter < iters; ++iter) {\n      // empty output, total stays the same\n    }\n    return total;\n  }\n  \n  const int16_t* sig_ptr = signal.data();\n  const int16_t* tap_ptr = taps.data();\n  \n  std::vector<int64_t> output(sig_size);\n  uint64_t total = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    // Phase 1: Partial overlap region (i < tap_size - 1)\n    std::size_t partial_end = (tap_size - 1 < sig_size) ? (tap_size - 1) : sig_size;\n    \n    for (std::size_t i = 0; i < partial_end; ++i) {\n      int64_t acc = 0;\n      std::size_t j = 0;\n      // Unroll by 4\n      std::size_t limit = i + 1;\n      std::size_t limit4 = limit & ~3ULL;\n      for (; j < limit4; j += 4) {\n        acc += static_cast<int64_t>(sig_ptr[i - j]) * static_cast<int64_t>(tap_ptr[j]);\n        acc += static_cast<int64_t>(sig_ptr[i - j - 1]) * static_cast<int64_t>(tap_ptr[j + 1]);\n        acc += static_cast<int64_t>(sig_ptr[i - j - 2]) * static_cast<int64_t>(tap_ptr[j + 2]);\n        acc += static_cast<int64_t>(sig_ptr[i - j - 3]) * static_cast<int64_t>(tap_ptr[j + 3]);\n      }\n      for (; j <= i; ++j) {\n        acc += static_cast<int64_t>(sig_ptr[i - j]) * static_cast<int64_t>(tap_ptr[j]);\n      }\n      output[i] = acc;\n    }\n    \n    // Phase 2: Full kernel region (i >= tap_size - 1)\n    // Here all taps are valid, no bounds checking needed\n    for (std::size_t i = partial_end; i < sig_size; ++i) {\n      int64_t acc = 0;\n      const int16_t* sig_start = sig_ptr + i;\n      \n      std::size_t j = 0;\n      \n#ifdef __AVX2__\n      // Process 16 elements at a time with AVX2\n      __m256i sum_lo = _mm256_setzero_si256();\n      __m256i sum_hi = _mm256_setzero_si256();\n      \n      std::size_t tap16 = tap_size & ~15ULL;\n      for (; j < tap16; j += 16) {\n        // Load 16 signal values (reversed order access)\n        __m128i s0 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(sig_start - j - 7));\n        __m128i s1 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(sig_start - j - 15));\n        \n        // Reverse the order within each 128-bit chunk\n        s0 = _mm_shuffle_epi8(s0, _mm_set_epi8(1,0,3,2,5,4,7,6,9,8,11,10,13,12,15,14));\n        s1 = _mm_shuffle_epi8(s1, _mm_set_epi8(1,0,3,2,5,4,7,6,9,8,11,10,13,12,15,14));\n        \n        __m256i sig_vec = _mm256_set_m128i(s1, s0);\n        \n        // Load 16 tap values\n        __m256i tap_vec = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(tap_ptr + j));\n        \n        // Multiply and accumulate (madd gives 32-bit results)\n        __m256i prod = _mm256_madd_epi16(sig_vec, tap_vec);\n        \n        // Accumulate to 64-bit\n        __m256i prod_lo = _mm256_cvtepi32_epi64(_mm256_castsi256_si128(prod));\n        __m256i prod_hi = _mm256_cvtepi32_epi64(_mm256_extracti128_si256(prod, 1));\n        \n        sum_lo = _mm256_add_epi64(sum_lo, prod_lo);\n        sum_hi = _mm256_add_epi64(sum_hi, prod_hi);\n      }\n      \n      // Horizontal sum\n      __m256i sum_all = _mm256_add_epi64(sum_lo, sum_hi);\n      __m128i sum128 = _mm_add_epi64(_mm256_castsi256_si128(sum_all), \n                                      _mm256_extracti128_si256(sum_all, 1));\n      sum128 = _mm_add_epi64(sum128, _mm_srli_si128(sum128, 8));\n      acc = _mm_cvtsi128_si64(sum128);\n#endif\n      \n      // Scalar cleanup\n      for (; j < tap_size; ++j) {\n        acc += static_cast<int64_t>(sig_start[-static_cast<std::ptrdiff_t>(j)]) * \n               static_cast<int64_t>(tap_ptr[j]);\n      }\n      \n      output[i] = acc;\n    }\n    \n    // Compute checksum\n    total = 1469598103934665603ULL;\n    for (std::size_t i = 0; i < sig_size; ++i) {\n      int64_t acc = output[i];\n      total ^= static_cast<uint64_t>(acc * acc + 3 * acc);\n      total *= 1099511628211ULL;\n    }\n  }\n  \n  return total;\n}",
+  "baseline": {
+    "task_id": "fir_filter_energy_checksum_v2600_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 18803485,
+    "min_elapsed_ns": 17936094,
+    "max_elapsed_ns": 19330005,
+    "all_elapsed_ns": [
+      17936094,
+      18803485,
+      19330005
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 17936094,
+      "expected_checksum": 14263035582710357113,
+      "actual_checksum": 14263035582710357113
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "fir_filter_energy_checksum_v2600_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 13835683,
+    "min_elapsed_ns": 13826161,
+    "max_elapsed_ns": 13973314,
+    "all_elapsed_ns": [
+      13826161,
+      13835683,
+      13973314
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 13826161,
+      "expected_checksum": 14263035582710357113,
+      "actual_checksum": 14263035582710357113
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "fir_filter_energy_checksum_v2600_e",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 10401961,
+    "min_elapsed_ns": 10354332,
+    "max_elapsed_ns": 10567511,
+    "all_elapsed_ns": [
+      10567511,
+      10401961,
+      10354332
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10567511,
+      "expected_checksum": 14263035582710357113,
+      "actual_checksum": 14263035582710357113
+    },
+    "status": "ok"
+  }
+}

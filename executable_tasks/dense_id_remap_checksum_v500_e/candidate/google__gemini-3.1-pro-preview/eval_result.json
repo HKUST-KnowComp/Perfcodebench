@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_id_remap_checksum_v500_e",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_id_remap_checksum_v500_e/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 6,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <algorithm>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t remap_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& probes,\n    int iters) {\n  \n  if (probes.empty()) return 0;\n  if (iters <= 0) return 0;\n\n  const size_t num_probes = probes.size();\n  const uint32_t* __restrict__ probes_ptr = probes.data();\n  const uint32_t* __restrict__ values_ptr = values.data();\n  const uint32_t* __restrict__ keys_ptr = keys.data();\n  const size_t keys_size = keys.size();\n\n  // Check if keys are a simple contiguous range [base, base + keys_size - 1]\n  bool is_dense = false;\n  uint32_t base = 0;\n  if (keys_size > 0) {\n    base = keys_ptr[0];\n    if (keys_ptr[keys_size - 1] == base + (uint32_t)keys_size - 1) {\n      is_dense = true;\n    }\n  }\n\n  // Pre-calculate remapped values to avoid repeated lookups across iterations\n  std::vector<uint32_t> remapped(num_probes);\n  uint32_t* __restrict__ remapped_ptr = remapped.data();\n\n  if (is_dense) {\n    for (size_t i = 0; i < num_probes; ++i) {\n      remapped_ptr[i] = values_ptr[probes_ptr[i] - base];\n    }\n  } else {\n    for (size_t i = 0; i < num_probes; ++i) {\n      const uint32_t probe = probes_ptr[i];\n      const auto it = std::lower_bound(keys.begin(), keys.end(), probe);\n      const size_t idx = static_cast<size_t>(it - keys.begin());\n      remapped_ptr[i] = values_ptr[idx];\n    }\n  }\n\n  // The hash is reset every iteration, so we only need to compute it once.\n  // However, to strictly follow the logic of the baseline (which might be used for timing),\n  // we perform the hashing loop. FNV-1a is strictly sequential.\n  uint64_t hash = 1469598103934665603ULL;\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    size_t i = 0;\n    // Unroll slightly to help the compiler, though FNV is serial\n    for (; i + 3 < num_probes; i += 4) {\n      hash = mix(hash, remapped_ptr[i]);\n      hash = mix(hash, remapped_ptr[i + 1]);\n      hash = mix(hash, remapped_ptr[i + 2]);\n      hash = mix(hash, remapped_ptr[i + 3]);\n    }\n    for (; i < num_probes; ++i) {\n      hash = mix(hash, remapped_ptr[i]);\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "dense_id_remap_checksum_v500_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4049566325,
+    "min_elapsed_ns": 3924813168,
+    "max_elapsed_ns": 4163224036,
+    "all_elapsed_ns": [
+      3924813168,
+      4163224036,
+      4049566325
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3924813168,
+      "expected_checksum": 13640320782262141827,
+      "actual_checksum": 13640320782262141827
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_id_remap_checksum_v500_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 50478675,
+    "min_elapsed_ns": 47718841,
+    "max_elapsed_ns": 51230745,
+    "all_elapsed_ns": [
+      51230745,
+      50478675,
+      47718841
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 51230745,
+      "expected_checksum": 13640320782262141827,
+      "actual_checksum": 13640320782262141827
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_id_remap_checksum_v500_e",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 58431533,
+    "min_elapsed_ns": 58387553,
+    "max_elapsed_ns": 60984884,
+    "all_elapsed_ns": [
+      58387553,
+      58431533,
+      60984884
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 58387553,
+      "expected_checksum": 13640320782262141827,
+      "actual_checksum": 13640320782262141827
+    },
+    "status": "ok"
+  }
+}

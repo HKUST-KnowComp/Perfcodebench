@@ -1,0 +1,72 @@
+{
+  "task_id": "packed12_decode_filter_sum_v500_f",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/packed12_decode_filter_sum_v500_f/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstddef>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#endif\n\nuint64_t packed12_filter_sum(const std::vector<uint8_t>& packed, uint16_t threshold, int iters) {\n    const uint8_t* __restrict data = packed.data();\n    const size_t size = packed.size();\n    uint64_t sum = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        sum = 0;\n        size_t i = 0;\n\n#if defined(__AVX2__)\n        // Process 24 bytes at a time (16 values)\n        const __m256i thresh_vec = _mm256_set1_epi16(static_cast<int16_t>(threshold));\n        __m256i sum_lo = _mm256_setzero_si256();\n        __m256i sum_hi = _mm256_setzero_si256();\n        \n        // Shuffle mask to extract 12-bit values from packed bytes\n        // For each 3 bytes [b0, b1, b2]: val0 = b0 | ((b1 & 0x0F) << 8), val1 = (b1 >> 4) | (b2 << 4)\n        // Process 24 bytes -> 16 values\n        \n        while (i + 24 <= size) {\n            // Load 24 bytes (we'll load 32 and ignore last 8)\n            __m256i raw = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(data + i));\n            \n            // Extract bytes manually for precise control\n            // Bytes 0-23 contain our data\n            // Pattern repeats every 3 bytes\n            \n            // For simplicity and correctness, decode scalar-style but accumulate in SIMD\n            uint32_t vals[16];\n            for (int j = 0; j < 8; ++j) {\n                size_t base = i + j * 3;\n                uint32_t b0 = data[base];\n                uint32_t b1 = data[base + 1];\n                uint32_t b2 = data[base + 2];\n                vals[j * 2] = b0 | ((b1 & 0x0F) << 8);\n                vals[j * 2 + 1] = (b1 >> 4) | (b2 << 4);\n            }\n            \n            // Load into SIMD registers as 16-bit values\n            __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(vals));\n            // Pack to 16-bit for comparison (values are 12-bit, fit in 16-bit)\n            __m128i lo_128 = _mm256_castsi256_si128(v);\n            __m128i hi_128 = _mm256_extracti128_si256(v, 1);\n            // vals are 32-bit, need to handle differently\n            \n            // Actually, let's just do scalar accumulation with the decoded values\n            for (int j = 0; j < 16; ++j) {\n                if (vals[j] > threshold) {\n                    sum += vals[j];\n                }\n            }\n            \n            i += 24;\n        }\n#endif\n\n        // Scalar fallback / remainder\n        while (i + 3 <= size) {\n            uint32_t b0 = data[i];\n            uint32_t b1 = data[i + 1];\n            uint32_t b2 = data[i + 2];\n            \n            uint32_t a = b0 | ((b1 & 0x0Fu) << 8);\n            uint32_t b = (b1 >> 4) | (b2 << 4);\n            \n            if (a > threshold) sum += a;\n            if (b > threshold) sum += b;\n            \n            i += 3;\n        }\n    }\n\n    return sum;\n}",
+  "baseline": {
+    "task_id": "packed12_decode_filter_sum_v500_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 29196261,
+    "min_elapsed_ns": 28408917,
+    "max_elapsed_ns": 29822809,
+    "all_elapsed_ns": [
+      28408917,
+      29196261,
+      29822809
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 28408917,
+      "expected_sum": 1611237131,
+      "actual_sum": 1611237131
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "packed12_decode_filter_sum_v500_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 12531530,
+    "min_elapsed_ns": 11854989,
+    "max_elapsed_ns": 15643865,
+    "all_elapsed_ns": [
+      11854989,
+      15643865,
+      12531530
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11854989,
+      "expected_sum": 1611237131,
+      "actual_sum": 1611237131
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "packed12_decode_filter_sum_v500_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 14070096,
+    "min_elapsed_ns": 13777342,
+    "max_elapsed_ns": 15116147,
+    "all_elapsed_ns": [
+      13777342,
+      14070096,
+      15116147
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 13777342,
+      "expected_sum": 1611237131,
+      "actual_sum": 1611237131
+    },
+    "status": "ok"
+  }
+}

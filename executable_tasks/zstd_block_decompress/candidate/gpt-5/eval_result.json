@@ -1,0 +1,72 @@
+{
+  "task_id": "zstd_block_decompress",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/zstd_block_decompress/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"zstd.h\"\n\nnamespace {\n\n// Unrolled FNV-1a 64-bit checksum over a byte buffer\ninline uint64_t checksum_bytes(const char* data, std::size_t len) {\n  uint64_t hash = 1469598103934665603ULL;\n  const uint64_t prime = 1099511628211ULL;\n\n  // Process 16 bytes per iteration when possible\n  while (len >= 16) {\n    hash ^= static_cast<unsigned char>(data[0]); hash *= prime;\n    hash ^= static_cast<unsigned char>(data[1]); hash *= prime;\n    hash ^= static_cast<unsigned char>(data[2]); hash *= prime;\n    hash ^= static_cast<unsigned char>(data[3]); hash *= prime;\n    hash ^= static_cast<unsigned char>(data[4]); hash *= prime;\n    hash ^= static_cast<unsigned char>(data[5]); hash *= prime;\n    hash ^= static_cast<unsigned char>(data[6]); hash *= prime;\n    hash ^= static_cast<unsigned char>(data[7]); hash *= prime;\n    hash ^= static_cast<unsigned char>(data[8]); hash *= prime;\n    hash ^= static_cast<unsigned char>(data[9]); hash *= prime;\n    hash ^= static_cast<unsigned char>(data[10]); hash *= prime;\n    hash ^= static_cast<unsigned char>(data[11]); hash *= prime;\n    hash ^= static_cast<unsigned char>(data[12]); hash *= prime;\n    hash ^= static_cast<unsigned char>(data[13]); hash *= prime;\n    hash ^= static_cast<unsigned char>(data[14]); hash *= prime;\n    hash ^= static_cast<unsigned char>(data[15]); hash *= prime;\n    data += 16;\n    len -= 16;\n  }\n  // Handle remaining up to 15 bytes\n  while (len >= 4) {\n    hash ^= static_cast<unsigned char>(data[0]); hash *= prime;\n    hash ^= static_cast<unsigned char>(data[1]); hash *= prime;\n    hash ^= static_cast<unsigned char>(data[2]); hash *= prime;\n    hash ^= static_cast<unsigned char>(data[3]); hash *= prime;\n    data += 4;\n    len -= 4;\n  }\n  while (len > 0) {\n    hash ^= static_cast<unsigned char>(*data++);\n    hash *= prime;\n    --len;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t decompress_checksum(const std::string& compressed, std::size_t decompressed_size) {\n  // Allocate uninitialized output buffer to avoid zero-fill overhead\n  char* out = nullptr;\n  try {\n    out = new char[decompressed_size ? decompressed_size : 1];\n  } catch (...) {\n    return 0;  // allocation failed\n  }\n\n  // Reuse a thread-local decompression context to avoid per-call allocations\n  static thread_local ZSTD_DCtx* dctx = nullptr;\n  if (!dctx) {\n    dctx = ZSTD_createDCtx();\n  }\n\n  const void* src = compressed.data();\n  const size_t srcSize = compressed.size();\n\n  size_t n;\n  if (dctx) {\n    n = ZSTD_decompressDCtx(dctx, out, decompressed_size, src, srcSize);\n  } else {\n    // Fallback: single-call API if context creation failed\n    n = ZSTD_decompress(out, decompressed_size, src, srcSize);\n  }\n\n  if (ZSTD_isError(n) || n != decompressed_size) {\n    delete[] out;\n    return 0;\n  }\n\n  const uint64_t h = checksum_bytes(out, decompressed_size);\n  delete[] out;\n  return h;\n}\n",
+  "baseline": {
+    "task_id": "zstd_block_decompress",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3242856,
+    "min_elapsed_ns": 3172706,
+    "max_elapsed_ns": 3277518,
+    "all_elapsed_ns": [
+      3277518,
+      3172706,
+      3242856
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3277518,
+      "expected_checksum": 16238842288013793636,
+      "actual_checksum": 16238842288013793636
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "zstd_block_decompress",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2850438,
+    "min_elapsed_ns": 2758290,
+    "max_elapsed_ns": 3111049,
+    "all_elapsed_ns": [
+      2850438,
+      2758290,
+      3111049
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2850438,
+      "expected_checksum": 16238842288013793636,
+      "actual_checksum": 16238842288013793636
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "zstd_block_decompress",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 2597133,
+    "min_elapsed_ns": 2586139,
+    "max_elapsed_ns": 2720176,
+    "all_elapsed_ns": [
+      2586139,
+      2720176,
+      2597133
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2586139,
+      "expected_checksum": 16238842288013793636,
+      "actual_checksum": 16238842288013793636
+    },
+    "status": "ok"
+  }
+}

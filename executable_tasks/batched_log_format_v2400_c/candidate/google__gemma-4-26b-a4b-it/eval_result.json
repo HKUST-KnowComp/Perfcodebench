@@ -1,0 +1,72 @@
+{
+  "task_id": "batched_log_format_v2400_c",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/batched_log_format_v2400_c/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <string>\n#include <vector>\n#include <algorithm>\n\nnamespace {\n\n// Fast integer to string conversion to avoid std::to_string overhead\ninline char* append_uint(char* ptr, uint32_t val) {\n    if (val == 0) {\n        *ptr++ = '0';\n        return ptr;\n    }\n    char buf[10];\n    int len = 0;\n    while (val > 0) {\n        buf[len++] = static_cast<char>('0' + (val % 10));\n        val /= 10;\n    }\n    for (int i = len - 1; i >= 0; --i) {\n        *ptr++ = buf[i];\n    }\n    return ptr;\n}\n\ninline char* append_uint16(char* ptr, uint16_t val) {\n    if (val == 0) {\n        *ptr++ = '0';\n        return ptr;\n    }\n    char buf[5];\n    int len = 0;\n    while (val > 0) {\n        buf[len++] = static_cast<char>('0' + (val % 10));\n        val /= 10;\n    }\n    for (int i = len - 1; i >= 0; --i) {\n        *ptr++ = buf[i];\n    }\n    return ptr;\n}\n\ninline uint64_t compute_fnv1a(const std::string& text) {\n    uint64_t hash = 1469598103934665603ULL;\n    const unsigned char* data = reinterpret_cast<const unsigned char*>(text.data());\n    size_t len = text.size();\n    for (size_t i = 0; i < len; ++i) {\n        hash ^= static_cast<uint64_t>(data[i]);\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\n} // namespace\n\nuint64_t batched_log_checksum(\n    const std::vector<uint32_t>& timestamps,\n    const std::vector<uint32_t>& ids,\n    const std::vector<uint16_t>& levels,\n    const std::vector<std::string>& messages,\n    int iters) {\n    \n    if (ids.empty()) return 0;\n\n    // Pre-calculate a safe upper bound for buffer size to avoid reallocations\n    // Max uint32 is 10 digits, max uint16 is 5, plus separators and message lengths\n    size_t estimated_size = 0;\n    for (const auto& msg : messages) {\n        estimated_size += 10 + 10 + 5 + msg.size() + 2; \n    }\n\n    std::string buffer;\n    buffer.reserve(estimated_size);\n    uint64_t final_hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        buffer.clear();\n        // We use a temporary char buffer to build the string to avoid std::string overhead\n        // but since we need to append messages, we'll use a manual approach with buffer.append\n        // or resize and write. For simplicity and speed, we'll use a local char array for numbers.\n        \n        for (size_t i = 0; i < ids.size(); ++i) {\n            // Timestamp\n            char num_buf[12];\n            char* p = num_buf;\n            uint32_t ts = timestamps[i];\n            if (ts == 0) *p++ = '0';\n            else {\n                while (ts > 0) { *p++ = (ts % 10) + '0'; ts /= 10; }\n            }\n            for (char* it = num_buf; it < p; ++it) buffer.push_back(*it); // This is slow, let's optimize\n        }\n        // Re-thinking: The most efficient way in C++ without custom allocators is to use a \n        // reusable string and append. Let's use a more direct approach.\n    }\n    \n    // Corrected approach for the loop to ensure performance\n    buffer.clear();\n    for (int iter = 0; iter < iters; ++iter) {\n        buffer.clear();\n        for (size_t i = 0; i < ids.size(); ++i) {\n            // Timestamp\n            char ts_buf[12];\n            int ts_len = 0;\n            uint32_t ts = timestamps[i];\n            if (ts == 0) ts_buf[ts_len++] = '0';\n            else {\n                while (ts > 0) { ts_buf[ts_len++] = (ts % 10) + '0'; ts /= 10; }\n            }\n            for (int j = ts_len - 1; j >= 0; --j) buffer.push_back(ts_buf[j]);\n            buffer.push_back('|');\n\n            // ID\n            char id_buf[12];\n            int id_len = 0;\n            uint32_t id_val = ids[i];\n            if (id_val == 0) id_buf[id_len++] = '0';\n            else {\n                while (id_val > 0) { id_buf[id_len++] = (id_val % 10) + '0'; id_val /= 10; }\n            }\n            for (int j = id_len - 1; j >= 0; --j) buffer.push_back(id_buf[j]);\n            buffer.push_back('|');\n\n            // Level\n            char lv_buf[6];\n            int lv_len = 0;\n            uint16_t lv = levels[i];\n            if (lv == 0) lv_buf[lv_len++] = '0';\n            else {\n                while (lv > 0) { lv_buf[lv_len++] = (lv % 10) + '0'; lv /= 10; }\n            }\n            for (int j = lv_len - 1; j >= 0; --j) buffer.push_back(lv_buf[j]);\n            buffer.push_back('|');\n\n            // Message\n            buffer.append(messages[i]);\n            buffer.push_back('\\n');\n        }\n        final_hash = compute_fnv1a(buffer);\n    }\n\n    return final_hash;\n}\n",
+  "baseline": {
+    "task_id": "batched_log_format_v2400_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 900991046,
+    "min_elapsed_ns": 866176123,
+    "max_elapsed_ns": 915543591,
+    "all_elapsed_ns": [
+      866176123,
+      900991046,
+      915543591
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 866176123,
+      "expected_checksum": 10514431792886440863,
+      "actual_checksum": 10514431792886440863
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "batched_log_format_v2400_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 435400040,
+    "min_elapsed_ns": 412863788,
+    "max_elapsed_ns": 501349781,
+    "all_elapsed_ns": [
+      412863788,
+      435400040,
+      501349781
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 412863788,
+      "expected_checksum": 10514431792886440863,
+      "actual_checksum": 10514431792886440863
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "batched_log_format_v2400_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 508393413,
+    "min_elapsed_ns": 501851714,
+    "max_elapsed_ns": 522476515,
+    "all_elapsed_ns": [
+      522476515,
+      508393413,
+      501851714
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 522476515,
+      "expected_checksum": 10514431792886440863,
+      "actual_checksum": 10514431792886440863
+    },
+    "status": "ok"
+  }
+}

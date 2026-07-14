@@ -1,0 +1,72 @@
+{
+  "task_id": "xxhash_line_hash_v2400_d",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/xxhash_line_hash_v2400_d/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"xxhash.h\"\n#include <string>\n#include <cstring>\n\n/**\n * Optimized line-wise xxHash64 implementation.\n * \n * Performance improvements:\n * 1. Removed std::string::substr(): The baseline created a new string object for every line,\n *    triggering memory allocations and data copies. We now pass raw pointers directly to XXH64.\n * 2. Replaced manual character scanning: Used std::memchr() to find newlines. \n *    Modern implementations of memchr use SIMD instructions (AVX2/SSE2) to scan memory \n *    significantly faster than a byte-by-byte loop.\n * 3. Direct pointer arithmetic: Minimized overhead by working with raw pointers and \n *    pre-calculating remaining lengths.\n */\nuint64_t hash_lines(const std::string& input) {\n    uint64_t acc = 1469598103934665603ULL; // FNV-1a 64-bit offset basis\n    const uint64_t fnv_prime = 1099511628211ULL; // FNV-1a 64-bit prime\n    \n    const char* ptr = input.data();\n    const size_t total_size = input.size();\n    size_t processed = 0;\n\n    while (processed < total_size) {\n        const char* current_start = ptr + processed;\n        size_t remaining = total_size - processed;\n        \n        // Use memchr for SIMD-accelerated newline searching\n        const char* next_nl = static_cast<const char*>(std::memchr(current_start, '\\n', remaining));\n        \n        size_t line_len;\n        if (next_nl) {\n            line_len = next_nl - current_start;\n            processed += line_len + 1; // Skip the newline character\n        } else {\n            line_len = remaining;\n            processed = total_size; // End of input\n        }\n\n        // Calculate XXH64 for the line segment directly from the input buffer\n        uint64_t h = XXH64(current_start, line_len, 0);\n        \n        // Combine using the FNV-1a style logic required by the task\n        acc ^= h;\n        acc *= fnv_prime;\n    }\n    \n    return acc;\n}",
+  "baseline": {
+    "task_id": "xxhash_line_hash_v2400_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3410789,
+    "min_elapsed_ns": 3378879,
+    "max_elapsed_ns": 4221753,
+    "all_elapsed_ns": [
+      4221753,
+      3378879,
+      3410789
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4221753,
+      "expected_hash": 8363586955091661167,
+      "actual_hash": 8363586955091661167
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "xxhash_line_hash_v2400_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2791931,
+    "min_elapsed_ns": 2359203,
+    "max_elapsed_ns": 2909160,
+    "all_elapsed_ns": [
+      2791931,
+      2359203,
+      2909160
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2791931,
+      "expected_hash": 8363586955091661167,
+      "actual_hash": 8363586955091661167
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "xxhash_line_hash_v2400_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1842561,
+    "min_elapsed_ns": 1741738,
+    "max_elapsed_ns": 2235679,
+    "all_elapsed_ns": [
+      1741738,
+      1842561,
+      2235679
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1741738,
+      "expected_hash": 8363586955091661167,
+      "actual_hash": 8363586955091661167
+    },
+    "status": "ok"
+  }
+}

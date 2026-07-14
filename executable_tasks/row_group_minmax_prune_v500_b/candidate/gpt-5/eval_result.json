@@ -1,0 +1,59 @@
+{
+  "task_id": "row_group_minmax_prune_v500_b",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/row_group_minmax_prune_v500_b/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\nuint64_t row_group_range_sum(\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& mins,\n    const std::vector<uint32_t>& maxs,\n    uint32_t low,\n    uint32_t high,\n    uint32_t block_size,\n    int iters) {\n  // Preserve baseline behavior for non-positive iters\n  if (iters <= 0) {\n    return 0ull;\n  }\n\n  // Empty range fast-path\n  if (high < low) {\n    return 0ull;\n  }\n\n  const size_t n = values.size();\n  const uint32_t* v = n ? values.data() : nullptr;\n\n  // If no grouping or metadata unusable, do a full scan once\n  auto full_scan = [&]() {\n    uint64_t sum = 0ull;\n    for (size_t i = 0; i < n; ++i) {\n      uint32_t val = v[i];\n      if (val >= low && val <= high) {\n        sum += static_cast<uint64_t>(val);\n      }\n    }\n    return sum;\n  };\n\n  if (block_size == 0) {\n    return full_scan();\n  }\n\n  const size_t blocks = (n + static_cast<size_t>(block_size) - 1) / static_cast<size_t>(block_size);\n  if (mins.size() < blocks || maxs.size() < blocks) {\n    // Metadata size mismatch: safest is a full scan\n    return full_scan();\n  }\n\n  uint64_t sum = 0ull;\n\n  // Iterate blocks using pruning and full-inclusion checks\n  for (size_t b = 0; b < blocks; ++b) {\n    const uint32_t bmin = mins[b];\n    const uint32_t bmax = maxs[b];\n\n    // No overlap with [low, high]\n    if (bmax < low || bmin > high) {\n      continue;\n    }\n\n    // Determine block bounds\n    const size_t start = b * static_cast<size_t>(block_size);\n    size_t end = start + static_cast<size_t>(block_size);\n    if (end > n) end = n;\n\n    // Fully included: sum all values in block without per-value checks\n    if (bmin >= low && bmax <= high) {\n      // Unrolled summation for throughput\n      size_t i = start;\n      uint64_t local = 0ull;\n      for (; i + 7 < end; i += 8) {\n        local += v[i + 0];\n        local += v[i + 1];\n        local += v[i + 2];\n        local += v[i + 3];\n        local += v[i + 4];\n        local += v[i + 5];\n        local += v[i + 6];\n        local += v[i + 7];\n      }\n      for (; i < end; ++i) {\n        local += v[i];\n      }\n      sum += local;\n    } else {\n      // Partial overlap: filter per value\n      for (size_t i = start; i < end; ++i) {\n        uint32_t val = v[i];\n        if (val >= low && val <= high) {\n          sum += static_cast<uint64_t>(val);\n        }\n      }\n    }\n  }\n\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "row_group_minmax_prune_v500_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 62655620,
+    "min_elapsed_ns": 61480326,
+    "max_elapsed_ns": 62735889,
+    "all_elapsed_ns": [
+      62735889,
+      61480326,
+      62655620
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 62735889,
+      "expected_sum": 129907508,
+      "actual_sum": 129907508
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "row_group_minmax_prune_v500_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1673350,
+    "min_elapsed_ns": 1616908,
+    "max_elapsed_ns": 1732750,
+    "all_elapsed_ns": [
+      1616908,
+      1673350,
+      1732750
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1616908,
+      "expected_sum": 129907508,
+      "actual_sum": 129907508
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "row_group_minmax_prune_v500_b",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/row_group_minmax_prune_v500_b/harness', 'executable_tasks/row_group_minmax_prune_v500_b/harness/benchmark_main.cpp', 'executable_tasks/row_group_minmax_prune_v500_b/candidate/gpt-5/solution.cpp', '-o', 'build/row_group_minmax_prune_v500_b/candidate/bench']' returned non-zero exit status 1."
+  }
+}

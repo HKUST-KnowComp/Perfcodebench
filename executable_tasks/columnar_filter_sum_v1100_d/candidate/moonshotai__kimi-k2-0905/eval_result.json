@@ -1,0 +1,59 @@
+{
+  "task_id": "columnar_filter_sum_v1100_d",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/columnar_filter_sum_v1100_d/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <emmintrin.h>   // SSE2\n\nuint64_t filter_sum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint8_t>& flags,\n    uint32_t key_threshold,\n    int iters)\n{\n    const std::size_t n = keys.size();\n    const uint32_t*  k = keys.data();\n    const uint32_t*  v = values.data();\n    const uint8_t*   f = flags.data();\n\n    uint64_t total = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        __m128i vk, vv, vf, mask, cmp, bits, pass;\n        __m128i sum128 = _mm_setzero_si128();\n        __m128i thresh = _mm_set1_epi32(static_cast<int32_t>(key_threshold));\n\n        std::size_t i = 0;\n        // 4-way SIMD main loop\n        for (; i + 4 <= n; i += 4) {\n            vk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(k + i));\n            vv = _mm_loadu_si128(reinterpret_cast<const __m128i*>(v + i));\n\n            // flags: load 4 bytes, zero-extend to 32-bit lanes\n            __m128i f8  = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(f + i));\n            vf = _mm_unpacklo_epi8(f8, _mm_setzero_si128());\n            vf = _mm_unpacklo_epi16(vf, _mm_setzero_si128());\n\n            // predicate: flag && key < threshold && (key & 3) == 0\n            cmp   = _mm_cmplt_epi32(vk, thresh);                 // key < threshold\n            bits  = _mm_and_si128(vk, _mm_set1_epi32(3));        // key & 3\n            pass  = _mm_cmpeq_epi32(bits, _mm_setzero_si128());  // (key & 3) == 0\n            pass  = _mm_and_si128(pass, cmp);                    // key < threshold && (key & 3) == 0\n            pass  = _mm_and_si128(pass, vf);                     // flag && \u2026\n\n            // blend: 0 or value\n            __m128i addv = _mm_and_si128(vv, pass);\n            sum128 = _mm_add_epi64(sum128,\n                         _mm_add_epi64(_mm_unpacklo_epi32(addv, _mm_setzero_si128()),\n                                       _mm_unpacklo_epi32(_mm_srli_si128(addv, 8), _mm_setzero_si128())));\n        }\n\n        // horizontal sum of 2\u00d764-bit lanes\n        uint64_t partial = static_cast<uint64_t>(_mm_cvtsi128_si64(sum128)) +\n                           static_cast<uint64_t>(_mm_cvtsi128_si64(_mm_srli_si128(sum128, 8)));\n\n        // scalar tail\n        for (; i < n; ++i) {\n            if (f[i] && k[i] < key_threshold && ((k[i] & 3u) == 0u))\n                partial += v[i];\n        }\n\n        total = partial;   // final sum of last iteration\n    }\n    return total;\n}",
+  "baseline": {
+    "task_id": "columnar_filter_sum_v1100_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2260230458,
+    "min_elapsed_ns": 2230944423,
+    "max_elapsed_ns": 2283546271,
+    "all_elapsed_ns": [
+      2230944423,
+      2260230458,
+      2283546271
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2230944423,
+      "expected_sum": 939228839,
+      "actual_sum": 939228839
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "columnar_filter_sum_v1100_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2234758889,
+    "min_elapsed_ns": 1995072721,
+    "max_elapsed_ns": 2295968712,
+    "all_elapsed_ns": [
+      2234758889,
+      1995072721,
+      2295968712
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2234758889,
+      "expected_sum": 939228839,
+      "actual_sum": 939228839
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "columnar_filter_sum_v1100_d",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/columnar_filter_sum_v1100_d/candidate/bench']' returned non-zero exit status 1."
+  }
+}

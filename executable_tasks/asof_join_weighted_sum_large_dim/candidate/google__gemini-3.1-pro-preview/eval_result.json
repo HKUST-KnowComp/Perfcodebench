@@ -1,0 +1,72 @@
+{
+  "task_id": "asof_join_weighted_sum_large_dim",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/asof_join_weighted_sum_large_dim/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <algorithm>\n#include <cstdint>\n#include <vector>\n\n/**\n * Optimized as-of join weighted sum.\n * \n * The baseline uses std::upper_bound for every probe_ts, which is O(M log N).\n * Since both dim_ts and probe_ts are typically sorted in as-of join scenarios,\n * we can use a two-pointer approach to achieve O(N + M) per iteration.\n * \n * Given the task title \"sorted as-of join [large dim]\", we assume probe_ts is sorted.\n * If probe_ts were not sorted, we could sort it once (O(M log M)) and then use \n * the two-pointer approach, which would still be faster than the baseline for large iters.\n */\nuint64_t asof_join_sum(\n    const std::vector<uint32_t>& dim_ts,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_ts,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n    \n    if (probe_ts.empty() || dim_ts.empty()) {\n        return 0;\n    }\n\n    uint64_t final_sum = 0;\n    const size_t probe_size = probe_ts.size();\n    const size_t dim_size = dim_ts.size();\n\n    // Cache pointers to raw data to avoid vector overhead inside hot loops\n    const uint32_t* d_ts = dim_ts.data();\n    const uint32_t* d_val = dim_values.data();\n    const uint32_t* p_ts = probe_ts.data();\n    const uint32_t* p_w = probe_weights.data();\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t current_sum = 0;\n        size_t dim_idx = 0;\n\n        for (size_t i = 0; i < probe_size; ++i) {\n            const uint32_t target = p_ts[i];\n\n            // Move the dimension index forward to find the latest timestamp \n            // that is not greater than the current probe timestamp.\n            // This assumes probe_ts is sorted.\n            while (dim_idx + 1 < dim_size && d_ts[dim_idx + 1] <= target) {\n                dim_idx++;\n            }\n\n            // The baseline uses: idx = upper_bound - 1.\n            // If target < d_ts[0], the baseline would result in idx = -1 (SIZE_MAX).\n            // We maintain that behavior for exact correctness, though it implies \n            // the test data likely ensures target >= d_ts[0].\n            \n            // Check if target is smaller than the very first dimension timestamp\n            if (target < d_ts[0]) {\n                // This matches the baseline's behavior of using (size_t)-1\n                const size_t underflow_idx = static_cast<size_t>(-1);\n                current_sum += static_cast<uint64_t>(d_val[underflow_idx]) * static_cast<uint64_t>(p_w[i]);\n            } else {\n                current_sum += static_cast<uint64_t>(d_val[dim_idx]) * static_cast<uint64_t>(p_w[i]);\n            }\n        }\n        final_sum = current_sum;\n    }\n\n    return final_sum;\n}\n",
+  "baseline": {
+    "task_id": "asof_join_weighted_sum_large_dim",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 758090521,
+    "min_elapsed_ns": 744766809,
+    "max_elapsed_ns": 768526897,
+    "all_elapsed_ns": [
+      758090521,
+      744766809,
+      768526897
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 758090521,
+      "expected_sum": 147209051048,
+      "actual_sum": 147209051048
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "asof_join_weighted_sum_large_dim",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 74321152,
+    "min_elapsed_ns": 73914120,
+    "max_elapsed_ns": 75491410,
+    "all_elapsed_ns": [
+      74321152,
+      75491410,
+      73914120
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 74321152,
+      "expected_sum": 147209051048,
+      "actual_sum": 147209051048
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "asof_join_weighted_sum_large_dim",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 83035051,
+    "min_elapsed_ns": 80686151,
+    "max_elapsed_ns": 85378581,
+    "all_elapsed_ns": [
+      83035051,
+      80686151,
+      85378581
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 83035051,
+      "expected_sum": 147209051048,
+      "actual_sum": 147209051048
+    },
+    "status": "ok"
+  }
+}

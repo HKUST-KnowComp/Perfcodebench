@@ -1,0 +1,72 @@
+{
+  "task_id": "row_group_minmax_prune_v1000_a",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/row_group_minmax_prune_v1000_a/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\n#ifdef __SSE2__\n#include <emmintrin.h>\n#endif\n\nuint64_t row_group_range_sum(\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& mins,\n    const std::vector<uint32_t>& maxs,\n    uint32_t low,\n    uint32_t high,\n    uint32_t block_size,\n    int iters) {\n  uint64_t sum = 0;\n  const size_t n = values.size();\n  const size_t num_blocks = (n + block_size - 1) / block_size;\n  const uint32_t* vals = values.data();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    \n    for (size_t block_idx = 0; block_idx < num_blocks; ++block_idx) {\n      // Check min/max metadata for pruning\n      uint32_t block_min = mins[block_idx];\n      uint32_t block_max = maxs[block_idx];\n      \n      // Skip block if entirely outside range\n      if (block_max < low || block_min > high) {\n        continue;\n      }\n      \n      size_t start = block_idx * block_size;\n      size_t end = (start + block_size < n) ? start + block_size : n;\n      \n      // If entire block is within range, sum without checks\n      if (block_min >= low && block_max <= high) {\n        size_t i = start;\n        \n#ifdef __SSE2__\n        // SIMD path for aligned processing\n        __m128i sum_vec = _mm_setzero_si128();\n        for (; i + 4 <= end; i += 4) {\n          __m128i v = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&vals[i]));\n          __m128i v_lo = _mm_unpacklo_epi32(v, _mm_setzero_si128());\n          __m128i v_hi = _mm_unpackhi_epi32(v, _mm_setzero_si128());\n          sum_vec = _mm_add_epi64(sum_vec, v_lo);\n          sum_vec = _mm_add_epi64(sum_vec, v_hi);\n        }\n        \n        uint64_t tmp[2];\n        _mm_storeu_si128(reinterpret_cast<__m128i*>(tmp), sum_vec);\n        sum += tmp[0] + tmp[1];\n#endif\n        \n        // Scalar tail\n        for (; i < end; ++i) {\n          sum += vals[i];\n        }\n      } else {\n        // Partial overlap: check each value with unrolling\n        size_t i = start;\n        \n        // Unroll by 4\n        for (; i + 4 <= end; i += 4) {\n          uint32_t v0 = vals[i];\n          uint32_t v1 = vals[i + 1];\n          uint32_t v2 = vals[i + 2];\n          uint32_t v3 = vals[i + 3];\n          \n          if (v0 >= low && v0 <= high) sum += v0;\n          if (v1 >= low && v1 <= high) sum += v1;\n          if (v2 >= low && v2 <= high) sum += v2;\n          if (v3 >= low && v3 <= high) sum += v3;\n        }\n        \n        // Tail\n        for (; i < end; ++i) {\n          uint32_t v = vals[i];\n          if (v >= low && v <= high) {\n            sum += v;\n          }\n        }\n      }\n    }\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "row_group_minmax_prune_v1000_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 54091035,
+    "min_elapsed_ns": 52693789,
+    "max_elapsed_ns": 61676071,
+    "all_elapsed_ns": [
+      52693789,
+      54091035,
+      61676071
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 52693789,
+      "expected_sum": 27615140,
+      "actual_sum": 27615140
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "row_group_minmax_prune_v1000_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 898360,
+    "min_elapsed_ns": 841844,
+    "max_elapsed_ns": 1019962,
+    "all_elapsed_ns": [
+      841844,
+      1019962,
+      898360
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 841844,
+      "expected_sum": 27615140,
+      "actual_sum": 27615140
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "row_group_minmax_prune_v1000_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1166379,
+    "min_elapsed_ns": 1152138,
+    "max_elapsed_ns": 1382628,
+    "all_elapsed_ns": [
+      1382628,
+      1166379,
+      1152138
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1382628,
+      "expected_sum": 27615140,
+      "actual_sum": 27615140
+    },
+    "status": "ok"
+  }
+}

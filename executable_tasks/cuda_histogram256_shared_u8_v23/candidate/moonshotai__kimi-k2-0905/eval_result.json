@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v23",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v23/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void histogram_privatised(const unsigned char* __restrict__ input,\n                                     unsigned int* __restrict__ out,\n                                     int n,\n                                     unsigned int* __restrict__ blockBins)\n{\n    __shared__ unsigned int warpHist[8][32];   // 8 warps \u00d7 32 bins (bank-conflict free)\n\n    const int tid   = threadIdx.x;\n    const int warp  = tid >> 5;\n    const int lane  = tid & 31;\n\n    // zero shared memory\n    for (int i = 0; i < 8; i += 2) {\n        warpHist[warp][lane] = 0;\n        if (warp + 8 < 8) warpHist[warp + 8][lane] = 0;\n    }\n    __syncthreads();\n\n    // accumulate into privatised warp histograms\n    for (int idx = blockIdx.x * blockDim.x + tid; idx < n; idx += blockDim.x * gridDim.x) {\n        unsigned char val = input[idx];\n        atomicAdd(&warpHist[warp][val & 31], 1U);\n    }\n    __syncthreads();\n\n    // reduce 8 warp histograms into one per-block histogram in global memory\n    const int bin = tid;\n    if (bin < 256) {\n        unsigned int sum = 0;\n        for (int w = 0; w < 8; ++w)\n            sum += warpHist[w][bin & 31];\n        blockBins[blockIdx.x * 256 + bin] = sum;\n    }\n}\n\n__global__ void reduce_blocks(const unsigned int* __restrict__ blockBins,\n                              unsigned int* __restrict__ out)\n{\n    const int bin = threadIdx.x + blockIdx.x * blockDim.x;\n    if (bin >= 256) return;\n\n    unsigned int sum = 0;\n    for (int b = 0; b < gridDim.y; ++b)\n        sum += blockBins[b * 256 + bin];\n    out[bin] = sum;\n}\n\n} // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters)\n{\n    const int block = 256;\n    const int grid  = 1024;\n\n    unsigned int* dBlockHist = nullptr;\n    cudaMalloc(&dBlockHist, grid * 256 * sizeof(unsigned int));\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(dBlockHist, 0, grid * 256 * sizeof(unsigned int));\n\n        histogram_privatised<<<grid, block>>>(input, output, n, dBlockHist);\n\n        reduce_blocks<<<1, 256>>>(dBlockHist, output);\n    }\n\n    cudaFree(dBlockHist);\n}",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v23",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 25958080,
+    "min_elapsed_ns": 25953344,
+    "max_elapsed_ns": 25958175,
+    "all_elapsed_ns": [
+      25958080,
+      25958175,
+      25953344
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 25958080,
+      "checksum": 269484032
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v23",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 436735,
+    "min_elapsed_ns": 435743,
+    "max_elapsed_ns": 437184,
+    "all_elapsed_ns": [
+      436735,
+      435743,
+      437184
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 436735,
+      "checksum": 269484032
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v23",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_histogram256_shared_u8_v23/candidate/bench']' returned non-zero exit status 2."
+  }
+}

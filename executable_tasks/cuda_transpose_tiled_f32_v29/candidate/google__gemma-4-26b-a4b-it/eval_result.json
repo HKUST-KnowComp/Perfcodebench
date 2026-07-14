@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_transpose_tiled_f32_v29",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_transpose_tiled_f32_v29/candidate/google__gemma-4-26b-a4b-it/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int kTileDim = 32;\n// Padding the shared memory dimension by 1 to avoid bank conflicts\nconstexpr int kSharedDim = kTileDim + 1;\n\n__global__ void transpose_tiled_kernel(const float* __restrict__ input, float* __restrict__ output, int width, int height) {\n    __shared__ float tile[kSharedDim][kSharedDim];\n\n    // Calculate global indices\n    int x = blockIdx.x * kTileDim + threadIdx.x;\n    int y = blockIdx.y * kTileDim + threadIdx.y;\n\n    // Load data into shared memory\n    // We use threadIdx.x and threadIdx.y to map to the tile\n    if (x < width && y < height) {\n        tile[threadIdx.y][threadIdx.x] = input[y * width + x];\n    } else {\n        tile[threadIdx.y][threadIdx.x] = 0.0f;\n    }\n\n    __syncthreads();\n\n    // Calculate new indices for the transposed output\n    // The output coordinates are (y, x) relative to the original\n    // In the transposed matrix, the new x is the old y, and new y is the old x\n    int out_x = blockIdx.y * kTileDim + threadIdx.x;\n    int out_y = blockIdx.x * kTileDim + threadIdx.y;\n\n    // Write from shared memory to output\n    // To ensure coalesced writes, we read from shared memory such that \n    // consecutive threads write to consecutive output addresses.\n    // The original (x, y) becomes (y, x). \n    // To make output[out_y * height + out_x] coalesced, \n    // we need threadIdx.x to map to the contiguous dimension of the output.\n    \n    // Re-calculating indices for coalesced output write:\n    // The output matrix has width 'height' and height 'width'.\n    // A thread (tx, ty) in the block will write to output[out_y * height + out_x]\n    // where out_x is the fast-moving index.\n    \n    // We need to read from the tile such that we access tile[threadIdx.x][threadIdx.y]\n    // to match the output layout.\n    if (out_x < height && out_y < width) {\n        output[out_y * height + out_x] = tile[threadIdx.x][threadIdx.y];\n    }\n}\n\n// A more robust version of the tiled kernel to handle arbitrary dimensions correctly\n__global__ void transpose_optimized_kernel(const float* __restrict__ input, float* __restrict__ output, int width, int height) {\n    __shared__ float tile[kTileDim][kTileDim + 1];\n\n    int tx = threadIdx.x;\n    int ty = threadIdx.y;\n    int col = blockIdx.x * kTileDim + tx;\n    int row = blockIdx.y * kTileDim + ty;\n\n    if (col < width && row < height) {\n        tile[ty][tx] = input[row * width + col];\n    }\n\n    __syncthreads();\n\n    // Transpose indices: the blockIdx.x and blockIdx.y are swapped\n    int new_col = blockIdx.y * kTileDim + tx;\n    int new_row = blockIdx.x * kTileDim + ty;\n\n    if (new_col < height && new_row < width) {\n        // Read from tile in a way that ensures coalesced writes to output\n        // output[new_row * height + new_col] is the target.\n        // Since new_col is the fast index (tx), we access tile[tx][ty]\n        output[new_row * height + new_col] = tile[tx][ty];\n    }\n}\n\n// Final refined kernel for maximum performance\n__global__ void transpose_final_kernel(const float* __restrict__ input, float* __restrict__ output, int width, int height) {\n    __shared__ float tile[kTileDim][kTileDim + 1];\n\n    int tx = threadIdx.x;\n    int ty = threadIdx.y;\n\n    int x = blockIdx.x * kTileDim + tx;\n    int y = blockIdx.y * kTileDim + ty;\n\n    if (x < width && y < height) {\n        tile[ty][tx] = input[y * width + x];\n    }\n\n    __syncthreads();\n\n    // The output matrix has dimensions (height, width)\n    // We want to write to output[new_y * height + new_x]\n    // To be coalesced, new_x must be the fast-moving index (tx)\n    int out_x = blockIdx.y * kTileDim + tx;\n    int out_y = blockIdx.x * kTileDim + ty;\n\n    if (out_x < height && out_y < width) {\n        // We read from the tile using [tx][ty] to effectively transpose\n        output[out_y * height + out_x] = tile[tx][ty];\n    }\n}\n\n} // namespace\n\nvoid transpose_f32(const float* input, float* output, int width, int height, int iters) {\n    // We use a 32x32 block to maximize occupancy and utilize shared memory effectively\n    // The block dimensions are (32, 32) but we only use 32 threads per block if we want to match \n    // the logic above, or we use a 32x32 block and map threads.\n    // Let's use a 32x32 block for simplicity and performance.\n    dim3 block(kTileDim, kTileDim);\n    dim3 grid((width + kTileDim - 1) / kTileDim, (height + kTileDim - 1) / kTileDim);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        transpose_final_kernel<<<grid, block>>>(input, output, width, height);\n    }\n}\n",
+  "baseline": {
+    "task_id": "cuda_transpose_tiled_f32_v29",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 17398912,
+    "min_elapsed_ns": 14802816,
+    "max_elapsed_ns": 18882879,
+    "all_elapsed_ns": [
+      17398912,
+      18882879,
+      14802816
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 17398912,
+      "checksum": 589824000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_transpose_tiled_f32_v29",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1039423,
+    "min_elapsed_ns": 1036479,
+    "max_elapsed_ns": 1056383,
+    "all_elapsed_ns": [
+      1036479,
+      1039423,
+      1056383
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1036479,
+      "checksum": 589824000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_transpose_tiled_f32_v29",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_transpose_tiled_f32_v29/candidate/bench']' timed out after 5 seconds"
+  }
+}

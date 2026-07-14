@@ -1,0 +1,33 @@
+{
+  "task_id": "cuda_transpose_tiled_f32_v17",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_transpose_tiled_f32_v17/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cstdint>\n\nnamespace {\n\nconstexpr int TILE = 32;                 // tile width/height in elements\nconstexpr int BLOCK_ROWS = 8;              // rows each thread handles (TILE/BLOCK_ROWS==4)\n\ntemplate<int STRIDE>\n__device__ inline void transpose_naive_vec4(const float4* __restrict__ in,\n                                            float4*       __restrict__ out,\n                                            int width, int height)\n{\n    int x0 = blockIdx.x * TILE + threadIdx.x;\n    int y0 = blockIdx.y * TILE + threadIdx.y;\n\n    #pragma unroll\n    for (int j = 0; j < STRIDE; ++j){\n        int y = y0 + j * BLOCK_ROWS;\n        if (x0 < width && y < height){\n            out[x0 * height + y] = in[y * width + x0];\n        }\n    }\n}\n\n__global__ void transpose_vec4(const float* __restrict__ input,\n                               float*       __restrict__ output,\n                               int width, int height)\n{\n    const float4* in4  = reinterpret_cast<const float4*>(input);\n    float4*       out4 = reinterpret_cast<float4*>(output);\n\n    int x4 = blockIdx.x * TILE + threadIdx.x;\n    int y0 = blockIdx.y * TILE + threadIdx.y;\n\n    #pragma unroll\n    for (int j = 0; j < 4; ++j){\n        int y4 = y0 + j * BLOCK_ROWS;\n        if (x4 < width/4 && y4 < height/4){\n            out4[x4 * (height/4) + y4] = in4[y4 * (width/4) + x4];\n        }\n    }\n}\n\n__global__ void transpose_scalar_tail(const float* __restrict__ input,\n                                      float*       __restrict__ output,\n                                      int width, int height,\n                                      int vec_rows, int vec_cols)\n{\n    int x = blockIdx.x * TILE + threadIdx.x;\n    int y0 = blockIdx.y * TILE + threadIdx.y;\n    if (x < vec_cols) return;      // already handled by vector path\n    #pragma unroll\n    for (int j = 0; j < 4; ++j){\n        int y = y0 + j * BLOCK_ROWS;\n        if (x < width && y < height){\n            output[x * height + y] = input[y * width + x];\n        }\n    }\n}\n\n} // anonymous namespace\n\nvoid transpose_f32(const float* input, float* output, int width, int height, int iters)\n{\n    dim3 block(TILE, BLOCK_ROWS, 1);\n    int vec_cols = (width  / 4) * 4;\n    int vec_rows = (height / 4) * 4;\n\n    dim3 grid_vec ((vec_cols  + TILE - 1) / TILE,\n                   (vec_rows  + TILE - 1) / TILE);\n    dim3 grid_tail((width     + TILE - 1) / TILE,\n                   (height    + TILE - 1) / TILE);\n\n    for (int it = 0; it < iters; ++it){\n        if (width >= 4 && height >= 4){\n            transpose_vec4<<<grid_vec, block>>>(input, output, vec_cols, vec_rows);\n        }\n        if (width > vec_cols || height > vec_rows){\n            transpose_scalar_tail<<<grid_tail, block>>>(input, output,\n                                                       width, height,\n                                                       vec_rows, vec_cols);\n        }\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_transpose_tiled_f32_v17",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_transpose_tiled_f32_v17/baseline/bench']' timed out after 5 seconds"
+  },
+  "reference": {
+    "task_id": "cuda_transpose_tiled_f32_v17",
+    "variant": "reference",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_transpose_tiled_f32_v17/reference/bench']' timed out after 5 seconds"
+  },
+  "candidate": {
+    "task_id": "cuda_transpose_tiled_f32_v17",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_transpose_tiled_f32_v17/candidate/bench']' timed out after 5 seconds"
+  }
+}

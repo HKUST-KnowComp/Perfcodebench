@@ -1,0 +1,72 @@
+{
+  "task_id": "highway_dot_product_small",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_dot_product_small/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <hwy/highway.h>\n\nnamespace hn = hwy::HWY_NAMESPACE;\n\n/**\n * Optimized dot product implementation using the Highway SIMD library.\n * This implementation leverages SIMD registers to process multiple float elements\n * simultaneously, using Fused Multiply-Add (FMA) instructions where available\n * to maximize throughput and maintain precision.\n */\nfloat dot_product(const float* a, const float* b, std::size_t n) {\n  const hn::ScalableTag<float> d;\n  const std::size_t lanes = hn::Lanes(d);\n  \n  // Initialize SIMD accumulator to zero\n  auto sum_v = hn::Zero(d);\n  \n  std::size_t i = 0;\n  \n  // Process elements in chunks of vector width\n  // Unrolling is kept minimal to favor 'small-vector' performance\n  if (n >= lanes) {\n    for (; i <= n - lanes; i += lanes) {\n      const auto va = hn::LoadU(d, a + i);\n      const auto vb = hn::LoadU(d, b + i);\n      sum_v = hn::MulAdd(va, vb, sum_v);\n    }\n  }\n\n  // Reduce the SIMD vector to a single scalar sum\n  float sum = hn::ReduceSum(d, sum_v);\n\n  // Handle remaining elements (tail) with a scalar loop\n  for (; i < n; ++i) {\n    sum += a[i] * b[i];\n  }\n\n  return sum;\n}",
+  "baseline": {
+    "task_id": "highway_dot_product_small",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 182051,
+    "min_elapsed_ns": 181414,
+    "max_elapsed_ns": 182351,
+    "all_elapsed_ns": [
+      182051,
+      182351,
+      181414
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 182051,
+      "expected_dot": -221178,
+      "actual_dot": -221178
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_dot_product_small",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 54737,
+    "min_elapsed_ns": 53750,
+    "max_elapsed_ns": 57243,
+    "all_elapsed_ns": [
+      57243,
+      54737,
+      53750
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 57243,
+      "expected_dot": -221178,
+      "actual_dot": -221179
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_dot_product_small",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 63744,
+    "min_elapsed_ns": 59673,
+    "max_elapsed_ns": 66522,
+    "all_elapsed_ns": [
+      63744,
+      59673,
+      66522
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 63744,
+      "expected_dot": -221178,
+      "actual_dot": -221179
+    },
+    "status": "ok"
+  }
+}

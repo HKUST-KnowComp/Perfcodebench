@@ -1,0 +1,59 @@
+{
+  "task_id": "xxhash_line_hash_long_large",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/xxhash_line_hash_long_large/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include \"xxhash.h\"\n#include <cstring>\n\n#ifdef __SSE2__\n#include <emmintrin.h>\n#endif\n\nstatic inline const char* find_newline_simd(const char* p, const char* end) {\n#ifdef __SSE2__\n  const char* aligned_end = end - 15;\n  if (p < aligned_end) {\n    __m128i newline_vec = _mm_set1_epi8('\\n');\n    while (p < aligned_end) {\n      __m128i data = _mm_loadu_si128(reinterpret_cast<const __m128i*>(p));\n      __m128i cmp = _mm_cmpeq_epi8(data, newline_vec);\n      int mask = _mm_movemask_epi8(cmp);\n      if (mask != 0) {\n        return p + __builtin_ctz(mask);\n      }\n      p += 16;\n    }\n  }\n#endif\n  while (p < end && *p != '\\n') {\n    ++p;\n  }\n  return p;\n}\n\nuint64_t hash_lines(const std::string& input) {\n  uint64_t acc = 1469598103934665603ULL;\n  const char* p = input.data();\n  const char* const end = p + input.size();\n  \n  constexpr size_t BATCH_THRESHOLD = 128;\n  constexpr size_t MAX_BATCH = 8;\n  \n  XXH64_state_t state;\n  \n  while (p < end) {\n    const char* line_start = p;\n    const char* line_end = find_newline_simd(p, end);\n    size_t line_len = line_end - line_start;\n    \n    if (line_len < BATCH_THRESHOLD && (end - line_end) > 1) {\n      XXH64_reset(&state, 0);\n      size_t batch_count = 0;\n      \n      while (batch_count < MAX_BATCH && p < end) {\n        line_end = find_newline_simd(p, end);\n        line_len = line_end - p;\n        \n        XXH64_update(&state, p, line_len);\n        \n        uint64_t line_hash = XXH64_digest(&state);\n        acc ^= line_hash;\n        acc *= 1099511628211ULL;\n        \n        XXH64_reset(&state, 0);\n        batch_count++;\n        \n        p = (line_end < end) ? (line_end + 1) : line_end;\n        \n        if (p >= end || (end - p) < BATCH_THRESHOLD) break;\n      }\n    } else {\n      uint64_t line_hash = XXH64(line_start, line_len, 0);\n      acc ^= line_hash;\n      acc *= 1099511628211ULL;\n      \n      p = (line_end < end) ? (line_end + 1) : line_end;\n    }\n  }\n  \n  return acc;\n}\n",
+  "baseline": {
+    "task_id": "xxhash_line_hash_long_large",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 18551198,
+    "min_elapsed_ns": 17507310,
+    "max_elapsed_ns": 19170859,
+    "all_elapsed_ns": [
+      17507310,
+      18551198,
+      19170859
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 17507310,
+      "expected_hash": 17028762315200619732,
+      "actual_hash": 17028762315200619732
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "xxhash_line_hash_long_large",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 17215512,
+    "min_elapsed_ns": 17008583,
+    "max_elapsed_ns": 20785593,
+    "all_elapsed_ns": [
+      17215512,
+      20785593,
+      17008583
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 17215512,
+      "expected_hash": 17028762315200619732,
+      "actual_hash": 17028762315200619732
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "xxhash_line_hash_long_large",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/xxhash_line_hash_long_large/harness', '-Iexternal/xxhash', 'executable_tasks/xxhash_line_hash_long_large/harness/benchmark_main.cpp', 'executable_tasks/xxhash_line_hash_long_large/candidate/claude-sonnet-4-5/solution.cpp', 'external/xxhash/xxhash.c', '-o', 'build/xxhash_line_hash_long_large/candidate/bench']' returned non-zero exit status 1."
+  }
+}

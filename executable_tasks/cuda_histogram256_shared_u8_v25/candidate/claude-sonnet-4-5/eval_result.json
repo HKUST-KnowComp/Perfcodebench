@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v25",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v25/candidate/claude-sonnet-4-5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void histogram_shared_kernel(const unsigned char* input, unsigned int* output, int n) {\n  // 4-way interleaved shared memory to reduce bank conflicts\n  __shared__ unsigned int shared_hist[256 * 4];\n  \n  // Initialize shared memory\n  for (int i = threadIdx.x; i < 256 * 4; i += blockDim.x) {\n    shared_hist[i] = 0;\n  }\n  __syncthreads();\n  \n  // Process input with vectorized loads\n  int idx = blockIdx.x * blockDim.x + threadIdx.x;\n  int stride = blockDim.x * gridDim.x;\n  \n  // Vectorized processing for coalesced access\n  int vec_n = n / 4;\n  const uint4* input_vec = reinterpret_cast<const uint4*>(input);\n  \n  for (int i = idx; i < vec_n; i += stride) {\n    uint4 data = input_vec[i];\n    unsigned char* bytes = reinterpret_cast<unsigned char*>(&data);\n    \n    // 4-way interleaving: thread T uses bank (T % 4)\n    int bank = threadIdx.x & 3;\n    atomicAdd(&shared_hist[bytes[0] * 4 + bank], 1U);\n    atomicAdd(&shared_hist[bytes[1] * 4 + bank], 1U);\n    atomicAdd(&shared_hist[bytes[2] * 4 + bank], 1U);\n    atomicAdd(&shared_hist[bytes[3] * 4 + bank], 1U);\n  }\n  \n  // Handle remaining bytes\n  for (int i = vec_n * 4 + idx; i < n; i += stride) {\n    int bank = threadIdx.x & 3;\n    atomicAdd(&shared_hist[input[i] * 4 + bank], 1U);\n  }\n  \n  __syncthreads();\n  \n  // Reduce shared memory to global memory\n  for (int bin = threadIdx.x; bin < 256; bin += blockDim.x) {\n    unsigned int sum = shared_hist[bin * 4] + shared_hist[bin * 4 + 1] + \n                       shared_hist[bin * 4 + 2] + shared_hist[bin * 4 + 3];\n    if (sum > 0) {\n      atomicAdd(&output[bin], sum);\n    }\n  }\n}\n\n}  // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters) {\n  constexpr int kBlock = 256;\n  const int grid = min(1024, (n + kBlock * 4 - 1) / (kBlock * 4));\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    cudaMemset(output, 0, 256 * sizeof(unsigned int));\n    histogram_shared_kernel<<<grid, kBlock>>>(input, output, n);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v25",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 129243652,
+    "min_elapsed_ns": 129224060,
+    "max_elapsed_ns": 129249252,
+    "all_elapsed_ns": [
+      129224060,
+      129243652,
+      129249252
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 129224060,
+      "checksum": 2155872256
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v25",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 720607,
+    "min_elapsed_ns": 719968,
+    "max_elapsed_ns": 722751,
+    "all_elapsed_ns": [
+      719968,
+      720607,
+      722751
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 719968,
+      "checksum": 2155872256
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v25",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_histogram256_shared_u8_v25/candidate/bench']' timed out after 5 seconds"
+  }
+}

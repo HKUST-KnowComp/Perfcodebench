@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_056",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_056/candidate/claude-opus-4.5/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n  if (output_len <= 0 || input_len <= 0) return 0;\n  \n  uint64_t hash = 0;\n  \n  /* Use fixed-point arithmetic with 32-bit fractional precision */\n  const uint64_t FRAC_BITS = 32;\n  const uint64_t FRAC_ONE = 1ULL << FRAC_BITS;\n  const uint64_t FRAC_HALF = 1ULL << (FRAC_BITS - 1);\n  \n  /* Calculate step in fixed-point */\n  uint64_t step;\n  if (output_len == 1) {\n    step = 0;\n  } else {\n    step = ((uint64_t)(input_len - 1) << FRAC_BITS) / (uint64_t)(output_len - 1);\n  }\n  \n  const int last_idx = input_len - 1;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    uint64_t pos_fixed = 0;\n    \n    for (int i = 0; i < output_len; ++i) {\n      int left = (int)(pos_fixed >> FRAC_BITS);\n      uint64_t frac = pos_fixed & (FRAC_ONE - 1);\n      \n      int right = left + 1;\n      if (right > last_idx) right = last_idx;\n      \n      int32_t s_left = src[left];\n      int32_t s_right = src[right];\n      \n      /* Linear interpolation in fixed-point:\n       * sample = s_left * (1 - frac) + s_right * frac\n       * Using 64-bit intermediate to avoid overflow */\n      int64_t interp = (int64_t)s_left * (int64_t)(FRAC_ONE - frac) + \n                       (int64_t)s_right * (int64_t)frac;\n      \n      /* Round to nearest: add 0.5 (FRAC_HALF) for positive, subtract for negative */\n      int16_t sample;\n      if (interp >= 0) {\n        sample = (int16_t)((interp + FRAC_HALF) >> FRAC_BITS);\n      } else {\n        sample = (int16_t)((interp - FRAC_HALF) >> FRAC_BITS);\n      }\n      \n      /* Inline checksum computation */\n      hash ^= (uint16_t)sample;\n      hash *= 1099511628211ULL;\n      \n      pos_fixed += step;\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_056",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3946000,
+    "min_elapsed_ns": 3901000,
+    "max_elapsed_ns": 4069000,
+    "all_elapsed_ns": [
+      4069000,
+      3946000,
+      3901000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4069000,
+      "expected_checksum": 4390123806707265425,
+      "actual_checksum": 4390123806707265425
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_056",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3972000,
+    "min_elapsed_ns": 3654000,
+    "max_elapsed_ns": 4210000,
+    "all_elapsed_ns": [
+      3972000,
+      4210000,
+      3654000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3972000,
+      "expected_checksum": 4390123806707265425,
+      "actual_checksum": 4390123806707265425
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_056",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 3923000,
+    "min_elapsed_ns": 3792000,
+    "max_elapsed_ns": 3976000,
+    "all_elapsed_ns": [
+      3923000,
+      3792000,
+      3976000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3923000,
+      "expected_checksum": 4390123806707265425,
+      "actual_checksum": 4390123806707265425
+    },
+    "status": "ok"
+  }
+}

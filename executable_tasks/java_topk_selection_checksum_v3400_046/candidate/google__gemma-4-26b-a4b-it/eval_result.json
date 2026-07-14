@@ -1,0 +1,59 @@
+{
+  "task_id": "java_topk_selection_checksum_v3400_046",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/java_topk_selection_checksum_v3400_046/candidate/google__gemma-4-26b-a4b-it/Solution.java",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "import java.util.*;\n\npublic class Solution {\n  public static long run(int[] scores, int k, int iters) {\n    int n = scores.length;\n    long[] packed = new long[n];\n    long h = 1469598103934665603L;\n\n    for (int iter = 0; iter < iters; iter++) {\n      for (int i = 0; i < n; i++) {\n        // Pack score and index into a long to avoid object allocation.\n        // We want descending score, then ascending index.\n        // To use standard ascending sort on longs to get our desired order:\n        // 1. Invert the score: (Integer.MAX_VALUE - score)\n        // 2. Keep index as is.\n        // However, to handle negative scores and simplify, we use a bit-trick:\n        // We want higher score to have a 'smaller' long value.\n        // Let's map score to a sortable space: \n        // We'll use: (long)(~score) << 32 | (index & 0xFFFFFFFFL)\n        // But wait, the requirement is: score DESC, index ASC.\n        // Let's use: (long)(Integer.MAX_VALUE - score) << 32 | (index & 0xFFFFFFFFL)\n        // This is tricky with negative scores. \n        // Better: Use a custom comparator logic or transform score to unsigned-like.\n        // Let's use: (long) (score ^ Integer.MIN_VALUE) << 32 | (index & 0xFFFFFFFFL)\n        // This maps the smallest score to 0 and largest to 2^32-1. \n        // Since we want DESC score, we want the LARGEST score to be the SMALLEST long.\n        // So: (long) (Integer.MAX_VALUE - score) is not enough for all ints.\n        // Let's use: (long) (score - Integer.MAX_VALUE - 1) is also messy.\n        // Correct way to pack for DESC score, ASC index using ASC sort:\n        // We want score high -> long low. \n        // Let's use: (long) (~score) << 32 | (index & 0xFFFFFFFFL)\n        // If score is 10, ~score is -11. If score is 5, ~score is -6. \n        // -11 < -6. So higher score results in a smaller ~score.\n        // For index: we want ASC. So index 0 < index 1.\n        // So: packed[i] = ((long) ~scores[i] << 32) | (index & 0xFFFFFFFFL);\n        // Wait, index is unsigned in the bitmask. Let's ensure index is treated as positive.\n        // Let's use: (long) (~scores[i]) << 32 | (index & 0xFFFFFFFFL);\n        // Let's test: \n        // Score 10, Index 1 -> ~10 = ...11110101. Long: ...0101...0001\n        // Score 5, Index 2  -> ~5  = ...11111010. Long: ...1010...0010\n        // Since ~10 < ~5, the higher score comes first in an ascending sort.\n        // For index: if scores are equal, ~score is equal. Then we compare index.\n        // index 1 < index 2, so index 1 comes first. Perfect.\n        packed[i] = ((long) ~scores[i] << 32) | (i & 0xFFFFFFFFL);\n      }\n\n      // Use Quickselect to find the top k elements (the k smallest packed longs)\n      quickSelect(packed, 0, n - 1, k);\n\n      // The top k are now in packed[0...k-1], but they are not necessarily sorted.\n      // The requirement says: \"checksum over the ordered winners\".\n      // The original code sorted the WHOLE array. We must sort the top k.\n      Arrays.sort(packed, 0, k);\n\n      h = 1469598103934665603L;\n      for (int i = 0; i < k; i++) {\n        long p = packed[i];\n        int s = (int) (p >> 32);\n        s = ~s; // undo the ~score\n        int idx = (int) (p & 0xFFFFFFFFL);\n        h ^= (((long) s) << 32) ^ (idx & 0xffffffffL);\n        h *= 1099511628211L;\n      }\n    }\n    return h;\n  }\n\n  private static void quickSelect(long[] arr, int left, int right, int k) {\n    while (left < right) {\n      int pivotIndex = partition(arr, left, right);\n      if (pivotIndex == k) return;\n      if (pivotIndex < k) {\n        left = pivotIndex + 1;\n      } else {\n        right = pivotIndex - 1;\n      }\n    }\n  }\n\n  private static int partition(long[] arr, int left, int right) {\n    long pivot = arr[left + (right - left) / 2];\n    int i = left - 1;\n    int j = right + 1;\n    while (true) {\n      do { i++; } while (arr[i] < pivot);\n      do { j--; } while (arr[j] > pivot);\n      if (i >= j) return j;\n      long temp = arr[i];\n      arr[i] = arr[j];\n      arr[j] = temp;\n    }\n  }\n}",
+  "baseline": {
+    "task_id": "java_topk_selection_checksum_v3400_046",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1827966541,
+    "min_elapsed_ns": 1804945114,
+    "max_elapsed_ns": 2060830846,
+    "all_elapsed_ns": [
+      2060830846,
+      1827966541,
+      1804945114
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2060830846,
+      "expected_checksum": 1699236674913328930,
+      "actual_checksum": 1699236674913328930
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "java_topk_selection_checksum_v3400_046",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 108053675,
+    "min_elapsed_ns": 107686849,
+    "max_elapsed_ns": 120043352,
+    "all_elapsed_ns": [
+      108053675,
+      107686849,
+      120043352
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 108053675,
+      "expected_checksum": 1699236674913328930,
+      "actual_checksum": 1699236674913328930
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "java_topk_selection_checksum_v3400_046",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['java', '-cp', 'build/java_topk_selection_checksum_v3400_046/candidate', 'BenchmarkMain']' returned non-zero exit status 1."
+  }
+}

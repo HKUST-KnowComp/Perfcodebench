@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_matmul_tiled_f32_v06",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_matmul_tiled_f32_v06/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cstdio>\n\nnamespace {\n\n// TILE_M == 128, TILE_N == 8, TILE_K == 8\n// Each thread computes 8 outputs; 128x8 threads per CTA.\n// Shared mem: double buffer A[2*TILE_M*TILE_K] and B[2*TILE_N*TILE_K]\nconstexpr int TILE_M = 128;\nconstexpr int TILE_N = 8;\nconstexpr int TILE_K = 8;\n\n__global__ void gemm_tiled_f32_kernel(const float* A, const float* B, float* C, int n) {\n    const int tx = threadIdx.x;  // 0..127\n    const int ty = threadIdx.y;  // 0..7\n    const int row0 = blockIdx.y * TILE_M;  // start row of C tile\n    const int col0 = blockIdx.x * TILE_N;  // start col of C tile\n\n    // 8 accumulators per thread\n    float fragC[8];\n    #pragma unroll\n    for (int i = 0; i < 8; ++i) fragC[i] = 0.0f;\n\n    // shared memory double buffer\n    extern __shared__ float shmem[];\n    float* shA = shmem;  // size 2*TILE_M*TILE_K\n    float* shB = shmem + 2 * TILE_M * TILE_K; // size 2*TILE_N*TILE_K\n\n    int stage = 0;\n    // preload first tile\n    // load A tile: TILE_M rows x TILE_K cols, row0..row0+TILE_M-1, k=0..TILE_K-1\n    #pragma unroll\n    for (int i = 0; i < TILE_M; i += 64) {\n        int r = i + tx;\n        if (r < TILE_M) {\n            const int globalRow = row0 + r;\n            if (globalRow < n) {\n                #pragma unroll\n                for (int kk = 0; kk < TILE_K; kk += 4) {\n                    // vectorized load\n                    float4 v = *reinterpret_cast<const float4*>(&A[(globalRow * n) + kk]);\n                    shA[(stage * TILE_M * TILE_K) + (r * TILE_K) + kk + 0] = v.x;\n                    shA[(stage * TILE_M * TILE_K) + (r * TILE_K) + kk + 1] = v.y;\n                    shA[(stage * TILE_M * TILE_K) + (r * TILE_K) + kk + 2] = v.z;\n                    shA[(stage * TILE_M * TILE_K) + (r * TILE_K) + kk + 3] = v.w;\n                }\n            } else {\n                #pragma unroll\n                for (int kk = 0; kk < TILE_K; kk += 4) {\n                    shA[(stage * TILE_M * TILE_K) + (r * TILE_K) + kk + 0] = 0.0f;\n                    shA[(stage * TILE_M * TILE_K) + (r * TILE_K) + kk + 1] = 0.0f;\n                    shA[(stage * TILE_M * TILE_K) + (r * TILE_K) + kk + 2] = 0.0f;\n                    shA[(stage * TILE_M * TILE_K) + (r * TILE_K) + kk + 3] = 0.0f;\n                }\n            }\n        }\n    }\n    // load B tile: TILE_K rows x TILE_N cols, k=0..TILE_K-1, col0..col0+TILE_N-1\n    #pragma unroll\n    for (int k = 0; k < TILE_K; k += 8) {\n        int kk = k + ty;\n        if (kk < TILE_K) {\n            const int globalK = kk;\n            #pragma unroll\n            for (int j = 0; j < TILE_N; j += 8) {\n                int jj = j + (tx & 7);\n                if (jj < TILE_N) {\n                    const int globalCol = col0 + jj;\n                    const float val = (globalK < n && globalCol < n) ? B[globalK * n + globalCol] : 0.0f;\n                    shB[(stage * TILE_N * TILE_K) + (jj * TILE_K) + kk] = val;\n                }\n            }\n        }\n    }\n\n    __syncthreads();\n\n    const int numTiles = (n + TILE_K - 1) / TILE_K;\n    for (int tileK = 0; tileK < numTiles; ++tileK) {\n        const int nextK = (tileK + 1) * TILE_K;\n        // compute current tile\n        #pragma unroll\n        for (int k = 0; k < TILE_K; ++k) {\n            // broadcast A elements (128 threads along M)\n            float aTile[TILE_M];\n            #pragma unroll\n            for (int i = 0; i < TILE_M; i += 32) {\n                int ii = i + (tx & 31);\n                if (ii < TILE_M) {\n                    aTile[ii] = shA[(stage * TILE_M * TILE_K) + (ii * TILE_K) + k];\n                }\n            }\n            __syncwarp();\n\n            // load B vector once per k\n            float bVec[TILE_N];\n            #pragma unroll\n            for (int j = 0; j < TILE_N; j += 8) {\n                int jj = j + (tx & 7);\n                if (jj < TILE_N) {\n                    bVec[jj] = shB[(stage * TILE_N * TILE_K) + (jj * TILE_K) + k];\n                }\n            }\n            __syncwarp();\n\n            // compute 8 outputs per thread\n            #pragma unroll\n            for (int ii = 0; ii < TILE_M; ii += 1) {\n                float aVal = aTile[ii];\n                if (ii >= TILE_M) continue;\n                const int outRow = row0 + ii;\n                if (outRow >= n) continue;\n                #pragma unroll\n                for (int jj = 0; jj < TILE_N; jj += 8) {\n                    int jjv = jj + (tx & 7);\n                    if (jjv >= TILE_N) continue;\n                    const int outCol = col0 + jjv;\n                    if (outCol >= n) continue;\n                    int idx = jj / 8; // 0..0 (we have only 8 cols in tile)\n                    fragC[idx] += aVal * bVec[jjv];\n                }\n            }\n        }\n\n        __syncthreads();\n\n        // load next tile\n        stage = 1 - stage;\n        const int kStartNext = nextK;\n        // A next tile\n        #pragma unroll\n        for (int i = 0; i < TILE_M; i += 64) {\n            int r = i + tx;\n            if (r < TILE_M) {\n                const int globalRow = row0 + r;\n                if (globalRow < n && kStartNext < n) {\n                    #pragma unroll\n                    for (int kk = 0; kk < TILE_K; kk += 4) {\n                        const int kGlob = kStartNext + kk;\n                        if (kGlob < n) {\n                            float4 v = *reinterpret_cast<const float4*>(&A[globalRow * n + kGlob]);\n                            shA[(stage * TILE_M * TILE_K) + (r * TILE_K) + kk + 0] = v.x;\n                            shA[(stage * TILE_M * TILE_K) + (r * TILE_K) + kk + 1] = v.y;\n                            shA[(stage * TILE_M * TILE_K) + (r * TILE_K) + kk + 2] = v.z;\n                            shA[(stage * TILE_M * TILE_K) + (r * TILE_K) + kk + 3] = v.w;\n                        } else {\n                            shA[(stage * TILE_M * TILE_K) + (r * TILE_K) + kk + 0] = 0.0f;\n                            shA[(stage * TILE_M * TILE_K) + (r * TILE_K) + kk + 1] = 0.0f;\n                            shA[(stage * TILE_M * TILE_K) + (r * TILE_K) + kk + 2] = 0.0f;\n                            shA[(stage * TILE_M * TILE_K) + (r * TILE_K) + kk + 3] = 0.0f;\n                        }\n                    }\n                } else {\n                    #pragma unroll\n                    for (int kk = 0; kk < TILE_K; kk += 4) {\n                        shA[(stage * TILE_M * TILE_K) + (r * TILE_K) + kk + 0] = 0.0f;\n                        shA[(stage * TILE_M * TILE_K) + (r * TILE_K) + kk + 1] = 0.0f;\n                        shA[(stage * TILE_M * TILE_K) + (r * TILE_K) + kk + 2] = 0.0f;\n                        shA[(stage * TILE_M * TILE_K) + (r * TILE_K) + kk + 3] = 0.0f;\n                    }\n                }\n            }\n        }\n        // B next tile\n        #pragma unroll\n        for (int k = 0; k < TILE_K; k += 8) {\n            int kk = k + ty;\n            if (kk < TILE_K) {\n                const int globalK = kStartNext + kk;\n                #pragma unroll\n                for (int j = 0; j < TILE_N; j += 8) {\n                    int jj = j + (tx & 7);\n                    if (jj < TILE_N) {\n                        const int globalCol = col0 + jj;\n                        const float val = (globalK < n && globalCol < n) ? B[globalK * n + globalCol] : 0.0f;\n                        shB[(stage * TILE_N * TILE_K) + (jj * TILE_K) + kk] = val;\n                    }\n                }\n            }\n        }\n        __syncthreads();\n    }\n\n    // store 8 outputs per thread (only 1 column in tile)\n    #pragma unroll\n    for (int idx = 0; idx < 1; ++idx) {\n        const int jj = (tx & 7);\n        const int outCol = col0 + jj;\n        if (outCol >= n) continue;\n        const float val = fragC[idx];\n        // write all rows in the tile in a coalesced way\n        for (int ii = ty; ii < TILE_M; ii += blockDim.y) {\n            const int outRow = row0 + ii;\n            if (outRow < n) {\n                C[outRow * n + outCol] = fragC[idx];\n            }\n        }\n    }\n}\n\n}  // namespace\n\nvoid matmul_f32(const float* a, const float* b, float* c, int n, int iters) {\n    const dim3 block(TILE_M, TILE_N);\n    const dim3 grid((n + TILE_N - 1) / TILE_N, (n + TILE_M - 1) / TILE_M);\n    const int shmem = 2 * (TILE_M * TILE_K + TILE_N * TILE_K) * sizeof(float);\n    for (int iter = 0; iter < iters; ++iter) {\n        gemm_tiled_f32_kernel<<<grid, block, shmem>>>(a, b, c, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_matmul_tiled_f32_v06",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 573152,
+    "min_elapsed_ns": 573087,
+    "max_elapsed_ns": 575616,
+    "all_elapsed_ns": [
+      575616,
+      573152,
+      573087
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 575616,
+      "max_abs_error": 0,
+      "checksum": 2394920000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_matmul_tiled_f32_v06",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 385120,
+    "min_elapsed_ns": 384831,
+    "max_elapsed_ns": 385695,
+    "all_elapsed_ns": [
+      384831,
+      385695,
+      385120
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 384831,
+      "max_abs_error": 0,
+      "checksum": 2394920000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_matmul_tiled_f32_v06",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_matmul_tiled_f32_v06/candidate/bench']' timed out after 5 seconds"
+  }
+}

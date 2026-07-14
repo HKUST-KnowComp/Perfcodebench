@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_matmul_tiled_f32_v02",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_matmul_tiled_f32_v02/candidate/claude-opus-4.5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int TILE_SIZE = 64;\nconstexpr int BLOCK_SIZE = 16;\nconstexpr int THREAD_TILE = 4;\n\n__global__ void matmul_tiled_kernel(const float* __restrict__ a,\n                                     const float* __restrict__ b,\n                                     float* __restrict__ c,\n                                     int n) {\n    __shared__ float As[TILE_SIZE][TILE_SIZE];\n    __shared__ float Bs[TILE_SIZE][TILE_SIZE];\n\n    const int tx = threadIdx.x;\n    const int ty = threadIdx.y;\n    \n    const int row_base = blockIdx.y * TILE_SIZE + ty * THREAD_TILE;\n    const int col_base = blockIdx.x * TILE_SIZE + tx * THREAD_TILE;\n\n    float acc[THREAD_TILE][THREAD_TILE] = {{0.0f}};\n\n    const int num_tiles = (n + TILE_SIZE - 1) / TILE_SIZE;\n\n    for (int t = 0; t < num_tiles; ++t) {\n        const int tile_start = t * TILE_SIZE;\n\n        #pragma unroll\n        for (int i = 0; i < THREAD_TILE; ++i) {\n            #pragma unroll\n            for (int j = 0; j < THREAD_TILE; ++j) {\n                int local_row = ty * THREAD_TILE + i;\n                int local_col = tx * THREAD_TILE + j;\n                int global_row = blockIdx.y * TILE_SIZE + local_row;\n                int global_col = tile_start + local_col;\n                \n                if (global_row < n && global_col < n) {\n                    As[local_row][local_col] = a[global_row * n + global_col];\n                } else {\n                    As[local_row][local_col] = 0.0f;\n                }\n            }\n        }\n\n        #pragma unroll\n        for (int i = 0; i < THREAD_TILE; ++i) {\n            #pragma unroll\n            for (int j = 0; j < THREAD_TILE; ++j) {\n                int local_row = ty * THREAD_TILE + i;\n                int local_col = tx * THREAD_TILE + j;\n                int global_row = tile_start + local_row;\n                int global_col = blockIdx.x * TILE_SIZE + local_col;\n                \n                if (global_row < n && global_col < n) {\n                    Bs[local_row][local_col] = b[global_row * n + global_col];\n                } else {\n                    Bs[local_row][local_col] = 0.0f;\n                }\n            }\n        }\n\n        __syncthreads();\n\n        #pragma unroll\n        for (int k = 0; k < TILE_SIZE; ++k) {\n            float a_reg[THREAD_TILE];\n            float b_reg[THREAD_TILE];\n            \n            #pragma unroll\n            for (int i = 0; i < THREAD_TILE; ++i) {\n                a_reg[i] = As[ty * THREAD_TILE + i][k];\n            }\n            #pragma unroll\n            for (int j = 0; j < THREAD_TILE; ++j) {\n                b_reg[j] = Bs[k][tx * THREAD_TILE + j];\n            }\n            \n            #pragma unroll\n            for (int i = 0; i < THREAD_TILE; ++i) {\n                #pragma unroll\n                for (int j = 0; j < THREAD_TILE; ++j) {\n                    acc[i][j] += a_reg[i] * b_reg[j];\n                }\n            }\n        }\n\n        __syncthreads();\n    }\n\n    #pragma unroll\n    for (int i = 0; i < THREAD_TILE; ++i) {\n        #pragma unroll\n        for (int j = 0; j < THREAD_TILE; ++j) {\n            int out_row = row_base + i;\n            int out_col = col_base + j;\n            if (out_row < n && out_col < n) {\n                c[out_row * n + out_col] = acc[i][j];\n            }\n        }\n    }\n}\n\n}  // namespace\n\nvoid matmul_f32(const float* a, const float* b, float* c, int n, int iters) {\n    const dim3 block(BLOCK_SIZE, BLOCK_SIZE);\n    const dim3 grid((n + TILE_SIZE - 1) / TILE_SIZE, (n + TILE_SIZE - 1) / TILE_SIZE);\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        matmul_tiled_kernel<<<grid, block>>>(a, b, c, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_matmul_tiled_f32_v02",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 292288,
+    "min_elapsed_ns": 291648,
+    "max_elapsed_ns": 293280,
+    "all_elapsed_ns": [
+      291648,
+      292288,
+      293280
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 291648,
+      "max_abs_error": 0,
+      "checksum": 2394920000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_matmul_tiled_f32_v02",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 197344,
+    "min_elapsed_ns": 197152,
+    "max_elapsed_ns": 198655,
+    "all_elapsed_ns": [
+      198655,
+      197152,
+      197344
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 198655,
+      "max_abs_error": 0,
+      "checksum": 2394920000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_matmul_tiled_f32_v02",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_matmul_tiled_f32_v02/candidate/bench']' timed out after 5 seconds"
+  }
+}

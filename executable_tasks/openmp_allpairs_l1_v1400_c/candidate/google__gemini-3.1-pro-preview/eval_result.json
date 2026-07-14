@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_allpairs_l1_v1400_c",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_allpairs_l1_v1400_c/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <algorithm>\n#include <omp.h>\n\n/**\n * Computes the sum of all pairwise L1 distances: \u03a3_{i<j} (|x_i - x_j| + |y_i - y_j|).\n * This can be decomposed into \u03a3_{i<j} |x_i - x_j| + \u03a3_{i<j} |y_i - y_j|.\n * For a sorted sequence z_0 \u2264 z_1 \u2264 ... \u2264 z_{n-1}, the sum of absolute differences is:\n * \u03a3_{i=0}^{n-1} z_i * (2*i - n + 1).\n */\nstatic int64_t compute_dim_sum(const std::vector<int32_t>& vec) {\n    size_t n = vec.size();\n    if (n < 2) return 0;\n\n    std::vector<int32_t> sorted_vec = vec;\n    std::sort(sorted_vec.begin(), sorted_vec.end());\n\n    int64_t dim_total = 0;\n    // Use OpenMP to parallelize the linear summation if n is large\n    #pragma omp parallel reduction(+:dim_total)\n    {\n        int num_threads = omp_get_num_threads();\n        int thread_id = omp_get_thread_num();\n        size_t chunk_size = (n + num_threads - 1) / num_threads;\n        size_t start = thread_id * chunk_size;\n        size_t end = std::min(start + chunk_size, n);\n\n        int64_t local_sum = 0;\n        for (size_t i = start; i < end; ++i) {\n            // Formula: z_i * (2*i - (n - 1))\n            local_sum += static_cast<int64_t>(sorted_vec[i]) * (2 * static_cast<int64_t>(i) - static_cast<int64_t>(n) + 1);\n        }\n        dim_total = local_sum;\n    }\n\n    return dim_total;\n}\n\nint64_t allpairs_l1_sum(const std::vector<int32_t>& xs, const std::vector<int32_t>& ys, int iters) {\n    int64_t total = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        int64_t sum_x = 0;\n        int64_t sum_y = 0;\n\n        // Process dimensions in parallel\n        #pragma omp parallel sections\n        {\n            #pragma omp section\n            {\n                sum_x = compute_dim_sum(xs);\n            }\n            #pragma omp section\n            {\n                sum_y = compute_dim_sum(ys);\n            }\n        }\n\n        total = sum_x + sum_y;\n    }\n    return total;\n}",
+  "baseline": {
+    "task_id": "openmp_allpairs_l1_v1400_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 15583105,
+    "min_elapsed_ns": 15224831,
+    "max_elapsed_ns": 15620646,
+    "all_elapsed_ns": [
+      15583105,
+      15620646,
+      15224831
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15583105,
+      "expected_sum": 17895680000,
+      "actual_sum": 17895680000
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_allpairs_l1_v1400_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3877883,
+    "min_elapsed_ns": 3876865,
+    "max_elapsed_ns": 3943026,
+    "all_elapsed_ns": [
+      3943026,
+      3876865,
+      3877883
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3943026,
+      "expected_sum": 17895680000,
+      "actual_sum": 17895680000
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_allpairs_l1_v1400_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 47517299,
+    "min_elapsed_ns": 47053675,
+    "max_elapsed_ns": 90708610,
+    "all_elapsed_ns": [
+      47517299,
+      47053675,
+      90708610
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 47517299,
+      "expected_sum": 17895680000,
+      "actual_sum": 17895680000
+    },
+    "status": "ok"
+  }
+}

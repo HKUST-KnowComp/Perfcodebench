@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_reduce_sum_cub_i32_v23",
+  "model": "gemini-3.1-flash-lite-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_reduce_sum_cub_i32_v23/candidate/gemini-3.1-flash-lite-preview/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void reduce_sum_kernel(const int* input, int* output, int n) {\n    extern __shared__ int sdata[];\n    int tid = threadIdx.x;\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    int sum = 0;\n\n    // Grid-stride loop for input processing\n    for (int i = idx; i < n; i += blockDim.x * gridDim.x) {\n        sum += input[i];\n    }\n\n    // Warp-level reduction\n    for (int offset = warpSize / 2; offset > 0; offset /= 2) {\n        sum += __shfl_down_sync(0xffffffff, sum, offset);\n    }\n\n    // Write warp results to shared memory\n    if (tid % warpSize == 0) {\n        sdata[tid / warpSize] = sum;\n    }\n    __syncthreads();\n\n    // Final reduction in shared memory\n    if (tid < (blockDim.x / warpSize)) {\n        sum = sdata[tid];\n        for (int offset = (blockDim.x / warpSize) / 2; offset > 0; offset /= 2) {\n            sum += __shfl_down_sync(0xffffffff, sum, offset);\n        }\n        if (tid == 0) {\n            atomicAdd(output, sum);\n        }\n    }\n}\n\n} // namespace\n\nvoid reduce_sum_i32(const int* input, int* output, int n, int iters) {\n    const int blockSize = 256;\n    const int gridSize = 1024;\n    const int sharedMemSize = (blockSize / 32) * sizeof(int);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, sizeof(int));\n        reduce_sum_kernel<<<gridSize, blockSize, sharedMemSize>>>(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_reduce_sum_cub_i32_v23",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 564831,
+    "min_elapsed_ns": 563839,
+    "max_elapsed_ns": 564960,
+    "all_elapsed_ns": [
+      564960,
+      563839,
+      564831
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 564960,
+      "expected_sum": 7864320,
+      "actual_sum": 7864320
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_reduce_sum_cub_i32_v23",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 142368,
+    "min_elapsed_ns": 125824,
+    "max_elapsed_ns": 143455,
+    "all_elapsed_ns": [
+      142368,
+      125824,
+      143455
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 142368,
+      "expected_sum": 7864320,
+      "actual_sum": 7864320
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_reduce_sum_cub_i32_v23",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_reduce_sum_cub_i32_v23/candidate/bench']' timed out after 5 seconds"
+  }
+}

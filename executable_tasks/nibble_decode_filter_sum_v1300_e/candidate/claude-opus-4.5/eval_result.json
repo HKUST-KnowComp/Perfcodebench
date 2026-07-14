@@ -1,0 +1,72 @@
+{
+  "task_id": "nibble_decode_filter_sum_v1300_e",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/nibble_decode_filter_sum_v1300_e/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstddef>\n\n#if defined(__SSE4_1__) || defined(__x86_64__) || defined(_M_X64)\n#include <emmintrin.h>\n#include <tmmintrin.h>\n#include <smmintrin.h>\n#define USE_SSE 1\n#else\n#define USE_SSE 0\n#endif\n\nuint64_t nibble_filter_sum(const std::vector<uint8_t>& packed, uint8_t threshold, int iters) {\n    uint64_t sum = 0;\n    const size_t n = packed.size();\n    const uint8_t* data = packed.data();\n\n#if USE_SSE\n    const __m128i mask_lo = _mm_set1_epi8(0x0F);\n    const __m128i thresh_vec = _mm_set1_epi8(static_cast<char>(threshold));\n    const __m128i ones = _mm_set1_epi8(1);\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        sum = 0;\n        __m128i acc0 = _mm_setzero_si128();\n        __m128i acc1 = _mm_setzero_si128();\n        __m128i acc2 = _mm_setzero_si128();\n        __m128i acc3 = _mm_setzero_si128();\n        \n        size_t i = 0;\n        int batch_count = 0;\n        \n        for (; i + 16 <= n; i += 16) {\n            __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + i));\n            \n            __m128i lo = _mm_and_si128(chunk, mask_lo);\n            __m128i hi = _mm_and_si128(_mm_srli_epi16(chunk, 4), mask_lo);\n            \n            // Compare > threshold using saturating subtract: if val > thresh, val - thresh - 1 >= 0 after saturation\n            // Actually use: val > thresh iff (val - thresh - 1) doesn't underflow, i.e., _mm_subs_epu8(val, thresh+1) > 0\n            // But simpler: use _mm_cmpgt_epi8 with signed comparison trick\n            // Since nibbles are 0-15 and threshold is 0-15, we can use unsigned comparison\n            // val > thresh iff _mm_subs_epu8(val, thresh) > 0 AND val != thresh\n            // Easier: _mm_cmpgt_epu8 doesn't exist, but we can use: val > thresh iff _mm_max_epu8(val, thresh+1) == val AND thresh < 255\n            \n            // Use signed comparison by offsetting: treat as signed where 0-15 maps to -128 to -113\n            // Or simpler: _mm_subs_epu8(val, thresh) gives val-thresh if val>=thresh, else 0\n            // Then check if result > 0 AND original val > thresh\n            // val > thresh iff _mm_subs_epu8(val, thresh) > 0 when val > thresh\n            // Actually _mm_subs_epu8(val, thresh) = val - thresh if val >= thresh, else 0\n            // So _mm_subs_epu8(val, thresh) > 0 iff val > thresh. Perfect!\n            \n            __m128i diff_lo = _mm_subs_epu8(lo, thresh_vec);\n            __m128i diff_hi = _mm_subs_epu8(hi, thresh_vec);\n            \n            // Create masks: 0xFF where diff > 0, else 0\n            __m128i zero = _mm_setzero_si128();\n            __m128i mask_lo_cmp = _mm_cmpgt_epi8(diff_lo, zero); // signed cmp but diff is 0-15, so works\n            __m128i mask_hi_cmp = _mm_cmpgt_epi8(diff_hi, zero);\n            \n            // Masked values\n            __m128i masked_lo = _mm_and_si128(lo, mask_lo_cmp);\n            __m128i masked_hi = _mm_and_si128(hi, mask_hi_cmp);\n            \n            // Use SAD against zero to horizontally sum bytes into 64-bit lanes\n            __m128i sad_lo = _mm_sad_epu8(masked_lo, zero);\n            __m128i sad_hi = _mm_sad_epu8(masked_hi, zero);\n            \n            acc0 = _mm_add_epi64(acc0, sad_lo);\n            acc1 = _mm_add_epi64(acc1, sad_hi);\n        }\n        \n        // Horizontal sum of accumulators\n        __m128i acc_sum = _mm_add_epi64(acc0, acc1);\n        acc_sum = _mm_add_epi64(acc_sum, _mm_srli_si128(acc_sum, 8));\n        sum = static_cast<uint64_t>(_mm_cvtsi128_si64(acc_sum));\n        \n        // Scalar remainder\n        for (; i < n; ++i) {\n            uint8_t b = data[i];\n            uint8_t lo = b & 0x0F;\n            uint8_t hi = b >> 4;\n            if (lo > threshold) sum += lo;\n            if (hi > threshold) sum += hi;\n        }\n    }\n#else\n    for (int iter = 0; iter < iters; ++iter) {\n        sum = 0;\n        for (size_t i = 0; i < n; ++i) {\n            uint8_t b = data[i];\n            uint8_t lo = b & 0x0F;\n            uint8_t hi = b >> 4;\n            if (lo > threshold) sum += lo;\n            if (hi > threshold) sum += hi;\n        }\n    }\n#endif\n    \n    return sum;\n}\n",
+  "baseline": {
+    "task_id": "nibble_decode_filter_sum_v1300_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 73078337,
+    "min_elapsed_ns": 71178844,
+    "max_elapsed_ns": 76000464,
+    "all_elapsed_ns": [
+      73078337,
+      71178844,
+      76000464
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 73078337,
+      "expected_sum": 2457600,
+      "actual_sum": 2457600
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "nibble_decode_filter_sum_v1300_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 38864813,
+    "min_elapsed_ns": 38303107,
+    "max_elapsed_ns": 39154635,
+    "all_elapsed_ns": [
+      38303107,
+      39154635,
+      38864813
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 38303107,
+      "expected_sum": 2457600,
+      "actual_sum": 2457600
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "nibble_decode_filter_sum_v1300_e",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 2537290,
+    "min_elapsed_ns": 2514976,
+    "max_elapsed_ns": 2801615,
+    "all_elapsed_ns": [
+      2514976,
+      2537290,
+      2801615
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2514976,
+      "expected_sum": 2457600,
+      "actual_sum": 2457600
+    },
+    "status": "ok"
+  }
+}

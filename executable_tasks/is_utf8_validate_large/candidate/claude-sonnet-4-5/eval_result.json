@@ -1,0 +1,72 @@
+{
+  "task_id": "is_utf8_validate_large",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/is_utf8_validate_large/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <immintrin.h>\n#include <cstring>\n\nnamespace {\n\n// Fast ASCII check using SIMD\ninline bool is_ascii_simd(const unsigned char* data, size_t len) {\n  const unsigned char* p = data;\n  const unsigned char* end = data + len;\n  \n#ifdef __AVX2__\n  // Process 32 bytes at a time with AVX2\n  while (end - p >= 32) {\n    __m256i chunk = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(p));\n    if (_mm256_movemask_epi8(chunk) != 0) return false;\n    p += 32;\n  }\n#endif\n  \n#ifdef __SSE4_2__\n  // Process 16 bytes at a time with SSE\n  while (end - p >= 16) {\n    __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(p));\n    if (_mm_movemask_epi8(chunk) != 0) return false;\n    p += 16;\n  }\n#endif\n  \n  // Handle remaining bytes\n  while (p < end) {\n    if (*p++ & 0x80) return false;\n  }\n  return true;\n}\n\ninline bool is_valid_utf8_optimized(const std::string& s) {\n  if (s.empty()) return true;\n  \n  const unsigned char* p = reinterpret_cast<const unsigned char*>(s.data());\n  const unsigned char* end = p + s.size();\n  const unsigned char* start = p;\n  \n  // Fast path: check if entire string is ASCII\n  if (s.size() >= 16 && is_ascii_simd(p, s.size())) {\n    return true;\n  }\n  \n  // Mixed content - process byte by byte\n  p = start;\n  while (p < end) {\n    const unsigned char c = *p++;\n    \n    // ASCII fast path\n    if (c <= 0x7F) continue;\n    \n    // 2-byte sequence\n    if (c >= 0xC2 && c <= 0xDF) {\n      if (p >= end || (*p & 0xC0U) != 0x80U) return false;\n      ++p;\n      continue;\n    }\n    \n    // 3-byte sequences\n    if (c >= 0xE0 && c <= 0xEF) {\n      if (end - p < 2) return false;\n      \n      if (c == 0xE0) {\n        if (p[0] < 0xA0 || p[0] > 0xBF || (p[1] & 0xC0U) != 0x80U) return false;\n      } else if (c == 0xED) {\n        if (p[0] < 0x80 || p[0] > 0x9F || (p[1] & 0xC0U) != 0x80U) return false;\n      } else {\n        if ((p[0] & 0xC0U) != 0x80U || (p[1] & 0xC0U) != 0x80U) return false;\n      }\n      p += 2;\n      continue;\n    }\n    \n    // 4-byte sequences\n    if (c >= 0xF0 && c <= 0xF4) {\n      if (end - p < 3) return false;\n      \n      if (c == 0xF0) {\n        if (p[0] < 0x90 || p[0] > 0xBF || (p[1] & 0xC0U) != 0x80U || (p[2] & 0xC0U) != 0x80U) return false;\n      } else if (c == 0xF4) {\n        if (p[0] < 0x80 || p[0] > 0x8F || (p[1] & 0xC0U) != 0x80U || (p[2] & 0xC0U) != 0x80U) return false;\n      } else {\n        if ((p[0] & 0xC0U) != 0x80U || (p[1] & 0xC0U) != 0x80U || (p[2] & 0xC0U) != 0x80U) return false;\n      }\n      p += 3;\n      continue;\n    }\n    \n    return false;\n  }\n  return true;\n}\n\n}  // namespace\n\nstd::size_t count_valid_strings(const std::vector<std::string>& inputs) {\n  std::size_t count = 0;\n  const size_t n = inputs.size();\n  \n  // Use parallel processing for large datasets\n  if (n >= 1000) {\n    #pragma omp parallel for reduction(+:count) schedule(static)\n    for (size_t i = 0; i < n; ++i) {\n      count += is_valid_utf8_optimized(inputs[i]) ? 1U : 0U;\n    }\n  } else {\n    // Sequential for small datasets to avoid threading overhead\n    for (const auto& s : inputs) {\n      count += is_valid_utf8_optimized(s) ? 1U : 0U;\n    }\n  }\n  \n  return count;\n}\n",
+  "baseline": {
+    "task_id": "is_utf8_validate_large",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 10938893,
+    "min_elapsed_ns": 10870828,
+    "max_elapsed_ns": 10980545,
+    "all_elapsed_ns": [
+      10980545,
+      10870828,
+      10938893
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10980545,
+      "expected_count": 58333,
+      "actual_count": 58333
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "is_utf8_validate_large",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 788133,
+    "min_elapsed_ns": 721904,
+    "max_elapsed_ns": 804194,
+    "all_elapsed_ns": [
+      721904,
+      804194,
+      788133
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 721904,
+      "expected_count": 58333,
+      "actual_count": 58333
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "is_utf8_validate_large",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 9909940,
+    "min_elapsed_ns": 9778251,
+    "max_elapsed_ns": 12326675,
+    "all_elapsed_ns": [
+      9778251,
+      9909940,
+      12326675
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9778251,
+      "expected_count": 58333,
+      "actual_count": 58333
+    },
+    "status": "ok"
+  }
+}

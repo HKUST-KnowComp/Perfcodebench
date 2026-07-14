@@ -1,0 +1,72 @@
+{
+  "task_id": "top1_per_group_checksum_v500_a",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/top1_per_group_checksum_v500_a/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n} // namespace\n\nuint64_t top1_group_hash(\n    const std::vector<uint32_t>& groups,\n    const std::vector<uint32_t>& values,\n    uint32_t group_count,\n    int iters) {\n  // Use a vector as a direct-address table for O(1) access and cache efficiency.\n  // This is significantly faster than std::unordered_map for dense group IDs.\n  std::vector<uint32_t> best(group_count);\n  const size_t n = groups.size();\n  const uint32_t* groups_ptr = groups.data();\n  const uint32_t* values_ptr = values.data();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    // Reset the best values for this iteration\n    std::fill(best.begin(), best.end(), 0);\n\n    // Single pass to find the maximum value per group\n    for (size_t i = 0; i < n; ++i) {\n      uint32_t g = groups_ptr[i];\n      uint32_t v = values_ptr[i];\n      if (v > best[g]) {\n        best[g] = v;\n      }\n    }\n\n    // Compute the FNV-1a style hash\n    uint64_t hash = 1469598103934665603ULL;\n    for (uint32_t g = 0; g < group_count; ++g) {\n      hash = mix(hash, static_cast<uint64_t>(best[g]));\n    }\n  }\n\n  // The problem implies the hash is returned from the last iteration's calculation.\n  // However, the baseline logic re-initializes hash inside the loop. \n  // To match the baseline's behavior exactly, we must ensure the final hash returned \n  // is the one calculated in the last iteration.\n  \n  // Re-calculating the final hash to ensure correctness with the baseline's structure\n  std::fill(best.begin(), best.end(), 0);\n  for (size_t i = 0; i < n; ++i) {\n    uint32_t g = groups_ptr[i];\n    uint32_t v = values_ptr[i];\n    if (v > best[g]) best[g] = v;\n  }\n  \n  uint64_t final_hash = 1469598103934665603ULL;\n  for (uint32_t g = 0; g < group_count; ++g) {\n    final_hash = mix(final_hash, static_cast<uint64_t>(best[g]));\n  }\n\n  // Wait, the baseline loop structure is: \n  // for iter: { best.clear(); for i: { ... }; hash = FNV_INIT; for g: { hash = mix(hash, best[g]); } }\n  // This means the 'hash' variable is overwritten every iteration. \n  // The final value returned is the hash from the LAST iteration.\n  \n  // Let's refine the loop to be exactly equivalent but faster.\n  uint64_t current_hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    std::fill(best.begin(), best.end(), 0);\n    for (size_t i = 0; i < n; ++i) {\n      if (values_ptr[i] > best[groups_ptr[i]]) {\n        best[groups_ptr[i]] = values_ptr[i];\n      }\n    }\n    current_hash = 1469598103934665603ULL;\n    for (uint32_t g = 0; g < group_count; ++g) {\n      current_hash = mix(current_hash, static_cast<uint64_t>(best[g]));\n    }\n  }\n  \n  return current_hash;\n}",
+  "baseline": {
+    "task_id": "top1_per_group_checksum_v500_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 387693835,
+    "min_elapsed_ns": 364591818,
+    "max_elapsed_ns": 460390575,
+    "all_elapsed_ns": [
+      387693835,
+      364591818,
+      460390575
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 387693835,
+      "expected_checksum": 17113875191048831977,
+      "actual_checksum": 17113875191048831977
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "top1_per_group_checksum_v500_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 99422660,
+    "min_elapsed_ns": 93241181,
+    "max_elapsed_ns": 99777160,
+    "all_elapsed_ns": [
+      93241181,
+      99777160,
+      99422660
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 93241181,
+      "expected_checksum": 17113875191048831977,
+      "actual_checksum": 17113875191048831977
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "top1_per_group_checksum_v500_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 229047603,
+    "min_elapsed_ns": 206634492,
+    "max_elapsed_ns": 243004955,
+    "all_elapsed_ns": [
+      243004955,
+      229047603,
+      206634492
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 243004955,
+      "expected_checksum": 17113875191048831977,
+      "actual_checksum": 17113875191048831977
+    },
+    "status": "ok"
+  }
+}

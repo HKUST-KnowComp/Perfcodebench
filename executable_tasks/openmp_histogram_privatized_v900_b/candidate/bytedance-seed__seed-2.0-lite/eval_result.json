@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_histogram_privatized_v900_b",
+  "model": "bytedance-seed/seed-2.0-lite",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_histogram_privatized_v900_b/candidate/bytedance-seed__seed-2.0-lite/solution.cpp",
+  "benchmark_timeout_sec": 6,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <omp.h>\n#include <vector>\n\nnamespace {\n\nint num_threads() {\n  return std::max(1, std::min(8, omp_get_max_threads()));\n}\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t histogram_checksum(const std::vector<uint8_t>& input, int bins, int iters) {\n  const int nthreads = num_threads();\n  omp_set_num_threads(nthreads);\n  std::vector<uint32_t> counts(static_cast<std::size_t>(bins), 0);\n  // Preallocate per-thread private histograms to avoid repeated allocations\n  std::vector<std::vector<uint32_t>> per_thread_counts(nthreads, std::vector<uint32_t>(bins, 0));\n\n  for (int iter = 0; iter < iters; ++iter) {\n    std::fill(counts.begin(), counts.end(), 0u);\n#pragma omp parallel\n    {\n      const int tid = omp_get_thread_num();\n      // Reset this thread's private histogram for the current iteration\n      std::fill(per_thread_counts[tid].begin(), per_thread_counts[tid].end(), 0u);\n\n      // Process input chunk with no atomic overhead, private counts are cache-local\n#pragma omp for schedule(static)\n      for (std::size_t i = 0; i < input.size(); ++i) {\n        const std::size_t val = static_cast<std::size_t>(input[i]);\n        per_thread_counts[tid][val]++;\n      }\n\n      // Sum private histogram to global counts once per thread, minimal synchronization\n#pragma omp critical\n      for (std::size_t b = 0; b < static_cast<std::size_t>(bins); ++b) {\n        counts[b] += per_thread_counts[tid][b];\n      }\n    }\n  }\n  return checksum_u32(counts);\n}",
+  "baseline": {
+    "task_id": "openmp_histogram_privatized_v900_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3916904545,
+    "min_elapsed_ns": 2719966657,
+    "max_elapsed_ns": 4106409311,
+    "all_elapsed_ns": [
+      3916904545,
+      4106409311,
+      2719966657
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3916904545,
+      "expected_checksum": 15535606574879899509,
+      "actual_checksum": 15535606574879899509
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_histogram_privatized_v900_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 33556677,
+    "min_elapsed_ns": 25433840,
+    "max_elapsed_ns": 43570113,
+    "all_elapsed_ns": [
+      25433840,
+      33556677,
+      43570113
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 25433840,
+      "expected_checksum": 15535606574879899509,
+      "actual_checksum": 15535606574879899509
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_histogram_privatized_v900_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 34568670,
+    "min_elapsed_ns": 30483096,
+    "max_elapsed_ns": 40326296,
+    "all_elapsed_ns": [
+      40326296,
+      30483096,
+      34568670
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 40326296,
+      "expected_checksum": 15535606574879899509,
+      "actual_checksum": 15535606574879899509
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "xxhash_chunked_xxh32_large",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/xxhash_chunked_xxh32_large/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"xxhash.h\"\n\nnamespace {\nconstexpr std::size_t kChunkSize = 1u << 10; // 1024 bytes\n\nstatic inline uint64_t rotl1(uint64_t x) {\n#if defined(__has_builtin)\n#  if __has_builtin(__builtin_rotateleft64)\n    return __builtin_rotateleft64(x, 1);\n#  else\n    return (x << 1) | (x >> 63);\n#  endif\n#elif defined(__clang__) || defined(__GNUC__)\n    return __builtin_rotateleft64(x, 1);\n#else\n    return (x << 1) | (x >> 63);\n#endif\n}\n}\n\nuint64_t chunked_hash(const std::string& input) {\n  const std::size_t n = input.size();\n  const char* p = input.data();\n\n  uint64_t acc = 0;\n\n  // kChunkSize is 1024 (1<<10), use shifts/masks for speed\n  std::size_t full = n >> 10;                 // number of full 1 KiB chunks\n  const std::size_t rem = n & (kChunkSize - 1); // remaining bytes\n\n  // Process full chunks with a small unroll\n  while (full >= 4) {\n    uint32_t h0 = XXH32(p, kChunkSize, 0); p += kChunkSize; acc ^= (uint64_t)h0; acc = rotl1(acc);\n    uint32_t h1 = XXH32(p, kChunkSize, 0); p += kChunkSize; acc ^= (uint64_t)h1; acc = rotl1(acc);\n    uint32_t h2 = XXH32(p, kChunkSize, 0); p += kChunkSize; acc ^= (uint64_t)h2; acc = rotl1(acc);\n    uint32_t h3 = XXH32(p, kChunkSize, 0); p += kChunkSize; acc ^= (uint64_t)h3; acc = rotl1(acc);\n    full -= 4;\n  }\n\n  while (full) {\n    uint32_t h = XXH32(p, kChunkSize, 0);\n    p += kChunkSize;\n    acc ^= (uint64_t)h;\n    acc = rotl1(acc);\n    --full;\n  }\n\n  if (rem) {\n    uint32_t h = XXH32(p, rem, 0);\n    acc ^= (uint64_t)h;\n    acc = rotl1(acc);\n  }\n\n  return acc;\n}\n",
+  "baseline": {
+    "task_id": "xxhash_chunked_xxh32_large",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3237385,
+    "min_elapsed_ns": 3174210,
+    "max_elapsed_ns": 5220796,
+    "all_elapsed_ns": [
+      5220796,
+      3174210,
+      3237385
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5220796,
+      "expected_hash": 8157936503068734005,
+      "actual_hash": 8157936503068734005
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "xxhash_chunked_xxh32_large",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3329181,
+    "min_elapsed_ns": 3302942,
+    "max_elapsed_ns": 11944591,
+    "all_elapsed_ns": [
+      11944591,
+      3302942,
+      3329181
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11944591,
+      "expected_hash": 8157936503068734005,
+      "actual_hash": 8157936503068734005
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "xxhash_chunked_xxh32_large",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 3151269,
+    "min_elapsed_ns": 3086566,
+    "max_elapsed_ns": 3312694,
+    "all_elapsed_ns": [
+      3151269,
+      3312694,
+      3086566
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3151269,
+      "expected_hash": 8157936503068734005,
+      "actual_hash": 8157936503068734005
+    },
+    "status": "ok"
+  }
+}

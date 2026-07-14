@@ -1,0 +1,72 @@
+{
+  "task_id": "asof_join_weighted_sum_small_dim",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/asof_join_weighted_sum_small_dim/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n\nuint64_t asof_join_sum(\n    const std::vector<uint32_t>& dim_ts,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_ts,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n\n  const std::size_t probe_n = probe_ts.size();\n  const std::size_t dim_n = dim_ts.size();\n\n  if (probe_n == 0 || dim_n == 0) {\n    return 0;\n  }\n\n  const uint32_t* __restrict__ p_ts = probe_ts.data();\n  const uint32_t* __restrict__ p_wt = probe_weights.data();\n  const uint32_t* __restrict__ d_ts = dim_ts.data();\n  const uint32_t* __restrict__ d_val = dim_values.data();\n\n  const uint32_t dim_last_ts = d_ts[dim_n - 1];\n\n  uint64_t sum = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    std::size_t d = 0;\n    std::size_t i = 0;\n\n    // Process in blocks of 4 for better ILP\n    const std::size_t probe_n4 = probe_n & ~std::size_t(3);\n\n    while (i < probe_n4) {\n      // Prefetch ahead\n      __builtin_prefetch(p_ts + i + 32, 0, 0);\n      __builtin_prefetch(p_wt + i + 32, 0, 0);\n\n      uint32_t ts0 = p_ts[i];\n      uint32_t ts1 = p_ts[i + 1];\n      uint32_t ts2 = p_ts[i + 2];\n      uint32_t ts3 = p_ts[i + 3];\n\n      // Advance d for ts0\n      if (ts0 <= dim_last_ts) {\n        while (d + 1 < dim_n && d_ts[d + 1] <= ts0) ++d;\n      } else {\n        d = dim_n - 1;\n      }\n      uint32_t val0 = d_val[d];\n\n      // Advance d for ts1\n      if (ts1 <= dim_last_ts) {\n        while (d + 1 < dim_n && d_ts[d + 1] <= ts1) ++d;\n      } else {\n        d = dim_n - 1;\n      }\n      uint32_t val1 = d_val[d];\n\n      // Advance d for ts2\n      if (ts2 <= dim_last_ts) {\n        while (d + 1 < dim_n && d_ts[d + 1] <= ts2) ++d;\n      } else {\n        d = dim_n - 1;\n      }\n      uint32_t val2 = d_val[d];\n\n      // Advance d for ts3\n      if (ts3 <= dim_last_ts) {\n        while (d + 1 < dim_n && d_ts[d + 1] <= ts3) ++d;\n      } else {\n        d = dim_n - 1;\n      }\n      uint32_t val3 = d_val[d];\n\n      sum += static_cast<uint64_t>(val0) * static_cast<uint64_t>(p_wt[i]);\n      sum += static_cast<uint64_t>(val1) * static_cast<uint64_t>(p_wt[i + 1]);\n      sum += static_cast<uint64_t>(val2) * static_cast<uint64_t>(p_wt[i + 2]);\n      sum += static_cast<uint64_t>(val3) * static_cast<uint64_t>(p_wt[i + 3]);\n\n      i += 4;\n    }\n\n    // Scalar tail\n    while (i < probe_n) {\n      uint32_t ts = p_ts[i];\n      if (ts <= dim_last_ts) {\n        while (d + 1 < dim_n && d_ts[d + 1] <= ts) ++d;\n      } else {\n        d = dim_n - 1;\n      }\n      sum += static_cast<uint64_t>(d_val[d]) * static_cast<uint64_t>(p_wt[i]);\n      ++i;\n    }\n  }\n\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "asof_join_weighted_sum_small_dim",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 758843289,
+    "min_elapsed_ns": 746665062,
+    "max_elapsed_ns": 763045194,
+    "all_elapsed_ns": [
+      758843289,
+      763045194,
+      746665062
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 758843289,
+      "expected_sum": 147209051048,
+      "actual_sum": 147209051048
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "asof_join_weighted_sum_small_dim",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 82580165,
+    "min_elapsed_ns": 82158050,
+    "max_elapsed_ns": 129114157,
+    "all_elapsed_ns": [
+      82158050,
+      129114157,
+      82580165
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 82158050,
+      "expected_sum": 147209051048,
+      "actual_sum": 147209051048
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "asof_join_weighted_sum_small_dim",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 94530165,
+    "min_elapsed_ns": 92580118,
+    "max_elapsed_ns": 95096099,
+    "all_elapsed_ns": [
+      92580118,
+      94530165,
+      95096099
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 92580118,
+      "expected_sum": 147209051048,
+      "actual_sum": 147209051048
+    },
+    "status": "ok"
+  }
+}

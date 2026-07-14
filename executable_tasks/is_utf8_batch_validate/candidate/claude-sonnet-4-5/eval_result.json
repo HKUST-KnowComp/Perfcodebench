@@ -1,0 +1,72 @@
+{
+  "task_id": "is_utf8_batch_validate",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/is_utf8_batch_validate/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n\nstd::size_t count_valid_strings(const std::vector<std::string>& inputs) {\n  // Lookup table for continuation byte count based on first byte\n  static const uint8_t continuation_bytes[256] = {\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x00-0x0F\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x10-0x1F\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x20-0x2F\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x30-0x3F\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x40-0x4F\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x50-0x5F\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x60-0x6F\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x70-0x7F\n    9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9, // 0x80-0x8F (invalid start)\n    9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9, // 0x90-0x9F (invalid start)\n    9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9, // 0xA0-0xAF (invalid start)\n    9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9, // 0xB0-0xBF (invalid start)\n    9,9,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 0xC0-0xCF (C0-C1 invalid, C2-CF need 1)\n    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 0xD0-0xDF (need 1)\n    2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, // 0xE0-0xEF (need 2)\n    3,3,3,3,3,9,9,9,9,9,9,9,9,9,9,9  // 0xF0-0xFF (F0-F4 need 3, rest invalid)\n  };\n\n  auto valid_optimized = [&continuation_bytes](const std::string& s) -> bool {\n    const uint8_t* p = reinterpret_cast<const uint8_t*>(s.data());\n    const uint8_t* end = p + s.size();\n    \n    while (p < end) {\n      uint8_t c = *p++;\n      \n      // Fast path for ASCII\n      if (c <= 0x7F) continue;\n      \n      uint8_t extra = continuation_bytes[c];\n      if (extra == 9) return false; // Invalid start byte\n      \n      // Check we have enough bytes\n      if (end - p < extra) return false;\n      \n      // Validate continuation bytes and special ranges\n      if (extra == 1) {\n        if ((p[0] & 0xC0) != 0x80) return false;\n        p += 1;\n      } else if (extra == 2) {\n        uint8_t b1 = p[0];\n        uint8_t b2 = p[1];\n        if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80) return false;\n        // Special range checks\n        if (c == 0xE0 && b1 < 0xA0) return false; // Overlong\n        if (c == 0xED && b1 > 0x9F) return false; // Surrogate\n        p += 2;\n      } else { // extra == 3\n        uint8_t b1 = p[0];\n        uint8_t b2 = p[1];\n        uint8_t b3 = p[2];\n        if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80 || (b3 & 0xC0) != 0x80) return false;\n        // Special range checks\n        if (c == 0xF0 && b1 < 0x90) return false; // Overlong\n        if (c == 0xF4 && b1 > 0x8F) return false; // Beyond U+10FFFF\n        p += 3;\n      }\n    }\n    return true;\n  };\n\n  std::size_t count = 0;\n  for (const auto& s : inputs) {\n    count += valid_optimized(s);\n  }\n  return count;\n}\n",
+  "baseline": {
+    "task_id": "is_utf8_batch_validate",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 8471493,
+    "min_elapsed_ns": 8467588,
+    "max_elapsed_ns": 8665076,
+    "all_elapsed_ns": [
+      8471493,
+      8467588,
+      8665076
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8471493,
+      "expected_count": 46222,
+      "actual_count": 46222
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "is_utf8_batch_validate",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 716547,
+    "min_elapsed_ns": 687218,
+    "max_elapsed_ns": 718145,
+    "all_elapsed_ns": [
+      687218,
+      716547,
+      718145
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 687218,
+      "expected_count": 46222,
+      "actual_count": 46222
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "is_utf8_batch_validate",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 9370259,
+    "min_elapsed_ns": 8709288,
+    "max_elapsed_ns": 9483587,
+    "all_elapsed_ns": [
+      9483587,
+      8709288,
+      9370259
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9483587,
+      "expected_count": 46222,
+      "actual_count": 46222
+    },
+    "status": "ok"
+  }
+}

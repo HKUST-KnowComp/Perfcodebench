@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v17",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v17/candidate/gpt-5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n#ifndef WARP_SIZE\n#define WARP_SIZE 32\n#endif\n\nstatic constexpr int BLOCK_SIZE = 256;\n\n__forceinline__ __device__ unsigned int warp_reduce_sum(unsigned int val) {\n  unsigned mask = 0xFFFFFFFFu;\n  for (int offset = WARP_SIZE / 2; offset > 0; offset >>= 1) {\n    val += __shfl_down_sync(mask, val, offset);\n  }\n  return val;\n}\n\n__launch_bounds__(BLOCK_SIZE, 2)\n__global__ void reduce_add_kernel(const int* __restrict__ input, int* __restrict__ output, int n) {\n  // Accumulate per-thread partial sum in unsigned to guarantee well-defined wrap-around\n  unsigned int local = 0u;\n\n  // Use 64-bit indexing to safely handle large n\n  long long tid = threadIdx.x;\n  long long bid = blockIdx.x;\n  long long bdim = blockDim.x;\n  long long gdim = gridDim.x;\n\n  long long idx = bid * (bdim * 2LL) + tid;\n  long long stride = gdim * (bdim * 2LL);\n\n  while (idx < n) {\n    unsigned int a = static_cast<unsigned int>(__ldg(input + idx));\n    unsigned int b = 0u;\n    long long j = idx + bdim;\n    if (j < n) b = static_cast<unsigned int>(__ldg(input + j));\n    local += a + b;\n    idx += stride;\n  }\n\n  // Intra-warp reduction\n  local = warp_reduce_sum(local);\n\n  // Shared memory to hold warp-level sums\n  __shared__ unsigned int warp_sums[BLOCK_SIZE / WARP_SIZE];\n  int lane = threadIdx.x & (WARP_SIZE - 1);\n  int warp_id = threadIdx.x >> 5; // / WARP_SIZE\n\n  if (lane == 0) warp_sums[warp_id] = local;\n  __syncthreads();\n\n  // Final reduction by first warp\n  if (warp_id == 0) {\n    unsigned int block_sum = (lane < (BLOCK_SIZE / WARP_SIZE)) ? warp_sums[lane] : 0u;\n    block_sum = warp_reduce_sum(block_sum);\n    if (lane == 0) {\n      // Atomic add modulo 2^32 via unsigned int pointer\n      atomicAdd(reinterpret_cast<unsigned int*>(output), block_sum);\n    }\n  }\n}\n\ninline int compute_grid_size(int n, int block_size) {\n  if (n <= 0) return 1;\n  int elems_per_block = block_size * 2; // two elements per thread per iteration\n  int max_blocks_from_n = (n + elems_per_block - 1) / elems_per_block;\n\n  int device = 0;\n  cudaGetDevice(&device);\n  cudaDeviceProp prop{};\n  cudaGetDeviceProperties(&prop, device);\n  int sm_count = prop.multiProcessorCount > 0 ? prop.multiProcessorCount : 1;\n\n  // Oversubscribe SMs to hide latency but cap grid size to avoid excessive atomics\n  int blocks_by_sm = sm_count * 32; // tune: 32 blocks per SM\n\n  int grid = max_blocks_from_n;\n  if (grid > blocks_by_sm) grid = blocks_by_sm;\n\n  // Cap to legacy 1D grid limit for wide compatibility\n  const int grid_cap = 65535;\n  if (grid > grid_cap) grid = grid_cap;\n  if (grid < 1) grid = 1;\n  return grid;\n}\n\n} // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n  int grid = compute_grid_size(n, BLOCK_SIZE);\n  dim3 block(BLOCK_SIZE);\n  dim3 gridDim(grid);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    cudaMemset(output, 0, sizeof(int));\n    reduce_add_kernel<<<gridDim, block>>>(input, output, n);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v17",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 941856,
+    "min_elapsed_ns": 941024,
+    "max_elapsed_ns": 948032,
+    "all_elapsed_ns": [
+      941024,
+      941856,
+      948032
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 941024,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v17",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 400671,
+    "min_elapsed_ns": 350560,
+    "max_elapsed_ns": 466271,
+    "all_elapsed_ns": [
+      466271,
+      350560,
+      400671
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 466271,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v17",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v17/candidate/bench']' timed out after 5 seconds"
+  }
+}

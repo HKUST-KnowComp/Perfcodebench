@@ -1,0 +1,59 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_039",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_039/candidate/claude-sonnet-4-5/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\nstatic uint64_t checksum_i16(const int16_t* data, size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (size_t i = 0; i < n; ++i) {\n    hash ^= (uint16_t)data[i];\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n  uint64_t hash = 0;\n  int16_t* out = (int16_t*)malloc((size_t)output_len * sizeof(int16_t));\n  if (!out) return 0;\n  \n  const int32_t scale = ((int64_t)(input_len - 1) << 16) / (output_len - 1);\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    int i = 0;\n    int main_len = output_len & ~3;\n    \n    for (; i < main_len; i += 4) {\n      int32_t pos0 = ((int64_t)i * scale) >> 16;\n      int32_t pos1 = ((int64_t)(i+1) * scale) >> 16;\n      int32_t pos2 = ((int64_t)(i+2) * scale) >> 16;\n      int32_t pos3 = ((int64_t)(i+3) * scale) >> 16;\n      \n      int32_t frac0 = (((int64_t)i * scale) & 0xFFFF);\n      int32_t frac1 = (((int64_t)(i+1) * scale) & 0xFFFF);\n      int32_t frac2 = (((int64_t)(i+2) * scale) & 0xFFFF);\n      int32_t frac3 = (((int64_t)(i+3) * scale) & 0xFFFF);\n      \n      int32_t right0 = pos0 + (pos0 < input_len - 1);\n      int32_t right1 = pos1 + (pos1 < input_len - 1);\n      int32_t right2 = pos2 + (pos2 < input_len - 1);\n      int32_t right3 = pos3 + (pos3 < input_len - 1);\n      \n      int32_t s0 = ((int32_t)src[pos0] * (65536 - frac0) + (int32_t)src[right0] * frac0 + 32768) >> 16;\n      int32_t s1 = ((int32_t)src[pos1] * (65536 - frac1) + (int32_t)src[right1] * frac1 + 32768) >> 16;\n      int32_t s2 = ((int32_t)src[pos2] * (65536 - frac2) + (int32_t)src[right2] * frac2 + 32768) >> 16;\n      int32_t s3 = ((int32_t)src[pos3] * (65536 - frac3) + (int32_t)src[right3] * frac3 + 32768) >> 16;\n      \n      out[i] = (int16_t)s0;\n      out[i+1] = (int16_t)s1;\n      out[i+2] = (int16_t)s2;\n      out[i+3] = (int16_t)s3;\n    }\n    \n    for (; i < output_len; ++i) {\n      int32_t pos_fixed = ((int64_t)i * scale);\n      int32_t left = pos_fixed >> 16;\n      int32_t right = left + (left < input_len - 1);\n      int32_t frac = pos_fixed & 0xFFFF;\n      int32_t sample = ((int32_t)src[left] * (65536 - frac) + (int32_t)src[right] * frac + 32768) >> 16;\n      out[i] = (int16_t)sample;\n    }\n    \n    hash = checksum_i16(out, (size_t)output_len);\n  }\n  \n  free(out);\n  return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_039",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6192000,
+    "min_elapsed_ns": 6186000,
+    "max_elapsed_ns": 6562000,
+    "all_elapsed_ns": [
+      6562000,
+      6192000,
+      6186000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6562000,
+      "expected_checksum": 11317365290659187483,
+      "actual_checksum": 11317365290659187483
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_039",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 6309000,
+    "min_elapsed_ns": 6150000,
+    "max_elapsed_ns": 6792000,
+    "all_elapsed_ns": [
+      6792000,
+      6309000,
+      6150000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6792000,
+      "expected_checksum": 11317365290659187483,
+      "actual_checksum": 11317365290659187483
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_039",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/c_audio_resample_checksum_v2800_039/candidate/bench']' returned non-zero exit status 1."
+  }
+}

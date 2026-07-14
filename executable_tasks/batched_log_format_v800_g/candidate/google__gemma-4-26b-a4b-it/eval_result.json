@@ -1,0 +1,72 @@
+{
+  "task_id": "batched_log_format_v800_g",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/batched_log_format_v800_g/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <string>\n#include <cstdint>\n\nnamespace {\n\n// Fast integer to string conversion for unsigned integers\ninline char* write_uint(char* ptr, uint32_t val) {\n    if (val == 0) {\n        *ptr++ = '0';\n        return ptr;\n    }\n    char buf[10];\n    int i = 0;\n    while (val > 0) {\n        buf[i++] = (val % 10) + '0';\n        val /= 10;\n    }\n    while (i > 0) {\n        *ptr++ = buf[--i];\n    }\n    return ptr;\n}\n\ninline char* write_uint16(char* ptr, uint16_t val) {\n    if (val == 0) {\n        *ptr++ = '0';\n        return ptr;\n    }\n    char buf[5];\n    int i = 0;\n    while (val > 0) {\n        buf[i++] = (val % 10) + '0';\n        val /= 10;\n    }\n    while (i > 0) {\n        *ptr++ = buf[--i];\n    }\n    return ptr;\n}\n\n} // namespace\n\nuint64_t batched_log_checksum(\n    const std::vector<uint32_t>& timestamps,\n    const std::vector<uint32_t>& ids,\n    const std::vector<uint16_t>& levels,\n    const std::vector<std::string>& messages,\n    int iters) {\n    \n    if (ids.empty()) return 0;\n\n    // Pre-calculate a safe upper bound for buffer size to avoid reallocations\n    // Max uint32 is 10 digits, max uint16 is 5, plus separators and message lengths\n    size_t max_line_size = 11 + 11 + 6 + 1 + 1; // ts|id|lvl|\\n\n    // First pass to find total size needed for the buffer\n    size_t total_size = 0;\n    for (size_t i = 0; i < ids.size(); ++i) {\n        total_size += 11 + 11 + 6 + 1 + messages[i].size() + 1;\n    }\n\n    std::vector<char> buffer(total_size);\n    uint64_t final_hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        char* ptr = buffer.data();\n        for (size_t i = 0; i < ids.size(); ++i) {\n            ptr = write_uint(ptr, timestamps[i]);\n            *ptr++ = '|';\n            ptr = write_uint(ptr, ids[i]);\n            *ptr++ = '|';\n            ptr = write_uint16(ptr, levels[i]);\n            *ptr++ = '|';\n            \n            const std::string& msg = messages[i];\n            for (char c : msg) {\n                *ptr++ = c;\n            }\n            *ptr++ = '\\n';\n        }\n\n        // FNV-1a hash calculation on the populated part of the buffer\n        uint64_t hash = 1469598103934665603ULL;\n        size_t bytes_written = ptr - buffer.data();\n        for (size_t j = 0; j < bytes_written; ++j) {\n            hash ^= static_cast<uint8_t>(buffer[j]);\n            hash *= 1099511628211ULL;\n        }\n        final_hash = hash;\n    }\n\n    return final_hash;\n}",
+  "baseline": {
+    "task_id": "batched_log_format_v800_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1031223346,
+    "min_elapsed_ns": 1028710862,
+    "max_elapsed_ns": 1041791845,
+    "all_elapsed_ns": [
+      1041791845,
+      1028710862,
+      1031223346
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1041791845,
+      "expected_checksum": 8386061217910389473,
+      "actual_checksum": 8386061217910389473
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "batched_log_format_v800_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 522831567,
+    "min_elapsed_ns": 502880582,
+    "max_elapsed_ns": 549921366,
+    "all_elapsed_ns": [
+      502880582,
+      549921366,
+      522831567
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 502880582,
+      "expected_checksum": 8386061217910389473,
+      "actual_checksum": 8386061217910389473
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "batched_log_format_v800_g",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 407888289,
+    "min_elapsed_ns": 385911608,
+    "max_elapsed_ns": 430507164,
+    "all_elapsed_ns": [
+      430507164,
+      407888289,
+      385911608
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 430507164,
+      "expected_checksum": 8386061217910389473,
+      "actual_checksum": 8386061217910389473
+    },
+    "status": "ok"
+  }
+}

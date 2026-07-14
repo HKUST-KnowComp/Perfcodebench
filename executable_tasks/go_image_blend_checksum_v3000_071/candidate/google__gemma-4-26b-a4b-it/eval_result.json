@@ -1,0 +1,59 @@
+{
+  "task_id": "go_image_blend_checksum_v3000_071",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/go_image_blend_checksum_v3000_071/candidate/google__gemma-4-26b-a4b-it/solution.go",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "package main\n\nfunc solutionBlendByte(s, d, a uint8) uint8 {\n\t// Using the fast approximation (s*a + d*(255-a))/255\n\t// A common high-performance approximation for (x/255) is (x + 1 + (x >> 8)) >> 8\n\t// However, to ensure exact correctness with the original formula:\n\t// (s*a + d*(255-a) + 127) / 255\n\t// We use the integer division property: (val + 127) / 255 \u2248 (val + 127 + (val+127)>>8) >> 8\n\t// But for strict correctness to the provided baseline, we must match the exact math.\n\t// The baseline uses: uint8((uint32(s)*uint32(a) + uint32(d)*uint32(255-a) + 127) / 255)\n\t// To optimize, we avoid the division by using the property that x/255 \u2248 (x + 1 + (x >> 8)) >> 8 is not quite right for 255.\n\t// Actually, the most efficient way to do exact division by 255 is: (x + 1 + (x >> 8)) >> 8 is for 256.\n\t// For 255: (x + 127 + (x + 127) >> 8) >> 8 is also not quite it.\n\t// Let's use the standard fast way for exact division by 255: (x + 1 + (x >> 8)) >> 8 is for 256.\n\t// Let's stick to the math but optimize the loop structure.\n\treturn uint8((uint32(s)*uint32(a) + uint32(d)*(255-uint32(a)) + 127) / 255)\n}\n\nfunc solutionChecksumBytes(data []byte) uint64 {\n\tvar hash uint64 = 1469598103934665603\n\tfor _, b := range data {\n\t\thash ^= uint64(b)\n\t\thash *= 1099511628211\n\t}\n\treturn hash\n}\n\nfunc run(src, dst []byte, width, height, iters int) uint64 {\n\tpixels := width * height\n\tout := make([]byte, pixels*4)\n\tvar hash uint64\n\n\tfor iter := 0; iter < iters; iter++ {\n\t\tfor i := 0; i < pixels; i++ {\n\t\t\tbase := i << 2\n\t\t\ts := src[base]\n\t\t\td := dst[base]\n\t\t\ta := src[base+3]\n\t\t\t\n\t\t\t// Inline the blending to avoid function call overhead and allow compiler optimizations\n\t\t\ta32 := uint32(a)\n\t\t\tinvA := 255 - a32\n\n\t\t\t// R\n\t\t\tout[base] = uint8((uint32(src[base])*a32 + uint32(dst[base])*invA + 127) / 255)\n\t\t\t// G\n\t\t\tout[base+1] = uint8((uint32(src[base+1])*a32 + uint32(dst[base+1])*invA + 127) / 255)\n\t\t\t// B\n\t\t\tout[base+2] = uint8((uint32(src[base+2])*a32 + uint32(dst[base+2])*invA + 127) / 255)\n\t\t\t// A\n\t\t\tout[base+3] = 255\n\t\t}\n\t\thash = solutionChecksumBytes(out)\n\t}\n\treturn hash\n}\n",
+  "baseline": {
+    "task_id": "go_image_blend_checksum_v3000_071",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 15406747,
+    "min_elapsed_ns": 14962532,
+    "max_elapsed_ns": 16121438,
+    "all_elapsed_ns": [
+      15406747,
+      14962532,
+      16121438
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15406747,
+      "expected_checksum": 9641214619115859321,
+      "actual_checksum": 9641214619115859321
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "go_image_blend_checksum_v3000_071",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 17591530,
+    "min_elapsed_ns": 15464922,
+    "max_elapsed_ns": 18086918,
+    "all_elapsed_ns": [
+      18086918,
+      17591530,
+      15464922
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 18086918,
+      "expected_checksum": 9641214619115859321,
+      "actual_checksum": 9641214619115859321
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "go_image_blend_checksum_v3000_071",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['env', 'GOCACHE=build/go_image_blend_checksum_v3000_071/candidate/.gocache', 'go', 'build', '-o', 'build/go_image_blend_checksum_v3000_071/candidate/bench', 'build/go_image_blend_checksum_v3000_071/candidate/benchmark_main.go', 'build/go_image_blend_checksum_v3000_071/candidate/solution.go']' returned non-zero exit status 2."
+  }
+}

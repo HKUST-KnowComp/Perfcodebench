@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_dimension_join_sum_v1100_g",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_dimension_join_sum_v1100_g/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 11,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <algorithm>\n#include <emmintrin.h>  // SSE2\n\nuint64_t join_sum(\n    const std::vector<uint32_t>& dim_keys,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n\n  // Build direct-lookup table: lookup[key] = value\n  // Find min and max keys to size the table\n  if (dim_keys.empty()) {\n    return 0;\n  }\n\n  uint32_t min_key = dim_keys[0];\n  uint32_t max_key = dim_keys[0];\n  for (std::size_t i = 1; i < dim_keys.size(); ++i) {\n    if (dim_keys[i] < min_key) min_key = dim_keys[i];\n    if (dim_keys[i] > max_key) max_key = dim_keys[i];\n  }\n\n  const std::size_t table_size = static_cast<std::size_t>(max_key - min_key) + 1;\n  std::vector<uint32_t> lookup(table_size, 0);\n\n  for (std::size_t i = 0; i < dim_keys.size(); ++i) {\n    lookup[dim_keys[i] - min_key] = dim_values[i];\n  }\n\n  const uint32_t* lookup_ptr = lookup.data();\n  const uint32_t* probe_keys_ptr = probe_keys.data();\n  const uint32_t* probe_weights_ptr = probe_weights.data();\n  const std::size_t n = probe_keys.size();\n\n  uint64_t sum = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    __m128i acc0 = _mm_setzero_si128();\n    __m128i acc1 = _mm_setzero_si128();\n    __m128i acc2 = _mm_setzero_si128();\n    __m128i acc3 = _mm_setzero_si128();\n\n    std::size_t i = 0;\n\n    // Process 8 elements at a time with 4 accumulators\n    const std::size_t unroll_limit = (n >= 7) ? (n - 7) : 0;\n    for (; i < unroll_limit; i += 8) {\n      // Load 8 keys and 8 weights\n      uint32_t k0 = probe_keys_ptr[i];\n      uint32_t k1 = probe_keys_ptr[i + 1];\n      uint32_t k2 = probe_keys_ptr[i + 2];\n      uint32_t k3 = probe_keys_ptr[i + 3];\n      uint32_t k4 = probe_keys_ptr[i + 4];\n      uint32_t k5 = probe_keys_ptr[i + 5];\n      uint32_t k6 = probe_keys_ptr[i + 6];\n      uint32_t k7 = probe_keys_ptr[i + 7];\n\n      uint32_t v0 = lookup_ptr[k0 - min_key];\n      uint32_t v1 = lookup_ptr[k1 - min_key];\n      uint32_t v2 = lookup_ptr[k2 - min_key];\n      uint32_t v3 = lookup_ptr[k3 - min_key];\n      uint32_t v4 = lookup_ptr[k4 - min_key];\n      uint32_t v5 = lookup_ptr[k5 - min_key];\n      uint32_t v6 = lookup_ptr[k6 - min_key];\n      uint32_t v7 = lookup_ptr[k7 - min_key];\n\n      uint32_t w0 = probe_weights_ptr[i];\n      uint32_t w1 = probe_weights_ptr[i + 1];\n      uint32_t w2 = probe_weights_ptr[i + 2];\n      uint32_t w3 = probe_weights_ptr[i + 3];\n      uint32_t w4 = probe_weights_ptr[i + 4];\n      uint32_t w5 = probe_weights_ptr[i + 5];\n      uint32_t w6 = probe_weights_ptr[i + 6];\n      uint32_t w7 = probe_weights_ptr[i + 7];\n\n      // Compute 64-bit products and accumulate\n      __m128i prod0 = _mm_set_epi64x(\n          static_cast<int64_t>(static_cast<uint64_t>(v1) * w1),\n          static_cast<int64_t>(static_cast<uint64_t>(v0) * w0));\n      __m128i prod1 = _mm_set_epi64x(\n          static_cast<int64_t>(static_cast<uint64_t>(v3) * w3),\n          static_cast<int64_t>(static_cast<uint64_t>(v2) * w2));\n      __m128i prod2 = _mm_set_epi64x(\n          static_cast<int64_t>(static_cast<uint64_t>(v5) * w5),\n          static_cast<int64_t>(static_cast<uint64_t>(v4) * w4));\n      __m128i prod3 = _mm_set_epi64x(\n          static_cast<int64_t>(static_cast<uint64_t>(v7) * w7),\n          static_cast<int64_t>(static_cast<uint64_t>(v6) * w6));\n\n      acc0 = _mm_add_epi64(acc0, prod0);\n      acc1 = _mm_add_epi64(acc1, prod1);\n      acc2 = _mm_add_epi64(acc2, prod2);\n      acc3 = _mm_add_epi64(acc3, prod3);\n    }\n\n    // Combine accumulators\n    __m128i acc01 = _mm_add_epi64(acc0, acc1);\n    __m128i acc23 = _mm_add_epi64(acc2, acc3);\n    __m128i acc_all = _mm_add_epi64(acc01, acc23);\n\n    // Extract and sum the two 64-bit values\n    uint64_t tmp[2];\n    _mm_storeu_si128(reinterpret_cast<__m128i*>(tmp), acc_all);\n    sum = tmp[0] + tmp[1];\n\n    // Handle remaining elements\n    for (; i < n; ++i) {\n      uint32_t k = probe_keys_ptr[i];\n      uint32_t v = lookup_ptr[k - min_key];\n      uint32_t w = probe_weights_ptr[i];\n      sum += static_cast<uint64_t>(v) * static_cast<uint64_t>(w);\n    }\n  }\n\n  return sum;\n}",
+  "baseline": {
+    "task_id": "dense_dimension_join_sum_v1100_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6666294137,
+    "min_elapsed_ns": 6469111539,
+    "max_elapsed_ns": 6842100121,
+    "all_elapsed_ns": [
+      6469111539,
+      6666294137,
+      6842100121
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6469111539,
+      "expected_sum": 36603691008,
+      "actual_sum": 36603691008
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_dimension_join_sum_v1100_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 91461180,
+    "min_elapsed_ns": 84267270,
+    "max_elapsed_ns": 96923745,
+    "all_elapsed_ns": [
+      96923745,
+      91461180,
+      84267270
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 96923745,
+      "expected_sum": 36603691008,
+      "actual_sum": 36603691008
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_dimension_join_sum_v1100_g",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 68715437,
+    "min_elapsed_ns": 61648054,
+    "max_elapsed_ns": 80477184,
+    "all_elapsed_ns": [
+      68715437,
+      61648054,
+      80477184
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 68715437,
+      "expected_sum": 36603691008,
+      "actual_sum": 36603691008
+    },
+    "status": "ok"
+  }
+}

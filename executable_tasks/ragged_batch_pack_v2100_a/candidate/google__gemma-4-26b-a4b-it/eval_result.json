@@ -1,0 +1,59 @@
+{
+  "task_id": "ragged_batch_pack_v2100_a",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/ragged_batch_pack_v2100_a/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <numeric>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t ragged_pack_checksum(const std::vector<uint32_t>& padded_tokens, const std::vector<int>& lengths, int batch, int max_len, int iters) {\n  if (iters <= 0) return 0;\n\n  // Pre-calculate total tokens to avoid reallocations\n  size_t total_tokens = 0;\n  for (int b = 0; b < batch; ++b) {\n    total_tokens += lengths[static_cast<size_t>(b)];\n  }\n\n  std::vector<uint32_t> packed_tokens;\n  std::vector<uint32_t> positions;\n  packed_tokens.reserve(total_tokens);\n  positions.reserve(total_tokens);\n\n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    packed_tokens.clear();\n    positions.clear();\n\n    for (int b = 0; b < batch; ++b) {\n      const int len = lengths[static_cast<size_t>(b)];\n      const size_t offset = static_cast<size_t>(b) * static_cast<size_t>(max_len);\n      \n      for (int i = 0; i < len; ++i) {\n        packed_tokens.push_back(padded_tokens[offset + i]);\n        positions.push_back(static_cast<uint32_t>(i));\n      }\n    }\n\n    hash = 1469598103934665603ULL;\n    const uint32_t* p_tokens = packed_tokens.data();\n    const uint32_t* p_pos = positions.data();\n    const size_t n = packed_tokens.size();\n\n    for (size_t i = 0; i < n; ++i) {\n      hash = mix(hash, static_cast<uint64_t>(p_tokens[i]));\n      hash = mix(hash, static_cast<uint64_t>(p_pos[i]));\n    }\n  }\n\n  return hash;\n}",
+  "baseline": {
+    "task_id": "ragged_batch_pack_v2100_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3179367,
+    "min_elapsed_ns": 2607695,
+    "max_elapsed_ns": 3468866,
+    "all_elapsed_ns": [
+      3468866,
+      3179367,
+      2607695
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3468866,
+      "expected_checksum": 8314262610627821334,
+      "actual_checksum": 8314262610627821334
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "ragged_batch_pack_v2100_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1267095,
+    "min_elapsed_ns": 1240712,
+    "max_elapsed_ns": 1267660,
+    "all_elapsed_ns": [
+      1267095,
+      1240712,
+      1267660
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1267095,
+      "expected_checksum": 8314262610627821334,
+      "actual_checksum": 8314262610627821334
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "ragged_batch_pack_v2100_a",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/ragged_batch_pack_v2100_a/harness', 'executable_tasks/ragged_batch_pack_v2100_a/harness/benchmark_main.cpp', 'executable_tasks/ragged_batch_pack_v2100_a/candidate/google__gemma-4-26b-a4b-it/solution.cpp', '-o', 'build/ragged_batch_pack_v2100_a/candidate/bench']' returned non-zero exit status 1."
+  }
+}

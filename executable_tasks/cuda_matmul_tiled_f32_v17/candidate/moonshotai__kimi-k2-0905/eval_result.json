@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_matmul_tiled_f32_v17",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_matmul_tiled_f32_v17/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int TILE = 64;\nconstexpr int BLOCK = 16;\nconstexpr int UNROLL = 4;\n\n__global__ void gemm_tiled_kernel(const float* __restrict__ A,\n                                  const float* __restrict__ B,\n                                  float* __restrict__ C,\n                                  int n)\n{\n    const int tile_x = blockIdx.x;\n    const int row_base = (threadIdx.y << 2) + (threadIdx.x >> 2) * 4;\n    const int col_base = (threadIdx.x & 3) << 2;\n\n    const int global_row = tile_x * TILE + row_base;\n    const int global_col = tile_x * TILE + col_base;\n\n    __shared__ float smem_A[TILE][TILE + 1];\n    __shared__ float smem_B[TILE][TILE + 1];\n\n    float4 fragC[4] = {};\n\n    for (int k_tile = 0; k_tile < n; k_tile += TILE) {\n        #pragma unroll\n        for (int i = 0; i < 4; ++i) {\n            int r = row_base + i;\n            int c = col_base;\n            if (global_row + i < n && c < n && k_tile + c < n) {\n                float4 a = *reinterpret_cast<const float4*>(&A[(global_row + i) * n + k_tile + c]);\n                smem_A[r][c + 0] = a.x;\n                smem_A[r][c + 1] = a.y;\n                smem_A[r][c + 2] = a.z;\n                smem_A[r][c + 3] = a.w;\n            }\n        }\n\n        #pragma unroll\n        for (int i = 0; i < 4; ++i) {\n            int r = row_base + i;\n            int c = col_base;\n            if (k_tile + r < n && global_col + i < n && global_col + i < n) {\n                float4 b = *reinterpret_cast<const float4*>(&B[(k_tile + r) * n + global_col + i]);\n                smem_B[r][c + 0] = b.x;\n                smem_B[r][c + 1] = b.y;\n                smem_B[r][c + 2] = b.z;\n                smem_B[r][c + 3] = b.w;\n            }\n        }\n\n        __syncthreads();\n\n        #pragma unroll\n        for (int k = 0; k < TILE; k += UNROLL) {\n            float4 a[UNROLL];\n            float4 b[UNROLL];\n            #pragma unroll\n            for (int u = 0; u < UNROLL; ++u) {\n                int kk = k + u;\n                a[u] = make_float4(smem_A[row_base + 0][kk],\n                                   smem_A[row_base + 1][kk],\n                                   smem_A[row_base + 2][kk],\n                                   smem_A[row_base + 3][kk]);\n                b[u] = make_float4(smem_B[kk][col_base + 0],\n                                   smem_B[kk][col_base + 1],\n                                   smem_B[kk][col_base + 2],\n                                   smem_B[kk][col_base + 3]);\n            }\n            #pragma unroll\n            for (int u = 0; u < UNROLL; ++u) {\n                fragC[0].x += a[u].x * b[u].x;\n                fragC[0].y += a[u].x * b[u].y;\n                fragC[0].z += a[u].x * b[u].z;\n                fragC[0].w += a[u].x * b[u].w;\n\n                fragC[1].x += a[u].y * b[u].x;\n                fragC[1].y += a[u].y * b[u].y;\n                fragC[1].z += a[u].y * b[u].z;\n                fragC[1].w += a[u].y * b[u].w;\n\n                fragC[2].x += a[u].z * b[u].x;\n                fragC[2].y += a[u].z * b[u].y;\n                fragC[2].z += a[u].z * b[u].z;\n                fragC[2].w += a[u].z * b[u].w;\n\n                fragC[3].x += a[u].w * b[u].x;\n                fragC[3].y += a[u].w * b[u].y;\n                fragC[3].z += a[u].w * b[u].z;\n                fragC[3].w += a[u].w * b[u].w;\n            }\n        }\n        __syncthreads();\n    }\n\n    #pragma unroll\n    for (int i = 0; i < 4; ++i) {\n        int r = global_row + i;\n        int c = global_col;\n        if (r < n && c < n) {\n            *reinterpret_cast<float4*>(&C[r * n + c]) = fragC[i];\n        }\n    }\n}\n\n}  // namespace\n\nvoid matmul_f32(const float* a, const float* b, float* c, int n, int iters) {\n    const int tiles = (n + TILE - 1) / TILE;\n    dim3 block(BLOCK, BLOCK);\n    for (int i = 0; i < iters; ++i) {\n        gemm_tiled_kernel<<<tiles, block>>>(a, b, c, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_matmul_tiled_f32_v17",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 350080,
+    "min_elapsed_ns": 347743,
+    "max_elapsed_ns": 350239,
+    "all_elapsed_ns": [
+      350080,
+      350239,
+      347743
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 350080,
+      "max_abs_error": 0,
+      "checksum": 2906550000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_matmul_tiled_f32_v17",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 207903,
+    "min_elapsed_ns": 207488,
+    "max_elapsed_ns": 209376,
+    "all_elapsed_ns": [
+      207903,
+      209376,
+      207488
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 207903,
+      "max_abs_error": 0,
+      "checksum": 2906550000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_matmul_tiled_f32_v17",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_matmul_tiled_f32_v17/candidate/bench']' timed out after 5 seconds"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "task_id": "cuda_thrust_sort_i32_v04",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_thrust_sort_i32_v04/candidate/claude-sonnet-4-5/solution.cu",
+  "benchmark_timeout_sec": 120,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int RADIX_BITS = 4;\nconstexpr int RADIX = 1 << RADIX_BITS;\nconstexpr int RADIX_MASK = RADIX - 1;\nconstexpr int BLOCK_SIZE = 256;\nconstexpr int ITEMS_PER_THREAD = 4;\n\n__device__ __forceinline__ unsigned int extract_digit(int value, int shift) {\n    unsigned int uval = value ^ 0x80000000u;\n    return (uval >> shift) & RADIX_MASK;\n}\n\n__global__ void radix_sort_kernel(int* data, int* temp, int n, int shift) {\n    __shared__ int local_hist[RADIX];\n    __shared__ int global_offsets[RADIX];\n    __shared__ int block_data[BLOCK_SIZE * ITEMS_PER_THREAD];\n    \n    int tid = threadIdx.x;\n    int block_offset = blockIdx.x * BLOCK_SIZE * ITEMS_PER_THREAD;\n    \n    if (tid < RADIX) {\n        local_hist[tid] = 0;\n    }\n    __syncthreads();\n    \n    int items[ITEMS_PER_THREAD];\n    int digits[ITEMS_PER_THREAD];\n    \n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; ++i) {\n        int idx = block_offset + tid + i * BLOCK_SIZE;\n        if (idx < n) {\n            items[i] = data[idx];\n            digits[i] = extract_digit(items[i], shift);\n            atomicAdd(&local_hist[digits[i]], 1);\n        } else {\n            items[i] = 0x7FFFFFFF;\n            digits[i] = RADIX - 1;\n        }\n    }\n    __syncthreads();\n    \n    if (tid < RADIX) {\n        int sum = 0;\n        for (int b = 0; b < gridDim.x; ++b) {\n            int count = (b == blockIdx.x) ? local_hist[tid] : 0;\n            if (b < blockIdx.x) {\n                for (int d = 0; d < RADIX; ++d) {\n                    if (d == tid) sum += local_hist[d];\n                }\n            }\n        }\n        global_offsets[tid] = sum;\n    }\n    __syncthreads();\n    \n    int prefix_sum = 0;\n    if (tid < RADIX) {\n        for (int d = 0; d < tid; ++d) {\n            prefix_sum += local_hist[d];\n        }\n    }\n    __syncthreads();\n    \n    __shared__ int digit_offsets[RADIX];\n    if (tid < RADIX) {\n        digit_offsets[tid] = global_offsets[tid] + prefix_sum;\n    }\n    __syncthreads();\n    \n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; ++i) {\n        int idx = block_offset + tid + i * BLOCK_SIZE;\n        if (idx < n) {\n            int pos = atomicAdd(&digit_offsets[digits[i]], 1);\n            temp[pos] = items[i];\n        }\n    }\n}\n\n__global__ void histogram_kernel(const int* data, int* hist, int n, int shift) {\n    __shared__ int local_hist[RADIX];\n    int tid = threadIdx.x;\n    \n    if (tid < RADIX) {\n        local_hist[tid] = 0;\n    }\n    __syncthreads();\n    \n    for (int idx = blockIdx.x * blockDim.x + tid; idx < n; idx += blockDim.x * gridDim.x) {\n        unsigned int digit = extract_digit(data[idx], shift);\n        atomicAdd(&local_hist[digit], 1);\n    }\n    __syncthreads();\n    \n    if (tid < RADIX) {\n        atomicAdd(&hist[tid], local_hist[tid]);\n    }\n}\n\n__global__ void scatter_kernel(const int* input, int* output, const int* offsets, int n, int shift) {\n    __shared__ int local_offsets[RADIX];\n    \n    if (threadIdx.x < RADIX) {\n        local_offsets[threadIdx.x] = offsets[threadIdx.x];\n    }\n    __syncthreads();\n    \n    for (int idx = blockIdx.x * blockDim.x + threadIdx.x; idx < n; idx += blockDim.x * gridDim.x) {\n        int value = input[idx];\n        unsigned int digit = extract_digit(value, shift);\n        int pos = atomicAdd(&local_offsets[digit], 1);\n        output[pos] = value;\n    }\n}\n\n}  // namespace\n\nvoid sort_vec_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0) return;\n    \n    int* d_temp;\n    cudaMalloc(&d_temp, n * sizeof(int));\n    int* d_hist;\n    cudaMalloc(&d_hist, RADIX * sizeof(int));\n    int* d_offsets;\n    cudaMalloc(&d_offsets, RADIX * sizeof(int));\n    \n    int* src = const_cast<int*>(input);\n    int* dst = output;\n    \n    cudaMemcpy(dst, input, n * sizeof(int), cudaMemcpyDeviceToDevice);\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        if (iter > 0) {\n            cudaMemcpy(dst, input, n * sizeof(int), cudaMemcpyDeviceToDevice);\n        }\n        \n        for (int shift = 0; shift < 32; shift += RADIX_BITS) {\n            cudaMemset(d_hist, 0, RADIX * sizeof(int));\n            \n            int num_blocks = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;\n            histogram_kernel<<<num_blocks, BLOCK_SIZE>>>(dst, d_hist, n, shift);\n            \n            int h_hist[RADIX];\n            cudaMemcpy(h_hist, d_hist, RADIX * sizeof(int), cudaMemcpyDeviceToHost);\n            \n            int h_offsets[RADIX];\n            h_offsets[0] = 0;\n            for (int i = 1; i < RADIX; ++i) {\n                h_offsets[i] = h_offsets[i - 1] + h_hist[i - 1];\n            }\n            \n            cudaMemcpy(d_offsets, h_offsets, RADIX * sizeof(int), cudaMemcpyHostToDevice);\n            \n            scatter_kernel<<<num_blocks, BLOCK_SIZE>>>(dst, d_temp, d_offsets, n, shift);\n            \n            int* tmp = dst;\n            dst = d_temp;\n            d_temp = tmp;\n        }\n        \n        if (dst != output) {\n            cudaMemcpy(output, dst, n * sizeof(int), cudaMemcpyDeviceToDevice);\n            dst = output;\n            d_temp = (dst == output) ? src : output;\n        }\n    }\n    \n    cudaFree(d_temp);\n    cudaFree(d_hist);\n    cudaFree(d_offsets);\n}",
+  "baseline": {
+    "task_id": "cuda_thrust_sort_i32_v04",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1423308750000,
+    "min_elapsed_ns": 1423305250000,
+    "max_elapsed_ns": 1423310875000,
+    "all_elapsed_ns": [
+      1423305250000,
+      1423310875000,
+      1423308750000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1423305250000
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_thrust_sort_i32_v04",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2016927,
+    "min_elapsed_ns": 2013632,
+    "max_elapsed_ns": 2252640,
+    "all_elapsed_ns": [
+      2013632,
+      2252640,
+      2016927
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2013632
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_thrust_sort_i32_v04",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_thrust_sort_i32_v04/candidate/bench']' returned non-zero exit status 2."
+  }
+}

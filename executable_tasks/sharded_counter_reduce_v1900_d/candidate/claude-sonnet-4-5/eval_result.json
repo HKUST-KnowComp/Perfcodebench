@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce_v1900_d",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v1900_d/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 14,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <mutex>\n#include <thread>\n#include <vector>\n\nnamespace {\n\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  constexpr std::size_t NUM_SHARDS = 256;\n  std::vector<uint64_t> counts(static_cast<std::size_t>(key_space), 0);\n  std::vector<std::mutex> shard_mutexes(NUM_SHARDS);\n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    std::fill(counts.begin(), counts.end(), 0);\n    std::vector<std::thread> threads;\n    const std::size_t chunk = keys.size() / static_cast<std::size_t>(num_threads);\n    \n    for (int t = 0; t < num_threads; ++t) {\n      const std::size_t begin = static_cast<std::size_t>(t) * chunk;\n      const std::size_t end = (t + 1 == num_threads) ? keys.size() : begin + chunk;\n      \n      threads.emplace_back([&, begin, end]() {\n        constexpr std::size_t LOCAL_BATCH = 64;\n        std::vector<uint64_t> local_counts(static_cast<std::size_t>(key_space), 0);\n        \n        for (std::size_t i = begin; i < end; ++i) {\n          const std::size_t key_idx = static_cast<std::size_t>(keys[i]);\n          local_counts[key_idx] += static_cast<uint64_t>(values[i]);\n          \n          if ((i - begin + 1) % LOCAL_BATCH == 0 || i + 1 == end) {\n            for (std::size_t k = 0; k < local_counts.size(); ++k) {\n              if (local_counts[k] > 0) {\n                const std::size_t shard_idx = k % NUM_SHARDS;\n                std::lock_guard<std::mutex> lock(shard_mutexes[shard_idx]);\n                counts[k] += local_counts[k];\n                local_counts[k] = 0;\n              }\n            }\n          }\n        }\n      });\n    }\n    \n    for (std::thread& th : threads) {\n      th.join();\n    }\n    hash = checksum_u64(counts);\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v1900_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 11808888804,
+    "min_elapsed_ns": 11000439764,
+    "max_elapsed_ns": 12284076983,
+    "all_elapsed_ns": [
+      11808888804,
+      11000439764,
+      12284076983
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11808888804,
+      "expected_checksum": 4927837675318346627,
+      "actual_checksum": 4927837675318346627
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v1900_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 28009773,
+    "min_elapsed_ns": 27801095,
+    "max_elapsed_ns": 28198662,
+    "all_elapsed_ns": [
+      27801095,
+      28198662,
+      28009773
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 27801095,
+      "expected_checksum": 4927837675318346627,
+      "actual_checksum": 4927837675318346627
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v1900_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 12676291473,
+    "min_elapsed_ns": 11626804212,
+    "max_elapsed_ns": 12837840828,
+    "all_elapsed_ns": [
+      12837840828,
+      12676291473,
+      11626804212
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12837840828,
+      "expected_checksum": 4927837675318346627,
+      "actual_checksum": 4927837675318346627
+    },
+    "status": "ok"
+  }
+}

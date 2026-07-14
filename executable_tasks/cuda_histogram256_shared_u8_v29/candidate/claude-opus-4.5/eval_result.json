@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v29",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v29/candidate/claude-opus-4.5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void histogram_shared_kernel(const unsigned char* __restrict__ input,\n                                        unsigned int* __restrict__ output,\n                                        int n) {\n    __shared__ unsigned int shist[256 * 64];\n    \n    const int tid = threadIdx.x;\n    const int lane = tid & 63;\n    const int base = lane * 256;\n    \n    // Initialize shared memory histogram for this thread's portion\n    #pragma unroll\n    for (int i = 0; i < 256; i += 4) {\n        shist[base + i] = 0;\n        shist[base + i + 1] = 0;\n        shist[base + i + 2] = 0;\n        shist[base + i + 3] = 0;\n    }\n    __syncthreads();\n    \n    // Process input using vectorized loads\n    const int stride = blockDim.x * gridDim.x * 16;\n    int idx = (blockIdx.x * blockDim.x + tid) * 16;\n    \n    const uint4* input4 = reinterpret_cast<const uint4*>(input);\n    const int n16 = (n / 16) * 16;\n    \n    while (idx < n16) {\n        uint4 data = input4[idx / 16];\n        \n        // Process 16 bytes from uint4\n        #pragma unroll\n        for (int i = 0; i < 4; ++i) {\n            unsigned int word;\n            if (i == 0) word = data.x;\n            else if (i == 1) word = data.y;\n            else if (i == 2) word = data.z;\n            else word = data.w;\n            \n            shist[base + (word & 0xFF)]++;\n            shist[base + ((word >> 8) & 0xFF)]++;\n            shist[base + ((word >> 16) & 0xFF)]++;\n            shist[base + (word >> 24)]++;\n        }\n        \n        idx += stride;\n    }\n    \n    // Handle remaining elements\n    int rem_idx = n16 + (blockIdx.x * blockDim.x + tid);\n    while (rem_idx < n) {\n        shist[base + input[rem_idx]]++;\n        rem_idx += blockDim.x * gridDim.x;\n    }\n    \n    __syncthreads();\n    \n    // Reduce shared histograms and write to global\n    // Each thread handles 4 bins\n    #pragma unroll\n    for (int bin = tid; bin < 256; bin += blockDim.x) {\n        unsigned int sum = 0;\n        #pragma unroll\n        for (int t = 0; t < 64; ++t) {\n            sum += shist[t * 256 + bin];\n        }\n        if (sum > 0) {\n            atomicAdd(output + bin, sum);\n        }\n    }\n}\n\n}  // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters) {\n    constexpr int kBlock = 64;\n    const int grid = 128;\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemsetAsync(output, 0, 256 * sizeof(unsigned int));\n        histogram_shared_kernel<<<grid, kBlock>>>(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v29",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 129311264,
+    "min_elapsed_ns": 129305023,
+    "max_elapsed_ns": 129323425,
+    "all_elapsed_ns": [
+      129323425,
+      129305023,
+      129311264
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 129323425,
+      "checksum": 1077936128
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v29",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 933471,
+    "min_elapsed_ns": 916032,
+    "max_elapsed_ns": 939455,
+    "all_elapsed_ns": [
+      916032,
+      933471,
+      939455
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 916032,
+      "checksum": 1077936128
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v29",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['nvcc', '-O3', '-std=c++17', '-Iexecutable_tasks/cuda_histogram256_shared_u8_v29/harness', '-gencode=arch=compute_80,code=sm_80', '-gencode=arch=compute_80,code=compute_80', 'executable_tasks/cuda_histogram256_shared_u8_v29/harness/benchmark_main.cu', 'executable_tasks/cuda_histogram256_shared_u8_v29/candidate/claude-opus-4.5/solution.cu', '-o', 'build/cuda_histogram256_shared_u8_v29/candidate/bench']' returned non-zero exit status 255."
+  }
+}

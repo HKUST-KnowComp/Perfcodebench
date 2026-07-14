@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_jacobi_2d_v1700_c",
+  "model": "qwen/qwen3.6-plus",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v1700_c/candidate/qwen__qwen3.6-plus/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <cstring>\n#include <omp.h>\n\nnamespace {\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  std::vector<uint32_t> a = input;\n  std::vector<uint32_t> b(a.size(), 0);\n\n  uint32_t* pa = a.data();\n  uint32_t* pb = b.data();\n\n  #pragma omp parallel\n  {\n    for (int step = 0; step < steps; ++step) {\n      #pragma omp single\n      {\n        std::memcpy(pb, pa, cols * sizeof(uint32_t));\n        std::memcpy(pb + (rows - 1) * cols, pa + (rows - 1) * cols, cols * sizeof(uint32_t));\n        for (int r = 1; r < rows - 1; ++r) {\n          pb[r * cols] = pa[r * cols];\n          pb[r * cols + cols - 1] = pa[r * cols + cols - 1];\n        }\n      }\n\n      #pragma omp for schedule(static)\n      for (int r = 1; r < rows - 1; ++r) {\n        const uint32_t* __restrict__ row_a = pa + r * cols;\n        uint32_t* __restrict__ row_b = pb + r * cols;\n        for (int c = 1; c < cols - 1; ++c) {\n          uint32_t val = row_a[c];\n          uint32_t sum = (val << 2) + row_a[c-1] + row_a[c+1] + row_a[c-cols] + row_a[c+cols];\n          row_b[c] = sum >> 3;\n        }\n      }\n\n      #pragma omp single\n      {\n        a.swap(b);\n        pa = a.data();\n        pb = b.data();\n      }\n    }\n  }\n\n  return checksum_u32(a);\n}",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v1700_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 250226361,
+    "min_elapsed_ns": 243523211,
+    "max_elapsed_ns": 335401218,
+    "all_elapsed_ns": [
+      250226361,
+      335401218,
+      243523211
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 250226361,
+      "expected_checksum": 16103514754554193683,
+      "actual_checksum": 16103514754554193683
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v1700_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 114703508,
+    "min_elapsed_ns": 114552658,
+    "max_elapsed_ns": 117937255,
+    "all_elapsed_ns": [
+      114552658,
+      117937255,
+      114703508
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 114552658,
+      "expected_checksum": 16103514754554193683,
+      "actual_checksum": 16103514754554193683
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v1700_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 2222952376,
+    "min_elapsed_ns": 2033797233,
+    "max_elapsed_ns": 2390110558,
+    "all_elapsed_ns": [
+      2033797233,
+      2390110558,
+      2222952376
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2033797233,
+      "expected_checksum": 16103514754554193683,
+      "actual_checksum": 16103514754554193683
+    },
+    "status": "ok"
+  }
+}

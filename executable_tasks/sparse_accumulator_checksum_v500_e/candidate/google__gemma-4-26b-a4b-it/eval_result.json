@@ -1,0 +1,72 @@
+{
+  "task_id": "sparse_accumulator_checksum_v500_e",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sparse_accumulator_checksum_v500_e/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n#include <cstdint>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n// Precompute the effect of mixing 0 into the hash multiple times.\n// Since the original loop does: hash = mix(hash, 0) for every key in domain.\n// We can precompute this or observe the pattern.\n// However, for a general solution that is fast, we can precompute a table or \n// just realize that if we skip zeros, we need to know what the hash becomes \n// after N calls to mix(h, 0).\n\nstruct Entry {\n    uint32_t idx;\n    uint64_t val;\n};\n\n} // namespace\n\nuint64_t sparse_accumulator_hash(\n    const std::vector<uint32_t>& indices,\n    const std::vector<uint32_t>& values,\n    uint32_t domain,\n    int iters) {\n    \n    if (indices.empty()) {\n        uint64_t hash = 1469598103934665603ULL;\n        for (int iter = 0; iter < iters; ++iter) {\n            for (uint32_t k = 0; k < domain; ++k) {\n                hash = mix(hash, 0ULL);\n            }\n        }\n        return hash;\n    }\n\n    // Precompute the transformation for mixing 0\n    // f(h) = mix(h, 0) = (h ^ 0) * 1099511628211ULL\n    // This is a linear transformation in the ring of 2^64 integers: h -> h * C\n    const uint64_t C = 1099511628211ULL;\n\n    uint64_t final_hash = 1469598103934665603ULL;\n\n    // We need to perform the accumulation and hashing 'iters' times.\n    // Note: The original code clears the accumulator every iteration, \n    // but the input indices/values don't change. \n    // So the accumulator content is identical every iteration.\n    \n    // 1. Accumulate values\n    std::vector<Entry> sorted_entries;\n    sorted_entries.reserve(indices.size());\n    for (size_t i = 0; i < indices.size(); ++i) {\n        sorted_entries.push_back({indices[i], static_cast<uint64_t>(values[i])});\n    }\n    std::sort(sorted_entries.begin(), sorted_entries.end(), [](const Entry& a, const Entry& b) {\n        return a.idx < b.idx;\n    });\n\n    std::vector<Entry> compressed;\n    if (!sorted_entries.empty()) {\n        compressed.push_back(sorted_entries[0]);\n        for (size_t i = 1; i < sorted_entries.size(); ++i) {\n            if (sorted_entries[i].idx == compressed.back().idx) {\n                compressed.back().val += sorted_entries[i].val;\n            } else {\n                compressed.push_back(sorted_entries[i]);\n            }\n        }\n    }\n\n    // 2. Compute the hash for one iteration\n    // The hash loop: for k=0 to domain-1: hash = mix(hash, accum[k])\n    // If k is not in compressed, accum[k] = 0.\n    \n    auto compute_single_iter = [&](uint64_t h) {\n        uint32_t current_idx = 0;\n        for (const auto& entry : compressed) {\n            // Gap of zeros from current_idx to entry.idx - 1\n            uint32_t gap = entry.idx - current_idx;\n            if (gap > 0) {\n                // Applying mix(h, 0) 'gap' times is h * (C^gap)\n                // We can use binary exponentiation for C^gap\n                uint64_t multiplier = 1;\n                uint64_t base = C;\n                uint32_t exp = gap;\n                while (exp > 0) {\n                    if (exp % 2 == 1) multiplier *= base;\n                    base *= base;\n                    exp /= 2;\n                }\n                h *= multiplier;\n            }\n            h = mix(h, entry.val);\n            current_idx = entry.idx + 1;\n        }\n        // Final gap\n        if (current_idx < domain) {\n            uint32_t gap = domain - current_idx;\n            uint64_t multiplier = 1;\n            uint64_t base = C;\n            uint32_t exp = gap;\n            while (exp > 0) {\n                if (exp % 2 == 1) multiplier *= base;\n                base *= base;\n                exp /= 2;\n            }\n            h *= multiplier;\n        }\n        return h;\n    };\n\n    // Since the accumulator is cleared and rebuilt with the same data every iteration,\n    // the hash is updated as: hash_next = compute_single_iter(hash_prev)\n    // Wait, the original code says: hash = 1469598103934665603ULL; inside the loop.\n    // This means the hash is NOT cumulative across iterations. \n    // It is reset to the FNV offset basis every iteration.\n    // Therefore, we only need to compute it once and return it.\n    \n    // Re-reading original code:\n    // for (int iter = 0; iter < iters; ++iter) {\n    //    accum.clear(); ... \n    //    hash = 1469598103934665603ULL;\n    //    for (uint32_t key = 0; key < domain; ++key) { ... hash = mix(hash, ...); }\n    // }\n    // return hash;\n    // Yes, the hash is reset every iteration. The result is just the result of the last iteration.\n\n    uint64_t h = 1469598103934665603ULL;\n    uint32_t current_idx = 0;\n    for (const auto& entry : compressed) {\n        uint32_t gap = entry.idx - current_idx;\n        if (gap > 0) {\n            uint64_t multiplier = 1;\n            uint64_t base = C;\n            uint32_t exp = gap;\n            while (exp > 0) {\n                if (exp % 2 == 1) multiplier *= base;\n                base *= base;\n                exp /= 2;\n            }\n            h *= multiplier;\n        }\n        h = mix(h, entry.val);\n        current_idx = entry.idx + 1;\n    }\n    if (current_idx < domain) {\n        uint32_t gap = domain - current_idx;\n        uint64_t multiplier = 1;\n        uint64_t base = C;\n        uint32_t exp = gap;\n        while (exp > 0) {\n            if (exp % 2 == 1) multiplier *= base;\n            base *= base;\n            exp /= 2;\n        }\n        h *= multiplier;\n    }\n\n    return h;\n}",
+  "baseline": {
+    "task_id": "sparse_accumulator_checksum_v500_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 308008605,
+    "min_elapsed_ns": 292754765,
+    "max_elapsed_ns": 331501901,
+    "all_elapsed_ns": [
+      308008605,
+      292754765,
+      331501901
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 308008605,
+      "expected_checksum": 11547097991295350011,
+      "actual_checksum": 11547097991295350011
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sparse_accumulator_checksum_v500_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 29976206,
+    "min_elapsed_ns": 29951206,
+    "max_elapsed_ns": 30711184,
+    "all_elapsed_ns": [
+      30711184,
+      29951206,
+      29976206
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 30711184,
+      "expected_checksum": 11547097991295350011,
+      "actual_checksum": 11547097991295350011
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sparse_accumulator_checksum_v500_e",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 97375024,
+    "min_elapsed_ns": 97046620,
+    "max_elapsed_ns": 97871750,
+    "all_elapsed_ns": [
+      97046620,
+      97871750,
+      97375024
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 97046620,
+      "expected_checksum": 11547097991295350011,
+      "actual_checksum": 11547097991295350011
+    },
+    "status": "ok"
+  }
+}

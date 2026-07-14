@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v12",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v12/candidate/gpt-5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n// Warp-privatized shared-memory histogram kernel.\n// Each block allocates W (warps per block) copies of 256-bin histograms in shared memory.\n// Threads update their warp's histogram using shared-memory atomics, then reduce to global.\n__global__ void histogram_shared_warp_kernel(const unsigned char* __restrict__ input,\n                                             unsigned int* __restrict__ output,\n                                             int n) {\n  extern __shared__ unsigned int shist[];  // size: warps * 256\n\n  const int tid = threadIdx.x;\n  const int block_threads = blockDim.x;\n  const int warps = block_threads >> 5;  // blockDim / 32\n  const int warp_id = tid >> 5;          // warp index within block\n\n  // Zero out shared histograms\n  for (int i = tid; i < warps * 256; i += block_threads) {\n    shist[i] = 0u;\n  }\n  __syncthreads();\n\n  // Grid-stride loop over input\n  const int total_threads = block_threads * gridDim.x;\n  for (int idx = blockIdx.x * block_threads + tid; idx < n; idx += total_threads) {\n    unsigned int v = static_cast<unsigned int>(input[idx]);\n    // Update warp-private histogram\n    atomicAdd(&shist[warp_id * 256 + v], 1u);\n  }\n  __syncthreads();\n\n  // Reduce per-warp histograms and add to global\n  for (int bin = tid; bin < 256; bin += block_threads) {\n    unsigned int sum = 0u;\n    // Sum over warps\n    for (int w = 0; w < warps; ++w) {\n      sum += shist[w * 256 + bin];\n    }\n    if (sum) {\n      atomicAdd(&output[bin], sum);\n    }\n  }\n}\n\n}  // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters) {\n  if (n <= 0 || iters <= 0) return;\n\n  // Choose launch configuration based on device properties (computed once)\n  static int block_dim = 256;\n  static int grid_dim = 0;\n  static size_t smem_bytes = 0;\n  static bool inited = false;\n  if (!inited) {\n    cudaDeviceProp prop;\n    int dev = 0;\n    cudaGetDevice(&dev);\n    cudaGetDeviceProperties(&prop, dev);\n\n    // Use 256 threads per block (8 warps) -> 8KB shared memory per block\n    block_dim = 256;\n\n    // Choose grid as a small multiple of SM count to limit global atomic pressure\n    int sm_count = (prop.multiProcessorCount > 0) ? prop.multiProcessorCount : 1;\n    int mult = 6;  // heuristic multiplier\n    grid_dim = sm_count * mult;\n\n    // Ensure at least 1 block\n    if (grid_dim < 1) grid_dim = 1;\n\n    // Dynamic shared memory size: warps * 256 bins * 4 bytes\n    smem_bytes = static_cast<size_t>((block_dim >> 5) * 256 * sizeof(unsigned int));\n\n    inited = true;\n  }\n\n  for (int iter = 0; iter < iters; ++iter) {\n    cudaMemset(output, 0, 256 * sizeof(unsigned int));\n    histogram_shared_warp_kernel<<<grid_dim, block_dim, smem_bytes>>>(input, output, n);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v12",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 155195388,
+    "min_elapsed_ns": 155189254,
+    "max_elapsed_ns": 155196960,
+    "all_elapsed_ns": [
+      155196960,
+      155195388,
+      155189254
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 155196960,
+      "checksum": 1077936128
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v12",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1098176,
+    "min_elapsed_ns": 1096832,
+    "max_elapsed_ns": 1105056,
+    "all_elapsed_ns": [
+      1105056,
+      1096832,
+      1098176
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1105056,
+      "checksum": 1077936128
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v12",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_histogram256_shared_u8_v12/candidate/bench']' timed out after 5 seconds"
+  }
+}

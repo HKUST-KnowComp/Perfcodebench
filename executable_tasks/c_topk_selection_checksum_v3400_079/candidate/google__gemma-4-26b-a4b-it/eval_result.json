@@ -1,0 +1,59 @@
+{
+  "task_id": "c_topk_selection_checksum_v3400_079",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_topk_selection_checksum_v3400_079/candidate/google__gemma-4-26b-a4b-it/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include <stdint.h>\n#include <stdlib.h>\n\ntypedef struct {\n  uint32_t score;\n  uint32_t index;\n} Pair;\n\nstatic inline int compare_pairs(const Pair a, const Pair b) {\n  if (a.score != b.score) {\n    return b.score - a.score; // Descending score\n  }\n  return (int)a.index - (int)b.index; // Ascending index\n}\n\nstatic void swap_pairs(Pair* a, Pair* b) {\n  Pair tmp = *a;\n  *a = *b;\n  *b = tmp;\n}\n\nstatic void quickselect(Pair* arr, size_t n, size_t k) {\n  size_t left = 0;\n  size_t right = n - 1;\n  while (left < right) {\n    Pair pivot = arr[(left + right) / 2];\n    size_t i = left;\n    size_t j = right;\n    while (i <= j) {\n      while (compare_pairs(arr[i], pivot) < 0) i++;\n      while (compare_pairs(arr[j], pivot) > 0) j--;\n      if (i <= j) {\n        swap_pairs(&arr[i], &arr[j]);\n        i++;\n        j--;\n      }\n    }\n    if (k <= j) right = j;\n    else if (i <= k) left = i;\n    else break;\n  }\n}\n\n// Standard quicksort for the final k elements to ensure exact order\nstatic void sort_k(Pair* arr, size_t k) {\n  if (k <= 1) return;\n  Pair pivot = arr[k / 2];\n  size_t i = 0, j = k - 1;\n  while (i <= j) {\n    while (compare_pairs(arr[i], pivot) < 0) i++;\n    while (compare_pairs(arr[j], pivot) > 0) j--;\n    if (i <= j) {\n      swap_pairs(&arr[i], &arr[j]);\n      i++;\n      j--;\n    }\n  }\n  if (j > 0) sort_k(arr, j + 1);\n  if (i < k) sort_k(arr + i, k - i);\n}\n\n// Using a simpler insertion sort for the small k to avoid recursion overhead\nstatic void insertion_sort_k(Pair* arr, size_t k) {\n  for (size_t i = 1; i < k; i++) {\n    Pair key = arr[i];\n    int j = (int)i - 1;\n    while (j >= 0 && compare_pairs(arr[j], key) > 0) {\n      arr[j + 1] = arr[j];\n      j--;\n    }\n    arr[j + 1] = key;\n  }\n}\n\n// Re-implementing qsort-like logic for the k elements to match original requirements\nstatic int cmp_final(const void* a, const void* b) {\n  const Pair* p1 = (const Pair*)a;\n  const Pair* p2 = (const Pair*)b;\n  if (p1->score != p2->score) return (p2->score > p1->score) ? 1 : -1;\n  return (p1->index > p2->index) ? 1 : -1;\n}\n\n// Corrected comparison to match original logic exactly\nstatic int cmp_pair_desc_final(const void* lhs, const void* rhs) {\n  const Pair* a = (const Pair*) lhs;\n  const Pair* b = (const Pair*) rhs;\n  if (a->score < b->score) return 1;\n  if (a->score > b->score) return -1;\n  if (a->index < b->index) return -1;\n  if (a->index > b->index) return 1;\n  return 0;\n}\n\n#include <algorithm>\n\n// Since we need to be strictly C and match the exact behavior:\n// We use quickselect to get the top k, then sort only those k.\n\nuint64_t run(const uint32_t* scores, size_t n, int k, int iters) {\n  if (n == 0 || k <= 0) return 0;\n  Pair* pairs = (Pair*)malloc(n * sizeof(Pair));\n  if (!pairs) return 0;\n\n  uint64_t h = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    for (size_t i = 0; i < n; ++i) {\n      pairs[i].score = scores[i];\n      pairs[i].index = (uint32_t)i;\n    }\n\n    // Partial sort: move top k to the front\n    // We use a standard quickselect approach\n    size_t left = 0;\n    size_t right = n - 1;\n    size_t target = (size_t)k;\n\n    while (left < right) {\n      Pair pivot = pairs[left + (right - left) / 2];\n      size_t i = left, j = right;\n      while (i <= j) {\n        while (cmp_pair_desc_final(&pairs[i], &pivot) < 0) i++;\n        while (cmp_pair_desc_final(&pairs[j], &pivot) > 0) j--;\n        if (i <= j) {\n          Pair tmp = pairs[i];\n          pairs[i] = pairs[j];\n          pairs[j] = tmp;\n          i++;\n          j--;\n        }\n      }\n      if (target <= j) right = j;\n      else if (i <= target) left = i;\n      else break;\n    }\n\n    // Sort only the top k elements to ensure correct checksum order\n    // qsort is fine here because k is typically small\n    qsort(pairs, k, sizeof(Pair), cmp_pair_desc_final);\n\n    h = 1469598103934665603ULL;\n    for (int i = 0; i < k; ++i) {\n      h ^= ((uint64_t)pairs[i].score << 32) ^ pairs[i].index;\n      h *= 1099511628211ULL;\n    }\n  }\n\n  free(pairs);\n  return h;\n}",
+  "baseline": {
+    "task_id": "c_topk_selection_checksum_v3400_079",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1871496000,
+    "min_elapsed_ns": 1871386000,
+    "max_elapsed_ns": 1872847000,
+    "all_elapsed_ns": [
+      1871386000,
+      1871496000,
+      1872847000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1871386000,
+      "expected_checksum": 14377674833594253876,
+      "actual_checksum": 14377674833594253876
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_topk_selection_checksum_v3400_079",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 9853000,
+    "min_elapsed_ns": 9819000,
+    "max_elapsed_ns": 9873000,
+    "all_elapsed_ns": [
+      9819000,
+      9873000,
+      9853000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9819000,
+      "expected_checksum": 14377674833594253876,
+      "actual_checksum": 14377674833594253876
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_topk_selection_checksum_v3400_079",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/c_topk_selection_checksum_v3400_079/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_histogram_privatized_v600_h",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_histogram_privatized_v600_h/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <omp.h>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\ninline int tuned_num_threads() {\n  int t = omp_get_max_threads();\n  if (t < 1) return 1;\n  if (t > 8) return 8;\n  return t;\n}\n\ninline uint64_t checksum_u32_ptr(const uint32_t* data, int n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (int i = 0; i < n; ++i) {\n    hash ^= static_cast<uint64_t>(data[i]);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t histogram_checksum(const std::vector<uint8_t>& input, int bins, int iters) {\n  omp_set_num_threads(tuned_num_threads());\n\n  if (bins <= 0) {\n    return 1469598103934665603ULL;\n  }\n\n  std::vector<uint32_t> counts(static_cast<std::size_t>(bins), 0u);\n  if (iters <= 0) {\n    return checksum_u32_ptr(counts.data(), bins);\n  }\n\n  const uint8_t* in = input.empty() ? nullptr : input.data();\n  const std::size_t n = input.size();\n\n  // Fast path for the task's intended configuration: 256 bins over uint8 input.\n  if (bins == 256) {\n    const int max_threads = tuned_num_threads();\n    std::vector<uint32_t> priv(static_cast<std::size_t>(max_threads) * 256u, 0u);\n\n    for (int iter = 0; iter < iters; ++iter) {\n      uint32_t* counts_ptr = counts.data();\n      for (int i = 0; i < 256; ++i) counts_ptr[i] = 0u;\n\n#pragma omp parallel\n      {\n        const int tid = omp_get_thread_num();\n        uint32_t* local = priv.data() + static_cast<std::size_t>(tid) * 256u;\n\n        for (int i = 0; i < 256; ++i) local[i] = 0u;\n\n#pragma omp for schedule(static)\n        for (std::size_t i = 0; i < n; ++i) {\n          ++local[in[i]];\n        }\n\n#pragma omp for schedule(static)\n        for (int b = 0; b < 256; ++b) {\n          uint32_t sum = 0u;\n          for (int t = 0; t < max_threads; ++t) {\n            sum += priv[static_cast<std::size_t>(t) * 256u + static_cast<std::size_t>(b)];\n          }\n          counts_ptr[b] = sum;\n        }\n      }\n    }\n\n    return checksum_u32_ptr(counts.data(), 256);\n  }\n\n  // Generic fallback for arbitrary bin counts while preserving correctness.\n  const int max_threads = tuned_num_threads();\n  std::vector<uint32_t> priv(static_cast<std::size_t>(max_threads) * static_cast<std::size_t>(bins), 0u);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint32_t* counts_ptr = counts.data();\n    for (int b = 0; b < bins; ++b) counts_ptr[b] = 0u;\n\n#pragma omp parallel\n    {\n      const int tid = omp_get_thread_num();\n      uint32_t* local = priv.data() + static_cast<std::size_t>(tid) * static_cast<std::size_t>(bins);\n\n      for (int b = 0; b < bins; ++b) local[b] = 0u;\n\n#pragma omp for schedule(static)\n      for (std::size_t i = 0; i < n; ++i) {\n        const std::size_t idx = static_cast<std::size_t>(in[i]);\n        if (idx < static_cast<std::size_t>(bins)) {\n          ++local[idx];\n        }\n      }\n\n#pragma omp for schedule(static)\n      for (int b = 0; b < bins; ++b) {\n        uint32_t sum = 0u;\n        for (int t = 0; t < max_threads; ++t) {\n          sum += priv[static_cast<std::size_t>(t) * static_cast<std::size_t>(bins) + static_cast<std::size_t>(b)];\n        }\n        counts_ptr[b] = sum;\n      }\n    }\n  }\n\n  return checksum_u32_ptr(counts.data(), bins);\n}\n",
+  "baseline": {
+    "task_id": "openmp_histogram_privatized_v600_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2001433225,
+    "min_elapsed_ns": 1981639305,
+    "max_elapsed_ns": 2292336832,
+    "all_elapsed_ns": [
+      1981639305,
+      2001433225,
+      2292336832
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1981639305,
+      "expected_checksum": 7411219011088774539,
+      "actual_checksum": 7411219011088774539
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_histogram_privatized_v600_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 87605259,
+    "min_elapsed_ns": 63223917,
+    "max_elapsed_ns": 125095682,
+    "all_elapsed_ns": [
+      63223917,
+      125095682,
+      87605259
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 63223917,
+      "expected_checksum": 7411219011088774539,
+      "actual_checksum": 7411219011088774539
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_histogram_privatized_v600_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 10527211,
+    "min_elapsed_ns": 5157115,
+    "max_elapsed_ns": 42280654,
+    "all_elapsed_ns": [
+      42280654,
+      5157115,
+      10527211
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 42280654,
+      "expected_checksum": 7411219011088774539,
+      "actual_checksum": 7411219011088774539
+    },
+    "status": "ok"
+  }
+}

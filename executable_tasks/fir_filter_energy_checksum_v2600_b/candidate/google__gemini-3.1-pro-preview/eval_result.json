@@ -1,0 +1,72 @@
+{
+  "task_id": "fir_filter_energy_checksum_v2600_b",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/fir_filter_energy_checksum_v2600_b/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <algorithm>\n\n/**\n * Performance Engineer's Optimization:\n * 1. Loop Reordering: Changed the FIR calculation from sample-centric to tap-centric.\n *    This allows the inner loop to be a simple vector-scalar multiply-accumulate,\n *    which is highly amenable to compiler auto-vectorization and cache-friendly.\n * 2. Memory Management: Moved the 'output' vector allocation outside the iteration loop.\n * 3. Checksum Integration: The checksum is calculated in a separate pass after the FIR\n *    to maintain the exact logic while allowing the FIR part to be fully vectorized.\n * 4. Redundancy Elimination: Since 'total' is reset every iteration, only the last\n *    iteration is strictly necessary for the result. However, we keep the loop structure\n *    to ensure the benchmark measures the intended workload.\n */\n\nuint64_t fir_energy_checksum(\n    const std::vector<int16_t>& signal,\n    const std::vector<int16_t>& taps,\n    int iters) {\n  \n  if (iters <= 0) return 0;\n  if (signal.empty()) return 1469598103934665603ULL;\n\n  const size_t n = signal.size();\n  const size_t m = taps.size();\n  std::vector<int64_t> output(n);\n  uint64_t total = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    // Reset output buffer for this iteration\n    std::fill(output.begin(), output.end(), 0);\n\n    // Tap-centric FIR calculation: O(N * M)\n    // This structure allows the compiler to use SIMD (AVX2/SSE) for the inner loop.\n    for (size_t j = 0; j < m; ++j) {\n      const int64_t tap_val = static_cast<int64_t>(taps[j]);\n      const int16_t* sig_ptr = &signal[0];\n      int64_t* out_ptr = &output[j];\n      \n      // Only process where i >= j\n      const size_t count = n - j;\n      if (j < n) {\n        for (size_t i = 0; i < count; ++i) {\n          out_ptr[i] += static_cast<int64_t>(sig_ptr[i]) * tap_val;\n        }\n      }\n    }\n\n    // FNV-1a-like checksum calculation\n    total = 1469598103934665603ULL;\n    const uint64_t prime = 1099511628211ULL;\n    for (size_t i = 0; i < n; ++i) {\n      int64_t acc = output[i];\n      uint64_t energy = static_cast<uint64_t>(acc * acc + 3 * acc);\n      total ^= energy;\n      total *= prime;\n    }\n  }\n\n  return total;\n}",
+  "baseline": {
+    "task_id": "fir_filter_energy_checksum_v2600_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 8708139,
+    "min_elapsed_ns": 8549088,
+    "max_elapsed_ns": 8771771,
+    "all_elapsed_ns": [
+      8708139,
+      8549088,
+      8771771
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8708139,
+      "expected_checksum": 7912457998995918009,
+      "actual_checksum": 7912457998995918009
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "fir_filter_energy_checksum_v2600_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 6091341,
+    "min_elapsed_ns": 5951386,
+    "max_elapsed_ns": 6885121,
+    "all_elapsed_ns": [
+      6885121,
+      6091341,
+      5951386
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6885121,
+      "expected_checksum": 7912457998995918009,
+      "actual_checksum": 7912457998995918009
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "fir_filter_energy_checksum_v2600_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 4709455,
+    "min_elapsed_ns": 4686822,
+    "max_elapsed_ns": 5897304,
+    "all_elapsed_ns": [
+      5897304,
+      4709455,
+      4686822
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5897304,
+      "expected_checksum": 7912457998995918009,
+      "actual_checksum": 7912457998995918009
+    },
+    "status": "ok"
+  }
+}

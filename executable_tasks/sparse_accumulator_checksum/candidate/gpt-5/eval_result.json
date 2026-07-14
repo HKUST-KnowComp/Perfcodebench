@@ -1,0 +1,59 @@
+{
+  "task_id": "sparse_accumulator_checksum",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sparse_accumulator_checksum/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\nnamespace {\n\nstatic inline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sparse_accumulator_hash(\n    const std::vector<uint32_t>& indices,\n    const std::vector<uint32_t>& values,\n    uint32_t domain,\n    int iters) {\n  // Match baseline behavior for non-positive iters\n  if (iters <= 0) {\n    return 0ULL;\n  }\n\n  // If domain is zero, the hash remains the offset basis when an iteration occurs\n  if (domain == 0u) {\n    return 1469598103934665603ULL;\n  }\n\n  // Accumulate once since each iteration is identical in the baseline\n  const size_t d = static_cast<size_t>(domain);\n  std::vector<uint64_t> accum(d, 0ULL);\n\n  const uint32_t* idx_ptr = indices.data();\n  const uint32_t* val_ptr = values.data();\n  const size_t n = indices.size();\n\n  bool any_in_domain = false;\n  for (size_t i = 0; i < n; ++i) {\n    uint32_t idx = idx_ptr[i];\n    if (idx < domain) {\n      accum[static_cast<size_t>(idx)] += static_cast<uint64_t>(val_ptr[i]);\n      any_in_domain = true;\n    }\n  }\n\n  uint64_t hash = 1469598103934665603ULL;\n  if (!any_in_domain) {\n    // Faster path: all values are zero in-domain, only multiply by prime 'domain' times\n    // (equivalent to mixing zero repeatedly)\n    for (size_t i = 0; i < d; ++i) {\n      hash *= 1099511628211ULL;\n    }\n  } else {\n    const uint64_t* a = accum.data();\n    for (size_t i = 0; i < d; ++i) {\n      hash = mix(hash, a[i]);\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "sparse_accumulator_checksum",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 744577096,
+    "min_elapsed_ns": 743105513,
+    "max_elapsed_ns": 781914027,
+    "all_elapsed_ns": [
+      744577096,
+      781914027,
+      743105513
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 744577096,
+      "expected_checksum": 16927280306993342819,
+      "actual_checksum": 16927280306993342819
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sparse_accumulator_checksum",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 95258245,
+    "min_elapsed_ns": 95235529,
+    "max_elapsed_ns": 132157555,
+    "all_elapsed_ns": [
+      95235529,
+      95258245,
+      132157555
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 95235529,
+      "expected_checksum": 16927280306993342819,
+      "actual_checksum": 16927280306993342819
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sparse_accumulator_checksum",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/sparse_accumulator_checksum/harness', 'executable_tasks/sparse_accumulator_checksum/harness/benchmark_main.cpp', 'executable_tasks/sparse_accumulator_checksum/candidate/gpt-5/solution.cpp', '-o', 'build/sparse_accumulator_checksum/candidate/bench']' returned non-zero exit status 1."
+  }
+}

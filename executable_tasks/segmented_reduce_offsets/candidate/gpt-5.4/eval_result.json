@@ -1,0 +1,72 @@
+{
+  "task_id": "segmented_reduce_offsets",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/segmented_reduce_offsets/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nstatic inline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t segmented_reduce_checksum(\n    const std::vector<uint32_t>& segment_ids,\n    const std::vector<uint32_t>& values,\n    uint32_t segments,\n    int iters) {\n  const std::size_t n = segment_ids.size();\n  const std::size_t seg_count = static_cast<std::size_t>(segments);\n\n  std::vector<uint32_t> offsets(seg_count + 1);\n  std::vector<uint64_t> sums(seg_count);\n\n  uint64_t hash = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    if (seg_count != 0) {\n      uint32_t* const offsets_data = offsets.data();\n      uint64_t* const sums_data = sums.data();\n\n      offsets_data[0] = 0;\n\n      std::size_t i = 0;\n      uint32_t current_segment = 0;\n\n      while (i < n && current_segment < segments) {\n        const uint32_t sid = segment_ids[i];\n\n        while (current_segment < sid) {\n          sums_data[current_segment] = 0;\n          offsets_data[static_cast<std::size_t>(current_segment) + 1] =\n              offsets_data[current_segment];\n          ++current_segment;\n        }\n\n        uint64_t sum = 0;\n        const std::size_t start = i;\n        do {\n          sum += static_cast<uint64_t>(values[i]);\n          ++i;\n        } while (i < n && segment_ids[i] == sid);\n\n        sums_data[sid] = sum;\n        offsets_data[static_cast<std::size_t>(sid) + 1] =\n            offsets_data[sid] + static_cast<uint32_t>(i - start);\n        current_segment = sid + 1;\n      }\n\n      while (current_segment < segments) {\n        sums_data[current_segment] = 0;\n        offsets_data[static_cast<std::size_t>(current_segment) + 1] =\n            offsets_data[current_segment];\n        ++current_segment;\n      }\n    }\n\n    hash = 1469598103934665603ULL;\n    for (std::size_t s = 0; s <= seg_count; ++s) {\n      hash = mix(hash, offsets[s]);\n    }\n    for (std::size_t s = 0; s < seg_count; ++s) {\n      hash = mix(hash, sums[s]);\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "segmented_reduce_offsets",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 80918011,
+    "min_elapsed_ns": 69326744,
+    "max_elapsed_ns": 86849576,
+    "all_elapsed_ns": [
+      69326744,
+      80918011,
+      86849576
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 69326744,
+      "expected_checksum": 6033742172595962434,
+      "actual_checksum": 6033742172595962434
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "segmented_reduce_offsets",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 25579233,
+    "min_elapsed_ns": 25103356,
+    "max_elapsed_ns": 27928617,
+    "all_elapsed_ns": [
+      25579233,
+      27928617,
+      25103356
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 25579233,
+      "expected_checksum": 6033742172595962434,
+      "actual_checksum": 6033742172595962434
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "segmented_reduce_offsets",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 13896705,
+    "min_elapsed_ns": 13845645,
+    "max_elapsed_ns": 14019392,
+    "all_elapsed_ns": [
+      13845645,
+      14019392,
+      13896705
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 13845645,
+      "expected_checksum": 6033742172595962434,
+      "actual_checksum": 6033742172595962434
+    },
+    "status": "ok"
+  }
+}

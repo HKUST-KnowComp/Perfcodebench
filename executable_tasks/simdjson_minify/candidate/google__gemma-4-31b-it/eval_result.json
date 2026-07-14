@@ -1,0 +1,59 @@
+{
+  "task_id": "simdjson_minify",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdjson_minify/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"simdjson.h\"\n#include <string>\n#include <vector>\n\nusing namespace simdjson;\n\n// Helper to recursively write minified JSON to a string\nvoid minify_recursive(ondemand::document& doc, std::string& out) {\n    auto type = doc.type();\n    if (type == ondemand::json_type::array) {\n        out += '[';\n        bool first = true;\n        for (auto element : doc) {\n            if (!first) out += ',';\n            minify_recursive(element, out);\n            first = false;\n        }\n        out += ']';\n    } else if (type == ondemand::json_type::object) {\n        out += '{';\n        bool first = true;\n        for (auto field : doc.get_object()) {\n            if (!first) out += ',';\n            out += '\"';\n            out += std::string(field.key());\n            out += '\":';\n            minify_recursive(field.value(), out);\n            first = false;\n        }\n        out += '}';\n    } else if (type == ondemand::json_type::string) {\n        // Use raw_json to get the exact quoted string representation\n        out += std::string(doc.raw_json());\n    } else if (type == ondemand::json_type::boolean) {\n        out += (doc.get_bool() ? \"true\" : \"false\");\n    } else if (type == ondemand::json_type::number) {\n        out += std::string(doc.raw_json());\n    } else if (type == ondemand::json_type::null) {\n        out += \"null\";\n    }\n}\n\nstd::string minify_json(const std::string& json_input) {\n    if (json_input.empty()) return \"\";\n\n    ondemand::parser parser;\n    padded_string json = padded_string(json_input);\n    ondemand::document doc = parser.iterate(json);\n\n    std::string result;\n    result.reserve(json_input.size());\n\n    try {\n        minify_recursive(doc, result);\n    } catch (...) {\n        // Fallback for malformed JSON if necessary, though contract implies valid JSON\n        return \"\";\n    }\n\n    return result;\n}",
+  "baseline": {
+    "task_id": "simdjson_minify",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 18588790,
+    "min_elapsed_ns": 18423937,
+    "max_elapsed_ns": 18819530,
+    "all_elapsed_ns": [
+      18588790,
+      18423937,
+      18819530
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 18588790,
+      "expected_size": 799403,
+      "actual_size": 799403
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdjson_minify",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 162939,
+    "min_elapsed_ns": 147394,
+    "max_elapsed_ns": 198565,
+    "all_elapsed_ns": [
+      198565,
+      162939,
+      147394
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 198565,
+      "expected_size": 799403,
+      "actual_size": 799403
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdjson_minify",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/simdjson_minify/harness', '-Iexternal/nlohmann_json/single_include', '-Iexternal/simdjson/include', '-Iexternal/simdjson/singleheader', 'executable_tasks/simdjson_minify/harness/benchmark_main.cpp', 'executable_tasks/simdjson_minify/candidate/google__gemma-4-31b-it/solution.cpp', 'external/simdjson/singleheader/simdjson.cpp', '-o', 'build/simdjson_minify/candidate/bench']' returned non-zero exit status 1."
+  }
+}

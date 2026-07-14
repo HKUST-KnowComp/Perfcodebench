@@ -1,0 +1,72 @@
+{
+  "task_id": "packet_ipv4_classify_checksum_v2600_a",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/packet_ipv4_classify_checksum_v2600_a/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstddef>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nconstexpr std::size_t kPacketSize = 64;\n\ninline bool is_private_ip_fast(const uint8_t* ip) {\n    uint8_t p0 = ip[0];\n    if (p0 == 10) return true;\n    if (p0 == 172) return ip[1] >= 16 && ip[1] < 32;\n    if (p0 == 192) return ip[1] == 168;\n    return false;\n}\n\n} // namespace\n\nuint64_t classify_packets_checksum(\n    const std::vector<uint8_t>& packets, \n    std::size_t packet_count, \n    int iters) {\n    const uint8_t* data = packets.data();\n    uint64_t hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        hash = 1469598103934665603ULL;\n        for (std::size_t i = 0; i < packet_count; ++i) {\n            const uint8_t* p = data + (i * kPacketSize);\n            \n            // IPv4 Header fields extraction\n            // p[8] is TTL, p[9] is Protocol, p[12..15] is Src IP\n            const uint8_t ttl = p[8];\n            const uint8_t protocol = p[9];\n            const uint8_t* src_ip = p + 12;\n            \n            // Port extraction (p[22..23] is dst_port)\n            const uint16_t dst_port = static_cast<uint16_t>((p[22] << 8) | p[23]);\n\n            const uint32_t ttl_bucket = static_cast<uint32_t>(ttl >> 6);\n            \n            uint32_t port_bucket;\n            if (protocol == 6 || protocol == 17) {\n                if (dst_port < 1024) port_bucket = 0;\n                else if (dst_port < 8192) port_bucket = 1;\n                else port_bucket = 2;\n            } else {\n                port_bucket = 3;\n            }\n\n            const uint32_t ip_val = is_private_ip_fast(src_ip) ? 5u : 11u;\n            \n            const uint32_t key = static_cast<uint32_t>(protocol) * 131u + \n                                 ttl_bucket * 17u + \n                                 ip_val + \n                                 port_bucket * 23u;\n\n            hash ^= static_cast<uint64_t>(key);\n            hash *= 1099511628211ULL;\n        }\n    }\n    return hash;\n}",
+  "baseline": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 982304,
+    "min_elapsed_ns": 927544,
+    "max_elapsed_ns": 1340314,
+    "all_elapsed_ns": [
+      1340314,
+      927544,
+      982304
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1340314,
+      "expected_checksum": 7659490708124657445,
+      "actual_checksum": 7659490708124657445
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 835478,
+    "min_elapsed_ns": 722241,
+    "max_elapsed_ns": 851940,
+    "all_elapsed_ns": [
+      835478,
+      722241,
+      851940
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 835478,
+      "expected_checksum": 7659490708124657445,
+      "actual_checksum": 7659490708124657445
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 675505,
+    "min_elapsed_ns": 675223,
+    "max_elapsed_ns": 875041,
+    "all_elapsed_ns": [
+      675505,
+      875041,
+      675223
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 675505,
+      "expected_checksum": 7659490708124657445,
+      "actual_checksum": 7659490708124657445
+    },
+    "status": "ok"
+  }
+}

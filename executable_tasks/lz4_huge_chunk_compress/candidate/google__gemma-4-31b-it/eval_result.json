@@ -1,0 +1,57 @@
+{
+  "task_id": "lz4_huge_chunk_compress",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/lz4_huge_chunk_compress/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"lz4.h\"\n#include <algorithm>\n#include <vector>\n#include <string>\n\nnamespace {\n// Increased chunk size to 1MB to reduce overhead and improve LZ4 dictionary efficiency\nconstexpr std::size_t kChunkSize = 1024 * 1024;\n}\n\nint compress_chunks(const std::string& input, std::vector<std::string>& chunks) {\n    chunks.clear();\n    if (input.empty()) return 0;\n\n    const std::size_t input_size = input.size();\n    const std::size_t num_chunks = (input_size + kChunkSize - 1) / kChunkSize;\n    chunks.reserve(num_chunks);\n\n    // Pre-allocate a reusable buffer for compression to avoid repeated allocations\n    // LZ4_compressBound for 1MB is slightly larger than 1MB\n    std::vector<char> compression_buffer(LZ4_compressBound(static_cast<int>(kChunkSize)));\n    \n    int total_compressed_size = 0;\n    const char* input_ptr = input.data();\n\n    for (std::size_t offset = 0; offset < input_size; offset += kChunkSize) {\n        const std::size_t take = std::min(kChunkSize, input_size - offset);\n        \n        // Use LZ4_compress_fast for better throughput; it's still lossless\n        const int compressed_size = LZ4_compress_fast(\n            input_ptr + offset, \n            compression_buffer.data(), \n            static_cast<int>(take), \n            static_cast<int>(compression_buffer.size()),\n            1 // acceleration level\n        );\n\n        if (compressed_size <= 0) {\n            return -1;\n        }\n\n        // Construct the string directly from the buffer\n        chunks.emplace_back(compression_buffer.data(), static_cast<std::size_t>(compressed_size));\n        total_compressed_size += compressed_size;\n    }\n\n    return total_compressed_size;\n}",
+  "baseline": {
+    "task_id": "lz4_huge_chunk_compress",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 38827883,
+    "min_elapsed_ns": 38159847,
+    "max_elapsed_ns": 44130233,
+    "all_elapsed_ns": [
+      38159847,
+      38827883,
+      44130233
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 38159847,
+      "compressed_size": 6216527
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "lz4_huge_chunk_compress",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 37255757,
+    "min_elapsed_ns": 34140429,
+    "max_elapsed_ns": 38553323,
+    "all_elapsed_ns": [
+      38553323,
+      34140429,
+      37255757
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 38553323,
+      "compressed_size": 6542951
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "lz4_huge_chunk_compress",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/lz4_huge_chunk_compress/candidate/bench']' returned non-zero exit status 1."
+  }
+}

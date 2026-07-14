@@ -1,0 +1,72 @@
+{
+  "task_id": "top1_per_group_checksum_large",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/top1_per_group_checksum_large/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n#include <cstring>\n\n/**\n * Performance Engineer Optimization:\n * 1. Replaced std::unordered_map with a contiguous std::vector<uint32_t>.\n *    Since group_count is provided and groups are dense, an array-based lookup is O(1) and cache-friendly.\n * 2. Moved the allocation of the 'best' array outside the iteration loop to reuse memory.\n * 3. Used std::memset for rapid zero-initialization of the 'best' array.\n * 4. Used raw pointers for 'groups' and 'values' to assist the compiler in loop optimization.\n * 5. Maintained the exact FNV-1a hash logic required for the checksum.\n */\n\nuint64_t top1_group_hash(\n    const std::vector<uint32_t>& groups,\n    const std::vector<uint32_t>& values,\n    uint32_t group_count,\n    int iters) {\n  \n  if (iters <= 0) return 0;\n\n  // Pre-allocate buffer for group maximums\n  std::vector<uint32_t> best(group_count);\n  uint32_t* __restrict best_ptr = best.data();\n  \n  const uint32_t* __restrict groups_ptr = groups.data();\n  const uint32_t* __restrict values_ptr = values.data();\n  const std::size_t n = groups.size();\n\n  uint64_t final_hash = 0;\n  const uint64_t fnv_prime = 1099511628211ULL;\n  const uint64_t fnv_offset_basis = 1469598103934665603ULL;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    // Reset the maximums for this iteration\n    std::memset(best_ptr, 0, group_count * sizeof(uint32_t));\n\n    // Compute maximum per group\n    // This is the primary bottleneck; sequential access to groups/values \n    // but random access to best_ptr.\n    for (std::size_t i = 0; i < n; ++i) {\n      uint32_t g = groups_ptr[i];\n      uint32_t v = values_ptr[i];\n      if (v > best_ptr[g]) {\n        best_ptr[g] = v;\n      }\n    }\n\n    // Compute FNV-1a hash of the results\n    uint64_t current_hash = fnv_offset_basis;\n    for (uint32_t g = 0; g < group_count; ++g) {\n      current_hash ^= static_cast<uint64_t>(best_ptr[g]);\n      current_hash *= fnv_prime;\n    }\n    final_hash = current_hash;\n  }\n\n  return final_hash;\n}\n",
+  "baseline": {
+    "task_id": "top1_per_group_checksum_large",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1199396566,
+    "min_elapsed_ns": 1172720454,
+    "max_elapsed_ns": 1574361262,
+    "all_elapsed_ns": [
+      1574361262,
+      1199396566,
+      1172720454
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1574361262,
+      "expected_checksum": 2605013602663146371,
+      "actual_checksum": 2605013602663146371
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "top1_per_group_checksum_large",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 279569007,
+    "min_elapsed_ns": 276520432,
+    "max_elapsed_ns": 336656849,
+    "all_elapsed_ns": [
+      276520432,
+      336656849,
+      279569007
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 276520432,
+      "expected_checksum": 2605013602663146371,
+      "actual_checksum": 2605013602663146371
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "top1_per_group_checksum_large",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 383774130,
+    "min_elapsed_ns": 332935954,
+    "max_elapsed_ns": 389043037,
+    "all_elapsed_ns": [
+      383774130,
+      389043037,
+      332935954
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 383774130,
+      "expected_checksum": 2605013602663146371,
+      "actual_checksum": 2605013602663146371
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_exclusive_scan_cub_i32_v31",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_exclusive_scan_cub_i32_v31/candidate/claude-opus-4.5/solution.cu",
+  "benchmark_timeout_sec": 10,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int BLOCK_SIZE = 256;\nconstexpr int ITEMS_PER_THREAD = 4;\nconstexpr int TILE_SIZE = BLOCK_SIZE * ITEMS_PER_THREAD;\n\n__device__ __forceinline__ int warp_exclusive_scan(int val, int lane) {\n    #pragma unroll\n    for (int offset = 1; offset < 32; offset <<= 1) {\n        int n = __shfl_up_sync(0xffffffff, val, offset);\n        if (lane >= offset) val += n;\n    }\n    int inclusive = val;\n    int exclusive = __shfl_up_sync(0xffffffff, inclusive, 1);\n    return (lane == 0) ? 0 : exclusive;\n}\n\n__global__ void block_scan_kernel(const int* __restrict__ input, \n                                   int* __restrict__ output,\n                                   int* __restrict__ block_sums,\n                                   int n) {\n    __shared__ int shared[TILE_SIZE];\n    __shared__ int warp_totals[8];\n    \n    int tid = threadIdx.x;\n    int block_offset = blockIdx.x * TILE_SIZE;\n    \n    int local[ITEMS_PER_THREAD];\n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; i++) {\n        int idx = block_offset + tid + i * BLOCK_SIZE;\n        local[i] = (idx < n) ? input[idx] : 0;\n    }\n    \n    int thread_sum = 0;\n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; i++) {\n        thread_sum += local[i];\n    }\n    \n    int lane = tid & 31;\n    int warp_id = tid >> 5;\n    \n    int warp_exclusive = warp_exclusive_scan(thread_sum, lane);\n    int warp_total = __shfl_sync(0xffffffff, warp_exclusive + thread_sum, 31);\n    \n    if (lane == 31) {\n        warp_totals[warp_id] = warp_total;\n    }\n    __syncthreads();\n    \n    int block_prefix = 0;\n    if (tid < 8) {\n        int wt = warp_totals[tid];\n        int wt_exclusive = warp_exclusive_scan(wt, tid);\n        warp_totals[tid] = wt_exclusive;\n        if (tid == 7) {\n            if (block_sums != nullptr) {\n                block_sums[blockIdx.x] = wt_exclusive + wt;\n            }\n        }\n    }\n    __syncthreads();\n    \n    block_prefix = warp_totals[warp_id] + warp_exclusive;\n    \n    int running = block_prefix;\n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; i++) {\n        shared[tid + i * BLOCK_SIZE] = running;\n        running += local[i];\n    }\n    __syncthreads();\n    \n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; i++) {\n        int idx = block_offset + tid + i * BLOCK_SIZE;\n        if (idx < n) {\n            output[idx] = shared[tid + i * BLOCK_SIZE];\n        }\n    }\n}\n\n__global__ void add_block_sums_kernel(int* __restrict__ output,\n                                       const int* __restrict__ block_sums,\n                                       int n) {\n    int block_offset = blockIdx.x * TILE_SIZE;\n    int block_sum = block_sums[blockIdx.x];\n    int tid = threadIdx.x;\n    \n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; i++) {\n        int idx = block_offset + tid + i * BLOCK_SIZE;\n        if (idx < n) {\n            output[idx] += block_sum;\n        }\n    }\n}\n\nvoid scan_recursive(const int* input, int* output, int n, \n                    int* temp_buffer, int temp_offset) {\n    if (n <= 0) return;\n    \n    if (n <= TILE_SIZE) {\n        block_scan_kernel<<<1, BLOCK_SIZE>>>(input, output, nullptr, n);\n        return;\n    }\n    \n    int num_blocks = (n + TILE_SIZE - 1) / TILE_SIZE;\n    int* block_sums = temp_buffer + temp_offset;\n    int* scanned_block_sums = block_sums + num_blocks;\n    \n    block_scan_kernel<<<num_blocks, BLOCK_SIZE>>>(input, output, block_sums, n);\n    \n    int next_level_blocks = (num_blocks + TILE_SIZE - 1) / TILE_SIZE;\n    int next_temp_offset = temp_offset + num_blocks * 2;\n    \n    scan_recursive(block_sums, scanned_block_sums, num_blocks, \n                   temp_buffer, next_temp_offset);\n    \n    add_block_sums_kernel<<<num_blocks, BLOCK_SIZE>>>(output, scanned_block_sums, n);\n}\n\nint compute_temp_size(int n) {\n    if (n <= TILE_SIZE) return 0;\n    int num_blocks = (n + TILE_SIZE - 1) / TILE_SIZE;\n    return num_blocks * 2 + compute_temp_size(num_blocks);\n}\n\n}  // namespace\n\nvoid exclusive_scan_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0) return;\n    \n    int temp_size = compute_temp_size(n);\n    int* temp_buffer = nullptr;\n    if (temp_size > 0) {\n        cudaMalloc(&temp_buffer, temp_size * sizeof(int));\n    }\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        scan_recursive(input, output, n, temp_buffer, 0);\n    }\n    \n    if (temp_buffer != nullptr) {\n        cudaFree(temp_buffer);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v31",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1941364379,
+    "min_elapsed_ns": 1941268554,
+    "max_elapsed_ns": 1941447021,
+    "all_elapsed_ns": [
+      1941364379,
+      1941268554,
+      1941447021
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1941364379,
+      "checksum": 7215574418032
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v31",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 952351,
+    "min_elapsed_ns": 926656,
+    "max_elapsed_ns": 959775,
+    "all_elapsed_ns": [
+      926656,
+      959775,
+      952351
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 926656,
+      "checksum": 7215574418032
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v31",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_exclusive_scan_cub_i32_v31/candidate/bench']' timed out after 10 seconds"
+  }
+}

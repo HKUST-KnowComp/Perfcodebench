@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_thrust_reduce_f32_v29",
+  "model": "qwen/qwen3.6-max-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_thrust_reduce_f32_v29/candidate/qwen__qwen3.6-max-preview/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\n__global__ void reduce_kernel(const float* __restrict__ input, float* __restrict__ output, int n) {\n    __shared__ float sdata[256];\n    unsigned int tid = threadIdx.x;\n    unsigned int i = blockIdx.x * blockDim.x * 2 + threadIdx.x;\n    unsigned int gridSize = blockDim.x * 2 * gridDim.x;\n    \n    float sum = 0.0f;\n    while (i < n) {\n        sum += input[i];\n        if (i + blockDim.x < n) sum += input[i + blockDim.x];\n        i += gridSize;\n    }\n    \n    for (int offset = warpSize / 2; offset > 0; offset /= 2) {\n        sum += __shfl_down_sync(0xffffffff, sum, offset);\n    }\n    \n    if (tid % warpSize == 0) {\n        sdata[tid / warpSize] = sum;\n    }\n    __syncthreads();\n    \n    if (tid < warpSize) {\n        sum = (tid < blockDim.x / warpSize) ? sdata[tid] : 0.0f;\n        for (int offset = warpSize / 2; offset > 0; offset /= 2) {\n            sum += __shfl_down_sync(0xffffffff, sum, offset);\n        }\n        if (tid == 0) {\n            atomicAdd(output, sum);\n        }\n    }\n}\n\nfloat reduce_f32(const float* input, int n, int iters) {\n    float* d_out = nullptr;\n    cudaMalloc(&d_out, sizeof(float));\n    float result = 0.0f;\n    \n    int threads = 256;\n    int blocks = (n + threads * 2 - 1) / (threads * 2);\n    if (blocks > 1024) blocks = 1024;\n    if (blocks < 1) blocks = 1;\n    \n    for (int i = 0; i < iters; ++i) {\n        cudaMemset(d_out, 0, sizeof(float));\n        reduce_kernel<<<blocks, threads>>>(input, d_out, n);\n    }\n    cudaMemcpy(&result, d_out, sizeof(float), cudaMemcpyDeviceToHost);\n    cudaFree(d_out);\n    return result;\n}",
+  "baseline": {
+    "task_id": "cuda_thrust_reduce_f32_v29",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 76534851,
+    "min_elapsed_ns": 76525283,
+    "max_elapsed_ns": 76770019,
+    "all_elapsed_ns": [
+      76770019,
+      76534851,
+      76525283
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 76770019,
+      "expected_sum": 3145430.0,
+      "actual_sum": 3145430.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_thrust_reduce_f32_v29",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 663680,
+    "min_elapsed_ns": 644415,
+    "max_elapsed_ns": 927392,
+    "all_elapsed_ns": [
+      644415,
+      663680,
+      927392
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 644415,
+      "expected_sum": 3145430.0,
+      "actual_sum": 3145430.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_thrust_reduce_f32_v29",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_thrust_reduce_f32_v29/candidate/bench']' timed out after 5 seconds"
+  }
+}

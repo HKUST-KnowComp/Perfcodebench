@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_histogram_privatized_v1500_i",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_histogram_privatized_v1500_i/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 11,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <omp.h>\n#include <vector>\n#include <cstring>\n\nnamespace {\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t histogram_checksum(const std::vector<uint8_t>& input, int bins, int iters) {\n  // The problem specifies 256 bins. We use a fixed size for local buffers to avoid allocation.\n  const int MAX_BINS = 256;\n  std::vector<uint32_t> global_counts(static_cast<std::size_t>(bins), 0);\n  const uint8_t* data_ptr = input.data();\n  const std::size_t n = input.size();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    std::fill(global_counts.begin(), global_counts.end(), 0u);\n\n    #pragma omp parallel\n    {\n      // Privatize histogram to avoid atomic contention. \n      // Aligned to cache line to prevent false sharing between threads.\n      alignas(64) uint32_t local_counts[MAX_BINS] = {0};\n\n      #pragma omp for schedule(static)\n      for (std::size_t i = 0; i < n; ++i) {\n        local_counts[data_ptr[i]]++;\n      }\n\n      #pragma omp critical\n      {\n        for (int b = 0; b < bins; ++b) {\n          global_counts[b] += local_counts[b];\n        }\n      }\n    }\n  }\n\n  return checksum_u32(global_counts);\n}",
+  "baseline": {
+    "task_id": "openmp_histogram_privatized_v1500_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 314425827,
+    "min_elapsed_ns": 206129332,
+    "max_elapsed_ns": 329154441,
+    "all_elapsed_ns": [
+      329154441,
+      206129332,
+      314425827
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 329154441,
+      "expected_checksum": 4513212896515941967,
+      "actual_checksum": 4513212896515941967
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_histogram_privatized_v1500_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 7682576,
+    "min_elapsed_ns": 7487860,
+    "max_elapsed_ns": 9814652,
+    "all_elapsed_ns": [
+      9814652,
+      7487860,
+      7682576
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9814652,
+      "expected_checksum": 4513212896515941967,
+      "actual_checksum": 4513212896515941967
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_histogram_privatized_v1500_i",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/openmp_histogram_privatized_v1500_i/candidate/bench']' timed out after 11 seconds"
+  }
+}

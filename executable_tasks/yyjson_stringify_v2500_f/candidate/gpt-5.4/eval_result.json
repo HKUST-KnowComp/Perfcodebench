@@ -1,0 +1,59 @@
+{
+  "task_id": "yyjson_stringify_v2500_f",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/yyjson_stringify_v2500_f/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <string>\n#include <vector>\n#include <cstdint>\n#include <cstring>\n\nnamespace {\n\nstatic inline uint32_t count_digits_u32(uint32_t v) {\n  if (v >= 1000000000u) return 10;\n  if (v >= 100000000u) return 9;\n  if (v >= 10000000u) return 8;\n  if (v >= 1000000u) return 7;\n  if (v >= 100000u) return 6;\n  if (v >= 10000u) return 5;\n  if (v >= 1000u) return 4;\n  if (v >= 100u) return 3;\n  if (v >= 10u) return 2;\n  return 1;\n}\n\nstatic inline char* write_u32(char* dst, uint32_t v) {\n  uint32_t digits = count_digits_u32(v);\n  char* p = dst + digits;\n  do {\n    *--p = static_cast<char>('0' + (v % 10u));\n    v /= 10u;\n  } while (v != 0u);\n  return dst + digits;\n}\n\nstatic inline std::size_t escaped_json_string_size(const std::string& s) {\n  std::size_t n = 2; // quotes\n  for (unsigned char c : s) {\n    switch (c) {\n      case '\"':\n      case '\\\\':\n      case '\\b':\n      case '\\f':\n      case '\\n':\n      case '\\r':\n      case '\\t':\n        n += 2;\n        break;\n      default:\n        if (c < 0x20u) {\n          n += 6;\n        } else {\n          n += 1;\n        }\n        break;\n    }\n  }\n  return n;\n}\n\nstatic inline char hex_digit(unsigned v) {\n  return static_cast<char>(v < 10 ? ('0' + v) : ('a' + (v - 10)));\n}\n\nstatic inline char* write_escaped_json_string(char* dst, const std::string& s) {\n  *dst++ = '\"';\n  for (unsigned char c : s) {\n    switch (c) {\n      case '\"':\n        *dst++ = '\\\\';\n        *dst++ = '\"';\n        break;\n      case '\\\\':\n        *dst++ = '\\\\';\n        *dst++ = '\\\\';\n        break;\n      case '\\b':\n        *dst++ = '\\\\';\n        *dst++ = 'b';\n        break;\n      case '\\f':\n        *dst++ = '\\\\';\n        *dst++ = 'f';\n        break;\n      case '\\n':\n        *dst++ = '\\\\';\n        *dst++ = 'n';\n        break;\n      case '\\r':\n        *dst++ = '\\\\';\n        *dst++ = 'r';\n        break;\n      case '\\t':\n        *dst++ = '\\\\';\n        *dst++ = 't';\n        break;\n      default:\n        if (c < 0x20u) {\n          *dst++ = '\\\\';\n          *dst++ = 'u';\n          *dst++ = '0';\n          *dst++ = '0';\n          *dst++ = hex_digit(c >> 4);\n          *dst++ = hex_digit(c & 0x0Fu);\n        } else {\n          *dst++ = static_cast<char>(c);\n        }\n        break;\n    }\n  }\n  *dst++ = '\"';\n  return dst;\n}\n\n} // namespace\n\nstd::string build_json(\n    const std::vector<uint32_t>& ids,\n    const std::vector<uint32_t>& values,\n    const std::vector<std::string>& names) {\n  const std::size_t n = ids.size();\n\n  std::size_t total = 2; // [ ]\n  if (n != 0) total += (n - 1); // commas between objects\n\n  for (std::size_t i = 0; i < n; ++i) {\n    total += 30; // {\"id\":,\"flag\":,\"value\":,\"name\":}\n    total += count_digits_u32(ids[i]);\n    total += ((ids[i] % 3u) == 0u) ? 4 : 5; // true / false\n    total += count_digits_u32(values[i]);\n    total += escaped_json_string_size(names[i]);\n  }\n\n  std::string out;\n  out.resize(total);\n  char* p = out.data();\n\n  *p++ = '[';\n  for (std::size_t i = 0; i < n; ++i) {\n    if (i) *p++ = ',';\n\n    *p++ = '{';\n\n    std::memcpy(p, \"\\\"id\\\":\", 5);\n    p += 5;\n    p = write_u32(p, ids[i]);\n\n    std::memcpy(p, \",\\\"flag\\\":\", 9);\n    p += 9;\n    if ((ids[i] % 3u) == 0u) {\n      std::memcpy(p, \"true\", 4);\n      p += 4;\n    } else {\n      std::memcpy(p, \"false\", 5);\n      p += 5;\n    }\n\n    std::memcpy(p, \",\\\"value\\\":\", 10);\n    p += 10;\n    p = write_u32(p, values[i]);\n\n    std::memcpy(p, \",\\\"name\\\":\", 9);\n    p += 9;\n    p = write_escaped_json_string(p, names[i]);\n\n    *p++ = '}';\n  }\n  *p++ = ']';\n\n  return out;\n}\n",
+  "baseline": {
+    "task_id": "yyjson_stringify_v2500_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 15138880,
+    "min_elapsed_ns": 15095082,
+    "max_elapsed_ns": 15920169,
+    "all_elapsed_ns": [
+      15920169,
+      15095082,
+      15138880
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15920169,
+      "expected_size": 1377256,
+      "actual_size": 1377256
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "yyjson_stringify_v2500_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2776427,
+    "min_elapsed_ns": 2728259,
+    "max_elapsed_ns": 3229103,
+    "all_elapsed_ns": [
+      2728259,
+      2776427,
+      3229103
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2728259,
+      "expected_size": 1377256,
+      "actual_size": 1377256
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "yyjson_stringify_v2500_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/yyjson_stringify_v2500_f/candidate/bench']' died with <Signals.SIGABRT: 6>."
+  }
+}

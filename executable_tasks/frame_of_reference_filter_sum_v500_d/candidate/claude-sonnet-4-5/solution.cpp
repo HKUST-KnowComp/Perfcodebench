@@ -1,0 +1,54 @@
+#include "interface.h"
+
+#include <vector>
+
+uint64_t frame_filter_sum(
+    const std::vector<uint16_t>& deltas,
+    uint32_t base,
+    uint32_t low,
+    uint32_t high,
+    int iters) {
+  uint64_t sum = 0;
+  const std::size_t size = deltas.size();
+  const uint16_t* data = deltas.data();
+  
+  // Precompute adjusted bounds to avoid repeated arithmetic
+  const uint32_t adjusted_low = (low >= base) ? (low - base) : 0;
+  const uint32_t adjusted_high = (high >= base) ? (high - base) : 0;
+  const bool base_in_range = (base >= low && base <= high);
+  
+  for (int iter = 0; iter < iters; ++iter) {
+    sum = 0;
+    
+    // Fused decode + filter in single pass
+    // Process in chunks for better instruction-level parallelism
+    std::size_t i = 0;
+    const std::size_t unroll_limit = size - (size % 4);
+    
+    // Unrolled loop for better ILP
+    for (; i < unroll_limit; i += 4) {
+      uint32_t v0 = data[i];
+      uint32_t v1 = data[i + 1];
+      uint32_t v2 = data[i + 2];
+      uint32_t v3 = data[i + 3];
+      
+      // Check against adjusted bounds (delta space)
+      if (base_in_range) {
+        if (v0 >= adjusted_low && v0 <= adjusted_high) sum += base + v0;
+        if (v1 >= adjusted_low && v1 <= adjusted_high) sum += base + v1;
+        if (v2 >= adjusted_low && v2 <= adjusted_high) sum += base + v2;
+        if (v3 >= adjusted_low && v3 <= adjusted_high) sum += base + v3;
+      }
+    }
+    
+    // Handle remainder
+    for (; i < size; ++i) {
+      uint32_t delta = data[i];
+      if (base_in_range && delta >= adjusted_low && delta <= adjusted_high) {
+        sum += base + delta;
+      }
+    }
+  }
+  
+  return sum;
+}

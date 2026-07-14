@@ -1,0 +1,72 @@
+{
+  "task_id": "prefix_cache_block_lookup_v2200_f",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup_v2200_f/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <cstring>\n#include <vector>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#endif\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n// Fast bitset lookup\ninline bool bitset_contains(const uint64_t* bitset, uint32_t key) {\n  return (bitset[key >> 6] >> (key & 63)) & 1;\n}\n\n}  // namespace\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t hash_space,\n    int iters) {\n  \n  const size_t num_requests = request_offsets.size() > 0 ? request_offsets.size() - 1 : 0;\n  if (num_requests == 0) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (int iter = 1; iter < iters; ++iter) {\n      hash = 1469598103934665603ULL;\n    }\n    return hash;\n  }\n\n  // Use bitset for O(1) lookup if hash_space is reasonable\n  constexpr uint32_t MAX_BITSET_SIZE = 64 * 1024 * 1024; // 64M keys = 8MB bitset\n  \n  std::vector<uint64_t> bitset;\n  const uint64_t* bitset_ptr = nullptr;\n  \n  if (hash_space <= MAX_BITSET_SIZE && hash_space > 0) {\n    size_t bitset_words = (hash_space + 63) / 64;\n    bitset.resize(bitset_words, 0);\n    for (uint32_t key : sorted_cache_keys) {\n      if (key < hash_space) {\n        bitset[key >> 6] |= (1ULL << (key & 63));\n      }\n    }\n    bitset_ptr = bitset.data();\n  }\n\n  const uint32_t* blocks_ptr = request_blocks.data();\n  const int* offsets_ptr = request_offsets.data();\n  const uint32_t* cache_begin = sorted_cache_keys.data();\n  const uint32_t* cache_end = cache_begin + sorted_cache_keys.size();\n  \n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    \n    if (bitset_ptr) {\n      // Fast path: bitset lookup\n      for (size_t r = 0; r < num_requests; ++r) {\n        int start = offsets_ptr[r];\n        int end = offsets_ptr[r + 1];\n        uint64_t prefix = 0;\n        \n#if defined(__AVX2__)\n        // Process 8 blocks at a time with SIMD\n        int i = start;\n        while (i + 8 <= end) {\n          // Load 8 keys\n          __m256i keys = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(blocks_ptr + i));\n          \n          // Check each key in bitset\n          uint32_t k[8];\n          _mm256_storeu_si256(reinterpret_cast<__m256i*>(k), keys);\n          \n          uint32_t mask = 0;\n          for (int j = 0; j < 8; ++j) {\n            if (bitset_contains(bitset_ptr, k[j])) {\n              mask |= (1u << j);\n            }\n          }\n          \n          if (mask == 0xFF) {\n            prefix += 8;\n            i += 8;\n          } else {\n            // Find first miss\n            int first_miss = __builtin_ctz(~mask);\n            prefix += first_miss;\n            goto done_request;\n          }\n        }\n        \n        // Handle remaining blocks\n        while (i < end) {\n          if (__builtin_expect(!bitset_contains(bitset_ptr, blocks_ptr[i]), 0)) {\n            goto done_request;\n          }\n          ++prefix;\n          ++i;\n        }\n        done_request:\n#else\n        for (int i = start; i < end; ++i) {\n          if (__builtin_expect(!bitset_contains(bitset_ptr, blocks_ptr[i]), 0)) {\n            break;\n          }\n          ++prefix;\n        }\n#endif\n        hash = mix(hash, prefix);\n      }\n    } else {\n      // Fallback: binary search with prefetching\n      for (size_t r = 0; r < num_requests; ++r) {\n        int start = offsets_ptr[r];\n        int end = offsets_ptr[r + 1];\n        uint64_t prefix = 0;\n        \n        for (int i = start; i < end; ++i) {\n          uint32_t key = blocks_ptr[i];\n          \n          // Prefetch next key's potential cache line\n          if (__builtin_expect(i + 1 < end, 1)) {\n            uint32_t next_key = blocks_ptr[i + 1];\n            size_t mid_idx = sorted_cache_keys.size() / 2;\n            __builtin_prefetch(&cache_begin[mid_idx], 0, 0);\n          }\n          \n          if (!std::binary_search(cache_begin, cache_end, key)) {\n            break;\n          }\n          ++prefix;\n        }\n        hash = mix(hash, prefix);\n      }\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup_v2200_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 319098450,
+    "min_elapsed_ns": 303485205,
+    "max_elapsed_ns": 322069854,
+    "all_elapsed_ns": [
+      319098450,
+      303485205,
+      322069854
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 319098450,
+      "expected_checksum": 11548637948046092892,
+      "actual_checksum": 11548637948046092892
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup_v2200_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 6670434,
+    "min_elapsed_ns": 6572324,
+    "max_elapsed_ns": 9203035,
+    "all_elapsed_ns": [
+      9203035,
+      6572324,
+      6670434
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9203035,
+      "expected_checksum": 11548637948046092892,
+      "actual_checksum": 11548637948046092892
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup_v2200_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 5485033,
+    "min_elapsed_ns": 5368748,
+    "max_elapsed_ns": 6556713,
+    "all_elapsed_ns": [
+      5485033,
+      6556713,
+      5368748
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5485033,
+      "expected_checksum": 11548637948046092892,
+      "actual_checksum": 11548637948046092892
+    },
+    "status": "ok"
+  }
+}

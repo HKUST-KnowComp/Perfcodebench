@@ -1,0 +1,72 @@
+{
+  "task_id": "columnar_filter_sum_v1100_c",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/columnar_filter_sum_v1100_c/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n\nuint64_t filter_sum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint8_t>& flags,\n    uint32_t key_threshold,\n    int iters) {\n  uint64_t sum = 0;\n  const std::size_t n = keys.size();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    \n    // Process in chunks of 4 for better ILP and potential SIMD\n    std::size_t i = 0;\n    const std::size_t n_unroll = n - (n % 4);\n    \n    for (; i < n_unroll; i += 4) {\n      // Unroll 4 iterations\n      uint32_t k0 = keys[i];\n      uint32_t k1 = keys[i+1];\n      uint32_t k2 = keys[i+2];\n      uint32_t k3 = keys[i+3];\n      \n      // Compute predicates\n      bool p0 = flags[i] && k0 < key_threshold && ((k0 & 3u) == 0u);\n      bool p1 = flags[i+1] && k1 < key_threshold && ((k1 & 3u) == 0u);\n      bool p2 = flags[i+2] && k2 < key_threshold && ((k2 & 3u) == 0u);\n      bool p3 = flags[i+3] && k3 < key_threshold && ((k3 & 3u) == 0u);\n      \n      // Branchless accumulation using conditional move semantics\n      sum += p0 ? static_cast<uint64_t>(values[i]) : 0;\n      sum += p1 ? static_cast<uint64_t>(values[i+1]) : 0;\n      sum += p2 ? static_cast<uint64_t>(values[i+2]) : 0;\n      sum += p3 ? static_cast<uint64_t>(values[i+3]) : 0;\n    }\n    \n    // Handle remainder\n    for (; i < n; ++i) {\n      uint32_t k = keys[i];\n      if (flags[i] && k < key_threshold && ((k & 3u) == 0u)) {\n        sum += static_cast<uint64_t>(values[i]);\n      }\n    }\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "columnar_filter_sum_v1100_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3059406510,
+    "min_elapsed_ns": 3046298375,
+    "max_elapsed_ns": 3063751228,
+    "all_elapsed_ns": [
+      3046298375,
+      3059406510,
+      3063751228
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3046298375,
+      "expected_sum": 134328143,
+      "actual_sum": 134328143
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "columnar_filter_sum_v1100_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2745431119,
+    "min_elapsed_ns": 2639550752,
+    "max_elapsed_ns": 2920639147,
+    "all_elapsed_ns": [
+      2639550752,
+      2920639147,
+      2745431119
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2639550752,
+      "expected_sum": 134328143,
+      "actual_sum": 134328143
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "columnar_filter_sum_v1100_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1157874374,
+    "min_elapsed_ns": 1099348926,
+    "max_elapsed_ns": 1181639632,
+    "all_elapsed_ns": [
+      1099348926,
+      1181639632,
+      1157874374
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1099348926,
+      "expected_sum": 134328143,
+      "actual_sum": 134328143
+    },
+    "status": "ok"
+  }
+}

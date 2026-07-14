@@ -1,0 +1,59 @@
+{
+  "task_id": "packet_ipv4_classify_checksum_v2600_e",
+  "model": "meta-llama/llama-4-maverick",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/packet_ipv4_classify_checksum_v2600_e/candidate/meta-llama__llama-4-maverick/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstddef>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nconstexpr std::size_t kPacketSize = 64;\n\nuint32_t is_private_ip(const uint8_t* ip) {\n  return (ip[0] == 10u) | ((ip[0] == 172u && (ip[1] >= 16u && ip[1] < 32u)) << 1) | ((ip[0] == 192u && ip[1] == 168u) << 2);\n}\n\nuint32_t classify_packet(const uint8_t* packet) {\n  uint8_t ttl = packet[8];\n  uint8_t protocol = packet[9];\n  uint16_t dst_port = (packet[22] << 8) | packet[23];\n  uint32_t ttl_bucket = ttl >> 6;\n  uint32_t port_bucket = (protocol == 6 || protocol == 17) ? ((dst_port < 1024) ? 0 : ((dst_port < 8192) ? 1 : 2)) : 3;\n  uint32_t src_class = is_private_ip(packet + 12);\n  return protocol * 131 + ttl_bucket * 17 + src_class * 5 + port_bucket * 23;\n}\n\n}  // namespace\n\nuint64_t classify_packets_checksum(\n    const std::vector<uint8_t>& packets,\n    std::size_t packet_count,\n    int iters) {\n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    const uint8_t* packet_data = packets.data();\n    for (std::size_t i = 0; i < packet_count; ++i) {\n      uint32_t key = classify_packet(packet_data + i * kPacketSize);\n      hash ^= static_cast<uint64_t>(key);\n      hash *= 1099511628211ULL;\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 568649,
+    "min_elapsed_ns": 453890,
+    "max_elapsed_ns": 576667,
+    "all_elapsed_ns": [
+      568649,
+      576667,
+      453890
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 568649,
+      "expected_checksum": 12449503600715617849,
+      "actual_checksum": 12449503600715617849
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 559648,
+    "min_elapsed_ns": 439685,
+    "max_elapsed_ns": 635607,
+    "all_elapsed_ns": [
+      559648,
+      439685,
+      635607
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 559648,
+      "expected_checksum": 12449503600715617849,
+      "actual_checksum": 12449503600715617849
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_e",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/packet_ipv4_classify_checksum_v2600_e/candidate/bench']' returned non-zero exit status 1."
+  }
+}

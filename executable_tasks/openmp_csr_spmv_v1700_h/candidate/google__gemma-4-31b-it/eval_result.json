@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_csr_spmv_v1700_h",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_csr_spmv_v1700_h/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nuint64_t checksum_i64(const std::vector<int64_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (int64_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t csr_spmv_checksum(\n    const std::vector<int>& row_ptr,\n    const std::vector<int>& col_idx,\n    const std::vector<int32_t>& values,\n    const std::vector<int32_t>& dense,\n    int rows,\n    int iters) {\n  \n  std::vector<int64_t> out(static_cast<std::size_t>(rows));\n  \n  // Cache pointers to avoid repeated std::vector overhead in hot loops\n  const int* r_ptr = row_ptr.data();\n  const int* c_idx = col_idx.data();\n  const int32_t* vals = values.data();\n  const int32_t* d_vec = dense.data();\n  int64_t* out_ptr = out.data();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    #pragma omp parallel for schedule(static)\n    for (int row = 0; row < rows; ++row) {\n      int64_t sum = 0;\n      const int start = r_ptr[row];\n      const int end = r_ptr[row + 1];\n      \n      // Manual unrolling or compiler auto-vectorization usually handles this well\n      for (int idx = start; idx < end; ++idx) {\n        sum += static_cast<int64_t>(vals[idx]) * \n               static_cast<int64_t>(d_vec[c_idx[idx]]);\n      }\n      out_ptr[row] = sum;\n    }\n  }\n  \n  return checksum_i64(out);\n}",
+  "baseline": {
+    "task_id": "openmp_csr_spmv_v1700_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4078485,
+    "min_elapsed_ns": 3328518,
+    "max_elapsed_ns": 14388648,
+    "all_elapsed_ns": [
+      4078485,
+      3328518,
+      14388648
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4078485,
+      "expected_checksum": 6215605195971118105,
+      "actual_checksum": 6215605195971118105
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_csr_spmv_v1700_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2875125,
+    "min_elapsed_ns": 1306327,
+    "max_elapsed_ns": 16506429,
+    "all_elapsed_ns": [
+      1306327,
+      16506429,
+      2875125
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1306327,
+      "expected_checksum": 6215605195971118105,
+      "actual_checksum": 6215605195971118105
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_csr_spmv_v1700_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 496713917,
+    "min_elapsed_ns": 436088566,
+    "max_elapsed_ns": 507892863,
+    "all_elapsed_ns": [
+      436088566,
+      496713917,
+      507892863
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 436088566,
+      "expected_checksum": 6215605195971118105,
+      "actual_checksum": 6215605195971118105
+    },
+    "status": "ok"
+  }
+}

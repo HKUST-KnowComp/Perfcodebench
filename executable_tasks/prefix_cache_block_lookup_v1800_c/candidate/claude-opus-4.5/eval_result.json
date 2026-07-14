@@ -1,0 +1,72 @@
+{
+  "task_id": "prefix_cache_block_lookup_v1800_c",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup_v1800_c/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <vector>\n#include <cstdint>\n#include <cstring>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t hash_space,\n    int iters) {\n  \n  const size_t num_requests = request_offsets.size() > 0 ? request_offsets.size() - 1 : 0;\n  if (num_requests == 0) {\n    uint64_t hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n      hash = 1469598103934665603ULL;\n    }\n    return hash;\n  }\n  \n  const uint32_t* blocks_ptr = request_blocks.data();\n  const int* offsets_ptr = request_offsets.data();\n  \n  // Use bitset for O(1) lookup if hash_space is reasonable\n  constexpr uint32_t MAX_BITSET_SIZE = 64 * 1024 * 1024; // 64M entries = 8MB memory\n  \n  std::vector<uint64_t> bitset;\n  bool use_bitset = (hash_space > 0 && hash_space <= MAX_BITSET_SIZE);\n  \n  if (use_bitset) {\n    size_t num_words = (hash_space + 63) / 64;\n    bitset.resize(num_words, 0);\n    for (uint32_t key : sorted_cache_keys) {\n      if (key < hash_space) {\n        bitset[key >> 6] |= (1ULL << (key & 63));\n      }\n    }\n  }\n  \n  const uint32_t* cache_begin = sorted_cache_keys.data();\n  const uint32_t* cache_end = cache_begin + sorted_cache_keys.size();\n  \n  uint64_t hash = 0;\n  \n  if (use_bitset) {\n    const uint64_t* bitset_ptr = bitset.data();\n    \n    for (int iter = 0; iter < iters; ++iter) {\n      hash = 1469598103934665603ULL;\n      \n      for (size_t r = 0; r < num_requests; ++r) {\n        int start = offsets_ptr[r];\n        int end = offsets_ptr[r + 1];\n        uint64_t prefix = 0;\n        \n        for (int i = start; i < end; ++i) {\n          uint32_t block = blocks_ptr[i];\n          if (__builtin_expect(block < hash_space && (bitset_ptr[block >> 6] & (1ULL << (block & 63))), 1)) {\n            ++prefix;\n          } else {\n            break;\n          }\n        }\n        hash = mix(hash, prefix);\n      }\n    }\n  } else {\n    // Fallback to binary search\n    for (int iter = 0; iter < iters; ++iter) {\n      hash = 1469598103934665603ULL;\n      \n      for (size_t r = 0; r < num_requests; ++r) {\n        int start = offsets_ptr[r];\n        int end = offsets_ptr[r + 1];\n        uint64_t prefix = 0;\n        \n        for (int i = start; i < end; ++i) {\n          uint32_t block = blocks_ptr[i];\n          // Manual binary search for speed\n          const uint32_t* lo = cache_begin;\n          const uint32_t* hi = cache_end;\n          bool found = false;\n          while (lo < hi) {\n            const uint32_t* mid = lo + ((hi - lo) >> 1);\n            if (*mid < block) {\n              lo = mid + 1;\n            } else if (*mid > block) {\n              hi = mid;\n            } else {\n              found = true;\n              break;\n            }\n          }\n          if (__builtin_expect(found, 1)) {\n            ++prefix;\n          } else {\n            break;\n          }\n        }\n        hash = mix(hash, prefix);\n      }\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup_v1800_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1052360788,
+    "min_elapsed_ns": 1051266302,
+    "max_elapsed_ns": 1102572145,
+    "all_elapsed_ns": [
+      1052360788,
+      1051266302,
+      1102572145
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1052360788,
+      "expected_checksum": 11113062817540119305,
+      "actual_checksum": 11113062817540119305
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup_v1800_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8804401,
+    "min_elapsed_ns": 7540996,
+    "max_elapsed_ns": 10122560,
+    "all_elapsed_ns": [
+      8804401,
+      7540996,
+      10122560
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8804401,
+      "expected_checksum": 11113062817540119305,
+      "actual_checksum": 11113062817540119305
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup_v1800_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 11300846,
+    "min_elapsed_ns": 7892409,
+    "max_elapsed_ns": 16829981,
+    "all_elapsed_ns": [
+      7892409,
+      11300846,
+      16829981
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7892409,
+      "expected_checksum": 11113062817540119305,
+      "actual_checksum": 11113062817540119305
+    },
+    "status": "ok"
+  }
+}

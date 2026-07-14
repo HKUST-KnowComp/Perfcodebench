@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_jacobi_2d_v1600_e",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v1600_e/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 8,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nuint64_t checksum_u32(const uint32_t* data, size_t size) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (size_t i = 0; i < size; ++i) {\n    hash ^= static_cast<uint64_t>(data[i]);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  if (rows <= 0 || cols <= 0) return 0;\n  \n  size_t size = static_cast<size_t>(rows) * static_cast<size_t>(cols);\n  std::vector<uint32_t> a = input;\n  std::vector<uint32_t> b = input;\n  \n  uint32_t* p_a = a.data();\n  uint32_t* p_b = b.data();\n\n  for (int step = 0; step < steps; ++step) {\n    #pragma omp parallel for schedule(static)\n    for (int row = 0; row < rows; ++row) {\n      size_t row_offset = static_cast<size_t>(row) * cols;\n      if (row == 0 || row == rows - 1) {\n        for (int col = 0; col < cols; ++col) {\n          p_b[row_offset + col] = p_a[row_offset + col];\n        }\n      } else {\n        // Boundary column 0\n        p_b[row_offset] = p_a[row_offset];\n        \n        // Core computation - vectorized\n        #pragma omp simd\n        for (int col = 1; col < cols - 1; ++col) {\n          size_t idx = row_offset + col;\n          p_b[idx] = (p_a[idx] * 4u + p_a[idx - 1] + p_a[idx + 1] +\n                      p_a[idx - cols] + p_a[idx + cols]) / 8u;\n        }\n        \n        // Boundary column cols-1\n        p_b[row_offset + cols - 1] = p_a[row_offset + cols - 1];\n      }\n    }\n    std::swap(p_a, p_b);\n  }\n\n  return checksum_u32(p_a, size);\n}",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v1600_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3869792906,
+    "min_elapsed_ns": 3512621399,
+    "max_elapsed_ns": 3975563744,
+    "all_elapsed_ns": [
+      3512621399,
+      3975563744,
+      3869792906
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3512621399,
+      "expected_checksum": 1842857931776151235,
+      "actual_checksum": 1842857931776151235
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v1600_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1395382247,
+    "min_elapsed_ns": 1264192633,
+    "max_elapsed_ns": 1685936962,
+    "all_elapsed_ns": [
+      1685936962,
+      1395382247,
+      1264192633
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1685936962,
+      "expected_checksum": 1842857931776151235,
+      "actual_checksum": 1842857931776151235
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v1600_e",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-fopenmp', '-Iexecutable_tasks/openmp_jacobi_2d_v1600_e/harness', 'executable_tasks/openmp_jacobi_2d_v1600_e/harness/benchmark_main.cpp', 'executable_tasks/openmp_jacobi_2d_v1600_e/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/openmp_jacobi_2d_v1600_e/candidate/bench']' returned non-zero exit status 1."
+  }
+}

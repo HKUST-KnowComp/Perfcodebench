@@ -1,0 +1,72 @@
+{
+  "task_id": "java_topk_selection_checksum_v3400_009",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/java_topk_selection_checksum_v3400_009/candidate/gpt-5.4/Solution.java",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "import java.util.*;\n\npublic class Solution {\n  // Exact ordering required by the harness:\n  // higher score first, and for equal score lower index first.\n  // We avoid object allocation and full sorting of all items.\n\n  private static final long FNV_OFFSET = 1469598103934665603L;\n  private static final long FNV_PRIME = 1099511628211L;\n\n  // Min-heap of the current top-k winners, where the root is the worst winner.\n  // \"Worse\" means lower score, or for equal score larger index.\n  private static int[] heapScores;\n  private static int[] heapIdx;\n  private static int heapCap;\n\n  // Scratch arrays for final ordering of the k winners.\n  private static int[] outScores;\n  private static int[] outIdx;\n\n  private static void ensureCapacity(int k) {\n    if (heapCap >= k) return;\n    heapScores = new int[k];\n    heapIdx = new int[k];\n    outScores = new int[k];\n    outIdx = new int[k];\n    heapCap = k;\n  }\n\n  // Returns true if candidate (s1,i1) is better than (s2,i2)\n  // under final ranking: higher score first, then lower index first.\n  private static boolean better(int s1, int i1, int s2, int i2) {\n    return s1 > s2 || (s1 == s2 && i1 < i2);\n  }\n\n  // Returns true if (s1,i1) is worse than (s2,i2)\n  // under final ranking.\n  private static boolean worse(int s1, int i1, int s2, int i2) {\n    return s1 < s2 || (s1 == s2 && i1 > i2);\n  }\n\n  private static void siftUp(int pos) {\n    int s = heapScores[pos];\n    int idx = heapIdx[pos];\n    while (pos > 0) {\n      int parent = (pos - 1) >>> 1;\n      int ps = heapScores[parent];\n      int pi = heapIdx[parent];\n      // Min-heap by \"worse first\".\n      if (!worse(s, idx, ps, pi)) break;\n      heapScores[pos] = ps;\n      heapIdx[pos] = pi;\n      pos = parent;\n    }\n    heapScores[pos] = s;\n    heapIdx[pos] = idx;\n  }\n\n  private static void siftDown(int pos, int size) {\n    int s = heapScores[pos];\n    int idx = heapIdx[pos];\n    int half = size >>> 1;\n    while (pos < half) {\n      int left = (pos << 1) + 1;\n      int right = left + 1;\n      int child = left;\n      int cs = heapScores[left];\n      int ci = heapIdx[left];\n      if (right < size) {\n        int rs = heapScores[right];\n        int ri = heapIdx[right];\n        if (worse(rs, ri, cs, ci)) {\n          child = right;\n          cs = rs;\n          ci = ri;\n        }\n      }\n      if (!worse(cs, ci, s, idx)) break;\n      heapScores[pos] = cs;\n      heapIdx[pos] = ci;\n      pos = child;\n    }\n    heapScores[pos] = s;\n    heapIdx[pos] = idx;\n  }\n\n  // Sort winners into exact required order: better first.\n  // Uses an iterative quicksort with insertion sort for small partitions.\n  private static void sortTopK(int n) {\n    if (n <= 1) return;\n\n    int[] lstack = new int[64];\n    int[] rstack = new int[64];\n    int sp = 0;\n    lstack[sp] = 0;\n    rstack[sp] = n - 1;\n    sp++;\n\n    while (sp > 0) {\n      sp--;\n      int left = lstack[sp];\n      int right = rstack[sp];\n\n      while (right - left > 24) {\n        int mid = (left + right) >>> 1;\n\n        int aS = outScores[left], aI = outIdx[left];\n        int bS = outScores[mid], bI = outIdx[mid];\n        int cS = outScores[right], cI = outIdx[right];\n\n        // median-of-three by final order (better first)\n        int pS, pI;\n        if (better(aS, aI, bS, bI)) {\n          if (better(bS, bI, cS, cI)) {\n            pS = bS; pI = bI;\n          } else if (better(aS, aI, cS, cI)) {\n            pS = cS; pI = cI;\n          } else {\n            pS = aS; pI = aI;\n          }\n        } else {\n          if (better(aS, aI, cS, cI)) {\n            pS = aS; pI = aI;\n          } else if (better(bS, bI, cS, cI)) {\n            pS = cS; pI = cI;\n          } else {\n            pS = bS; pI = bI;\n          }\n        }\n\n        int i = left;\n        int j = right;\n        while (i <= j) {\n          while (better(outScores[i], outIdx[i], pS, pI)) i++;\n          while (better(pS, pI, outScores[j], outIdx[j])) j--;\n          if (i <= j) {\n            int ts = outScores[i]; outScores[i] = outScores[j]; outScores[j] = ts;\n            int ti = outIdx[i]; outIdx[i] = outIdx[j]; outIdx[j] = ti;\n            i++;\n            j--;\n          }\n        }\n\n        if (j - left < right - i) {\n          if (i < right) {\n            lstack[sp] = i;\n            rstack[sp] = right;\n            sp++;\n          }\n          right = j;\n        } else {\n          if (left < j) {\n            lstack[sp] = left;\n            rstack[sp] = j;\n            sp++;\n          }\n          left = i;\n        }\n      }\n\n      for (int i = left + 1; i <= right; i++) {\n        int s = outScores[i];\n        int idx = outIdx[i];\n        int j = i - 1;\n        while (j >= left && better(s, idx, outScores[j], outIdx[j])) {\n          outScores[j + 1] = outScores[j];\n          outIdx[j + 1] = outIdx[j];\n          j--;\n        }\n        outScores[j + 1] = s;\n        outIdx[j + 1] = idx;\n      }\n    }\n  }\n\n  public static long run(int[] scores, int k, int iters) {\n    final int n = scores.length;\n    if (k <= 0) {\n      long h = 0;\n      for (int iter = 0; iter < iters; iter++) h = FNV_OFFSET;\n      return h;\n    }\n\n    ensureCapacity(k);\n    long h = 0;\n\n    for (int iter = 0; iter < iters; iter++) {\n      int size = 0;\n\n      // Build/maintain exact top-k in O(n log k).\n      for (int i = 0; i < n; i++) {\n        int s = scores[i];\n        if (size < k) {\n          heapScores[size] = s;\n          heapIdx[size] = i;\n          siftUp(size);\n          size++;\n        } else {\n          // Replace root only if candidate is better than current worst winner.\n          if (better(s, i, heapScores[0], heapIdx[0])) {\n            heapScores[0] = s;\n            heapIdx[0] = i;\n            siftDown(0, size);\n          }\n        }\n      }\n\n      // Copy winners to output arrays and sort them into exact final order.\n      for (int i = 0; i < k; i++) {\n        outScores[i] = heapScores[i];\n        outIdx[i] = heapIdx[i];\n      }\n      sortTopK(k);\n\n      h = FNV_OFFSET;\n      for (int i = 0; i < k; i++) {\n        h ^= (((long) outScores[i]) << 32) ^ (outIdx[i] & 0xffffffffL);\n        h *= FNV_PRIME;\n      }\n    }\n    return h;\n  }\n}\n",
+  "baseline": {
+    "task_id": "java_topk_selection_checksum_v3400_009",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 791037516,
+    "min_elapsed_ns": 771976181,
+    "max_elapsed_ns": 835612424,
+    "all_elapsed_ns": [
+      835612424,
+      791037516,
+      771976181
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 835612424,
+      "expected_checksum": -157625415545386436,
+      "actual_checksum": -157625415545386436
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "java_topk_selection_checksum_v3400_009",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 52701826,
+    "min_elapsed_ns": 51483712,
+    "max_elapsed_ns": 61846058,
+    "all_elapsed_ns": [
+      61846058,
+      52701826,
+      51483712
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 61846058,
+      "expected_checksum": -157625415545386436,
+      "actual_checksum": -157625415545386436
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "java_topk_selection_checksum_v3400_009",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 15105102,
+    "min_elapsed_ns": 14884355,
+    "max_elapsed_ns": 15188680,
+    "all_elapsed_ns": [
+      15105102,
+      14884355,
+      15188680
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15105102,
+      "expected_checksum": -157625415545386436,
+      "actual_checksum": -157625415545386436
+    },
+    "status": "ok"
+  }
+}

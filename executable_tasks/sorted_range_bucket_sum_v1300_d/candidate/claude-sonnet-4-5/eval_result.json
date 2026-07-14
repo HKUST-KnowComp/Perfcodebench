@@ -1,0 +1,72 @@
+{
+  "task_id": "sorted_range_bucket_sum_v1300_d",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sorted_range_bucket_sum_v1300_d/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n\nstatic inline size_t binary_search_upper_bound(const uint32_t* data, size_t n, uint32_t value) {\n    size_t left = 0;\n    size_t right = n;\n    \n    while (right - left > 8) {\n        size_t mid = left + (right - left) / 2;\n        if (data[mid] <= value) {\n            left = mid + 1;\n        } else {\n            right = mid;\n        }\n    }\n    \n    // Linear search for small ranges\n    while (left < right && data[left] <= value) {\n        ++left;\n    }\n    \n    return left;\n}\n\nstatic inline size_t galloping_search(const uint32_t* data, size_t n, uint32_t value, size_t hint) {\n    if (hint >= n || data[hint] > value) {\n        // Search backwards\n        if (hint == 0 || data[hint - 1] <= value) {\n            return hint;\n        }\n        size_t step = 1;\n        size_t pos = hint;\n        while (pos >= step && data[pos - step] > value) {\n            pos -= step;\n            step *= 2;\n        }\n        size_t left = (pos >= step) ? pos - step : 0;\n        return binary_search_upper_bound(data + left, hint - left, value) + left;\n    } else {\n        // Search forwards\n        size_t step = 1;\n        size_t pos = hint;\n        while (pos + step < n && data[pos + step] <= value) {\n            pos += step;\n            step *= 2;\n        }\n        size_t right = (pos + step < n) ? pos + step : n;\n        return binary_search_upper_bound(data + hint, right - hint, value) + hint;\n    }\n}\n\nuint64_t range_bucket_sum(\n    const std::vector<uint32_t>& boundaries,\n    const std::vector<uint32_t>& probes,\n    int iters) {\n    const size_t n_boundaries = boundaries.size();\n    const size_t n_probes = probes.size();\n    const uint32_t* bound_data = boundaries.data();\n    const uint32_t* probe_data = probes.data();\n    \n    uint64_t sum = 0;\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        sum = 0;\n        size_t last_idx = 0;\n        \n        for (size_t i = 0; i < n_probes; ++i) {\n            uint32_t probe = probe_data[i];\n            \n            // Prefetch next probe\n            if (i + 1 < n_probes) {\n                __builtin_prefetch(&probe_data[i + 1], 0, 3);\n            }\n            \n            // Use galloping search with hint from last position\n            size_t idx = galloping_search(bound_data, n_boundaries, probe, last_idx);\n            sum += idx;\n            last_idx = idx;\n        }\n    }\n    \n    return sum;\n}",
+  "baseline": {
+    "task_id": "sorted_range_bucket_sum_v1300_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1228618349,
+    "min_elapsed_ns": 1223581716,
+    "max_elapsed_ns": 1231057555,
+    "all_elapsed_ns": [
+      1223581716,
+      1228618349,
+      1231057555
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1223581716,
+      "expected_sum": 34362404411,
+      "actual_sum": 34362404411
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sorted_range_bucket_sum_v1300_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 99307834,
+    "min_elapsed_ns": 94112932,
+    "max_elapsed_ns": 109877906,
+    "all_elapsed_ns": [
+      109877906,
+      99307834,
+      94112932
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 109877906,
+      "expected_sum": 34362404411,
+      "actual_sum": 34362404411
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sorted_range_bucket_sum_v1300_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 194906885,
+    "min_elapsed_ns": 186695897,
+    "max_elapsed_ns": 228201208,
+    "all_elapsed_ns": [
+      228201208,
+      194906885,
+      186695897
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 228201208,
+      "expected_sum": 34362404411,
+      "actual_sum": 34362404411
+    },
+    "status": "ok"
+  }
+}

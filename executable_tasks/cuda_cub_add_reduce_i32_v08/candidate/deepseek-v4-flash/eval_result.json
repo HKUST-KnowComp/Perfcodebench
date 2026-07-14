@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v08",
+  "model": "deepseek-v4-flash",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v08/candidate/deepseek-v4-flash/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int BLOCK_SIZE = 256;\n\n__global__ void reduce_kernel(const int* input, int* output, int n) {\n    __shared__ int sdata[BLOCK_SIZE];\n\n    int tid = threadIdx.x;\n    int sum = 0;\n\n    // Grid-stride loop: each thread processes multiple elements\n    for (int i = blockIdx.x * BLOCK_SIZE + tid; i < n; i += gridDim.x * BLOCK_SIZE) {\n        sum += input[i];\n    }\n\n    sdata[tid] = sum;\n    __syncthreads();\n\n    // Parallel reduction in shared memory\n    for (int stride = BLOCK_SIZE / 2; stride > 0; stride >>= 1) {\n        if (tid < stride) {\n            sdata[tid] += sdata[tid + stride];\n        }\n        __syncthreads();\n    }\n\n    // First thread atomically adds block partial sum to output\n    if (tid == 0) {\n        atomicAdd(output, sdata[0]);\n    }\n}\n\n}  // anonymous namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, sizeof(int));\n        if (n > 0) {\n            int grid = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;\n            reduce_kernel<<<grid, BLOCK_SIZE>>>(input, output, n);\n        }\n    }\n}\n",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v08",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6262527,
+    "min_elapsed_ns": 6262303,
+    "max_elapsed_ns": 6266272,
+    "all_elapsed_ns": [
+      6262303,
+      6262527,
+      6266272
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6262303,
+      "expected_sum": 15728640,
+      "actual_sum": 15728640
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v08",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 776256,
+    "min_elapsed_ns": 756063,
+    "max_elapsed_ns": 908671,
+    "all_elapsed_ns": [
+      756063,
+      776256,
+      908671
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 756063,
+      "expected_sum": 15728640,
+      "actual_sum": 15728640
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v08",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v08/candidate/bench']' timed out after 5 seconds"
+  }
+}

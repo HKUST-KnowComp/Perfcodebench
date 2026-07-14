@@ -1,0 +1,26 @@
+import java.util.List;
+
+public class Solution {
+  public static long run(List<String> rows) {
+    long hash = 1469598103934665603L;
+    for (String row : rows) {
+      int i1 = row.indexOf('&');
+      int i2 = row.indexOf('&', i1 + 1);
+      int len = row.length();
+
+      int u = 0;
+      for (int i = 2; i < i1; i++) u = u * 10 + (row.charAt(i) - '0');
+
+      int s = 0;
+      for (int i = i1 + 7; i < i2; i++) s = s * 10 + (row.charAt(i) - '0');
+
+      int f = 0;
+      for (int i = i2 + 6; i < len; i++) f = f * 10 + (row.charAt(i) - '0');
+
+      long v = (u & 2047) + s + f * 19L;
+      hash ^= (v + 1);
+      hash *= 1099511628211L;
+    }
+    return hash;
+  }
+}

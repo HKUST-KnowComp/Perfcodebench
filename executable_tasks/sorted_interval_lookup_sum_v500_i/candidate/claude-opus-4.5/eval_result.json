@@ -1,0 +1,72 @@
+{
+  "task_id": "sorted_interval_lookup_sum_v500_i",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sorted_interval_lookup_sum_v500_i/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#endif\n\nuint64_t interval_lookup_sum(\n    const std::vector<uint32_t>& starts,\n    const std::vector<uint32_t>& ends,\n    const std::vector<uint32_t>& payloads,\n    const std::vector<uint32_t>& probes,\n    const std::vector<uint32_t>& weights,\n    int iters) {\n  (void)ends;\n  \n  const uint32_t* __restrict starts_ptr = starts.data();\n  const uint32_t* __restrict payloads_ptr = payloads.data();\n  const uint32_t* __restrict probes_ptr = probes.data();\n  const uint32_t* __restrict weights_ptr = weights.data();\n  const std::size_t n_intervals = starts.size();\n  const std::size_t n_probes = probes.size();\n  \n  uint64_t sum = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    \n#if defined(__AVX2__)\n    std::size_t i = 0;\n    \n    // Process 8 probes at a time using SIMD binary search\n    for (; i + 8 <= n_probes; i += 8) {\n      __m256i probe_vec = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(probes_ptr + i));\n      __m256i weight_vec = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(weights_ptr + i));\n      \n      // Parallel binary search for 8 probes\n      __m256i lo = _mm256_setzero_si256();\n      __m256i hi = _mm256_set1_epi32(static_cast<int>(n_intervals));\n      \n      // Binary search iterations (log2(n_intervals) iterations needed)\n      while (true) {\n        __m256i diff = _mm256_sub_epi32(hi, lo);\n        __m256i ones = _mm256_set1_epi32(1);\n        __m256i all_one = _mm256_cmpeq_epi32(diff, ones);\n        if (_mm256_movemask_epi8(all_one) == -1) break;\n        \n        __m256i mid = _mm256_srli_epi32(_mm256_add_epi32(lo, hi), 1);\n        \n        // Gather starts[mid] for all 8 lanes\n        __m256i mid_vals = _mm256_i32gather_epi32(reinterpret_cast<const int*>(starts_ptr), mid, 4);\n        \n        // Compare: starts[mid] <= probe ? 1 : 0\n        // We want upper_bound behavior: find first index where starts[idx] > probe\n        // So we update lo when starts[mid] <= probe\n        __m256i cmp = _mm256_cmpgt_epi32(probe_vec, mid_vals); // probe > mid_vals\n        __m256i cmp_eq = _mm256_cmpeq_epi32(probe_vec, mid_vals); // probe == mid_vals\n        __m256i le_mask = _mm256_or_si256(cmp, cmp_eq); // probe >= mid_vals means starts[mid] <= probe\n        \n        // For upper_bound: if starts[mid] <= probe, lo = mid + 1, else hi = mid\n        __m256i mid_plus_1 = _mm256_add_epi32(mid, ones);\n        lo = _mm256_blendv_epi8(lo, mid_plus_1, le_mask);\n        hi = _mm256_blendv_epi8(mid, hi, le_mask);\n      }\n      \n      // lo now contains upper_bound indices, we need idx = lo - 1\n      __m256i idx = _mm256_sub_epi32(lo, _mm256_set1_epi32(1));\n      \n      // Gather payloads[idx]\n      __m256i payload_vec = _mm256_i32gather_epi32(reinterpret_cast<const int*>(payloads_ptr), idx, 4);\n      \n      // Compute payload * weight and accumulate\n      // Need to do 32x32->64 multiplication\n      // Split into low and high 4 elements\n      __m128i payload_lo = _mm256_castsi256_si128(payload_vec);\n      __m128i payload_hi = _mm256_extracti128_si256(payload_vec, 1);\n      __m128i weight_lo = _mm256_castsi256_si128(weight_vec);\n      __m128i weight_hi = _mm256_extracti128_si256(weight_vec, 1);\n      \n      // 32x32->64 multiply using _mm_mul_epu32 (multiplies elements 0,2)\n      __m128i prod0_lo = _mm_mul_epu32(payload_lo, weight_lo);\n      __m128i prod1_lo = _mm_mul_epu32(_mm_srli_si128(payload_lo, 4), _mm_srli_si128(weight_lo, 4));\n      __m128i prod0_hi = _mm_mul_epu32(payload_hi, weight_hi);\n      __m128i prod1_hi = _mm_mul_epu32(_mm_srli_si128(payload_hi, 4), _mm_srli_si128(weight_hi, 4));\n      \n      // Horizontal sum of 64-bit products\n      __m128i sum_lo = _mm_add_epi64(prod0_lo, prod1_lo);\n      __m128i sum_hi = _mm_add_epi64(prod0_hi, prod1_hi);\n      __m128i sum_all = _mm_add_epi64(sum_lo, sum_hi);\n      \n      // Final horizontal add\n      sum += static_cast<uint64_t>(_mm_extract_epi64(sum_all, 0)) + \n             static_cast<uint64_t>(_mm_extract_epi64(sum_all, 1));\n    }\n    \n    // Handle remaining probes with scalar code\n    for (; i < n_probes; ++i) {\n      const uint32_t probe = probes_ptr[i];\n      \n      // Binary search\n      std::size_t lo = 0, hi = n_intervals;\n      while (hi - lo > 1) {\n        std::size_t mid = (lo + hi) >> 1;\n        if (starts_ptr[mid] <= probe) {\n          lo = mid;\n        } else {\n          hi = mid;\n        }\n      }\n      // lo is now the index we want (upper_bound - 1)\n      std::size_t idx = lo;\n      if (starts_ptr[lo] > probe && lo > 0) idx = lo - 1;\n      else if (starts_ptr[lo] > probe) idx = 0;\n      \n      sum += static_cast<uint64_t>(payloads_ptr[idx]) * static_cast<uint64_t>(weights_ptr[i]);\n    }\n#else\n    // Scalar fallback with manual unrolling\n    std::size_t i = 0;\n    for (; i + 4 <= n_probes; i += 4) {\n      uint64_t s0 = 0, s1 = 0, s2 = 0, s3 = 0;\n      \n      const uint32_t p0 = probes_ptr[i];\n      const uint32_t p1 = probes_ptr[i + 1];\n      const uint32_t p2 = probes_ptr[i + 2];\n      const uint32_t p3 = probes_ptr[i + 3];\n      \n      auto it0 = std::upper_bound(starts_ptr, starts_ptr + n_intervals, p0);\n      auto it1 = std::upper_bound(starts_ptr, starts_ptr + n_intervals, p1);\n      auto it2 = std::upper_bound(starts_ptr, starts_ptr + n_intervals, p2);\n      auto it3 = std::upper_bound(starts_ptr, starts_ptr + n_intervals, p3);\n      \n      std::size_t idx0 = static_cast<std::size_t>(it0 - starts_ptr - 1);\n      std::size_t idx1 = static_cast<std::size_t>(it1 - starts_ptr - 1);\n      std::size_t idx2 = static_cast<std::size_t>(it2 - starts_ptr - 1);\n      std::size_t idx3 = static_cast<std::size_t>(it3 - starts_ptr - 1);\n      \n      s0 = static_cast<uint64_t>(payloads_ptr[idx0]) * static_cast<uint64_t>(weights_ptr[i]);\n      s1 = static_cast<uint64_t>(payloads_ptr[idx1]) * static_cast<uint64_t>(weights_ptr[i + 1]);\n      s2 = static_cast<uint64_t>(payloads_ptr[idx2]) * static_cast<uint64_t>(weights_ptr[i + 2]);\n      s3 = static_cast<uint64_t>(payloads_ptr[idx3]) * static_cast<uint64_t>(weights_ptr[i + 3]);\n      \n      sum += s0 + s1 + s2 + s3;\n    }\n    \n    for (; i < n_probes; ++i) {\n      const auto it = std::upper_bound(starts_ptr, starts_ptr + n_intervals, probes_ptr[i]);\n      const std::size_t idx = static_cast<std::size_t>(it - starts_ptr - 1);\n      sum += static_cast<uint64_t>(payloads_ptr[idx]) * static_cast<uint64_t>(weights_ptr[i]);\n    }\n#endif\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "sorted_interval_lookup_sum_v500_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1491685233,
+    "min_elapsed_ns": 1486629964,
+    "max_elapsed_ns": 1495219274,
+    "all_elapsed_ns": [
+      1495219274,
+      1491685233,
+      1486629964
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1495219274,
+      "expected_sum": 343316728056,
+      "actual_sum": 343316728056
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sorted_interval_lookup_sum_v500_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 159223994,
+    "min_elapsed_ns": 158429457,
+    "max_elapsed_ns": 159912800,
+    "all_elapsed_ns": [
+      159912800,
+      159223994,
+      158429457
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 159912800,
+      "expected_sum": 343316728056,
+      "actual_sum": 343316728056
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sorted_interval_lookup_sum_v500_i",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1895264698,
+    "min_elapsed_ns": 1872534129,
+    "max_elapsed_ns": 2004216090,
+    "all_elapsed_ns": [
+      1872534129,
+      1895264698,
+      2004216090
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1872534129,
+      "expected_sum": 343316728056,
+      "actual_sum": 343316728056
+    },
+    "status": "ok"
+  }
+}

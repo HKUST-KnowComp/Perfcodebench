@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v19",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v19/candidate/gpt-5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__inline__ __device__ int warp_reduce_sum(int val) {\n  unsigned mask = 0xffffffffu;\n#pragma unroll\n  for (int offset = warpSize / 2; offset > 0; offset >>= 1) {\n    val += __shfl_down_sync(mask, val, offset);\n  }\n  return val;\n}\n\ntemplate<int BLOCK_SIZE>\n__launch_bounds__(BLOCK_SIZE, 2)\n__global__ void block_reduce_atomic_kernel(const int* __restrict__ input, int* __restrict__ output, int n) {\n  int local = 0;\n  int gid = blockIdx.x * BLOCK_SIZE + threadIdx.x;\n  int stride = BLOCK_SIZE * gridDim.x;\n\n  // Unroll by 4 for improved memory throughput\n  int i = gid;\n  int last = n - 4 * stride;\n  for (; i <= last; i += 4 * stride) {\n    int v0 = input[i];\n    int v1 = input[i + stride];\n    int v2 = input[i + 2 * stride];\n    int v3 = input[i + 3 * stride];\n    local += v0 + v1 + v2 + v3;\n  }\n  for (; i < n; i += stride) {\n    local += input[i];\n  }\n\n  // In-warp reduction\n  local = warp_reduce_sum(local);\n\n  __shared__ int warp_sums[32]; // supports up to 1024 threads per block\n  int lane = threadIdx.x & 31;\n  int warp = threadIdx.x >> 5;\n  if (lane == 0) {\n    warp_sums[warp] = local;\n  }\n  __syncthreads();\n\n  // Cross-warp reduction by the first warp\n  if (warp == 0) {\n    int sum = (lane < (BLOCK_SIZE + 31) / 32) ? warp_sums[lane] : 0;\n    sum = warp_reduce_sum(sum);\n    if (lane == 0) {\n      atomicAdd(output, sum);\n    }\n  }\n}\n\n} // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n  const int BLOCK_SIZE = 256;\n\n  int device = 0;\n  cudaGetDevice(&device);\n  cudaDeviceProp prop;\n  cudaGetDeviceProperties(&prop, device);\n  int sm_count = prop.multiProcessorCount;\n\n  int grid = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;\n  if (grid < 1) grid = 1;\n  int max_blocks = sm_count * 20; // tuning multiplier\n  if (grid > max_blocks) grid = max_blocks;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    cudaMemset(output, 0, sizeof(int));\n    block_reduce_atomic_kernel<BLOCK_SIZE><<<grid, BLOCK_SIZE>>>(input, output, n);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v19",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 10048192,
+    "min_elapsed_ns": 10046815,
+    "max_elapsed_ns": 10076064,
+    "all_elapsed_ns": [
+      10048192,
+      10046815,
+      10076064
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10048192,
+      "expected_sum": 31457280,
+      "actual_sum": 31457280
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v19",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 797855,
+    "min_elapsed_ns": 750240,
+    "max_elapsed_ns": 4887775,
+    "all_elapsed_ns": [
+      4887775,
+      750240,
+      797855
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4887775,
+      "expected_sum": 31457280,
+      "actual_sum": 31457280
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v19",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v19/candidate/bench']' timed out after 5 seconds"
+  }
+}

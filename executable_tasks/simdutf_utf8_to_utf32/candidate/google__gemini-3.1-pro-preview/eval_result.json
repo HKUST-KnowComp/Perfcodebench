@@ -1,0 +1,72 @@
+{
+  "task_id": "simdutf_utf8_to_utf32",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdutf_utf8_to_utf32/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"simdutf.h\"\n#include <vector>\n#include <memory>\n\n/**\n * Performance Engineer's Optimization:\n * 1. Use simdutf::utf32_length_from_utf8 to determine the exact output size.\n * 2. Use simdutf::convert_utf8_to_utf32 for SIMD-accelerated transcoding.\n * 3. Use a stack-allocated buffer for small inputs to avoid heap allocation overhead.\n * 4. Calculate the FNV-1a checksum in a tight loop over the resulting UTF-32 buffer.\n */\n\nuint64_t transcode_checksum(const std::string& input) {\n    const size_t utf8_len = input.size();\n    if (utf8_len == 0) {\n        return 1469598103934665603ULL;\n    }\n\n    // Determine the number of UTF-32 code points\n    const size_t utf32_len = simdutf::utf32_length_from_utf8(input.data(), utf8_len);\n\n    // Use a stack buffer for small strings to avoid allocation latency\n    constexpr size_t STACK_LIMIT = 2048;\n    char32_t stack_buffer[STACK_LIMIT];\n    std::unique_ptr<char32_t[]> heap_buffer;\n    char32_t* target_ptr;\n\n    if (utf32_len <= STACK_LIMIT) {\n        target_ptr = stack_buffer;\n    } else {\n        heap_buffer = std::make_unique<char32_t[]>(utf32_len);\n        target_ptr = heap_buffer.get();\n    }\n\n    // Perform the SIMD-accelerated conversion\n    // Note: The task assumes valid UTF-8 as per the baseline logic.\n    simdutf::convert_utf8_to_utf32(input.data(), utf8_len, target_ptr);\n\n    // FNV-1a 64-bit hash calculation\n    uint64_t hash = 1469598103934665603ULL;\n    const uint64_t fnv_prime = 1099511628211ULL;\n\n    for (size_t i = 0; i < utf32_len; ++i) {\n        hash ^= static_cast<uint64_t>(target_ptr[i]);\n        hash *= fnv_prime;\n    }\n\n    return hash;\n}",
+  "baseline": {
+    "task_id": "simdutf_utf8_to_utf32",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2900870,
+    "min_elapsed_ns": 2899920,
+    "max_elapsed_ns": 2955937,
+    "all_elapsed_ns": [
+      2955937,
+      2899920,
+      2900870
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2955937,
+      "expected_checksum": 12314666770672437607,
+      "actual_checksum": 12314666770672437607
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdutf_utf8_to_utf32",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1175293,
+    "min_elapsed_ns": 1146525,
+    "max_elapsed_ns": 1254416,
+    "all_elapsed_ns": [
+      1254416,
+      1175293,
+      1146525
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1254416,
+      "expected_checksum": 12314666770672437607,
+      "actual_checksum": 12314666770672437607
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdutf_utf8_to_utf32",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1262599,
+    "min_elapsed_ns": 1218986,
+    "max_elapsed_ns": 1367415,
+    "all_elapsed_ns": [
+      1367415,
+      1262599,
+      1218986
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1367415,
+      "expected_checksum": 12314666770672437607,
+      "actual_checksum": 12314666770672437607
+    },
+    "status": "ok"
+  }
+}

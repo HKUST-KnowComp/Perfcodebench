@@ -1,0 +1,59 @@
+{
+  "task_id": "dense_distinct_count_v1200_a",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_distinct_count_v1200_a/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 13,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <unordered_set>\n\nuint64_t distinct_count(const std::vector<uint32_t>& keys, uint32_t key_space, int iters) {\n  (void)iters;\n  // Handle empty inputs quickly\n  if (keys.empty()) return 0ULL;\n\n  // If key_space is zero, no keys are within bounds; fall back to exact set counting\n  if (key_space == 0u) {\n    std::unordered_set<uint32_t> us;\n    us.reserve(keys.size());\n    for (uint32_t k : keys) us.insert(k);\n    return static_cast<uint64_t>(us.size());\n  }\n\n  // Use a dense bitset for fast bounded distinct counting.\n  const uint64_t words = (static_cast<uint64_t>(key_space) + 63u) >> 6; // ceil(key_space/64)\n  std::vector<uint64_t> bits;\n  bits.assign(static_cast<size_t>(words), 0ULL);\n\n  uint64_t count = 0;\n  for (uint32_t k : keys) {\n    if (k >= key_space) {\n      // Out-of-range key detected; fall back to exact hash set counting for correctness.\n      std::unordered_set<uint32_t> us;\n      us.reserve(keys.size());\n      for (uint32_t kk : keys) us.insert(kk);\n      return static_cast<uint64_t>(us.size());\n    }\n    const uint32_t idx = k >> 6;            // word index\n    const uint64_t mask = 1ULL << (k & 63); // bit mask within word\n    uint64_t v = bits[idx];\n    if ((v & mask) == 0ULL) {\n      bits[idx] = v | mask;\n      ++count;\n    }\n  }\n\n  return count;\n}\n",
+  "baseline": {
+    "task_id": "dense_distinct_count_v1200_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6500878106,
+    "min_elapsed_ns": 6481625496,
+    "max_elapsed_ns": 6607930868,
+    "all_elapsed_ns": [
+      6481625496,
+      6500878106,
+      6607930868
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6481625496,
+      "expected_count": 1048576,
+      "actual_count": 1048576
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_distinct_count_v1200_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 188731169,
+    "min_elapsed_ns": 176084510,
+    "max_elapsed_ns": 202277475,
+    "all_elapsed_ns": [
+      188731169,
+      176084510,
+      202277475
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 188731169,
+      "expected_count": 1048576,
+      "actual_count": 1048576
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_distinct_count_v1200_a",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/dense_distinct_count_v1200_a/harness', 'executable_tasks/dense_distinct_count_v1200_a/harness/benchmark_main.cpp', 'executable_tasks/dense_distinct_count_v1200_a/candidate/gpt-5/solution.cpp', '-o', 'build/dense_distinct_count_v1200_a/candidate/bench']' returned non-zero exit status 1."
+  }
+}

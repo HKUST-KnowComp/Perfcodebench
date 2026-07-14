@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_transpose_tiled_f32_v29",
+  "model": "bytedance-seed/seed-2.0-lite",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_transpose_tiled_f32_v29/candidate/bytedance-seed__seed-2.0-lite/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\nconstexpr int kTileDim = 32;\nconstexpr int kBlockRows = 8;\n\n__global__ void transpose_tiled_kernel(const float* __restrict__ input, float* __restrict__ output, int width, int height) {\n    // Shared tile with +1 padding to eliminate shared memory bank conflicts\n    __shared__ float tile[kBlockRows][kTileDim + 1];\n\n    // Calculate input coordinates for current thread\n    const int x = blockIdx.x * kTileDim + threadIdx.x;\n    const int y = blockIdx.y * kBlockRows + threadIdx.y;\n\n    // Coalesced load of tile from global to shared memory\n    if (x < width && y < height) {\n        tile[threadIdx.y][threadIdx.x] = input[y * width + x];\n    }\n\n    // Synchronize to ensure full tile is loaded before writes\n    __syncthreads();\n\n    // Calculate transposed output coordinates\n    const int out_x = blockIdx.y * kBlockRows + threadIdx.y;\n    const int out_y = blockIdx.x * kTileDim + threadIdx.x;\n\n    // Coalesced write of transposed tile to global memory\n    if (out_x < height && out_y < width) {\n        output[out_x * width + out_y] = tile[threadIdx.y][threadIdx.x];\n    }\n}\n\n} // namespace\n\nvoid transpose_f32(const float* input, float* output, int width, int height, int iters) {\n    const dim3 block(kTileDim, kBlockRows);\n    const dim3 grid((width + kTileDim - 1) / kTileDim, (height + kBlockRows - 1) / kBlockRows);\n    for (int iter = 0; iter < iters; ++iter) {\n        transpose_tiled_kernel<<<grid, block>>>(input, output, width, height);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_transpose_tiled_f32_v29",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 17398912,
+    "min_elapsed_ns": 14802816,
+    "max_elapsed_ns": 18882879,
+    "all_elapsed_ns": [
+      17398912,
+      18882879,
+      14802816
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 17398912,
+      "checksum": 589824000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_transpose_tiled_f32_v29",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1039423,
+    "min_elapsed_ns": 1036479,
+    "max_elapsed_ns": 1056383,
+    "all_elapsed_ns": [
+      1036479,
+      1039423,
+      1056383
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1036479,
+      "checksum": 589824000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_transpose_tiled_f32_v29",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_transpose_tiled_f32_v29/candidate/bench']' returned non-zero exit status 2."
+  }
+}

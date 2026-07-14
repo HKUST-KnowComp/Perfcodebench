@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v21",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v21/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cooperative_groups.h>\n#include <device_launch_parameters.h>\nnamespace cg = cooperative_groups;\n\n/* 256-bin histogram version exploiting shared memory warp-aggregated atomics\n   and kernel fusion: histogram256_u8_v21 */\nconstexpr int HIST_SIZE = 256;\nconstexpr int WARP_SIZE = 32;\n\n__global__ void fused_histogram_kernel(const unsigned char* in,\n                                        unsigned int*       out,\n                                        int                 n) {\n    __shared__ unsigned int smem[HIST_SIZE + 1];   // 257 to avoid bank conflict\n    cg::thread_block blk = cg::this_thread_block();\n    auto tile32 = cg::tiled_partition<WARP_SIZE>(blk);\n    const int lid = blk.thread_rank();\n    const int tid = blockIdx.x * blk.size() + lid;\n\n    /* 1. zero shared hist per warp in parallel (fast) */\n    for (int i = lid; i < HIST_SIZE; i += blk.size()) smem[i] = 0U;\n    __syncthreads();\n\n    /* histogram phase in shared mem via warp-aggregated atomics */\n    for (int idx = tid; idx < n; idx += gridDim.x * blk.size()) {\n        auto lane = cg::tiled_partition<WARP_SIZE>(cg::this_thread);\n        unsigned char val = in[idx];\n        unsigned int active_mask = __activemask();\n        if (lane.any(active_mask, lane.thread_rank() == tile32.thread_rank())) {\n            unsigned int bal = __ballot_sync(0xFFFFFFFFu, val == val);\n            val = __shfl_sync(0xFFFFFFFFu, val, lane.thread_rank());\n            atomicAdd(&smem[val], __popc(bal));\n        }\n    }\n    __syncthreads();\n\n    /* write back one element per thread, coalesced */\n    for (int i = lid; i < HIST_SIZE; i += blk.size()) {\n        atomicAdd(&out[i], smem[i]);\n    }\n}\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters) {\n    constexpr int BLOCKS = 4096;\n    constexpr int THREADS = 256;\n    /* L1 prefer shared; shared occupancy already fits 257 int's per TB */\n    cudaFuncSetAttribute(fused_histogram_kernel, cudaFuncAttributePreferredSharedMemoryCarveout,\n                         cudaSharedmemCarveoutSharedMax);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemsetAsync(output, 0, HIST_SIZE * sizeof(unsigned int));\n        fused_histogram_kernel<<<BLOCKS, THREADS>>>(input, output, n);\n    }\n    cudaDeviceSynchronize();\n}",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v21",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 64656066,
+    "min_elapsed_ns": 64652832,
+    "max_elapsed_ns": 64656478,
+    "all_elapsed_ns": [
+      64656478,
+      64656066,
+      64652832
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 64656478,
+      "checksum": 1077936128
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v21",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 463712,
+    "min_elapsed_ns": 462687,
+    "max_elapsed_ns": 465312,
+    "all_elapsed_ns": [
+      462687,
+      463712,
+      465312
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 462687,
+      "checksum": 1077936128
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v21",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['nvcc', '-O3', '-std=c++17', '-Iexecutable_tasks/cuda_histogram256_shared_u8_v21/harness', '-gencode=arch=compute_80,code=sm_80', '-gencode=arch=compute_80,code=compute_80', 'executable_tasks/cuda_histogram256_shared_u8_v21/harness/benchmark_main.cu', 'executable_tasks/cuda_histogram256_shared_u8_v21/candidate/moonshotai__kimi-k2-0905/solution.cu', '-o', 'build/cuda_histogram256_shared_u8_v21/candidate/bench']' returned non-zero exit status 2."
+  }
+}

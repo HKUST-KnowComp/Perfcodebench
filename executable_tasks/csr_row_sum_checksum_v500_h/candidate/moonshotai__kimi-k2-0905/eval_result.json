@@ -1,0 +1,72 @@
+{
+  "task_id": "csr_row_sum_checksum_v500_h",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/csr_row_sum_checksum_v500_h/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstddef>\n#include <cstdint>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\ninline constexpr std::size_t UNROLL = 4;\n\n} // namespace\n\nuint64_t csr_row_hash(const std::vector<uint32_t>& row_ptr,\n                      const std::vector<uint32_t>& values,\n                      int iters) {\n    uint64_t hash = 0;\n    const std::size_t nrows = row_ptr.size() - 1;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        hash = 1469598103934665603ULL;\n\n        // Process rows in SWAR fashion to pipeline sum calculation\n        for (std::size_t r = 0; r < nrows; ++r) {\n            auto begin = static_cast<const uint32_t*>(values.data() + row_ptr[r]);\n            auto end   = static_cast<const uint32_t*>(values.data() + row_ptr[r + 1]);\n            std::size_t len = end - begin;\n\n            uint64_t sum = 0;\n            const std::size_t main_len = len & ~(UNROLL - 1);\n            const std::size_t tail_len = len - main_len;\n\n            // Unrolled body\n            for (std::size_t i = 0; i < main_len; i += UNROLL) {\n                sum += static_cast<uint64_t>(begin[i + 0]);\n                sum += static_cast<uint64_t>(begin[i + 1]);\n                sum += static_cast<uint64_t>(begin[i + 2]);\n                sum += static_cast<uint64_t>(begin[i + 3]);\n            }\n\n            // Tail loop (0-3 elements)\n            for (std::size_t i = main_len; i < len; ++i) {\n                sum += static_cast<uint64_t>(begin[i]);\n            }\n\n            hash = mix(hash, sum);\n        }\n    }\n    return hash;\n}",
+  "baseline": {
+    "task_id": "csr_row_sum_checksum_v500_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 70858315,
+    "min_elapsed_ns": 68650917,
+    "max_elapsed_ns": 73723385,
+    "all_elapsed_ns": [
+      68650917,
+      73723385,
+      70858315
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 68650917,
+      "expected_checksum": 7675295359805453323,
+      "actual_checksum": 7675295359805453323
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "csr_row_sum_checksum_v500_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 12825173,
+    "min_elapsed_ns": 12726827,
+    "max_elapsed_ns": 12830984,
+    "all_elapsed_ns": [
+      12830984,
+      12726827,
+      12825173
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12830984,
+      "expected_checksum": 7675295359805453323,
+      "actual_checksum": 7675295359805453323
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "csr_row_sum_checksum_v500_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 10791158,
+    "min_elapsed_ns": 10725734,
+    "max_elapsed_ns": 11167805,
+    "all_elapsed_ns": [
+      11167805,
+      10791158,
+      10725734
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11167805,
+      "expected_checksum": 7675295359805453323,
+      "actual_checksum": 7675295359805453323
+    },
+    "status": "ok"
+  }
+}

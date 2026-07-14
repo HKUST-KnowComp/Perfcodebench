@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_jacobi_2d_v1400_a",
+  "model": "meta-llama/llama-4-maverick",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v1400_a/candidate/meta-llama__llama-4-maverick/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <omp.h>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  std::vector<uint32_t> a = input;\n  std::vector<uint32_t> b(a.size(), 0);\n  const std::size_t cols_s = static_cast<std::size_t>(cols);\n  #pragma omp parallel for\n  for (int step = 0; step < steps; ++step) {\n    std::vector<uint32_t>& src = (step % 2 == 0) ? a : b;\n    std::vector<uint32_t>& dst = (step % 2 == 0) ? b : a;\n    for (int row = 1; row < rows - 1; ++row) {\n      const std::size_t idx_base = static_cast<std::size_t>(row) * cols_s + 1;\n      for (int col = 1; col < cols - 1; ++col) {\n        const std::size_t idx = idx_base + static_cast<std::size_t>(col - 1);\n        dst[idx] = (src[idx] * 4u + src[idx - 1] + src[idx + 1] +\n                    src[idx - cols_s] + src[idx + cols_s]) /\n                   8u;\n      }\n    }\n    #pragma omp barrier\n    if (step == steps - 1) {\n      #pragma omp single\n      {\n        for (int row = 0; row < rows; ++row) {\n          const std::size_t idx_base = static_cast<std::size_t>(row) * cols_s;\n          for (int col = 0; col < cols; ++col) {\n            const std::size_t idx = idx_base + static_cast<std::size_t>(col);\n            if (row == 0 || col == 0 || row == rows - 1 || col == cols - 1) {\n              dst[idx] = src[idx];\n            }\n          }\n        }\n      }\n    }\n  }\n  return checksum_u32((steps % 2 == 0) ? a : b);\n}",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v1400_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 147214021,
+    "min_elapsed_ns": 138779616,
+    "max_elapsed_ns": 246616605,
+    "all_elapsed_ns": [
+      147214021,
+      246616605,
+      138779616
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 147214021,
+      "expected_checksum": 10724555928738317727,
+      "actual_checksum": 10724555928738317727
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v1400_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 41134218,
+    "min_elapsed_ns": 33363315,
+    "max_elapsed_ns": 132252912,
+    "all_elapsed_ns": [
+      132252912,
+      41134218,
+      33363315
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 132252912,
+      "expected_checksum": 10724555928738317727,
+      "actual_checksum": 10724555928738317727
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v1400_a",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-fopenmp', '-Iexecutable_tasks/openmp_jacobi_2d_v1400_a/harness', 'executable_tasks/openmp_jacobi_2d_v1400_a/harness/benchmark_main.cpp', 'executable_tasks/openmp_jacobi_2d_v1400_a/candidate/meta-llama__llama-4-maverick/solution.cpp', '-o', 'build/openmp_jacobi_2d_v1400_a/candidate/bench']' returned non-zero exit status 1."
+  }
+}

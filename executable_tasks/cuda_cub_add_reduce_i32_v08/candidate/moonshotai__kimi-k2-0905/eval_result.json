@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v08",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v08/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cub/cub.cuh>\n#include <cstdio>\n\nnamespace {\n\nconstexpr int BLOCK_THREADS = 256;\n\n__global__ void blockReduceKernel(const int* __restrict__ input,\n                                  int* __restrict__ blockSums,\n                                  int n)\n{\n    int tid = threadIdx.x;\n    int idx = blockIdx.x * blockDim.x + tid;\n\n    // Load and first-level reduction in shared memory\n    __shared__ int smem[BLOCK_THREADS];\n    smem[tid] = (idx < n) ? input[idx] : 0;\n    __syncthreads();\n\n    // Unroll last 5 warps\n    #pragma unroll\n    for (int offset = BLOCK_THREADS / 2; offset >= 32; offset >>= 1) {\n        if (tid < offset) smem[tid] += smem[tid + offset];\n        __syncthreads();\n    }\n\n    // Warp shuffle reduction\n    int val = smem[tid];\n    #pragma unroll\n    for (int offset = 16; offset > 0; offset >>= 1)\n        val += __shfl_down_sync(0xFFFFFFFF, val, offset);\n\n    // Write block aggregate\n    if (tid == 0) blockSums[blockIdx.x] = val;\n}\n\n} // anonymous namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters)\n{\n    // Temporary storage for CUB final reduction\n    static int* d_blockSums = nullptr;\n    static void* d_tempStorage = nullptr;\n    static size_t tempStorageBytes = 0;\n    static int maxBlocks = 0;\n\n    // One-time allocation\n    if (d_blockSums == nullptr) {\n        int blocks = (n + BLOCK_THREADS - 1) / BLOCK_THREADS;\n        cudaMalloc(&d_blockSums, sizeof(int) * blocks);\n        maxBlocks = blocks;\n        cub::DeviceReduce::Sum(nullptr, tempStorageBytes,\n                               d_blockSums, output, maxBlocks);\n        cudaMalloc(&d_tempStorage, tempStorageBytes);\n    }\n\n    for (int iter = 0; iter < iters; ++iter) {\n        int blocks = (n + BLOCK_THREADS - 1) / BLOCK_THREADS;\n        blockReduceKernel<<<blocks, BLOCK_THREADS>>>(input, d_blockSums, n);\n        cub::DeviceReduce::Sum(d_tempStorage, tempStorageBytes,\n                               d_blockSums, output, blocks);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v08",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6262527,
+    "min_elapsed_ns": 6262303,
+    "max_elapsed_ns": 6266272,
+    "all_elapsed_ns": [
+      6262303,
+      6262527,
+      6266272
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6262303,
+      "expected_sum": 15728640,
+      "actual_sum": 15728640
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v08",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 776256,
+    "min_elapsed_ns": 756063,
+    "max_elapsed_ns": 908671,
+    "all_elapsed_ns": [
+      756063,
+      776256,
+      908671
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 756063,
+      "expected_sum": 15728640,
+      "actual_sum": 15728640
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v08",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v08/candidate/bench']' timed out after 5 seconds"
+  }
+}

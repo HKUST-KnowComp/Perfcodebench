@@ -1,0 +1,59 @@
+{
+  "task_id": "c_topk_selection_checksum_v3400_018",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_topk_selection_checksum_v3400_018/candidate/claude-opus-4.5/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n\ntypedef struct {\n  uint32_t score;\n  uint32_t index;\n} Pair;\n\n/* Min-heap: smallest score at root; ties broken by largest index at root */\nstatic inline int heap_less(const Pair* a, const Pair* b) {\n  if (a->score != b->score) return a->score < b->score;\n  return a->index > b->index;\n}\n\nstatic inline void heap_sift_down(Pair* h, int n, int i) {\n  while (1) {\n    int smallest = i;\n    int l = 2 * i + 1;\n    int r = 2 * i + 2;\n    if (l < n && heap_less(&h[l], &h[smallest])) smallest = l;\n    if (r < n && heap_less(&h[r], &h[smallest])) smallest = r;\n    if (smallest == i) break;\n    Pair tmp = h[i]; h[i] = h[smallest]; h[smallest] = tmp;\n    i = smallest;\n  }\n}\n\nstatic inline void heap_sift_up(Pair* h, int i) {\n  while (i > 0) {\n    int p = (i - 1) / 2;\n    if (!heap_less(&h[i], &h[p])) break;\n    Pair tmp = h[i]; h[i] = h[p]; h[p] = tmp;\n    i = p;\n  }\n}\n\n/* Max-heap for final extraction: largest score at root; ties broken by smallest index */\nstatic inline int maxheap_less(const Pair* a, const Pair* b) {\n  if (a->score != b->score) return a->score > b->score;\n  return a->index < b->index;\n}\n\nstatic inline void maxheap_sift_down(Pair* h, int n, int i) {\n  while (1) {\n    int smallest = i;\n    int l = 2 * i + 1;\n    int r = 2 * i + 2;\n    if (l < n && maxheap_less(&h[l], &h[smallest])) smallest = l;\n    if (r < n && maxheap_less(&h[r], &h[smallest])) smallest = r;\n    if (smallest == i) break;\n    Pair tmp = h[i]; h[i] = h[smallest]; h[smallest] = tmp;\n    i = smallest;\n  }\n}\n\nuint64_t run(const uint32_t* scores, size_t n, int k, int iters) {\n  if (k <= 0 || n == 0) return 0;\n  size_t kk = (size_t)k;\n  if (kk > n) kk = n;\n\n  Pair* heap = (Pair*)malloc(kk * sizeof(Pair));\n  Pair* result = (Pair*)malloc(kk * sizeof(Pair));\n  if (!heap || !result) {\n    free(heap);\n    free(result);\n    return 0;\n  }\n\n  uint64_t h = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    /* Build min-heap of first k elements */\n    for (size_t i = 0; i < kk; ++i) {\n      heap[i].score = scores[i];\n      heap[i].index = (uint32_t)i;\n    }\n    /* Heapify */\n    for (int i = (int)(kk / 2) - 1; i >= 0; --i) {\n      heap_sift_down(heap, (int)kk, i);\n    }\n\n    /* Process remaining elements */\n    for (size_t i = kk; i < n; ++i) {\n      uint32_t sc = scores[i];\n      /* Compare with min: if larger score, or same score but smaller index, replace */\n      if (sc > heap[0].score || (sc == heap[0].score && (uint32_t)i < heap[0].index)) {\n        heap[0].score = sc;\n        heap[0].index = (uint32_t)i;\n        heap_sift_down(heap, (int)kk, 0);\n      }\n    }\n\n    /* Extract top-k in descending order using max-heap extraction */\n    memcpy(result, heap, kk * sizeof(Pair));\n    /* Build max-heap */\n    for (int i = (int)(kk / 2) - 1; i >= 0; --i) {\n      maxheap_sift_down(result, (int)kk, i);\n    }\n\n    /* Compute checksum by extracting in order */\n    h = 1469598103934665603ULL;\n    for (size_t i = 0; i < kk; ++i) {\n      Pair top = result[0];\n      h ^= ((uint64_t)top.score << 32) ^ top.index;\n      h *= 1099511628211ULL;\n      /* Move last to root and sift down */\n      int remaining = (int)(kk - i - 1);\n      if (remaining > 0) {\n        result[0] = result[remaining];\n        maxheap_sift_down(result, remaining, 0);\n      }\n    }\n  }\n\n  free(heap);\n  free(result);\n  return h;\n}\n",
+  "baseline": {
+    "task_id": "c_topk_selection_checksum_v3400_018",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 370075000,
+    "min_elapsed_ns": 369103000,
+    "max_elapsed_ns": 372128000,
+    "all_elapsed_ns": [
+      370075000,
+      372128000,
+      369103000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 370075000,
+      "expected_checksum": 17415883983537559954,
+      "actual_checksum": 17415883983537559954
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_topk_selection_checksum_v3400_018",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2253000,
+    "min_elapsed_ns": 2249000,
+    "max_elapsed_ns": 2259000,
+    "all_elapsed_ns": [
+      2253000,
+      2249000,
+      2259000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2253000,
+      "expected_checksum": 17415883983537559954,
+      "actual_checksum": 17415883983537559954
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_topk_selection_checksum_v3400_018",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/c_topk_selection_checksum_v3400_018/candidate/bench']' returned non-zero exit status 1."
+  }
+}

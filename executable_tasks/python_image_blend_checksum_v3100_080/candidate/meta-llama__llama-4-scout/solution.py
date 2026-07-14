@@ -1,0 +1,1 @@
+Optimized Python code using numpy for blending RGBA pixels and calculating checksum.

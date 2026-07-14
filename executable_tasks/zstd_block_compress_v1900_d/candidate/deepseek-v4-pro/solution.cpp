@@ -1,0 +1,26 @@
+#include "interface.h"
+
+#include "zstd.h"
+
+#include <string>
+
+static ZSTD_CCtx* get_cctx() {
+    static ZSTD_CCtx* ctx = []() {
+        ZSTD_CCtx* c = ZSTD_createCCtx();
+        ZSTD_CCtx_setParameter(c, ZSTD_c_compressionLevel, 1);
+        return c;
+    }();
+    return ctx;
+}
+
+int compress_payload(const std::string& input, std::string& compressed) {
+    ZSTD_CCtx* const ctx = get_cctx();
+    const size_t bound = ZSTD_compressBound(input.size());
+    compressed.resize(bound);
+    const size_t n = ZSTD_compress2(ctx, compressed.data(), bound, input.data(), input.size());
+    if (ZSTD_isError(n)) {
+        return -1;
+    }
+    compressed.resize(n);
+    return static_cast<int>(n);
+}

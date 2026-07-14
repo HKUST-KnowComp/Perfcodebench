@@ -1,0 +1,72 @@
+{
+  "task_id": "beam_search_topk_v2000_j",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v2000_j/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nstruct Entry {\n  int32_t score;\n  int idx;\n};\n\nstatic inline bool better_entry(const Entry& a, const Entry& b) {\n  return (a.score > b.score) || (a.score == b.score && a.idx < b.idx);\n}\n\nstatic inline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits, int beams, int vocab, int topk, int iters) {\n  uint64_t hash = 0;\n  if (beams <= 0 || vocab <= 0 || topk <= 0 || iters <= 0) {\n    return hash;\n  }\n\n  if (topk > vocab) topk = vocab;\n\n  std::vector<Entry> best;\n  best.resize(static_cast<std::size_t>(topk));\n\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n\n    for (int b = 0; b < beams; ++b) {\n      const std::size_t base = static_cast<std::size_t>(b) * static_cast<std::size_t>(vocab);\n\n      int filled = 0;\n      for (; filled < topk; ++filled) {\n        best[static_cast<std::size_t>(filled)] = Entry{logits[base + static_cast<std::size_t>(filled)], filled};\n      }\n\n      std::sort(best.begin(), best.end(), better_entry);\n\n      for (int v = topk; v < vocab; ++v) {\n        const Entry cand{logits[base + static_cast<std::size_t>(v)], v};\n        if (!better_entry(cand, best[static_cast<std::size_t>(topk - 1)])) {\n          continue;\n        }\n\n        int pos = topk - 1;\n        while (pos > 0 && better_entry(cand, best[static_cast<std::size_t>(pos - 1)])) {\n          best[static_cast<std::size_t>(pos)] = best[static_cast<std::size_t>(pos - 1)];\n          --pos;\n        }\n        best[static_cast<std::size_t>(pos)] = cand;\n      }\n\n      for (int k = 0; k < topk; ++k) {\n        const Entry& e = best[static_cast<std::size_t>(k)];\n        hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(e.score)));\n        hash = mix(hash, static_cast<uint64_t>(e.idx));\n      }\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "beam_search_topk_v2000_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 50503791,
+    "min_elapsed_ns": 50485159,
+    "max_elapsed_ns": 50705881,
+    "all_elapsed_ns": [
+      50705881,
+      50485159,
+      50503791
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 50705881,
+      "expected_checksum": 4793048022258691211,
+      "actual_checksum": 4793048022258691211
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v2000_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 767252,
+    "min_elapsed_ns": 762778,
+    "max_elapsed_ns": 862887,
+    "all_elapsed_ns": [
+      862887,
+      767252,
+      762778
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 862887,
+      "expected_checksum": 4793048022258691211,
+      "actual_checksum": 4793048022258691211
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v2000_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 765785,
+    "min_elapsed_ns": 759620,
+    "max_elapsed_ns": 770268,
+    "all_elapsed_ns": [
+      770268,
+      765785,
+      759620
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 770268,
+      "expected_checksum": 4793048022258691211,
+      "actual_checksum": 4793048022258691211
+    },
+    "status": "ok"
+  }
+}

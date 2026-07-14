@@ -1,0 +1,59 @@
+{
+  "task_id": "simdutf_base64_encode_v2500_b",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdutf_base64_encode_v2500_b/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n\nstatic constexpr char kEnc[] = \"ABCDEFGHIJKLMNOPQRSTUVWXYZ\"\n                               \"abcdefghijklmnopqrstuvwxyz\"\n                               \"0123456789+/\";\n\nuint64_t encode_checksum(const std::string& in) {\n  const size_t n = in.size();\n  const size_t out_len = ((n + 2) / 3) * 4;\n  char out[256];  // task hint says \"small\"\n\n  // FNV-1a 64-bit constants\n  constexpr uint64_t FNV_OFFSET = 14695981039346656037ULL;\n  constexpr uint64_t FNV_PRIME = 1099511628211ULL;\n\n  uint64_t h = FNV_OFFSET;\n  size_t o = 0;\n\n  const unsigned char* p = reinterpret_cast<const unsigned char*>(in.data());\n  const size_t blocks = n / 3;\n\n  // main body: full triplets \u2192 four chars\n  for (size_t i = 0; i < blocks; ++i) {\n    const uint32_t b0 = p[i*3+0];\n    const uint32_t b1 = p[i*3+1];\n    const uint32_t b2 = p[i*3+2];\n    const uint32_t triple = (b0 << 16) | (b1 << 8) | b2;\n    const uint32_t a0 = kEnc[(triple >> 18) & 63];\n    const uint32_t a1 = kEnc[(triple >> 12) & 63];\n    const uint32_t a2 = kEnc[(triple >> 6 ) & 63];\n    const uint32_t a3 = kEnc[ triple        & 63];\n    out[o+0] = static_cast<char>(a0);\n    out[o+1] = static_cast<char>(a1);\n    out[o+2] = static_cast<char>(a2);\n    out[o+3] = static_cast<char>(a3);\n    o += 4;\n  }\n  const size_t done = blocks * 3;\n\n  // tail: 0, 1 or 2 bytes left\n  size_t rem = n - done;\n  uint32_t b0 = 0, b1 = 0, b2 = 0;\n  switch (rem) {\n    case 2: b1 = p[done+1]; /*fallthrough*/\n    case 1: b0 = p[done+0]; break;\n  }\n  const uint32_t triple = (b0 << 16) | (b1 << 8) | b2;\n  if (rem) {\n    uint32_t a0 = kEnc[(triple >> 18) & 63];\n    uint32_t a1 = kEnc[(triple >> 12) & 63];\n    uint32_t a2 = (rem == 1) ? '=' : kEnc[(triple >> 6) & 63];\n    uint32_t a3 = (rem == 2) ? kEnc[triple & 63] : '=';\n    out[o+0] = static_cast<char>(a0);\n    out[o+1] = static_cast<char>(a1);\n    out[o+2] = static_cast<char>(a2);\n    out[o+3] = static_cast<char>(a3);\n    o += 4;\n  }\n\n  // inline checksum of the out buffer\n  for (size_t i = 0; i < o; ++i) {\n    h ^= static_cast<uint64_t>(static_cast<unsigned char>(out[i]));\n    h *= FNV_PRIME;\n  }\n  return h;\n}",
+  "baseline": {
+    "task_id": "simdutf_base64_encode_v2500_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 42218559,
+    "min_elapsed_ns": 42116031,
+    "max_elapsed_ns": 44345255,
+    "all_elapsed_ns": [
+      42218559,
+      42116031,
+      44345255
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 42218559,
+      "expected_checksum": 12045336066954423759,
+      "actual_checksum": 12045336066954423759
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdutf_base64_encode_v2500_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 22521017,
+    "min_elapsed_ns": 22485209,
+    "max_elapsed_ns": 22773052,
+    "all_elapsed_ns": [
+      22773052,
+      22485209,
+      22521017
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 22773052,
+      "expected_checksum": 12045336066954423759,
+      "actual_checksum": 12045336066954423759
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdutf_base64_encode_v2500_b",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/simdutf_base64_encode_v2500_b/candidate/bench']' died with <Signals.SIGSEGV: 11>."
+  }
+}

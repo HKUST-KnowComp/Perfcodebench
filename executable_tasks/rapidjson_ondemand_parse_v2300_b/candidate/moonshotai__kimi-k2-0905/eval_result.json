@@ -1,0 +1,59 @@
+{
+  "task_id": "rapidjson_ondemand_parse_v2300_b",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/rapidjson_ondemand_parse_v2300_b/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <rapidjson/reader.h>\n#include <rapidjson/error/en.h>\n#include <cstdint>\n#include <string>\n\nusing namespace rapidjson;\n\nstruct SumHandler {\n    uint64_t sum = 0;\n    enum State { START, IN_ARRAY, IN_OBJECT, GOT_ID, IN_NESTED, GOT_A, GOT_B };\n    State state = START;\n    std::string key;\n    bool expectValue = false;\n\n    bool Null() { if (expectValue) { expectValue = false; return true; } return false; }\n    bool Bool(bool) { if (expectValue) { expectValue = false; return true; } return false; }\n    bool Int(int i) { return Uint64(static_cast<uint64_t>(i)); }\n    bool Uint(unsigned u) { return Uint64(static_cast<uint64_t>(u)); }\n    bool Int64(int64_t i) { return Uint64(static_cast<uint64_t>(i)); }\n    bool Uint64(uint64_t i) {\n        if (!expectValue) return false;\n        expectValue = false;\n        switch (state) {\n        case GOT_ID: sum += i; state = IN_OBJECT; break;\n        case GOT_A:  sum += i; state = IN_NESTED; break;\n        case GOT_B:  sum += i; state = IN_OBJECT; break;\n        default: break;\n        }\n        return true;\n    }\n    bool Double(double) { if (expectValue) { expectValue = false; return true; } return false; }\n    bool String(const char*, SizeType, bool) { if (expectValue) { expectValue = false; return true; } return false; }\n    bool StartObject() {\n        switch (state) {\n        case START: return false;\n        case IN_ARRAY: state = IN_OBJECT; return true;\n        case IN_NESTED: return true;\n        default: return false;\n        }\n    }\n    bool Key(const char* str, SizeType len, bool) {\n        if (state == IN_OBJECT) {\n            if (len == 2 && str[0] == 'i' && str[1] == 'd') { state = GOT_ID; expectValue = true; return true; }\n            if (len == 6 && str[0] == 'n' && str[1] == 'e' && str[2] == 's' && str[3] == 't' && str[4] == 'e' && str[5] == 'd') { state = IN_NESTED; return true; }\n        } else if (state == IN_NESTED) {\n            if (len == 1 && str[0] == 'a') { state = GOT_A; expectValue = true; return true; }\n            if (len == 1 && str[0] == 'b') { state = GOT_B; expectValue = true; return true; }\n        }\n        return true;\n    }\n    bool EndObject(SizeType) {\n        switch (state) {\n        case IN_OBJECT: state = IN_ARRAY; return true;\n        case IN_NESTED: state = IN_OBJECT; return true;\n        default: return false;\n        }\n    }\n    bool StartArray() {\n        if (state == START) { state = IN_ARRAY; return true; }\n        return false;\n    }\n    bool EndArray(SizeType) {\n        if (state == IN_ARRAY) { state = START; return true; }\n        return false;\n    }\n};\n\nuint64_t compute_checksum(const std::string& json_input) {\n    SumHandler handler;\n    Reader reader;\n    StringStream ss(json_input.c_str());\n    ParseResult ok = reader.Parse(ss, handler);\n    if (!ok) return 0;\n    return handler.sum;\n}",
+  "baseline": {
+    "task_id": "rapidjson_ondemand_parse_v2300_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 13473080,
+    "min_elapsed_ns": 12366922,
+    "max_elapsed_ns": 15169774,
+    "all_elapsed_ns": [
+      15169774,
+      13473080,
+      12366922
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15169774,
+      "expected_checksum": 224028000,
+      "actual_checksum": 224028000
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "rapidjson_ondemand_parse_v2300_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2514455,
+    "min_elapsed_ns": 2429371,
+    "max_elapsed_ns": 3522602,
+    "all_elapsed_ns": [
+      2429371,
+      3522602,
+      2514455
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2429371,
+      "expected_checksum": 224028000,
+      "actual_checksum": 224028000
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "rapidjson_ondemand_parse_v2300_b",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/rapidjson_ondemand_parse_v2300_b/harness', '-Iexternal/nlohmann_json/single_include', '-Iexternal/rapidjson_src/include', 'executable_tasks/rapidjson_ondemand_parse_v2300_b/harness/benchmark_main.cpp', 'executable_tasks/rapidjson_ondemand_parse_v2300_b/candidate/moonshotai__kimi-k2-0905/solution.cpp', '-o', 'build/rapidjson_ondemand_parse_v2300_b/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "task_id": "cuda_exclusive_scan_cub_i32_v23",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_exclusive_scan_cub_i32_v23/candidate/gpt-5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n#include <cub/cub.cuh>\n\nvoid exclusive_scan_i32(const int* input, int* output, int n, int iters) {\n  if (n <= 0 || iters <= 0) {\n    return;\n  }\n\n  // Cache CUB temporary storage across calls to minimize allocation overhead\n  static void* d_temp_storage = nullptr;\n  static size_t temp_storage_bytes = 0;\n\n  // Determine required temporary storage size for given problem size\n  size_t required_bytes = 0;\n  cub::DeviceScan::ExclusiveSum(nullptr, required_bytes, input, output, n);\n\n  // Ensure sufficient temporary storage is allocated\n  if (d_temp_storage == nullptr || required_bytes > temp_storage_bytes) {\n    if (d_temp_storage) {\n      cudaFree(d_temp_storage);\n      d_temp_storage = nullptr;\n      temp_storage_bytes = 0;\n    }\n    cudaMalloc(&d_temp_storage, required_bytes);\n    temp_storage_bytes = required_bytes;\n  }\n\n  // Perform the exclusive scan the requested number of iterations\n  for (int iter = 0; iter < iters; ++iter) {\n    cub::DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, input, output, n);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v23",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_exclusive_scan_cub_i32_v23/baseline/bench']' returned non-zero exit status 1."
+  },
+  "reference": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v23",
+    "variant": "reference",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_exclusive_scan_cub_i32_v23/reference/bench']' returned non-zero exit status 1."
+  },
+  "candidate": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v23",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_exclusive_scan_cub_i32_v23/candidate/bench']' timed out after 5 seconds"
+  }
+}

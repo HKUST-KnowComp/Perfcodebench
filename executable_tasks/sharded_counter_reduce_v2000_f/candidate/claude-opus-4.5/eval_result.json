@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce_v2000_f",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v2000_f/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <atomic>\n#include <thread>\n#include <vector>\n#include <cstring>\n\nnamespace {\n\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  \n  const std::size_t n = keys.size();\n  const std::size_t ks = static_cast<std::size_t>(key_space);\n  const int nt = num_threads;\n  \n  // Global counts\n  std::vector<uint64_t> counts(ks, 0);\n  \n  // Thread-local counts for each thread\n  std::vector<std::vector<uint64_t>> local_counts(nt);\n  for (int t = 0; t < nt; ++t) {\n    local_counts[t].resize(ks, 0);\n  }\n  \n  // Synchronization\n  std::atomic<int> phase{0};\n  std::atomic<int> ready_count{0};\n  std::atomic<int> done_count{0};\n  std::atomic<bool> finished{false};\n  \n  uint64_t hash = 0;\n  \n  // Compute chunk boundaries\n  const std::size_t chunk = n / static_cast<std::size_t>(nt);\n  std::vector<std::size_t> begins(nt), ends(nt);\n  for (int t = 0; t < nt; ++t) {\n    begins[t] = static_cast<std::size_t>(t) * chunk;\n    ends[t] = (t + 1 == nt) ? n : begins[t] + chunk;\n  }\n  \n  // Merge chunk boundaries for parallel merge\n  const std::size_t merge_chunk = ks / static_cast<std::size_t>(nt);\n  std::vector<std::size_t> merge_begins(nt), merge_ends(nt);\n  for (int t = 0; t < nt; ++t) {\n    merge_begins[t] = static_cast<std::size_t>(t) * merge_chunk;\n    merge_ends[t] = (t + 1 == nt) ? ks : merge_begins[t] + merge_chunk;\n  }\n  \n  std::vector<std::thread> threads;\n  threads.reserve(nt);\n  \n  for (int t = 0; t < nt; ++t) {\n    threads.emplace_back([&, t]() {\n      const std::size_t b = begins[t];\n      const std::size_t e = ends[t];\n      const std::size_t mb = merge_begins[t];\n      const std::size_t me = merge_ends[t];\n      std::vector<uint64_t>& lc = local_counts[t];\n      const uint32_t* __restrict kptr = keys.data();\n      const uint32_t* __restrict vptr = values.data();\n      \n      int current_phase = 0;\n      \n      while (!finished.load(std::memory_order_relaxed)) {\n        // Wait for work phase\n        while (phase.load(std::memory_order_acquire) <= current_phase && \n               !finished.load(std::memory_order_relaxed)) {\n          // spin\n        }\n        if (finished.load(std::memory_order_relaxed)) break;\n        \n        // Clear local counts\n        std::memset(lc.data(), 0, ks * sizeof(uint64_t));\n        \n        // Accumulate into thread-local counts\n        for (std::size_t i = b; i < e; ++i) {\n          lc[kptr[i]] += vptr[i];\n        }\n        \n        // Signal ready for merge\n        ready_count.fetch_add(1, std::memory_order_release);\n        \n        // Wait for all threads to be ready\n        while (ready_count.load(std::memory_order_acquire) < nt && \n               !finished.load(std::memory_order_relaxed)) {\n          // spin\n        }\n        if (finished.load(std::memory_order_relaxed)) break;\n        \n        // Parallel merge: each thread merges a portion of key_space\n        for (std::size_t k = mb; k < me; ++k) {\n          uint64_t sum = 0;\n          for (int tt = 0; tt < nt; ++tt) {\n            sum += local_counts[tt][k];\n          }\n          counts[k] = sum;\n        }\n        \n        // Signal done\n        done_count.fetch_add(1, std::memory_order_release);\n        \n        current_phase++;\n      }\n    });\n  }\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    ready_count.store(0, std::memory_order_relaxed);\n    done_count.store(0, std::memory_order_relaxed);\n    \n    // Signal threads to start\n    phase.store(iter + 1, std::memory_order_release);\n    \n    // Wait for all threads to complete merge\n    while (done_count.load(std::memory_order_acquire) < nt) {\n      // spin\n    }\n    \n    hash = checksum_u64(counts);\n  }\n  \n  finished.store(true, std::memory_order_release);\n  phase.store(iters + 2, std::memory_order_release);  // Wake up any waiting threads\n  \n  for (std::thread& th : threads) {\n    th.join();\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v2000_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1905172694,
+    "min_elapsed_ns": 1773378361,
+    "max_elapsed_ns": 2185940412,
+    "all_elapsed_ns": [
+      2185940412,
+      1905172694,
+      1773378361
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2185940412,
+      "expected_checksum": 9756277127520650115,
+      "actual_checksum": 9756277127520650115
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v2000_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 16105138,
+    "min_elapsed_ns": 16030364,
+    "max_elapsed_ns": 16723719,
+    "all_elapsed_ns": [
+      16723719,
+      16105138,
+      16030364
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 16723719,
+      "expected_checksum": 9756277127520650115,
+      "actual_checksum": 9756277127520650115
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v2000_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 11710283,
+    "min_elapsed_ns": 11652330,
+    "max_elapsed_ns": 12265573,
+    "all_elapsed_ns": [
+      12265573,
+      11652330,
+      11710283
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12265573,
+      "expected_checksum": 9756277127520650115,
+      "actual_checksum": 9756277127520650115
+    },
+    "status": "ok"
+  }
+}

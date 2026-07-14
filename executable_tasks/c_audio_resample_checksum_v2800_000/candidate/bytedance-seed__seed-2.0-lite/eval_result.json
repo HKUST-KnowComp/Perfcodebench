@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_000",
+  "model": "bytedance-seed/seed-2.0-lite",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_000/candidate/bytedance-seed__seed-2.0-lite/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <stdint.h>\n#include <stdlib.h>\n\nstatic uint64_t checksum_i16(const int16_t* data, size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (size_t i = 0; i < n; ++i) {\n    hash ^= (uint16_t)data[i];\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\ntypedef struct {\n  int left;\n  int right;\n  double frac;\n} ResamplePoint;\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n  if (iters <= 0 || input_len <= 0 || output_len <= 0) return 0;\n\n  // Allocate output buffer once, reused across all iterations\n  int16_t* out = (int16_t*)malloc((size_t)output_len * sizeof(int16_t));\n  if (!out) return 0;\n\n  // Precompute all resampling parameters once to avoid redundant calculations\n  ResamplePoint* points = (ResamplePoint*)malloc((size_t)output_len * sizeof(ResamplePoint));\n  if (!points) {\n    free(out);\n    return 0;\n  }\n\n  const double scale = (double)(input_len - 1) / (double)(output_len - 1);\n  for (int i = 0; i < output_len; ++i) {\n    double pos = (double)i * scale;\n    int left = (int)pos;\n    int right = left + 1;\n    if (right >= input_len) right = input_len - 1;\n    double frac = pos - (double)left;\n    points[i].left = left;\n    points[i].right = right;\n    points[i].frac = frac;\n  }\n\n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    // Hot path: only interpolation and checksum, no expensive allocations or calculations\n    for (int i = 0; i < output_len; ++i) {\n      const ResamplePoint p = points[i];\n      double sample = (double)src[p.left] * (1.0 - p.frac) + (double)src[p.right] * p.frac;\n      if (sample >= 0.0) {\n        out[i] = (int16_t)(sample + 0.5);\n      } else {\n        out[i] = (int16_t)(sample - 0.5);\n      }\n    }\n    hash = checksum_i16(out, (size_t)output_len);\n  }\n\n  // Cleanup allocated resources once after all iterations\n  free(points);\n  free(out);\n  return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_000",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 369000,
+    "min_elapsed_ns": 302000,
+    "max_elapsed_ns": 493000,
+    "all_elapsed_ns": [
+      493000,
+      302000,
+      369000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 493000,
+      "expected_checksum": 4668152920796234361,
+      "actual_checksum": 4668152920796234361
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_000",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 330000,
+    "min_elapsed_ns": 321000,
+    "max_elapsed_ns": 340000,
+    "all_elapsed_ns": [
+      340000,
+      330000,
+      321000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 340000,
+      "expected_checksum": 4668152920796234361,
+      "actual_checksum": 4668152920796234361
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_000",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 246000,
+    "min_elapsed_ns": 212000,
+    "max_elapsed_ns": 348000,
+    "all_elapsed_ns": [
+      246000,
+      212000,
+      348000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 246000,
+      "expected_checksum": 4668152920796234361,
+      "actual_checksum": 4668152920796234361
+    },
+    "status": "ok"
+  }
+}

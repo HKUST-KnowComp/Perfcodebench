@@ -1,0 +1,72 @@
+{
+  "task_id": "varint_decode_sum_v1000_i",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/varint_decode_sum_v1000_i/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n\n/**\n * Optimized varint decoding with fused aggregation.\n * \n * Improvements:\n * 1. Eliminated std::vector<uint32_t> to avoid heap allocations and memory traffic.\n * 2. Fused decoding and summation into a single loop.\n * 3. Used pointer arithmetic instead of indexing.\n * 4. Implemented a fast-path for the common 1-byte varint case.\n * 5. Unrolled the multi-byte decoding logic to avoid inner loop overhead.\n */\nuint64_t varint_sum(const std::vector<uint8_t>& encoded, int iters) {\n  if (encoded.empty()) return 0;\n\n  const uint8_t* const start = encoded.data();\n  const uint8_t* const end = start + encoded.size();\n  uint64_t last_sum = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t current_sum = 0;\n    const uint8_t* p = start;\n\n    // Fast path: process most of the buffer without checking bounds for every byte\n    // A 32-bit varint can take up to 5 bytes.\n    while (p + 5 <= end) {\n      uint32_t b = *p++;\n      if (!(b & 0x80)) {\n        current_sum += b;\n        continue;\n      }\n\n      uint32_t val = b & 0x7F;\n      b = *p++;\n      val |= (b & 0x7F) << 7;\n      if (!(b & 0x80)) {\n        current_sum += val;\n        continue;\n      }\n\n      b = *p++;\n      val |= (b & 0x7F) << 14;\n      if (!(b & 0x80)) {\n        current_sum += val;\n        continue;\n      }\n\n      b = *p++;\n      val |= (b & 0x7F) << 21;\n      if (!(b & 0x80)) {\n        current_sum += val;\n        continue;\n      }\n\n      b = *p++;\n      val |= (b & 0x0F) << 28; // Only 4 bits left for a 32-bit value\n      current_sum += val;\n    }\n\n    // Slow path: handle the remaining bytes near the end of the buffer\n    while (p < end) {\n      uint32_t val = 0;\n      uint32_t shift = 0;\n      while (p < end) {\n        uint8_t b = *p++;\n        val |= static_cast<uint32_t>(b & 0x7F) << shift;\n        if (!(b & 0x80)) break;\n        shift += 7;\n      }\n      current_sum += val;\n    }\n\n    last_sum = current_sum;\n  }\n\n  return last_sum;\n}\n",
+  "baseline": {
+    "task_id": "varint_decode_sum_v1000_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 149224462,
+    "min_elapsed_ns": 145714609,
+    "max_elapsed_ns": 199533365,
+    "all_elapsed_ns": [
+      145714609,
+      149224462,
+      199533365
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 145714609,
+      "expected_sum": 343670292096,
+      "actual_sum": 343670292096
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "varint_decode_sum_v1000_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 113024439,
+    "min_elapsed_ns": 112467622,
+    "max_elapsed_ns": 113222935,
+    "all_elapsed_ns": [
+      112467622,
+      113222935,
+      113024439
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 112467622,
+      "expected_sum": 343670292096,
+      "actual_sum": 343670292096
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "varint_decode_sum_v1000_i",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 82476132,
+    "min_elapsed_ns": 79348825,
+    "max_elapsed_ns": 83382315,
+    "all_elapsed_ns": [
+      83382315,
+      82476132,
+      79348825
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 83382315,
+      "expected_sum": 343670292096,
+      "actual_sum": 343670292096
+    },
+    "status": "ok"
+  }
+}

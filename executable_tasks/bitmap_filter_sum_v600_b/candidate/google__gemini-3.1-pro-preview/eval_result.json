@@ -1,0 +1,72 @@
+{
+  "task_id": "bitmap_filter_sum_v600_b",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/bitmap_filter_sum_v600_b/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 24,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <cstring>\n#include <algorithm>\n\nuint64_t bitmap_filter_sum(\n    const std::vector<uint32_t>& enabled_keys,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int iters) {\n    \n    if (key_space == 0) return 0;\n\n    // Pre-allocate bitmap to avoid repeated allocations.\n    // Size is (key_space + 63) / 64 uint64_t elements.\n    size_t bitmap_size = (static_cast<size_t>(key_space) + 63) >> 6;\n    std::vector<uint64_t> bitmap(bitmap_size, 0);\n    \n    uint64_t final_sum = 0;\n    const size_t num_probes = probe_keys.size();\n    const uint32_t* p_keys = probe_keys.data();\n    const uint32_t* p_vals = values.data();\n    uint64_t* b_ptr = bitmap.data();\n\n    for (int iter = 0; iter < iters; ++iter) {\n        // Reset bitmap efficiently.\n        // If enabled_keys is very small relative to key_space, we could clear only set bits,\n        // but memset is generally extremely fast for typical key_space sizes.\n        std::fill(bitmap.begin(), bitmap.end(), 0);\n\n        // Populate bitmap\n        for (uint32_t key : enabled_keys) {\n            if (key < key_space) {\n                b_ptr[key >> 6] |= (1ULL << (key & 63));\n            }\n        }\n\n        uint64_t current_sum = 0;\n        // Hot loop: filter and aggregate\n        // We use a pointer-based loop to assist the compiler with vectorization/optimization.\n        for (size_t i = 0; i < num_probes; ++i) {\n            uint32_t k = p_keys[i];\n            // Check if bit is set in bitmap\n            if ((b_ptr[k >> 6] >> (k & 63)) & 1) {\n                current_sum += p_vals[i];\n            }\n        }\n        final_sum = current_sum;\n    }\n\n    return final_sum;\n}",
+  "baseline": {
+    "task_id": "bitmap_filter_sum_v600_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 14292293791,
+    "min_elapsed_ns": 14246475933,
+    "max_elapsed_ns": 15112108277,
+    "all_elapsed_ns": [
+      15112108277,
+      14246475933,
+      14292293791
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15112108277,
+      "expected_sum": 4303355904,
+      "actual_sum": 4303355904
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "bitmap_filter_sum_v600_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1648204474,
+    "min_elapsed_ns": 1646057668,
+    "max_elapsed_ns": 1955090866,
+    "all_elapsed_ns": [
+      1955090866,
+      1646057668,
+      1648204474
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1955090866,
+      "expected_sum": 4303355904,
+      "actual_sum": 4303355904
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "bitmap_filter_sum_v600_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1202128377,
+    "min_elapsed_ns": 1196018308,
+    "max_elapsed_ns": 1231529202,
+    "all_elapsed_ns": [
+      1196018308,
+      1231529202,
+      1202128377
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1196018308,
+      "expected_sum": 4303355904,
+      "actual_sum": 4303355904
+    },
+    "status": "ok"
+  }
+}

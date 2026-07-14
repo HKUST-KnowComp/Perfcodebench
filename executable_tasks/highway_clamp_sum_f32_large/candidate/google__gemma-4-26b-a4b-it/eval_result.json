@@ -1,0 +1,59 @@
+{
+  "task_id": "highway_clamp_sum_f32_large",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_clamp_sum_f32_large/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <hwy/highway.h>\n\nnamespace {\nnamespace HWY =\n    hwy::HWY_NAMESPACE;\n}\n\nfloat clamp_sum(const float* data, std::size_t n) {\n  if (n == 0) return 0.0f;\n\n  const HWY::ScalableTag<float> d; // Use scalable tags for portability\n  const size_t lanes = HWY::Lanes(d);\n  const size_t loop_size = (n / lanes) * lanes;\n\n  float total_sum = 0.0f;\n  const float* ptr = data;\n\n  // SIMD Loop\n  for (std::size_t i = 0; i < loop_size; i += lanes) {\n    auto v = HWY::Load(d, ptr + i);\n    auto zero = HWY::Set(d, 0.0f);\n    // Clamp: max(v, 0.0f)\n    auto clamped = HWY::Max(v, zero);\n    total_sum += HWY::ReduceSum(d, clamped);\n  }\n\n  // Tail Loop\n  for (std::size_t i = loop_size; i < n; ++i) {\n    float val = data[i];\n    total_sum += (val > 0.0f) ? val : 0.0f;\n  }\n\n  return total_sum;\n}",
+  "baseline": {
+    "task_id": "highway_clamp_sum_f32_large",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1470825,
+    "min_elapsed_ns": 1454547,
+    "max_elapsed_ns": 1608668,
+    "all_elapsed_ns": [
+      1608668,
+      1470825,
+      1454547
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1608668,
+      "expected_sum": 105014000.0,
+      "actual_sum": 105013000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_clamp_sum_f32_large",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 611687,
+    "min_elapsed_ns": 499403,
+    "max_elapsed_ns": 628165,
+    "all_elapsed_ns": [
+      499403,
+      628165,
+      611687
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 499403,
+      "expected_sum": 105014000.0,
+      "actual_sum": 105014000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_clamp_sum_f32_large",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/highway_clamp_sum_f32_large/candidate/bench']' returned non-zero exit status 1."
+  }
+}

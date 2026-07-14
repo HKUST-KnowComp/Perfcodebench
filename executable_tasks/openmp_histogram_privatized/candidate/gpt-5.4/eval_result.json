@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_histogram_privatized",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_histogram_privatized/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nstatic inline int num_threads() {\n  int mt = omp_get_max_threads();\n  if (mt < 1) return 1;\n  return mt > 8 ? 8 : mt;\n}\n\nstatic inline uint64_t checksum_u32_ptr(const uint32_t* data, int n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (int i = 0; i < n; ++i) {\n    hash ^= static_cast<uint64_t>(data[i]);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t histogram_checksum(const std::vector<uint8_t>& input, int bins, int iters) {\n  omp_set_num_threads(num_threads());\n\n  if (bins <= 0) {\n    return 1469598103934665603ULL;\n  }\n\n  const int threads = num_threads();\n  const std::size_t n = input.size();\n\n  std::vector<uint32_t> counts(static_cast<std::size_t>(bins), 0u);\n\n  if (bins == 256) {\n    constexpr int PAD = 64;  // avoid false sharing between thread-local histograms\n    std::vector<uint32_t> local(static_cast<std::size_t>(threads) * PAD, 0u);\n\n    for (int iter = 0; iter < iters; ++iter) {\n      for (std::size_t i = 0; i < local.size(); ++i) local[i] = 0u;\n\n#pragma omp parallel\n      {\n        const int tid = omp_get_thread_num();\n        uint32_t* hist = local.data() + static_cast<std::size_t>(tid) * PAD;\n\n#pragma omp for schedule(static)\n        for (std::size_t i = 0; i < n; ++i) {\n          ++hist[input[i]];\n        }\n      }\n\n      for (int b = 0; b < 256; ++b) {\n        uint32_t sum = 0;\n        for (int t = 0; t < threads; ++t) {\n          sum += local[static_cast<std::size_t>(t) * PAD + b];\n        }\n        counts[static_cast<std::size_t>(b)] = sum;\n      }\n    }\n\n    return checksum_u32_ptr(counts.data(), 256);\n  }\n\n  std::vector<uint32_t> local(static_cast<std::size_t>(threads) * static_cast<std::size_t>(bins), 0u);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    for (std::size_t i = 0; i < local.size(); ++i) local[i] = 0u;\n\n#pragma omp parallel\n    {\n      const int tid = omp_get_thread_num();\n      uint32_t* hist = local.data() + static_cast<std::size_t>(tid) * static_cast<std::size_t>(bins);\n\n#pragma omp for schedule(static)\n      for (std::size_t i = 0; i < n; ++i) {\n        const unsigned v = static_cast<unsigned>(input[i]);\n        if (v < static_cast<unsigned>(bins)) {\n          ++hist[v];\n        }\n      }\n    }\n\n    for (int b = 0; b < bins; ++b) {\n      uint32_t sum = 0;\n      for (int t = 0; t < threads; ++t) {\n        sum += local[static_cast<std::size_t>(t) * static_cast<std::size_t>(bins) + static_cast<std::size_t>(b)];\n      }\n      counts[static_cast<std::size_t>(b)] = sum;\n    }\n  }\n\n  return checksum_u32_ptr(counts.data(), bins);\n}\n",
+  "baseline": {
+    "task_id": "openmp_histogram_privatized",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3360487072,
+    "min_elapsed_ns": 3232250111,
+    "max_elapsed_ns": 4081463182,
+    "all_elapsed_ns": [
+      3360487072,
+      4081463182,
+      3232250111
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3360487072,
+      "expected_checksum": 9729173469507480671,
+      "actual_checksum": 9729173469507480671
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_histogram_privatized",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 117208406,
+    "min_elapsed_ns": 35308362,
+    "max_elapsed_ns": 209260187,
+    "all_elapsed_ns": [
+      35308362,
+      117208406,
+      209260187
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 35308362,
+      "expected_checksum": 9729173469507480671,
+      "actual_checksum": 9729173469507480671
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_histogram_privatized",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/openmp_histogram_privatized/candidate/bench']' timed out after 5 seconds"
+  }
+}

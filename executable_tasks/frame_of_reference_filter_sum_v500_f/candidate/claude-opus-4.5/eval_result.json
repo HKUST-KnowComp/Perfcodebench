@@ -1,0 +1,59 @@
+{
+  "task_id": "frame_of_reference_filter_sum_v500_f",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/frame_of_reference_filter_sum_v500_f/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <immintrin.h>\n#include <cstdint>\n#include <cstddef>\n\nuint64_t frame_filter_sum(\n    const std::vector<uint16_t>& deltas,\n    uint32_t base,\n    uint32_t low,\n    uint32_t high,\n    int iters) {\n  \n  const uint16_t* data = deltas.data();\n  const size_t n = deltas.size();\n  uint64_t sum = 0;\n  \n  // Precompute adjusted bounds for comparison against deltas directly\n  // value = base + delta, so low <= value <= high becomes\n  // low - base <= delta <= high - base (with underflow handling)\n  \n  const __m256i base_vec = _mm256_set1_epi32(static_cast<int32_t>(base));\n  const __m256i low_vec = _mm256_set1_epi32(static_cast<int32_t>(low));\n  const __m256i high_vec = _mm256_set1_epi32(static_cast<int32_t>(high));\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    __m256i sum_lo = _mm256_setzero_si256();\n    __m256i sum_hi = _mm256_setzero_si256();\n    \n    size_t i = 0;\n    \n    // Process 16 elements at a time (256 bits / 16 bits = 16 elements)\n    for (; i + 16 <= n; i += 16) {\n      // Load 16 uint16_t values\n      __m256i deltas16 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(data + i));\n      \n      // Zero-extend lower 8 uint16 to 8 uint32\n      __m256i deltas32_lo = _mm256_cvtepu16_epi32(_mm256_castsi256_si128(deltas16));\n      // Zero-extend upper 8 uint16 to 8 uint32\n      __m256i deltas32_hi = _mm256_cvtepu16_epi32(_mm256_extracti128_si256(deltas16, 1));\n      \n      // Compute values = base + delta\n      __m256i values_lo = _mm256_add_epi32(base_vec, deltas32_lo);\n      __m256i values_hi = _mm256_add_epi32(base_vec, deltas32_hi);\n      \n      // Compare: value >= low (signed comparison, but values are non-negative)\n      // For unsigned comparison: use _mm256_cmpgt_epi32(value, low-1) or\n      // use the fact that if high < 2^31, signed comparison works\n      // We'll use a trick: (value >= low) && (value <= high)\n      // Rewrite as: (value - low) <= (high - low) using unsigned comparison\n      // But AVX2 doesn't have unsigned compare, so we use signed with bias\n      \n      // Alternative: use signed comparison which works if all values < 2^31\n      __m256i ge_low_lo = _mm256_cmpgt_epi32(values_lo, _mm256_sub_epi32(low_vec, _mm256_set1_epi32(1)));\n      __m256i le_high_lo = _mm256_cmpgt_epi32(high_vec, _mm256_sub_epi32(values_lo, _mm256_set1_epi32(1)));\n      __m256i mask_lo = _mm256_and_si256(ge_low_lo, le_high_lo);\n      \n      __m256i ge_low_hi = _mm256_cmpgt_epi32(values_hi, _mm256_sub_epi32(low_vec, _mm256_set1_epi32(1)));\n      __m256i le_high_hi = _mm256_cmpgt_epi32(high_vec, _mm256_sub_epi32(values_hi, _mm256_set1_epi32(1)));\n      __m256i mask_hi = _mm256_and_si256(ge_low_hi, le_high_hi);\n      \n      // Mask out values not in range\n      __m256i filtered_lo = _mm256_and_si256(values_lo, mask_lo);\n      __m256i filtered_hi = _mm256_and_si256(values_hi, mask_hi);\n      \n      // Accumulate into 64-bit sums to avoid overflow\n      // Extend 32-bit to 64-bit and add\n      // Lower 4 of filtered_lo\n      __m256i ext_lo_lo = _mm256_cvtepu32_epi64(_mm256_castsi256_si128(filtered_lo));\n      // Upper 4 of filtered_lo\n      __m256i ext_lo_hi = _mm256_cvtepu32_epi64(_mm256_extracti128_si256(filtered_lo, 1));\n      // Lower 4 of filtered_hi\n      __m256i ext_hi_lo = _mm256_cvtepu32_epi64(_mm256_castsi256_si128(filtered_hi));\n      // Upper 4 of filtered_hi\n      __m256i ext_hi_hi = _mm256_cvtepu32_epi64(_mm256_extracti128_si256(filtered_hi, 1));\n      \n      sum_lo = _mm256_add_epi64(sum_lo, ext_lo_lo);\n      sum_lo = _mm256_add_epi64(sum_lo, ext_lo_hi);\n      sum_hi = _mm256_add_epi64(sum_hi, ext_hi_lo);\n      sum_hi = _mm256_add_epi64(sum_hi, ext_hi_hi);\n    }\n    \n    // Horizontal sum of sum_lo and sum_hi\n    __m256i total = _mm256_add_epi64(sum_lo, sum_hi);\n    __m128i total_lo = _mm256_castsi256_si128(total);\n    __m128i total_hi = _mm256_extracti128_si256(total, 1);\n    __m128i total128 = _mm_add_epi64(total_lo, total_hi);\n    sum = static_cast<uint64_t>(_mm_extract_epi64(total128, 0)) + \n          static_cast<uint64_t>(_mm_extract_epi64(total128, 1));\n    \n    // Scalar cleanup for remaining elements\n    for (; i < n; ++i) {\n      uint32_t value = base + static_cast<uint32_t>(data[i]);\n      if (value >= low && value <= high) {\n        sum += static_cast<uint64_t>(value);\n      }\n    }\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "frame_of_reference_filter_sum_v500_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 246215344,
+    "min_elapsed_ns": 244793151,
+    "max_elapsed_ns": 252490622,
+    "all_elapsed_ns": [
+      246215344,
+      244793151,
+      252490622
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 246215344,
+      "expected_sum": 13588684800,
+      "actual_sum": 13588684800
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "frame_of_reference_filter_sum_v500_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 141411848,
+    "min_elapsed_ns": 138865504,
+    "max_elapsed_ns": 144519017,
+    "all_elapsed_ns": [
+      138865504,
+      141411848,
+      144519017
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 138865504,
+      "expected_sum": 13588684800,
+      "actual_sum": 13588684800
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "frame_of_reference_filter_sum_v500_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/frame_of_reference_filter_sum_v500_f/harness', 'executable_tasks/frame_of_reference_filter_sum_v500_f/harness/benchmark_main.cpp', 'executable_tasks/frame_of_reference_filter_sum_v500_f/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/frame_of_reference_filter_sum_v500_f/candidate/bench']' returned non-zero exit status 1."
+  }
+}

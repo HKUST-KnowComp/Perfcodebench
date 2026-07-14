@@ -1,0 +1,72 @@
+{
+  "task_id": "coo_to_csr_offsets_checksum_large",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/coo_to_csr_offsets_checksum_large/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <cstdint>\n#include <cstring>\n\nnamespace {\n\ninline uint64_t mix(uint64_t h, uint64_t v) {\n    h ^= v;\n    h *= 1099511628211ULL;\n    return h;\n}\n\n} // anonymous\n\nuint64_t csr_offsets_hash(const std::vector<uint32_t>& row_ids,\n                          uint32_t rows,\n                          int iters)\n{\n    const uint32_t nnz = static_cast<uint32_t>(row_ids.size());\n    const uint32_t off_size = rows + 1;\n\n    // one contiguous buffer reused every iteration\n    std::vector<uint32_t> buf(off_size);\n    uint32_t* counts = buf.data();\n\n    uint64_t hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        // 1. zero histogram\n        std::memset(counts, 0, off_size * sizeof(uint32_t));\n\n        // 2. build histogram in a single pass over COO rows\n        for (uint32_t i = 0; i < nnz; ++i) {\n            const uint32_t r = row_ids[i];\n            ++counts[r];\n        }\n\n        // 3. in-place prefix sum -> CSR offsets\n        uint32_t sum = 0;\n        for (uint32_t r = 0; r < rows; ++r) {\n            const uint32_t cnt = counts[r];\n            counts[r] = sum;\n            sum += cnt;\n        }\n        counts[rows] = sum;  // last entry\n\n        // 4. compute FNV-1a hash of the offset array\n        // unroll 4-way to reduce loop overhead and hide latency\n        const uint32_t* off = counts;\n        uint64_t h = 1469598103934665603ULL;\n        uint32_t i = 0;\n        for (; i + 3 < off_size; i += 4) {\n            h = mix(h, off[i]);\n            h = mix(h, off[i+1]);\n            h = mix(h, off[i+2]);\n            h = mix(h, off[i+3]);\n        }\n        for (; i < off_size; ++i) {\n            h = mix(h, off[i]);\n        }\n        hash = h;\n    }\n    return hash;\n}",
+  "baseline": {
+    "task_id": "coo_to_csr_offsets_checksum_large",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 755982454,
+    "min_elapsed_ns": 753756618,
+    "max_elapsed_ns": 785129411,
+    "all_elapsed_ns": [
+      753756618,
+      755982454,
+      785129411
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 753756618,
+      "expected_checksum": 16589140619240994713,
+      "actual_checksum": 16589140619240994713
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "coo_to_csr_offsets_checksum_large",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 136123652,
+    "min_elapsed_ns": 129384791,
+    "max_elapsed_ns": 150584866,
+    "all_elapsed_ns": [
+      150584866,
+      136123652,
+      129384791
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 150584866,
+      "expected_checksum": 16589140619240994713,
+      "actual_checksum": 16589140619240994713
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "coo_to_csr_offsets_checksum_large",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 114878825,
+    "min_elapsed_ns": 114444993,
+    "max_elapsed_ns": 123368415,
+    "all_elapsed_ns": [
+      123368415,
+      114878825,
+      114444993
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 123368415,
+      "expected_checksum": 16589140619240994713,
+      "actual_checksum": 16589140619240994713
+    },
+    "status": "ok"
+  }
+}

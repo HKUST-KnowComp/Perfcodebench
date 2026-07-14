@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_jacobi_2d_v600_c",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v600_c/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  std::vector<uint32_t> a = input;\n  std::vector<uint32_t> b(a.size());\n\n  const int nrows = rows;\n  const int ncols = cols;\n\n  for (int step = 0; step < steps; ++step) {\n    const uint32_t* pa = a.data();\n    uint32_t* pb = b.data();\n\n    #pragma omp parallel for schedule(static)\n    for (int r = 0; r < nrows; ++r) {\n      const std::size_t base = static_cast<std::size_t>(r) * static_cast<std::size_t>(ncols);\n      const uint32_t* row_cur = pa + base;\n      uint32_t* row_out = pb + base;\n\n      if (r == 0 || r == nrows - 1) {\n        // Copy entire boundary row\n        for (int c = 0; c < ncols; ++c) {\n          row_out[c] = row_cur[c];\n        }\n      } else {\n        // Left boundary column copy\n        row_out[0] = row_cur[0];\n\n        // Interior columns update\n        const uint32_t* row_prev = pa + base - static_cast<std::size_t>(ncols);\n        const uint32_t* row_next = pa + base + static_cast<std::size_t>(ncols);\n\n        // Compute for columns 1..ncols-2\n        #pragma omp simd\n        for (int c = 1; c < ncols - 1; ++c) {\n          // Keep arithmetic in uint32_t to preserve wrap-around semantics\n          uint32_t s = row_cur[c] * 4u;\n          s += row_cur[c - 1];\n          s += row_cur[c + 1];\n          s += row_prev[c];\n          s += row_next[c];\n          row_out[c] = s / 8u;\n        }\n\n        // Right boundary column copy\n        row_out[static_cast<std::size_t>(ncols) - 1] = row_cur[static_cast<std::size_t>(ncols) - 1];\n      }\n    }\n\n    a.swap(b);\n  }\n\n  return checksum_u32(a);\n}\n",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v600_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 110082856,
+    "min_elapsed_ns": 109946680,
+    "max_elapsed_ns": 234440592,
+    "all_elapsed_ns": [
+      110082856,
+      109946680,
+      234440592
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 110082856,
+      "expected_checksum": 6389366618467326091,
+      "actual_checksum": 6389366618467326091
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v600_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 133127173,
+    "min_elapsed_ns": 78671381,
+    "max_elapsed_ns": 315987133,
+    "all_elapsed_ns": [
+      315987133,
+      78671381,
+      133127173
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 315987133,
+      "expected_checksum": 6389366618467326091,
+      "actual_checksum": 6389366618467326091
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v600_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 732067773,
+    "min_elapsed_ns": 536737185,
+    "max_elapsed_ns": 1076094211,
+    "all_elapsed_ns": [
+      1076094211,
+      732067773,
+      536737185
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1076094211,
+      "expected_checksum": 6389366618467326091,
+      "actual_checksum": 6389366618467326091
+    },
+    "status": "ok"
+  }
+}

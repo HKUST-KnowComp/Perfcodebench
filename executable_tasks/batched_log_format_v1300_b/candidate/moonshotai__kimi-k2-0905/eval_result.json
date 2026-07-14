@@ -1,0 +1,59 @@
+{
+  "task_id": "batched_log_format_v1300_b",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/batched_log_format_v1300_b/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <string>\n#include <vector>\n\nnamespace {\n\ninline uint64_t checksum_buf(const char* first, const char* last) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (; first != last; ++first) {\n    hash ^= static_cast<uint64_t>(static_cast<unsigned char>(*first));\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n// Write integer into buf, return pointer past the last digit.\ninline char* u32toa(uint32_t val, char* buf) {\n  if (val == 0) { *buf++ = '0'; return buf; }\n  char tmp[10];\n  char* p = tmp + 10;\n  while (val) {\n    *--p = '0' + (val % 10);\n    val /= 10;\n  }\n  while (p != tmp + 10) *buf++ = *p++;\n  return buf;\n}\n\ninline char* u16toa(uint16_t val, char* buf) {\n  return u32toa(static_cast<uint32_t>(val), buf);\n}\n\n}  // namespace\n\nuint64_t batched_log_checksum(\n    const std::vector<uint32_t>& timestamps,\n    const std::vector<uint32_t>& ids,\n    const std::vector<uint16_t>& levels,\n    const std::vector<std::string>& messages,\n    int iters) {\n  const size_t n = ids.size();\n\n  // conservative upper-bound for one line\n  const size_t max_line = 10 + 1 + 10 + 1 + 5 + 1 + 1024 + 1;\n  const size_t total = n * max_line;\n  std::string out;\n  out.reserve(total);\n\n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    out.clear();\n    char* ptr = out.data() + out.size();\n    for (size_t i = 0; i < n; ++i) {\n      ptr = u32toa(timestamps[i], ptr);\n      *ptr++ = '|';\n      ptr = u32toa(ids[i], ptr);\n      *ptr++ = '|';\n      ptr = u16toa(levels[i], ptr);\n      *ptr++ = '|';\n      const std::string& msg = messages[i];\n      memcpy(ptr, msg.data(), msg.size());\n      ptr += msg.size();\n      *ptr++ = '\\n';\n    }\n    out.resize(ptr - out.data());\n    hash = checksum_buf(out.data(), out.data() + out.size());\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "batched_log_format_v1300_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1321407513,
+    "min_elapsed_ns": 1311380075,
+    "max_elapsed_ns": 1381838026,
+    "all_elapsed_ns": [
+      1311380075,
+      1381838026,
+      1321407513
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1311380075,
+      "expected_checksum": 17282144008690485183,
+      "actual_checksum": 17282144008690485183
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "batched_log_format_v1300_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 623399950,
+    "min_elapsed_ns": 592511922,
+    "max_elapsed_ns": 868347430,
+    "all_elapsed_ns": [
+      592511922,
+      623399950,
+      868347430
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 592511922,
+      "expected_checksum": 17282144008690485183,
+      "actual_checksum": 17282144008690485183
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "batched_log_format_v1300_b",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/batched_log_format_v1300_b/harness', 'executable_tasks/batched_log_format_v1300_b/harness/benchmark_main.cpp', 'executable_tasks/batched_log_format_v1300_b/candidate/moonshotai__kimi-k2-0905/solution.cpp', '-o', 'build/batched_log_format_v1300_b/candidate/bench']' returned non-zero exit status 1."
+  }
+}

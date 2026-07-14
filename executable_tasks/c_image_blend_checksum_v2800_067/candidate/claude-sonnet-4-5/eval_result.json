@@ -1,0 +1,72 @@
+{
+  "task_id": "c_image_blend_checksum_v2800_067",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_image_blend_checksum_v2800_067/candidate/claude-sonnet-4-5/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\nstatic inline uint32_t blend_pixel(uint32_t src_pixel, uint32_t dst_pixel, uint32_t alpha) {\n  uint32_t rb_src = src_pixel & 0x00FF00FFu;\n  uint32_t ag_src = (src_pixel >> 8) & 0x00FF00FFu;\n  uint32_t rb_dst = dst_pixel & 0x00FF00FFu;\n  uint32_t ag_dst = (dst_pixel >> 8) & 0x00FF00FFu;\n  \n  uint32_t inv_alpha = 255u - alpha;\n  \n  uint32_t rb_blend = ((rb_src * alpha + rb_dst * inv_alpha + 0x00800080u) >> 8) & 0x00FF00FFu;\n  uint32_t ag_blend = ((ag_src * alpha + ag_dst * inv_alpha + 0x00800080u)) & 0xFF00FF00u;\n  \n  return rb_blend | ag_blend | 0xFF000000u;\n}\n\nstatic uint64_t checksum_bytes_fast(const uint8_t* data, size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  const uint64_t prime = 1099511628211ULL;\n  size_t i = 0;\n  \n  for (; i + 7 < n; i += 8) {\n    hash ^= (uint64_t)data[i];\n    hash *= prime;\n    hash ^= (uint64_t)data[i + 1];\n    hash *= prime;\n    hash ^= (uint64_t)data[i + 2];\n    hash *= prime;\n    hash ^= (uint64_t)data[i + 3];\n    hash *= prime;\n    hash ^= (uint64_t)data[i + 4];\n    hash *= prime;\n    hash ^= (uint64_t)data[i + 5];\n    hash *= prime;\n    hash ^= (uint64_t)data[i + 6];\n    hash *= prime;\n    hash ^= (uint64_t)data[i + 7];\n    hash *= prime;\n  }\n  \n  for (; i < n; ++i) {\n    hash ^= (uint64_t)data[i];\n    hash *= prime;\n  }\n  \n  return hash;\n}\n\nuint64_t run(const uint8_t* src, const uint8_t* dst, int width, int height, int iters) {\n  size_t pixels = (size_t)width * (size_t)height;\n  uint8_t* out = (uint8_t*)malloc(pixels * 4u);\n  if (!out) return 0;\n  \n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    size_t i = 0;\n    \n    for (; i + 3 < pixels; i += 4) {\n      size_t idx0 = i * 4u;\n      size_t idx1 = idx0 + 4u;\n      size_t idx2 = idx0 + 8u;\n      size_t idx3 = idx0 + 12u;\n      \n      uint32_t src0, src1, src2, src3;\n      uint32_t dst0, dst1, dst2, dst3;\n      \n      __builtin_memcpy(&src0, &src[idx0], 4);\n      __builtin_memcpy(&src1, &src[idx1], 4);\n      __builtin_memcpy(&src2, &src[idx2], 4);\n      __builtin_memcpy(&src3, &src[idx3], 4);\n      \n      __builtin_memcpy(&dst0, &dst[idx0], 4);\n      __builtin_memcpy(&dst1, &dst[idx1], 4);\n      __builtin_memcpy(&dst2, &dst[idx2], 4);\n      __builtin_memcpy(&dst3, &dst[idx3], 4);\n      \n      uint32_t alpha0 = (src0 >> 24) & 0xFFu;\n      uint32_t alpha1 = (src1 >> 24) & 0xFFu;\n      uint32_t alpha2 = (src2 >> 24) & 0xFFu;\n      uint32_t alpha3 = (src3 >> 24) & 0xFFu;\n      \n      uint32_t out0 = blend_pixel(src0, dst0, alpha0);\n      uint32_t out1 = blend_pixel(src1, dst1, alpha1);\n      uint32_t out2 = blend_pixel(src2, dst2, alpha2);\n      uint32_t out3 = blend_pixel(src3, dst3, alpha3);\n      \n      __builtin_memcpy(&out[idx0], &out0, 4);\n      __builtin_memcpy(&out[idx1], &out1, 4);\n      __builtin_memcpy(&out[idx2], &out2, 4);\n      __builtin_memcpy(&out[idx3], &out3, 4);\n    }\n    \n    for (; i < pixels; ++i) {\n      size_t idx = i * 4u;\n      uint32_t src_pixel, dst_pixel;\n      __builtin_memcpy(&src_pixel, &src[idx], 4);\n      __builtin_memcpy(&dst_pixel, &dst[idx], 4);\n      \n      uint32_t alpha = (src_pixel >> 24) & 0xFFu;\n      uint32_t out_pixel = blend_pixel(src_pixel, dst_pixel, alpha);\n      \n      __builtin_memcpy(&out[idx], &out_pixel, 4);\n    }\n    \n    hash = checksum_bytes_fast(out, pixels * 4u);\n  }\n  \n  free(out);\n  return hash;\n}",
+  "baseline": {
+    "task_id": "c_image_blend_checksum_v2800_067",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 15349000,
+    "min_elapsed_ns": 15325000,
+    "max_elapsed_ns": 15396000,
+    "all_elapsed_ns": [
+      15325000,
+      15396000,
+      15349000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15325000,
+      "expected_checksum": 10709713512402082624,
+      "actual_checksum": 10709713512402082624
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_image_blend_checksum_v2800_067",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 15314000,
+    "min_elapsed_ns": 15293000,
+    "max_elapsed_ns": 15881000,
+    "all_elapsed_ns": [
+      15881000,
+      15314000,
+      15293000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15881000,
+      "expected_checksum": 10709713512402082624,
+      "actual_checksum": 10709713512402082624
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_image_blend_checksum_v2800_067",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 15536000,
+    "min_elapsed_ns": 15496000,
+    "max_elapsed_ns": 17067000,
+    "all_elapsed_ns": [
+      15536000,
+      15496000,
+      17067000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15536000,
+      "expected_checksum": 10709713512402082624,
+      "actual_checksum": 10709713512402082624
+    },
+    "status": "ok"
+  }
+}

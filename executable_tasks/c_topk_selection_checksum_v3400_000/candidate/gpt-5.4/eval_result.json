@@ -1,0 +1,72 @@
+{
+  "task_id": "c_topk_selection_checksum_v3400_000",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_topk_selection_checksum_v3400_000/candidate/gpt-5.4/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include <stdint.h>\n#include <stdlib.h>\n\ntypedef struct {\n  uint32_t score;\n  uint32_t index;\n} Pair;\n\n/* Final required order: score descending, index ascending. */\nstatic int better_pair(Pair a, Pair b) {\n  if (a.score != b.score) return a.score > b.score;\n  return a.index < b.index;\n}\n\n/* Heap keeps the current top-k, with the worst element at root.\n   \"Worse\" means lower score, or for equal score larger index. */\nstatic int worse_pair(Pair a, Pair b) {\n  if (a.score != b.score) return a.score < b.score;\n  return a.index > b.index;\n}\n\nstatic void sift_down_worst(Pair* heap, int size, int idx) {\n  for (;;) {\n    int left = (idx << 1) + 1;\n    if (left >= size) break;\n    int right = left + 1;\n    int worst = idx;\n\n    if (worse_pair(heap[left], heap[worst])) worst = left;\n    if (right < size && worse_pair(heap[right], heap[worst])) worst = right;\n\n    if (worst == idx) break;\n    Pair tmp = heap[idx];\n    heap[idx] = heap[worst];\n    heap[worst] = tmp;\n    idx = worst;\n  }\n}\n\nstatic void sift_up_worst(Pair* heap, int idx) {\n  while (idx > 0) {\n    int parent = (idx - 1) >> 1;\n    if (!worse_pair(heap[idx], heap[parent])) break;\n    Pair tmp = heap[idx];\n    heap[idx] = heap[parent];\n    heap[parent] = tmp;\n    idx = parent;\n  }\n}\n\n/* Sort winners into exact required order: best first.\n   Insertion sort is efficient for small/medium k and has low overhead. */\nstatic void sort_topk(Pair* a, int k) {\n  for (int i = 1; i < k; ++i) {\n    Pair v = a[i];\n    int j = i - 1;\n    while (j >= 0 && better_pair(v, a[j])) {\n      a[j + 1] = a[j];\n      --j;\n    }\n    a[j + 1] = v;\n  }\n}\n\nuint64_t run(const uint32_t* scores, size_t n, int k, int iters) {\n  if (iters <= 0) return 0;\n  if (k <= 0 || n == 0) {\n    uint64_t h = 1469598103934665603ULL;\n    return h;\n  }\n\n  if ((size_t)k > n) k = (int)n;\n\n  Pair* top = (Pair*)malloc((size_t)k * sizeof(Pair));\n  if (!top) return 0;\n\n  uint64_t h = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    int heap_size = 0;\n\n    for (size_t i = 0; i < n; ++i) {\n      Pair p;\n      p.score = scores[i];\n      p.index = (uint32_t)i;\n\n      if (heap_size < k) {\n        top[heap_size] = p;\n        sift_up_worst(top, heap_size);\n        ++heap_size;\n      } else if (better_pair(p, top[0])) {\n        top[0] = p;\n        sift_down_worst(top, heap_size, 0);\n      }\n    }\n\n    sort_topk(top, k);\n\n    h = 1469598103934665603ULL;\n    for (int i = 0; i < k; ++i) {\n      h ^= ((uint64_t)top[i].score << 32) ^ top[i].index;\n      h *= 1099511628211ULL;\n    }\n  }\n\n  free(top);\n  return h;\n}\n",
+  "baseline": {
+    "task_id": "c_topk_selection_checksum_v3400_000",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 7391000,
+    "min_elapsed_ns": 7360000,
+    "max_elapsed_ns": 8003000,
+    "all_elapsed_ns": [
+      8003000,
+      7360000,
+      7391000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8003000,
+      "expected_checksum": 15946445847901639200,
+      "actual_checksum": 15946445847901639200
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_topk_selection_checksum_v3400_000",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 84000,
+    "min_elapsed_ns": 59000,
+    "max_elapsed_ns": 86000,
+    "all_elapsed_ns": [
+      84000,
+      86000,
+      59000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 84000,
+      "expected_checksum": 15946445847901639200,
+      "actual_checksum": 15946445847901639200
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_topk_selection_checksum_v3400_000",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 6725000,
+    "min_elapsed_ns": 6711000,
+    "max_elapsed_ns": 6800000,
+    "all_elapsed_ns": [
+      6725000,
+      6711000,
+      6800000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6725000,
+      "expected_checksum": 15946445847901639200,
+      "actual_checksum": 15946445847901639200
+    },
+    "status": "ok"
+  }
+}

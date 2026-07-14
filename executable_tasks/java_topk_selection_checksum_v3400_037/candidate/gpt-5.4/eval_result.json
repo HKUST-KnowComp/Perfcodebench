@@ -1,0 +1,72 @@
+{
+  "task_id": "java_topk_selection_checksum_v3400_037",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/java_topk_selection_checksum_v3400_037/candidate/gpt-5.4/Solution.java",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "import java.util.*;\n\npublic class Solution {\n  private static final long FNV_OFFSET = 1469598103934665603L;\n  private static final long FNV_PRIME = 1099511628211L;\n\n  // Order: higher score first, then lower index first.\n  private static boolean better(int scoreA, int indexA, int scoreB, int indexB) {\n    return scoreA > scoreB || (scoreA == scoreB && indexA < indexB);\n  }\n\n  // Min-heap of current winners where root is the worst among the kept top-k.\n  private static boolean worse(int scoreA, int indexA, int scoreB, int indexB) {\n    return scoreA < scoreB || (scoreA == scoreB && indexA > indexB);\n  }\n\n  private static void siftDown(int[] heapScores, int[] heapIdx, int size, int pos) {\n    int s = heapScores[pos];\n    int idx = heapIdx[pos];\n    int half = size >>> 1;\n    while (pos < half) {\n      int left = (pos << 1) + 1;\n      int right = left + 1;\n      int child = left;\n      int cs = heapScores[left];\n      int ci = heapIdx[left];\n      if (right < size) {\n        int rs = heapScores[right];\n        int ri = heapIdx[right];\n        if (worse(rs, ri, cs, ci)) {\n          child = right;\n          cs = rs;\n          ci = ri;\n        }\n      }\n      if (!worse(cs, ci, s, idx)) break;\n      heapScores[pos] = cs;\n      heapIdx[pos] = ci;\n      pos = child;\n    }\n    heapScores[pos] = s;\n    heapIdx[pos] = idx;\n  }\n\n  private static void siftUp(int[] heapScores, int[] heapIdx, int pos) {\n    int s = heapScores[pos];\n    int idx = heapIdx[pos];\n    while (pos > 0) {\n      int parent = (pos - 1) >>> 1;\n      int ps = heapScores[parent];\n      int pi = heapIdx[parent];\n      if (!worse(s, idx, ps, pi)) break;\n      heapScores[pos] = ps;\n      heapIdx[pos] = pi;\n      pos = parent;\n    }\n    heapScores[pos] = s;\n    heapIdx[pos] = idx;\n  }\n\n  private static void sortTopKDescending(int[] scores, int[] idx, int n) {\n    // In-place heapsort using a max-heap under final desired order (best at root).\n    for (int i = (n >>> 1) - 1; i >= 0; i--) {\n      int pos = i;\n      int s = scores[pos];\n      int id = idx[pos];\n      int half = n >>> 1;\n      while (pos < half) {\n        int left = (pos << 1) + 1;\n        int right = left + 1;\n        int child = left;\n        int cs = scores[left];\n        int ci = idx[left];\n        if (right < n) {\n          int rs = scores[right];\n          int ri = idx[right];\n          if (better(rs, ri, cs, ci)) {\n            child = right;\n            cs = rs;\n            ci = ri;\n          }\n        }\n        if (!better(cs, ci, s, id)) break;\n        scores[pos] = cs;\n        idx[pos] = ci;\n        pos = child;\n      }\n      scores[pos] = s;\n      idx[pos] = id;\n    }\n\n    for (int end = n - 1; end > 0; end--) {\n      int ts = scores[0]; scores[0] = scores[end]; scores[end] = ts;\n      int ti = idx[0]; idx[0] = idx[end]; idx[end] = ti;\n\n      int pos = 0;\n      int s = scores[0];\n      int id = idx[0];\n      int half = end >>> 1;\n      while (pos < half) {\n        int left = (pos << 1) + 1;\n        int right = left + 1;\n        int child = left;\n        int cs = scores[left];\n        int ci = idx[left];\n        if (right < end) {\n          int rs = scores[right];\n          int ri = idx[right];\n          if (better(rs, ri, cs, ci)) {\n            child = right;\n            cs = rs;\n            ci = ri;\n          }\n        }\n        if (!better(cs, ci, s, id)) break;\n        scores[pos] = cs;\n        idx[pos] = ci;\n        pos = child;\n      }\n      scores[pos] = s;\n      idx[pos] = id;\n    }\n\n    // Heapsort above yields ascending order under desired comparator; reverse.\n    for (int l = 0, r = n - 1; l < r; l++, r--) {\n      int ts = scores[l]; scores[l] = scores[r]; scores[r] = ts;\n      int ti = idx[l]; idx[l] = idx[r]; idx[r] = ti;\n    }\n  }\n\n  public static long run(int[] scores, int k, int iters) {\n    final int n = scores.length;\n    if (k <= 0) {\n      long h = 0;\n      for (int iter = 0; iter < iters; iter++) h = FNV_OFFSET;\n      return h;\n    }\n\n    final int kk = k > n ? n : k;\n    int[] heapScores = new int[kk];\n    int[] heapIdx = new int[kk];\n    long h = 0L;\n\n    for (int iter = 0; iter < iters; iter++) {\n      int size = 0;\n\n      for (int i = 0; i < n; i++) {\n        int s = scores[i];\n        if (size < kk) {\n          heapScores[size] = s;\n          heapIdx[size] = i;\n          siftUp(heapScores, heapIdx, size);\n          size++;\n        } else {\n          int rootS = heapScores[0];\n          int rootI = heapIdx[0];\n          if (better(s, i, rootS, rootI)) {\n            heapScores[0] = s;\n            heapIdx[0] = i;\n            siftDown(heapScores, heapIdx, kk, 0);\n          }\n        }\n      }\n\n      sortTopKDescending(heapScores, heapIdx, kk);\n\n      h = FNV_OFFSET;\n      for (int i = 0; i < kk; i++) {\n        h ^= (((long) heapScores[i]) << 32) ^ (heapIdx[i] & 0xffffffffL);\n        h *= FNV_PRIME;\n      }\n    }\n    return h;\n  }\n}\n",
+  "baseline": {
+    "task_id": "java_topk_selection_checksum_v3400_037",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2122639724,
+    "min_elapsed_ns": 1964831195,
+    "max_elapsed_ns": 2253624333,
+    "all_elapsed_ns": [
+      2122639724,
+      1964831195,
+      2253624333
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2122639724,
+      "expected_checksum": -9189010384389094488,
+      "actual_checksum": -9189010384389094488
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "java_topk_selection_checksum_v3400_037",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 149319528,
+    "min_elapsed_ns": 124426061,
+    "max_elapsed_ns": 160833136,
+    "all_elapsed_ns": [
+      124426061,
+      149319528,
+      160833136
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 124426061,
+      "expected_checksum": -9189010384389094488,
+      "actual_checksum": -9189010384389094488
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "java_topk_selection_checksum_v3400_037",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 26577683,
+    "min_elapsed_ns": 20619519,
+    "max_elapsed_ns": 27771259,
+    "all_elapsed_ns": [
+      26577683,
+      20619519,
+      27771259
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 26577683,
+      "expected_checksum": -9189010384389094488,
+      "actual_checksum": -9189010384389094488
+    },
+    "status": "ok"
+  }
+}

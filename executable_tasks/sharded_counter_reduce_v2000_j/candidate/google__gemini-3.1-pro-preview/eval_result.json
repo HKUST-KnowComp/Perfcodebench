@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce_v2000_j",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v2000_j/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <thread>\n\nnamespace {\n\n/**\n * FNV-1a hash for checksum calculation as per the baseline.\n */\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  \n  std::vector<uint64_t> global_counts(key_space, 0);\n  uint64_t final_hash = 0;\n  size_t n = keys.size();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    std::fill(global_counts.begin(), global_counts.end(), 0);\n\n    // To avoid contention on a single mutex or atomic, we use thread-local buffers.\n    // Each thread accumulates its portion of the input into its own local count array.\n    std::vector<std::thread> threads;\n    std::vector<std::vector<uint64_t>> local_buffers(num_threads, std::vector<uint64_t>(key_space, 0));\n\n    size_t chunk_size = n / num_threads;\n    for (int t = 0; t < num_threads; ++t) {\n      size_t start = t * chunk_size;\n      size_t end = (t == num_threads - 1) ? n : (t + 1) * chunk_size;\n\n      threads.emplace_back([&, t, start, end]() {\n        auto& local_counts = local_buffers[t];\n        for (size_t i = start; i < end; ++i) {\n          local_counts[keys[i]] += values[i];\n        }\n      });\n    }\n\n    for (auto& th : threads) {\n      th.join();\n    }\n\n    // Merge local buffers into the global counts.\n    // Since we need the checksum of the final state, we sum them up.\n    // This part is single-threaded but efficient as it's a simple linear scan.\n    for (int t = 0; t < num_threads; ++t) {\n      const auto& local_counts = local_buffers[t];\n      for (uint32_t k = 0; k < key_space; ++k) {\n        global_counts[k] += local_counts[k];\n      }\n    }\n\n    final_hash = checksum_u64(global_counts);\n  }\n\n  return final_hash;\n}",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v2000_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 185719259,
+    "min_elapsed_ns": 184393916,
+    "max_elapsed_ns": 203092458,
+    "all_elapsed_ns": [
+      185719259,
+      184393916,
+      203092458
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 185719259,
+      "expected_checksum": 7233755933056025475,
+      "actual_checksum": 7233755933056025475
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v2000_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1147634,
+    "min_elapsed_ns": 1129400,
+    "max_elapsed_ns": 4371992,
+    "all_elapsed_ns": [
+      4371992,
+      1147634,
+      1129400
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4371992,
+      "expected_checksum": 7233755933056025475,
+      "actual_checksum": 7233755933056025475
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v2000_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1495403,
+    "min_elapsed_ns": 1410456,
+    "max_elapsed_ns": 1559854,
+    "all_elapsed_ns": [
+      1495403,
+      1559854,
+      1410456
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1495403,
+      "expected_checksum": 7233755933056025475,
+      "actual_checksum": 7233755933056025475
+    },
+    "status": "ok"
+  }
+}

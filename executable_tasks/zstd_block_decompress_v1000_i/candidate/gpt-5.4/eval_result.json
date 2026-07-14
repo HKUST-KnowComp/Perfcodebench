@@ -1,0 +1,72 @@
+{
+  "task_id": "zstd_block_decompress_v1000_i",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/zstd_block_decompress_v1000_i/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include \"zstd.h\"\n\n#include <cstdint>\n#include <string>\n\nnamespace {\n\nstatic inline uint64_t fnv1a_update(uint64_t hash, const char* data, std::size_t size) {\n  const unsigned char* p = reinterpret_cast<const unsigned char*>(data);\n  const unsigned char* end = p + size;\n  while (p != end) {\n    hash ^= static_cast<uint64_t>(*p++);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t decompress_checksum(const std::string& compressed, std::size_t decompressed_size) {\n  ZSTD_DCtx* dctx = ZSTD_createDCtx();\n  if (dctx == nullptr) {\n    return 0;\n  }\n\n  const std::size_t out_chunk_size = ZSTD_DStreamOutSize();\n  char* out_buf = new (std::nothrow) char[out_chunk_size];\n  if (out_buf == nullptr) {\n    ZSTD_freeDCtx(dctx);\n    return 0;\n  }\n\n  ZSTD_inBuffer in;\n  in.src = compressed.data();\n  in.size = compressed.size();\n  in.pos = 0;\n\n  uint64_t hash = 1469598103934665603ULL;\n  std::size_t total_out = 0;\n\n  while (true) {\n    ZSTD_outBuffer out;\n    out.dst = out_buf;\n    out.size = out_chunk_size;\n    out.pos = 0;\n\n    const std::size_t ret = ZSTD_decompressStream(dctx, &out, &in);\n    if (ZSTD_isError(ret)) {\n      delete[] out_buf;\n      ZSTD_freeDCtx(dctx);\n      return 0;\n    }\n\n    total_out += out.pos;\n    if (total_out > decompressed_size) {\n      delete[] out_buf;\n      ZSTD_freeDCtx(dctx);\n      return 0;\n    }\n\n    hash = fnv1a_update(hash, out_buf, out.pos);\n\n    if (ret == 0) {\n      break;\n    }\n\n    if (in.pos == in.size && out.pos == 0) {\n      delete[] out_buf;\n      ZSTD_freeDCtx(dctx);\n      return 0;\n    }\n  }\n\n  delete[] out_buf;\n  ZSTD_freeDCtx(dctx);\n\n  if (total_out != decompressed_size || in.pos != in.size) {\n    return 0;\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "zstd_block_decompress_v1000_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6364056,
+    "min_elapsed_ns": 6220550,
+    "max_elapsed_ns": 6466934,
+    "all_elapsed_ns": [
+      6466934,
+      6220550,
+      6364056
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6466934,
+      "expected_checksum": 13613506433683203979,
+      "actual_checksum": 13613506433683203979
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "zstd_block_decompress_v1000_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5822611,
+    "min_elapsed_ns": 5778917,
+    "max_elapsed_ns": 8122837,
+    "all_elapsed_ns": [
+      8122837,
+      5778917,
+      5822611
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8122837,
+      "expected_checksum": 13613506433683203979,
+      "actual_checksum": 13613506433683203979
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "zstd_block_decompress_v1000_i",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 4844942,
+    "min_elapsed_ns": 4839875,
+    "max_elapsed_ns": 4857326,
+    "all_elapsed_ns": [
+      4839875,
+      4857326,
+      4844942
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4839875,
+      "expected_checksum": 13613506433683203979,
+      "actual_checksum": 13613506433683203979
+    },
+    "status": "ok"
+  }
+}

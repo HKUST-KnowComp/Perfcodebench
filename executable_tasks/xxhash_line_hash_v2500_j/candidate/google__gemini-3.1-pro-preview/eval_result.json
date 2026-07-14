@@ -1,0 +1,59 @@
+{
+  "task_id": "xxhash_line_hash_v2500_j",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/xxhash_line_hash_v2500_j/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 7,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"xxhash.h\"\n#include <cstring>\n#include <cstdint>\n#include <string>\n\n/**\n * Optimized line-wise xxHash64 batching.\n * \n * Performance improvements:\n * 1. Replaced std::string::substr with direct pointer arithmetic to avoid memory allocations and copies.\n * 2. Replaced manual character-by-character scanning with std::memchr, which is typically \n *    implemented using SIMD instructions (AVX2/SSE) for high-throughput searching.\n * 3. Minimized overhead in the accumulation loop by processing the input buffer directly.\n */\nuint64_t hash_lines(const std::string& input) {\n    // FNV-1a 64-bit constants\n    const uint64_t FNV_OFFSET_BASIS = 1469598103934665603ULL;\n    const uint64_t FNV_PRIME = 1099511628211ULL;\n\n    uint64_t acc = FNV_OFFSET_BASIS;\n    const char* const data = input.data();\n    const size_t total_size = input.size();\n    size_t pos = 0;\n\n    while (pos < total_size) {\n        const char* current_ptr = data + pos;\n        const size_t remaining = total_size - pos;\n\n        // Use memchr to find the next newline character efficiently.\n        // memchr is highly optimized in most standard libraries.\n        const char* next_nl = static_cast<const char*>(std::memchr(current_ptr, '\\n', remaining));\n\n        size_t line_len;\n        if (next_nl) {\n            line_len = static_cast<size_t>(next_nl - current_ptr);\n            // Move pos past the newline character for the next iteration.\n            pos += line_len + 1;\n        } else {\n            // No more newlines; the rest of the buffer is the final line.\n            line_len = remaining;\n            pos = total_size;\n        }\n\n        // Calculate XXH64 for the current line segment.\n        // Seed is 0 as per baseline requirement.\n        uint64_t line_hash = XXH64(current_ptr, line_len, 0);\n\n        // Combine using the FNV-1a style accumulation logic from the baseline.\n        acc ^= line_hash;\n        acc *= FNV_PRIME;\n    }\n\n    return acc;\n}\n",
+  "baseline": {
+    "task_id": "xxhash_line_hash_v2500_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3345641858,
+    "min_elapsed_ns": 3259655308,
+    "max_elapsed_ns": 3622988545,
+    "all_elapsed_ns": [
+      3622988545,
+      3345641858,
+      3259655308
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3622988545,
+      "expected_hash": 136443652128309248,
+      "actual_hash": 136443652128309248
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "xxhash_line_hash_v2500_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2311623241,
+    "min_elapsed_ns": 2286918096,
+    "max_elapsed_ns": 2696290855,
+    "all_elapsed_ns": [
+      2311623241,
+      2696290855,
+      2286918096
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2311623241,
+      "expected_hash": 136443652128309248,
+      "actual_hash": 136443652128309248
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "xxhash_line_hash_v2500_j",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/xxhash_line_hash_v2500_j/candidate/bench']' timed out after 7 seconds"
+  }
+}

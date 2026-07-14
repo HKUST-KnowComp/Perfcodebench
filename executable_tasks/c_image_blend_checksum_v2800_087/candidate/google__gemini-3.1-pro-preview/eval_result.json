@@ -1,0 +1,72 @@
+{
+  "task_id": "c_image_blend_checksum_v2800_087",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_image_blend_checksum_v2800_087/candidate/google__gemini-3.1-pro-preview/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n\n// Optimized blend using the property: (s*a + d*(255-a) + 127) / 255 \n// can be approximated very closely or exactly in 8-bit space using bit shifts.\n// A common fast approximation for (x + 127) / 255 is (x + 1 + (x >> 8)) >> 8.\nstatic inline uint8_t blend_byte_fast(uint32_t s, uint32_t d, uint32_t a) {\n    uint32_t t = s * a + d * (255u - a) + 127u;\n    return (uint8_t)((t + (t >> 8)) >> 8);\n}\n\n// FNV-1a hash implementation\nstatic inline uint64_t checksum_bytes(const uint8_t* data, size_t n) {\n    uint64_t hash = 1469598103934665603ULL;\n    const uint64_t prime = 1099511628211ULL;\n    for (size_t i = 0; i < n; ++i) {\n        hash ^= (uint64_t)data[i];\n        hash *= prime;\n    }\n    return hash;\n}\n\nuint64_t run(const uint8_t* src, const uint8_t* dst, int width, int height, int iters) {\n    size_t pixels = (size_t)width * (size_t)height;\n    size_t total_bytes = pixels * 4u;\n    uint8_t* out = (uint8_t*)malloc(total_bytes);\n    if (!out) return 0;\n\n    uint64_t hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        const uint8_t* s_ptr = src;\n        const uint8_t* d_ptr = dst;\n        uint8_t* o_ptr = out;\n\n        for (size_t i = 0; i < pixels; ++i) {\n            uint32_t a = s_ptr[3];\n            // Unroll channels\n            uint32_t s0 = s_ptr[0], d0 = d_ptr[0];\n            uint32_t s1 = s_ptr[1], d1 = d_ptr[1];\n            uint32_t s2 = s_ptr[2], d2 = d_ptr[2];\n\n            // Standard blend: (s*a + d*(255-a) + 127) / 255\n            // Using the exact integer division logic provided in baseline\n            o_ptr[0] = (uint8_t)((s0 * a + d0 * (255u - a) + 127u) / 255u);\n            o_ptr[1] = (uint8_t)((s1 * a + d1 * (255u - a) + 127u) / 255u);\n            o_ptr[2] = (uint8_t)((s2 * a + d2 * (255u - a) + 127u) / 255u);\n            o_ptr[3] = 255u;\n\n            s_ptr += 4;\n            d_ptr += 4;\n            o_ptr += 4;\n        }\n        \n        // FNV-1a hash\n        hash = 1469598103934665603ULL;\n        for (size_t i = 0; i < total_bytes; ++i) {\n            hash ^= (uint64_t)out[i];\n            hash *= 1099511628211ULL;\n        }\n    }\n\n    free(out);\n    return hash;\n}",
+  "baseline": {
+    "task_id": "c_image_blend_checksum_v2800_087",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 8450000,
+    "min_elapsed_ns": 7879000,
+    "max_elapsed_ns": 8517000,
+    "all_elapsed_ns": [
+      8517000,
+      7879000,
+      8450000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8517000,
+      "expected_checksum": 5176459435546571882,
+      "actual_checksum": 5176459435546571882
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_image_blend_checksum_v2800_087",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8360000,
+    "min_elapsed_ns": 8333000,
+    "max_elapsed_ns": 8803000,
+    "all_elapsed_ns": [
+      8360000,
+      8333000,
+      8803000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8360000,
+      "expected_checksum": 5176459435546571882,
+      "actual_checksum": 5176459435546571882
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_image_blend_checksum_v2800_087",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 7820000,
+    "min_elapsed_ns": 7750000,
+    "max_elapsed_ns": 7836000,
+    "all_elapsed_ns": [
+      7820000,
+      7836000,
+      7750000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7820000,
+      "expected_checksum": 5176459435546571882,
+      "actual_checksum": 5176459435546571882
+    },
+    "status": "ok"
+  }
+}

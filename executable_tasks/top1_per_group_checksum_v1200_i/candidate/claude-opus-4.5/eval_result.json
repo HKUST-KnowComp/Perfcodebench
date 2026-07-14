@@ -1,0 +1,72 @@
+{
+  "task_id": "top1_per_group_checksum_v1200_i",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/top1_per_group_checksum_v1200_i/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstring>\n#include <algorithm>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#endif\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t top1_group_hash(\n    const std::vector<uint32_t>& groups,\n    const std::vector<uint32_t>& values,\n    uint32_t group_count,\n    int iters) {\n  \n  std::vector<uint32_t> best(group_count, 0);\n  uint64_t hash = 0;\n  const size_t n = groups.size();\n  const uint32_t* __restrict g_ptr = groups.data();\n  const uint32_t* __restrict v_ptr = values.data();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    std::memset(best.data(), 0, group_count * sizeof(uint32_t));\n    uint32_t* __restrict b_ptr = best.data();\n    \n#if defined(__AVX2__)\n    size_t i = 0;\n    // Process 8 elements at a time using AVX2\n    const size_t simd_end = (n >= 7) ? (n - 7) : 0;\n    \n    for (; i < simd_end; i += 8) {\n      __m256i grp = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(g_ptr + i));\n      __m256i val = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(v_ptr + i));\n      __m256i cur = _mm256_i32gather_epi32(reinterpret_cast<const int*>(b_ptr), grp, 4);\n      __m256i mx = _mm256_max_epu32(cur, val);\n      \n      // Scatter manually - AVX2 doesn't have scatter\n      alignas(32) uint32_t grp_arr[8];\n      alignas(32) uint32_t mx_arr[8];\n      _mm256_store_si256(reinterpret_cast<__m256i*>(grp_arr), grp);\n      _mm256_store_si256(reinterpret_cast<__m256i*>(mx_arr), mx);\n      \n      // Unrolled scatter with conflict handling\n      for (int j = 0; j < 8; ++j) {\n        uint32_t g = grp_arr[j];\n        uint32_t v = mx_arr[j];\n        if (v > b_ptr[g]) b_ptr[g] = v;\n      }\n    }\n    \n    // Handle remaining elements\n    for (; i < n; ++i) {\n      uint32_t g = g_ptr[i];\n      uint32_t v = v_ptr[i];\n      if (v > b_ptr[g]) {\n        b_ptr[g] = v;\n      }\n    }\n#else\n    // Scalar fallback with manual unrolling\n    size_t i = 0;\n    const size_t unroll_end = (n >= 3) ? (n - 3) : 0;\n    \n    for (; i < unroll_end; i += 4) {\n      uint32_t g0 = g_ptr[i];\n      uint32_t v0 = v_ptr[i];\n      uint32_t g1 = g_ptr[i + 1];\n      uint32_t v1 = v_ptr[i + 1];\n      uint32_t g2 = g_ptr[i + 2];\n      uint32_t v2 = v_ptr[i + 2];\n      uint32_t g3 = g_ptr[i + 3];\n      uint32_t v3 = v_ptr[i + 3];\n      \n      if (v0 > b_ptr[g0]) b_ptr[g0] = v0;\n      if (v1 > b_ptr[g1]) b_ptr[g1] = v1;\n      if (v2 > b_ptr[g2]) b_ptr[g2] = v2;\n      if (v3 > b_ptr[g3]) b_ptr[g3] = v3;\n    }\n    \n    for (; i < n; ++i) {\n      uint32_t g = g_ptr[i];\n      uint32_t v = v_ptr[i];\n      if (v > b_ptr[g]) {\n        b_ptr[g] = v;\n      }\n    }\n#endif\n    \n    // Compute hash with unrolling\n    hash = 1469598103934665603ULL;\n    const uint32_t* __restrict bp = best.data();\n    \n    uint32_t g = 0;\n    const uint32_t unroll4_end = (group_count >= 3) ? (group_count - 3) : 0;\n    \n    for (; g < unroll4_end; g += 4) {\n      hash = mix(hash, bp[g]);\n      hash = mix(hash, bp[g + 1]);\n      hash = mix(hash, bp[g + 2]);\n      hash = mix(hash, bp[g + 3]);\n    }\n    \n    for (; g < group_count; ++g) {\n      hash = mix(hash, bp[g]);\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "top1_per_group_checksum_v1200_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1023504621,
+    "min_elapsed_ns": 958259635,
+    "max_elapsed_ns": 1095486844,
+    "all_elapsed_ns": [
+      1023504621,
+      1095486844,
+      958259635
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1023504621,
+      "expected_checksum": 2605013602663146371,
+      "actual_checksum": 2605013602663146371
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "top1_per_group_checksum_v1200_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 282540553,
+    "min_elapsed_ns": 239071382,
+    "max_elapsed_ns": 300395332,
+    "all_elapsed_ns": [
+      239071382,
+      300395332,
+      282540553
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 239071382,
+      "expected_checksum": 2605013602663146371,
+      "actual_checksum": 2605013602663146371
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "top1_per_group_checksum_v1200_i",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 272500055,
+    "min_elapsed_ns": 238199670,
+    "max_elapsed_ns": 323337441,
+    "all_elapsed_ns": [
+      323337441,
+      272500055,
+      238199670
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 323337441,
+      "expected_checksum": 2605013602663146371,
+      "actual_checksum": 2605013602663146371
+    },
+    "status": "ok"
+  }
+}

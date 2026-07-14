@@ -1,0 +1,72 @@
+{
+  "task_id": "croaring_range_union_cardinality",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/croaring_range_union_cardinality/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <vector>\n\nuint64_t union_cardinality(\n    const std::vector<uint32_t>& starts,\n    const std::vector<uint32_t>& lengths) {\n  const std::size_t n = starts.size();\n  if (n == 0) return 0;\n\n  // Build list of half-open intervals [start, end), clamped to [0, 2^32]\n  // and skipping empty ones.\n  struct Interval { uint64_t s, e; };\n  std::vector<Interval> intervals;\n  intervals.reserve(n);\n\n  const uint64_t DOMAIN_LIMIT = 4294967296ULL; // 2^32, exclusive upper bound\n\n  for (std::size_t i = 0; i < n; ++i) {\n    uint32_t len = lengths[i];\n    if (len == 0) continue;\n    uint64_t s = static_cast<uint64_t>(starts[i]);\n    uint64_t e = s + static_cast<uint64_t>(len); // compute in 64-bit to avoid wrap\n    if (e > DOMAIN_LIMIT) e = DOMAIN_LIMIT;      // clamp to domain limit\n    if (e <= s) continue;                        // still empty after clamping\n    intervals.push_back({s, e});\n  }\n\n  if (intervals.empty()) return 0;\n\n  std::sort(intervals.begin(), intervals.end(), [](const Interval& a, const Interval& b) {\n    if (a.s < b.s) return true;\n    if (a.s > b.s) return false;\n    return a.e < b.e;\n  });\n\n  // Merge intervals and accumulate total covered length.\n  uint64_t total = 0;\n  uint64_t cur_s = intervals[0].s;\n  uint64_t cur_e = intervals[0].e;\n\n  for (std::size_t i = 1; i < intervals.size(); ++i) {\n    const uint64_t s = intervals[i].s;\n    const uint64_t e = intervals[i].e;\n    if (s > cur_e) {\n      total += (cur_e - cur_s);\n      cur_s = s;\n      cur_e = e;\n    } else if (e > cur_e) {\n      cur_e = e;\n    }\n  }\n  total += (cur_e - cur_s);\n\n  return total;\n}\n",
+  "baseline": {
+    "task_id": "croaring_range_union_cardinality",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 76798624,
+    "min_elapsed_ns": 76348224,
+    "max_elapsed_ns": 77367314,
+    "all_elapsed_ns": [
+      77367314,
+      76348224,
+      76798624
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 77367314,
+      "expected_cardinality": 989956,
+      "actual_cardinality": 989956
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "croaring_range_union_cardinality",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2183986,
+    "min_elapsed_ns": 2131811,
+    "max_elapsed_ns": 2265525,
+    "all_elapsed_ns": [
+      2183986,
+      2131811,
+      2265525
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2183986,
+      "expected_cardinality": 989956,
+      "actual_cardinality": 989956
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "croaring_range_union_cardinality",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1252054,
+    "min_elapsed_ns": 1250337,
+    "max_elapsed_ns": 1264139,
+    "all_elapsed_ns": [
+      1264139,
+      1252054,
+      1250337
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1264139,
+      "expected_cardinality": 989956,
+      "actual_cardinality": 989956
+    },
+    "status": "ok"
+  }
+}

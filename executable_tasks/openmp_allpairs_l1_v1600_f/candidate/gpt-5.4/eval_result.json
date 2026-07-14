@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_allpairs_l1_v1600_f",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_allpairs_l1_v1600_f/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nstatic inline void sort_int32_inplace(int32_t* a, std::size_t n) {\n  if (n <= 1) return;\n\n  struct Range {\n    std::size_t l;\n    std::size_t r;\n  };\n\n  Range stack[64];\n  int top = 0;\n  stack[top++] = {0, n - 1};\n\n  while (top) {\n    Range cur = stack[--top];\n    std::size_t l = cur.l;\n    std::size_t r = cur.r;\n\n    while (l < r) {\n      if (r - l + 1 <= 24) {\n        for (std::size_t i = l + 1; i <= r; ++i) {\n          int32_t v = a[i];\n          std::size_t j = i;\n          while (j > l && a[j - 1] > v) {\n            a[j] = a[j - 1];\n            --j;\n          }\n          a[j] = v;\n        }\n        break;\n      }\n\n      std::size_t m = l + ((r - l) >> 1);\n      int32_t x = a[l];\n      int32_t y = a[m];\n      int32_t z = a[r];\n      int32_t pivot;\n      if (x < y) {\n        pivot = (y < z) ? y : ((x < z) ? z : x);\n      } else {\n        pivot = (x < z) ? x : ((y < z) ? z : y);\n      }\n\n      std::size_t i = l;\n      std::size_t j = r;\n      for (;;) {\n        while (a[i] < pivot) ++i;\n        while (a[j] > pivot) --j;\n        if (i >= j) break;\n        int32_t tmp = a[i];\n        a[i] = a[j];\n        a[j] = tmp;\n        ++i;\n        if (j == 0) break;\n        --j;\n      }\n\n      if (j - l < r - (j + 1)) {\n        if (j + 1 < r) stack[top++] = {j + 1, r};\n        r = j;\n      } else {\n        if (l < j) stack[top++] = {l, j};\n        l = j + 1;\n      }\n    }\n  }\n}\n\nstatic inline int64_t axis_sum_sorted(const int32_t* a, std::size_t n) {\n  int64_t prefix = 0;\n  int64_t total = 0;\n  for (std::size_t i = 0; i < n; ++i) {\n    const int64_t v = static_cast<int64_t>(a[i]);\n    total += v * static_cast<int64_t>(i) - prefix;\n    prefix += v;\n  }\n  return total;\n}\n\n}  // namespace\n\nint64_t allpairs_l1_sum(const std::vector<int32_t>& xs, const std::vector<int32_t>& ys, int iters) {\n  const std::size_t n = xs.size();\n  if (n <= 1 || iters <= 0) return 0;\n\n  std::vector<int32_t> xcopy(xs.begin(), xs.end());\n  std::vector<int32_t> ycopy(ys.begin(), ys.end());\n\n#pragma omp parallel sections\n  {\n#pragma omp section\n    { sort_int32_inplace(xcopy.data(), n); }\n#pragma omp section\n    { sort_int32_inplace(ycopy.data(), n); }\n  }\n\n  int64_t xsum = 0;\n  int64_t ysum = 0;\n#pragma omp parallel sections\n  {\n#pragma omp section\n    { xsum = axis_sum_sorted(xcopy.data(), n); }\n#pragma omp section\n    { ysum = axis_sum_sorted(ycopy.data(), n); }\n  }\n\n  const int64_t total = xsum + ysum;\n  (void)iters;\n  return total;\n}\n",
+  "baseline": {
+    "task_id": "openmp_allpairs_l1_v1600_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 9962262,
+    "min_elapsed_ns": 9957811,
+    "max_elapsed_ns": 11373431,
+    "all_elapsed_ns": [
+      9962262,
+      11373431,
+      9957811
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9962262,
+      "expected_sum": 35075532800,
+      "actual_sum": 35075532800
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_allpairs_l1_v1600_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2684130,
+    "min_elapsed_ns": 2650120,
+    "max_elapsed_ns": 4082505,
+    "all_elapsed_ns": [
+      4082505,
+      2650120,
+      2684130
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4082505,
+      "expected_sum": 35075532800,
+      "actual_sum": 35075532800
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_allpairs_l1_v1600_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 127943751,
+    "min_elapsed_ns": 108849846,
+    "max_elapsed_ns": 140764886,
+    "all_elapsed_ns": [
+      140764886,
+      108849846,
+      127943751
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 140764886,
+      "expected_sum": 35075532800,
+      "actual_sum": 35075532800
+    },
+    "status": "ok"
+  }
+}

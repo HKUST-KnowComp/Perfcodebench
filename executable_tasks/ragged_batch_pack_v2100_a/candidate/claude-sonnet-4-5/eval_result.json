@@ -1,0 +1,59 @@
+{
+  "task_id": "ragged_batch_pack_v2100_a",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/ragged_batch_pack_v2100_a/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t ragged_pack_checksum(const std::vector<uint32_t>& padded_tokens, const std::vector<int>& lengths, int batch, int max_len, int iters) {\n  // Pre-compute total packed size\n  int total_packed = 0;\n  for (int b = 0; b < batch; ++b) {\n    total_packed += lengths[b];\n  }\n  \n  std::vector<uint32_t> packed_tokens;\n  std::vector<uint32_t> positions;\n  packed_tokens.reserve(total_packed);\n  positions.reserve(total_packed);\n  \n  uint64_t hash = 0;\n  const uint32_t* padded_ptr = padded_tokens.data();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    packed_tokens.clear();\n    positions.clear();\n    \n    for (int b = 0; b < batch; ++b) {\n      int len = lengths[b];\n      const uint32_t* row_ptr = padded_ptr + b * max_len;\n      for (int i = 0; i < len; ++i) {\n        packed_tokens.push_back(row_ptr[i]);\n        positions.push_back(static_cast<uint32_t>(i));\n      }\n    }\n    \n    hash = 1469598103934665603ULL;\n    std::size_t size = packed_tokens.size();\n    std::size_t i = 0;\n    \n    // Unroll hash loop 4-way\n    for (; i + 3 < size; i += 4) {\n      uint64_t h0 = hash;\n      uint64_t h1 = hash;\n      uint64_t h2 = hash;\n      uint64_t h3 = hash;\n      \n      h0 = mix(h0, packed_tokens[i]);\n      h0 = mix(h0, positions[i]);\n      \n      h1 = mix(h1, packed_tokens[i+1]);\n      h1 = mix(h1, positions[i+1]);\n      \n      h2 = mix(h2, packed_tokens[i+2]);\n      h2 = mix(h2, positions[i+2]);\n      \n      h3 = mix(h3, packed_tokens[i+3]);\n      h3 = mix(h3, positions[i+3]);\n      \n      hash = h0 ^ h1 ^ h2 ^ h3;\n    }\n    \n    // Handle remainder\n    for (; i < size; ++i) {\n      hash = mix(hash, packed_tokens[i]);\n      hash = mix(hash, positions[i]);\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "ragged_batch_pack_v2100_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3179367,
+    "min_elapsed_ns": 2607695,
+    "max_elapsed_ns": 3468866,
+    "all_elapsed_ns": [
+      3468866,
+      3179367,
+      2607695
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3468866,
+      "expected_checksum": 8314262610627821334,
+      "actual_checksum": 8314262610627821334
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "ragged_batch_pack_v2100_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1267095,
+    "min_elapsed_ns": 1240712,
+    "max_elapsed_ns": 1267660,
+    "all_elapsed_ns": [
+      1267095,
+      1240712,
+      1267660
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1267095,
+      "expected_checksum": 8314262610627821334,
+      "actual_checksum": 8314262610627821334
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "ragged_batch_pack_v2100_a",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/ragged_batch_pack_v2100_a/candidate/bench']' returned non-zero exit status 1."
+  }
+}

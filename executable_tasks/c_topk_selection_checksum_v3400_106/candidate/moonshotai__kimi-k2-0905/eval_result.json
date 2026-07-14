@@ -1,0 +1,72 @@
+{
+  "task_id": "c_topk_selection_checksum_v3400_106",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_topk_selection_checksum_v3400_106/candidate/moonshotai__kimi-k2-0905/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n\ntypedef struct {\n    uint32_t score;\n    uint32_t index;\n} Pair;\n\nstatic inline void swap_pair(Pair* a, Pair* b) {\n    Pair tmp = *a;\n    *a = *b;\n    *b = tmp;\n}\n\n/* median-of-three pivot selection */\nstatic inline Pair* median_of_three(Pair* a, Pair* b, Pair* c) {\n    if (cmp_pair_desc(a, b) < 0) swap_pair(a, b);\n    if (cmp_pair_desc(a, c) < 0) swap_pair(a, c);\n    if (cmp_pair_desc(b, c) < 0) swap_pair(b, c);\n    return b;\n}\n\nstatic inline int cmp_pair_desc(const void* lhs, const void* rhs) {\n    const Pair* a = (const Pair*)lhs;\n    const Pair* b = (const Pair*)rhs;\n    if (a->score != b->score) return (a->score < b->score) ? 1 : -1;\n    return (a->index < b->index) ? -1 : (a->index > b->index);\n}\n\n/* partition for quickselect: returns index of pivot after partition */\nstatic size_t partition(Pair* arr, size_t left, size_t right) {\n    Pair* pivot = median_of_three(&arr[left], &arr[left + (right - left) / 2], &arr[right]);\n    uint32_t pivot_score = pivot->score;\n    uint32_t pivot_index = pivot->index;\n\n    while (left <= right) {\n        while (cmp_pair_desc(&arr[left], pivot) < 0) ++left;\n        while (cmp_pair_desc(&arr[right], pivot) > 0) --right;\n        if (left <= right) {\n            swap_pair(&arr[left], &arr[right]);\n            ++left;\n            --right;\n        }\n    }\n    return left;\n}\n\n/* iterative quickselect: largest k elements reside at the front afterwards */\nstatic void quickselect_topk(Pair* arr, size_t n, size_t k) {\n    size_t left = 0, right = n - 1;\n    while (1) {\n        if (left >= right) break;\n        size_t mid = partition(arr, left, right);\n        if (mid >= k)\n            right = mid - 1;\n        else\n            left = mid;\n    }\n}\n\nstatic int cmp_pair_desc_small(const void* lhs, const void* rhs) {\n    return cmp_pair_desc(lhs, rhs);\n}\n\nuint64_t run(const uint32_t* scores, size_t n, int k, int iters) {\n    if (k <= 0 || n == 0) return 0;\n    if ((size_t)k > n) k = (int)n;\n\n    /* Use stack buffer for small k to avoid malloc/free per iteration */\n    Pair stack_buf[64];\n    Pair* topk = (k <= 64) ? stack_buf : (Pair*)malloc(k * sizeof(Pair));\n    if (!topk) return 0;\n\n    uint64_t h = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        /* On-stack buffer for entire dataset, avoiding malloc/free per iter */\n        Pair* pairs = (n <= 65536) ? (Pair*)malloc(n * sizeof(Pair)) : (Pair*)malloc(n * sizeof(Pair));\n        if (!pairs) {\n            if (topk != stack_buf) free(topk);\n            return 0;\n        }\n\n        /* Fill pairs */\n        for (size_t i = 0; i < n; ++i) {\n            pairs[i].score = scores[i];\n            pairs[i].index = (uint32_t)i;\n        }\n\n        /* Quickselect top-k */\n        quickselect_topk(pairs, n, (size_t)k);\n\n        /* Copy out the first k elements */\n        memcpy(topk, pairs, k * sizeof(Pair));\n        free(pairs);\n\n        /* Sort the k elements to establish final order */\n        qsort(topk, k, sizeof(Pair), cmp_pair_desc_small);\n\n        /* Compute checksum */\n        h = 1469598103934665603ULL;\n        for (int i = 0; i < k; ++i) {\n            h ^= ((uint64_t)topk[i].score << 32) | topk[i].index;\n            h *= 1099511628211ULL;\n        }\n    }\n\n    if (topk != stack_buf) free(topk);\n    return h;\n}",
+  "baseline": {
+    "task_id": "c_topk_selection_checksum_v3400_106",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 89777000,
+    "min_elapsed_ns": 88918000,
+    "max_elapsed_ns": 99867000,
+    "all_elapsed_ns": [
+      88918000,
+      89777000,
+      99867000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 88918000,
+      "expected_checksum": 1932514926631309792,
+      "actual_checksum": 1932514926631309792
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_topk_selection_checksum_v3400_106",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 762000,
+    "min_elapsed_ns": 755000,
+    "max_elapsed_ns": 969000,
+    "all_elapsed_ns": [
+      755000,
+      762000,
+      969000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 755000,
+      "expected_checksum": 1932514926631309792,
+      "actual_checksum": 1932514926631309792
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_topk_selection_checksum_v3400_106",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 87401000,
+    "min_elapsed_ns": 87301000,
+    "max_elapsed_ns": 87442000,
+    "all_elapsed_ns": [
+      87401000,
+      87301000,
+      87442000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 87401000,
+      "expected_checksum": 1932514926631309792,
+      "actual_checksum": 1932514926631309792
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "asof_join_weighted_sum_small_dim",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/asof_join_weighted_sum_small_dim/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstdint>\n\nuint64_t asof_join_sum(\n    const std::vector<uint32_t>& dim_ts,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_ts,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n  uint64_t total_sum = 0;\n  const std::size_t n_probe = probe_ts.size();\n  const std::size_t n_dim = dim_ts.size();\n\n  if (n_dim == 0 || n_probe == 0) {\n    return 0;\n  }\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t current_iter_sum = 0;\n    std::size_t dim_idx = 0;\n\n    for (std::size_t i = 0; i < n_probe; ++i) {\n      const uint32_t p_ts = probe_ts[i];\n      \n      // Advance dim_idx to the largest index such that dim_ts[dim_idx] <= p_ts\n      // Since probe_ts is sorted, dim_idx only moves forward.\n      while (dim_idx + 1 < n_dim && dim_ts[dim_idx + 1] <= p_ts) {\n        dim_idx++;\n      }\n\n      // Check if the current dim_ts is valid for the probe_ts (as-of join condition)\n      if (dim_ts[dim_idx] <= p_ts) {\n        current_iter_sum += static_cast<uint64_t>(dim_values[dim_idx]) * probe_weights[i];\n      }\n    }\n    total_sum += current_iter_sum;\n  }\n\n  // The task asks for the sum. Based on the baseline, it returns the sum of the last iteration.\n  // However, the baseline code actually resets sum = 0 inside the loop and returns the final sum.\n  // To match the baseline's behavior exactly (returning the sum of the LAST iteration):\n  // We should return current_iter_sum from the last loop. \n  // But the baseline code 'sum = 0' inside the loop means it returns the sum of the final iteration.\n  \n  // Re-evaluating baseline: \n  // sum = 0; (inside loop)\n  // sum += ... (inside loop)\n  // return sum; (outside loop)\n  // This means it returns the sum of the LAST iteration only.\n  \n  // Let's correct the logic to match the baseline's exact return value.\n  // The baseline returns the sum of the last iteration.\n  \n  // Re-implementing to match baseline behavior exactly:\n  uint64_t final_sum = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    final_sum = 0;\n    std::size_t d_idx = 0;\n    for (std::size_t i = 0; i < n_probe; ++i) {\n      const uint32_t p_ts = probe_ts[i];\n      while (d_idx + 1 < n_dim && dim_ts[d_idx + 1] <= p_ts) {\n        d_idx++;\n      }\n      if (dim_ts[d_idx] <= p_ts) {\n        final_sum += static_cast<uint64_t>(dim_values[d_idx]) * probe_weights[i];\n      }\n    }\n  }\n  return final_sum;\n}",
+  "baseline": {
+    "task_id": "asof_join_weighted_sum_small_dim",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 758843289,
+    "min_elapsed_ns": 746665062,
+    "max_elapsed_ns": 763045194,
+    "all_elapsed_ns": [
+      758843289,
+      763045194,
+      746665062
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 758843289,
+      "expected_sum": 147209051048,
+      "actual_sum": 147209051048
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "asof_join_weighted_sum_small_dim",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 82580165,
+    "min_elapsed_ns": 82158050,
+    "max_elapsed_ns": 129114157,
+    "all_elapsed_ns": [
+      82158050,
+      129114157,
+      82580165
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 82158050,
+      "expected_sum": 147209051048,
+      "actual_sum": 147209051048
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "asof_join_weighted_sum_small_dim",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 94893140,
+    "min_elapsed_ns": 77748718,
+    "max_elapsed_ns": 98899945,
+    "all_elapsed_ns": [
+      94893140,
+      77748718,
+      98899945
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 94893140,
+      "expected_sum": 147209051048,
+      "actual_sum": 147209051048
+    },
+    "status": "ok"
+  }
+}

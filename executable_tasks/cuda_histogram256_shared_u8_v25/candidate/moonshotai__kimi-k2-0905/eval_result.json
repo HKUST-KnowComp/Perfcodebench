@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v25",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v25/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cstdint>\n\nnamespace {\n\n// 256-bin histogram, 256 threads per block\nconstexpr int BINS = 256;\nconstexpr int BLOCK = 256;\nconstexpr int WARPS = BLOCK / 32;\n\n__global__ void histo_shared_kernel(const uint8_t* __restrict__ in,\n                                     unsigned int*  __restrict__ out,\n                                     int n,\n                                     unsigned int*  __restrict__ block_sums) {\n    // thread-private counters (256 bytes per thread)\n    unsigned int priv[BINS / 32];  // 8 uints per thread\n#pragma unroll\n    for (int i = 0; i < BINS / 32; ++i) priv[i] = 0;\n\n    const int tid = threadIdx.x;\n    const int gtid = blockIdx.x * blockDim.x + tid;\n\n    // process data in grid-stride fashion\n    for (int i = gtid; i < n; i += gridDim.x * blockDim.x) {\n        uint8_t b = in[i];\n        priv[b >> 5] += 1U << ((b & 31) * 2);  // 2-bit counter per bin\n        // periodic flush to avoid overflow (every 64 increments per counter)\n        if ((priv[b >> 5] >> ((b & 31) * 2)) & 0x3) == 0x3) {\n            // overflow imminent: flush this counter\n            priv[b >> 5] &= ~(0x3U << ((b & 31) * 2));\n            __shared__ unsigned int smem[BINS];\n            if (tid < BINS) smem[tid] = 0;\n            __syncthreads();\n            atomicAdd(&smem[b], 64);\n            __syncthreads();\n            // fold smem into priv\n            for (int j = 0; j < BINS / 32; ++j) {\n                int base = j * 32;\n#pragma unroll\n                for (int k = 0; k < 32; ++k) {\n                    int bin = base + k;\n                    unsigned int v = smem[bin];\n                    if (v) priv[j] += v << (k * 2);\n                }\n            }\n        }\n    }\n\n    // final reduction of private counters into shared memory histogram\n    __shared__ unsigned int histo[BINS];\n    if (tid < BINS) histo[tid] = 0;\n    __syncthreads();\n\n    // each thread atomics its 8 counters into smem\n    int base = 0;\n#pragma unroll\n    for (int i = 0; i < BINS / 32; ++i) {\n        unsigned int packed = priv[i];\n#pragma unroll\n        for (int k = 0; k < 32; ++k) {\n            unsigned int cnt = (packed >> (k * 2)) & 0x3;\n            if (cnt) atomicAdd(&histo[base + k], cnt);\n        }\n        base += 32;\n    }\n    __syncthreads();\n\n    // warp-level reduction of histo into global using 256 shuffles\n    const int warp_id = tid >> 5;\n    const int lane    = tid & 31;\n    for (int bin = warp_id; bin < BINS; bin += WARPS) {\n        unsigned int val = histo[bin];\n#pragma unroll\n        for (int offset = 16; offset >= 1; offset /= 2)\n            val += __shfl_down_sync(0xffffffff, val, offset);\n        if (lane == 0) atomicAdd(block_sums + bin * gridDim.x + blockIdx.x, val);\n    }\n}\n\n}  // namespace\n\nvoid histogram256_u8(const unsigned char* input,\n                     unsigned int* output,\n                     int n,\n                     int iters) {\n    constexpr int grid = 1024;  // same block count as baseline\n    size_t block_sums_bytes = BINS * grid * sizeof(unsigned int);\n    unsigned int* d_block_sums;\n    cudaMalloc(&d_block_sums, block_sums_bytes);\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(d_block_sums, 0, block_sums_bytes);\n        histo_shared_kernel<<<grid, BLOCK>>>(\n            reinterpret_cast<const uint8_t*>(input),\n            output,\n            n,\n            d_block_sums);\n        // reduce per-block partials into final output\n        void* args[] = { &d_block_sums, &output, &grid };\n        cudaLaunchKernel(\n            reinterpret_cast<void*>(&reduce_blocks<256>),\n            dim3(1), dim3(256), args, 0, nullptr);\n    }\n    cudaFree(d_block_sums);\n}\n\n// final reduction kernel\ntemplate<int Threads>\n__global__ void reduce_blocks(const unsigned int* __restrict__ block_sums,\n                              unsigned int* __restrict__ out,\n                              int grid) {\n    const int tid = threadIdx.x;\n    for (int bin = tid; bin < 256; bin += Threads) {\n        unsigned int sum = 0;\n        for (int b = 0; b < grid; ++b)\n            sum += block_sums[bin * grid + b];\n        out[bin] = sum;\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v25",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 129243652,
+    "min_elapsed_ns": 129224060,
+    "max_elapsed_ns": 129249252,
+    "all_elapsed_ns": [
+      129224060,
+      129243652,
+      129249252
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 129224060,
+      "checksum": 2155872256
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v25",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 720607,
+    "min_elapsed_ns": 719968,
+    "max_elapsed_ns": 722751,
+    "all_elapsed_ns": [
+      719968,
+      720607,
+      722751
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 719968,
+      "checksum": 2155872256
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v25",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['nvcc', '-O3', '-std=c++17', '-Iexecutable_tasks/cuda_histogram256_shared_u8_v25/harness', '-gencode=arch=compute_80,code=sm_80', '-gencode=arch=compute_80,code=compute_80', 'executable_tasks/cuda_histogram256_shared_u8_v25/harness/benchmark_main.cu', 'executable_tasks/cuda_histogram256_shared_u8_v25/candidate/moonshotai__kimi-k2-0905/solution.cu', '-o', 'build/cuda_histogram256_shared_u8_v25/candidate/bench']' returned non-zero exit status 2."
+  }
+}

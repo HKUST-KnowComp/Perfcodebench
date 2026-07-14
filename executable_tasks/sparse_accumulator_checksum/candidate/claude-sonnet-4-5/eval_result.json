@@ -1,0 +1,72 @@
+{
+  "task_id": "sparse_accumulator_checksum",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sparse_accumulator_checksum/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstring>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sparse_accumulator_hash(\n    const std::vector<uint32_t>& indices,\n    const std::vector<uint32_t>& values,\n    uint32_t domain,\n    int iters) {\n  std::vector<uint64_t> accum(domain, 0);\n  std::vector<uint32_t> dirty;\n  dirty.reserve(indices.size());\n  \n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    // Clear only dirty indices from previous iteration\n    for (uint32_t idx : dirty) {\n      accum[idx] = 0;\n    }\n    dirty.clear();\n    \n    // Track which indices we touch\n    std::vector<bool> touched(domain, false);\n    \n    // Accumulate with loop unrolling\n    std::size_t i = 0;\n    std::size_t size = indices.size();\n    std::size_t size_unroll = size - (size % 4);\n    \n    for (; i < size_unroll; i += 4) {\n      uint32_t idx0 = indices[i];\n      uint32_t idx1 = indices[i + 1];\n      uint32_t idx2 = indices[i + 2];\n      uint32_t idx3 = indices[i + 3];\n      \n      accum[idx0] += static_cast<uint64_t>(values[i]);\n      accum[idx1] += static_cast<uint64_t>(values[i + 1]);\n      accum[idx2] += static_cast<uint64_t>(values[i + 2]);\n      accum[idx3] += static_cast<uint64_t>(values[i + 3]);\n      \n      if (!touched[idx0]) { touched[idx0] = true; dirty.push_back(idx0); }\n      if (!touched[idx1]) { touched[idx1] = true; dirty.push_back(idx1); }\n      if (!touched[idx2]) { touched[idx2] = true; dirty.push_back(idx2); }\n      if (!touched[idx3]) { touched[idx3] = true; dirty.push_back(idx3); }\n    }\n    \n    // Handle remainder\n    for (; i < size; ++i) {\n      uint32_t idx = indices[i];\n      accum[idx] += static_cast<uint64_t>(values[i]);\n      if (!touched[idx]) {\n        touched[idx] = true;\n        dirty.push_back(idx);\n      }\n    }\n    \n    // Compute hash over full domain\n    hash = 1469598103934665603ULL;\n    for (uint32_t key = 0; key < domain; ++key) {\n      hash = mix(hash, accum[key]);\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "sparse_accumulator_checksum",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 744577096,
+    "min_elapsed_ns": 743105513,
+    "max_elapsed_ns": 781914027,
+    "all_elapsed_ns": [
+      744577096,
+      781914027,
+      743105513
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 744577096,
+      "expected_checksum": 16927280306993342819,
+      "actual_checksum": 16927280306993342819
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sparse_accumulator_checksum",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 95258245,
+    "min_elapsed_ns": 95235529,
+    "max_elapsed_ns": 132157555,
+    "all_elapsed_ns": [
+      95235529,
+      95258245,
+      132157555
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 95235529,
+      "expected_checksum": 16927280306993342819,
+      "actual_checksum": 16927280306993342819
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sparse_accumulator_checksum",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 118075728,
+    "min_elapsed_ns": 116901147,
+    "max_elapsed_ns": 151179875,
+    "all_elapsed_ns": [
+      151179875,
+      116901147,
+      118075728
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 151179875,
+      "expected_checksum": 16927280306993342819,
+      "actual_checksum": 16927280306993342819
+    },
+    "status": "ok"
+  }
+}

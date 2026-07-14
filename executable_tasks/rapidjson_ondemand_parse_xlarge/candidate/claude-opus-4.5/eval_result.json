@@ -1,0 +1,72 @@
+{
+  "task_id": "rapidjson_ondemand_parse_xlarge",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/rapidjson_ondemand_parse_xlarge/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <rapidjson/reader.h>\n#include <rapidjson/error/en.h>\n#include <cstdint>\n#include <cstring>\n\nstruct ChecksumHandler {\n    uint64_t sum = 0;\n    int depth = 0;\n    bool in_nested = false;\n    int nested_depth = 0;\n    enum class Expect { None, Id, NestedA, NestedB } expect = Expect::None;\n\n    bool Null() { expect = Expect::None; return true; }\n    bool Bool(bool) { expect = Expect::None; return true; }\n    \n    bool Int(int i) { return Uint64(static_cast<uint64_t>(i)); }\n    bool Uint(unsigned u) { return Uint64(static_cast<uint64_t>(u)); }\n    bool Int64(int64_t i) { return Uint64(static_cast<uint64_t>(i)); }\n    bool Uint64(uint64_t u) {\n        if (expect == Expect::Id || expect == Expect::NestedA || expect == Expect::NestedB) {\n            sum += u;\n        }\n        expect = Expect::None;\n        return true;\n    }\n    bool Double(double) { expect = Expect::None; return true; }\n    bool RawNumber(const char*, size_t, bool) { expect = Expect::None; return true; }\n    bool String(const char*, size_t, bool) { expect = Expect::None; return true; }\n    \n    bool Key(const char* str, size_t len, bool) {\n        expect = Expect::None;\n        if (depth == 2 && !in_nested) {\n            if (len == 2 && str[0] == 'i' && str[1] == 'd') {\n                expect = Expect::Id;\n            } else if (len == 6 && std::memcmp(str, \"nested\", 6) == 0) {\n                // Will handle in StartObject\n            }\n        } else if (in_nested && depth == 3) {\n            if (len == 1) {\n                if (str[0] == 'a') expect = Expect::NestedA;\n                else if (str[0] == 'b') expect = Expect::NestedB;\n            }\n        }\n        // Check for \"nested\" key at object level\n        if (depth == 2 && len == 6 && std::memcmp(str, \"nested\", 6) == 0) {\n            nested_depth = depth;\n        }\n        return true;\n    }\n    \n    bool StartObject() {\n        ++depth;\n        if (nested_depth == depth - 1 && depth == 3) {\n            in_nested = true;\n        }\n        expect = Expect::None;\n        return true;\n    }\n    \n    bool EndObject(size_t) {\n        if (in_nested && depth == 3) {\n            in_nested = false;\n        }\n        nested_depth = 0;\n        --depth;\n        expect = Expect::None;\n        return true;\n    }\n    \n    bool StartArray() {\n        ++depth;\n        expect = Expect::None;\n        return true;\n    }\n    \n    bool EndArray(size_t) {\n        --depth;\n        expect = Expect::None;\n        return true;\n    }\n};\n\nuint64_t compute_checksum(const std::string& json_input) {\n    ChecksumHandler handler;\n    rapidjson::Reader reader;\n    rapidjson::StringStream ss(json_input.c_str());\n    reader.Parse(ss, handler);\n    return handler.sum;\n}",
+  "baseline": {
+    "task_id": "rapidjson_ondemand_parse_xlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 137441374,
+    "min_elapsed_ns": 135072429,
+    "max_elapsed_ns": 141063271,
+    "all_elapsed_ns": [
+      141063271,
+      135072429,
+      137441374
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 141063271,
+      "expected_checksum": 22400280000,
+      "actual_checksum": 22400280000
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "rapidjson_ondemand_parse_xlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 19424721,
+    "min_elapsed_ns": 19143420,
+    "max_elapsed_ns": 19990355,
+    "all_elapsed_ns": [
+      19990355,
+      19143420,
+      19424721
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 19990355,
+      "expected_checksum": 22400280000,
+      "actual_checksum": 22400280000
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "rapidjson_ondemand_parse_xlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 6651109,
+    "min_elapsed_ns": 6616836,
+    "max_elapsed_ns": 6831391,
+    "all_elapsed_ns": [
+      6616836,
+      6831391,
+      6651109
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6616836,
+      "expected_checksum": 22400280000,
+      "actual_checksum": 22400280000
+    },
+    "status": "ok"
+  }
+}

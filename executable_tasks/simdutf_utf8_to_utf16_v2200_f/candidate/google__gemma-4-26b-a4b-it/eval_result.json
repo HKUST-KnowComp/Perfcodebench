@@ -1,0 +1,59 @@
+{
+  "task_id": "simdutf_utf8_to_utf16_v2200_f",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdutf_utf8_to_utf16_v2200_f/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"simdutf.h\"\n#include <vector>\n#include <cstdint>\n\nnamespace {\n\n// Optimized FNV-1a style checksum for char16_t\ninline uint64_t checksum_utf16(const char16_t* data, size_t len) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (size_t i = 0; i < len; ++i) {\n        hash ^= static_cast<uint64_t>(data[i]);\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\n} // namespace\n\nuint64_t transcode_checksum(const std::string& input) {\n    if (input.empty()) {\n        return checksum_utf16(nullptr, 0);\n    }\n\n    // Use simdutf to transcode. \n    // We first need to determine the size or use a buffer. \n    // simdutf_utf8_to_utf16 provides highly optimized SIMD paths.\n    \n    // Step 1: Calculate required size for UTF-16 buffer\n    // Note: simdutf doesn't provide a direct 'size_only' function in all versions, \n    // but we can use the fact that UTF-16 size is at most input.size() * 2 (for surrogates) \n    // or more accurately, we can use a temporary buffer or the library's capacity logic.\n    \n    // To be most efficient and avoid multiple passes, we use a pre-allocated vector.\n    // A safe upper bound for UTF-16 units is input.size(). \n    // (Each UTF-8 byte results in at most 1 UTF-16 unit, except for 4-byte sequences \n    // which result in 2 units, but 4-byte UTF-8 is 4 bytes and 2 units is 4 bytes).\n    // Actually, the worst case for UTF-16 units is when every character is a 4-byte UTF-8 \n    // sequence (2 units) or 1-byte (1 unit). \n    // Max units = input.size() is a safe bet for most, but let's be precise.\n    \n    size_t max_utf16_len = input.size(); // Conservative estimate for most cases\n    // For 4-byte UTF-8 (4 bytes) -> 2 UTF-16 units (4 bytes). \n    // For 1-byte UTF-8 (1 byte) -> 1 UTF-16 unit (2 bytes). \n    // The number of char16_t units is at most input.size().\n    \n    std::vector<char16_t> output(input.size());\n    size_t utf16_len = 0;\n\n    // simdutf_utf8_to_utf16 returns the number of char16_t written\n    // It handles the SIMD acceleration internally.\n    auto result = simdutf::utf8_to_utf16(input.data(), input.size(), output.data());\n    \n    if (result.error) {\n        // This case should not be hit per task description (valid UTF-8)\n        return 0;\n    }\n\n    return checksum_utf16(output.data(), result.length);\n}",
+  "baseline": {
+    "task_id": "simdutf_utf8_to_utf16_v2200_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1635563,
+    "min_elapsed_ns": 1616484,
+    "max_elapsed_ns": 1661860,
+    "all_elapsed_ns": [
+      1635563,
+      1661860,
+      1616484
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1635563,
+      "expected_checksum": 13057084248708520520,
+      "actual_checksum": 13057084248708520520
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdutf_utf8_to_utf16_v2200_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 627264,
+    "min_elapsed_ns": 619877,
+    "max_elapsed_ns": 800197,
+    "all_elapsed_ns": [
+      800197,
+      619877,
+      627264
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 800197,
+      "expected_checksum": 13057084248708520520,
+      "actual_checksum": 13057084248708520520
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdutf_utf8_to_utf16_v2200_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/simdutf_utf8_to_utf16_v2200_f/harness', '-Iexternal/simdutf/singleheader', 'executable_tasks/simdutf_utf8_to_utf16_v2200_f/harness/benchmark_main.cpp', 'executable_tasks/simdutf_utf8_to_utf16_v2200_f/candidate/google__gemma-4-26b-a4b-it/solution.cpp', 'external/simdutf/singleheader/simdutf.cpp', '-o', 'build/simdutf_utf8_to_utf16_v2200_f/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "c_log_scan_checksum_v2900_062",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_log_scan_checksum_v2900_062/candidate/moonshotai__kimi-k2-0905/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <stdint.h>\n#include <string.h>\n\n/*\n * Fixed format: 15-byte row \"ccNNNN-NNNNNNNN\" + '\\0'\n * We load 16 bytes, check the two fixed delimiters in parallel,\n * extract the two variable fields with shifts/masks, and compute\n * the required checksum contribution without branches.\n */\n\nuint64_t run(const char* const* rows, size_t row_count)\n{\n    const uint64_t FNV_OFFSET = 1469598103934665603ULL;\n    const uint64_t FNV_PRIME  = 1099511628211ULL;\n\n    uint64_t hash = FNV_OFFSET;\n\n    for (size_t i = 0; i < row_count; ++i) {\n        /* 16-byte load (safe: input is NUL-terminated) */\n        uint64_t v0, v1;\n        memcpy(&v0, rows[i]     , 8);\n        memcpy(&v1, rows[i] + 8, 8);\n\n        /* check fixed delimiters: rows[i][2]=='-' && rows[i][7]=='-' */\n        const uint64_t dash = 0x2D2D2D2D2D2D2D2DULL;\n        uint64_t want_dash  = ((v0 & 0x000000FF00000000ULL) == (dash & 0x000000FF00000000ULL)) &\n                              ((v0 & 0x0000000000FF0000ULL) == (dash & 0x0000000000FF0000ULL));\n\n        /* extract 4-digit field (ASCII digits) */\n        uint32_t dig = (uint32_t)(v0 >> 24);          /* bytes 3-6 in little-endian order */\n        uint32_t val4 = 0;\n        val4 += (dig & 0xFFU) - '0';  dig >>= 8;\n        val4 *= 10;\n        val4 += (dig & 0xFFU) - '0';  dig >>= 8;\n        val4 *= 10;\n        val4 += (dig & 0xFFU) - '0';  dig >>= 8;\n        val4 *= 10;\n        val4 += (dig & 0xFFU) - '0';\n\n        /* extract 8-digit hex field (ASCII hex) */\n        uint64_t hex = (v0 >> 40) | (v1 << 24);\n        uint64_t val8 = 0;\n        for (int k = 0; k < 8; ++k) {\n            uint8_t c = (uint8_t)hex; hex >>= 8;\n            uint8_t n = c - '0';\n            if (c >= 'A') n = c - 'A' + 10;\n            val8 = (val8 << 4) | n;\n        }\n\n        /* combine into the required v = (byte[2] + byte[7]) */\n        uint8_t b2 = (uint8_t)(v0 >> 16);\n        uint8_t b7 = (uint8_t)(v0 >> 40);\n        uint64_t v = (uint64_t)(b2 + b7);\n\n        /* if format invalid, force v=0 */\n        v &= -(int64_t)want_dash;\n\n        /* FNV-1a step */\n        hash ^= (v + 1ULL);\n        hash *= FNV_PRIME;\n    }\n    return hash;\n}",
+  "baseline": {
+    "task_id": "c_log_scan_checksum_v2900_062",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 16014000,
+    "min_elapsed_ns": 15999000,
+    "max_elapsed_ns": 16378000,
+    "all_elapsed_ns": [
+      16378000,
+      15999000,
+      16014000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 16378000,
+      "expected_checksum": 3757299984717438239,
+      "actual_checksum": 3757299984717438239
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_log_scan_checksum_v2900_062",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1424000,
+    "min_elapsed_ns": 1415000,
+    "max_elapsed_ns": 1451000,
+    "all_elapsed_ns": [
+      1424000,
+      1415000,
+      1451000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1424000,
+      "expected_checksum": 3757299984717438239,
+      "actual_checksum": 3757299984717438239
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_log_scan_checksum_v2900_062",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/c_log_scan_checksum_v2900_062/candidate/bench']' returned non-zero exit status 1."
+  }
+}

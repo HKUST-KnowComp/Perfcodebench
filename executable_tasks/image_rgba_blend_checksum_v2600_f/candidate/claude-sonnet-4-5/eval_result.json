@@ -1,0 +1,72 @@
+{
+  "task_id": "image_rgba_blend_checksum_v2600_f",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/image_rgba_blend_checksum_v2600_f/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <cstring>\n\n#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)\n#include <immintrin.h>\n#define HAS_SIMD 1\n#else\n#define HAS_SIMD 0\n#endif\n\nnamespace {\n\n// Optimized blend: (s*a + d*(255-a) + 127) / 255\n// Using fixed-point arithmetic for better performance\ninline uint8_t blend_byte_scalar(uint8_t s, uint8_t d, uint8_t a) {\n  uint32_t sa = s * a;\n  uint32_t da = d * (255u - a);\n  return static_cast<uint8_t>((sa + da + 127u) / 255u);\n}\n\n#if HAS_SIMD && (defined(__SSE2__) || defined(__AVX2__))\n\n// SIMD blend for 4 pixels at once using SSE2\ninline void blend_4pixels_sse2(const uint8_t* src, const uint8_t* dst, uint8_t* out) {\n  __m128i s = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src));\n  __m128i d = _mm_loadu_si128(reinterpret_cast<const __m128i*>(dst));\n  \n  // Extract alpha channels (every 4th byte starting at offset 3)\n  __m128i alpha_mask = _mm_set_epi8(15, 15, 15, 15, 11, 11, 11, 11, 7, 7, 7, 7, 3, 3, 3, 3);\n  __m128i a = _mm_shuffle_epi8(s, alpha_mask);\n  \n  // Convert to 16-bit for multiplication\n  __m128i s_lo = _mm_unpacklo_epi8(s, _mm_setzero_si128());\n  __m128i s_hi = _mm_unpackhi_epi8(s, _mm_setzero_si128());\n  __m128i d_lo = _mm_unpacklo_epi8(d, _mm_setzero_si128());\n  __m128i d_hi = _mm_unpackhi_epi8(d, _mm_setzero_si128());\n  __m128i a_lo = _mm_unpacklo_epi8(a, _mm_setzero_si128());\n  __m128i a_hi = _mm_unpackhi_epi8(a, _mm_setzero_si128());\n  \n  __m128i inv_a_lo = _mm_sub_epi16(_mm_set1_epi16(255), a_lo);\n  __m128i inv_a_hi = _mm_sub_epi16(_mm_set1_epi16(255), a_hi);\n  \n  // sa + da + 127\n  __m128i sa_lo = _mm_mullo_epi16(s_lo, a_lo);\n  __m128i sa_hi = _mm_mullo_epi16(s_hi, a_hi);\n  __m128i da_lo = _mm_mullo_epi16(d_lo, inv_a_lo);\n  __m128i da_hi = _mm_mullo_epi16(d_hi, inv_a_hi);\n  \n  __m128i sum_lo = _mm_add_epi16(_mm_add_epi16(sa_lo, da_lo), _mm_set1_epi16(127));\n  __m128i sum_hi = _mm_add_epi16(_mm_add_epi16(sa_hi, da_hi), _mm_set1_epi16(127));\n  \n  // Divide by 255 using multiply by reciprocal: x/255 \u2248 (x*257)>>16\n  sum_lo = _mm_mulhi_epu16(sum_lo, _mm_set1_epi16(257));\n  sum_hi = _mm_mulhi_epu16(sum_hi, _mm_set1_epi16(257));\n  \n  // Pack back to 8-bit\n  __m128i result = _mm_packus_epi16(sum_lo, sum_hi);\n  \n  // Set alpha to 255\n  __m128i alpha_ff = _mm_set_epi8(255, -1, -1, -1, 255, -1, -1, -1, 255, -1, -1, -1, 255, -1, -1, -1);\n  result = _mm_or_si128(_mm_andnot_si128(_mm_set_epi8(255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0), result),\n                        _mm_and_si128(alpha_ff, _mm_set_epi8(255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0)));\n  result = _mm_or_si128(result, _mm_set_epi8(255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0));\n  \n  _mm_storeu_si128(reinterpret_cast<__m128i*>(out), result);\n}\n\n#endif\n\n// Optimized FNV-1a checksum with loop unrolling\nuint64_t checksum_bytes_fast(const uint8_t* bytes, size_t len) {\n  uint64_t hash = 1469598103934665603ULL;\n  const uint64_t prime = 1099511628211ULL;\n  \n  // Process 8 bytes at a time\n  size_t i = 0;\n  for (; i + 7 < len; i += 8) {\n    hash ^= bytes[i];\n    hash *= prime;\n    hash ^= bytes[i+1];\n    hash *= prime;\n    hash ^= bytes[i+2];\n    hash *= prime;\n    hash ^= bytes[i+3];\n    hash *= prime;\n    hash ^= bytes[i+4];\n    hash *= prime;\n    hash ^= bytes[i+5];\n    hash *= prime;\n    hash ^= bytes[i+6];\n    hash *= prime;\n    hash ^= bytes[i+7];\n    hash *= prime;\n  }\n  \n  // Handle remaining bytes\n  for (; i < len; ++i) {\n    hash ^= bytes[i];\n    hash *= prime;\n  }\n  \n  return hash;\n}\n\n}  // namespace\n\nuint64_t blend_checksum(\n    const std::vector<uint8_t>& src,\n    const std::vector<uint8_t>& dst,\n    int width,\n    int height,\n    int iters) {\n  (void)width;\n  (void)height;\n  \n  const size_t pixels = src.size() / 4u;\n  const size_t out_size = pixels * 4u;\n  \n  // Allocate output buffer once\n  std::vector<uint8_t> out(out_size);\n  uint8_t* out_ptr = out.data();\n  const uint8_t* src_ptr = src.data();\n  const uint8_t* dst_ptr = dst.data();\n  \n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    size_t i = 0;\n    \n#if HAS_SIMD && defined(__SSSE3__)\n    // Process 4 pixels (16 bytes) at a time with SIMD\n    for (; i + 3 < pixels; i += 4) {\n      blend_4pixels_sse2(src_ptr + i * 4, dst_ptr + i * 4, out_ptr + i * 4);\n    }\n#endif\n    \n    // Process remaining pixels with scalar code\n    for (; i < pixels; ++i) {\n      const size_t idx = i * 4u;\n      const uint8_t a = src_ptr[idx + 3u];\n      out_ptr[idx] = blend_byte_scalar(src_ptr[idx], dst_ptr[idx], a);\n      out_ptr[idx + 1u] = blend_byte_scalar(src_ptr[idx + 1u], dst_ptr[idx + 1u], a);\n      out_ptr[idx + 2u] = blend_byte_scalar(src_ptr[idx + 2u], dst_ptr[idx + 2u], a);\n      out_ptr[idx + 3u] = 255u;\n    }\n    \n    hash = checksum_bytes_fast(out_ptr, out_size);\n  }\n  \n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "image_rgba_blend_checksum_v2600_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 19761763,
+    "min_elapsed_ns": 19733502,
+    "max_elapsed_ns": 20745725,
+    "all_elapsed_ns": [
+      19733502,
+      19761763,
+      20745725
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 19733502,
+      "expected_checksum": 16452636264281834033,
+      "actual_checksum": 16452636264281834033
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "image_rgba_blend_checksum_v2600_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 15408955,
+    "min_elapsed_ns": 14820942,
+    "max_elapsed_ns": 17949374,
+    "all_elapsed_ns": [
+      15408955,
+      14820942,
+      17949374
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15408955,
+      "expected_checksum": 16452636264281834033,
+      "actual_checksum": 16452636264281834033
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "image_rgba_blend_checksum_v2600_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 14917126,
+    "min_elapsed_ns": 14387221,
+    "max_elapsed_ns": 15033350,
+    "all_elapsed_ns": [
+      14387221,
+      14917126,
+      15033350
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 14387221,
+      "expected_checksum": 16452636264281834033,
+      "actual_checksum": 16452636264281834033
+    },
+    "status": "ok"
+  }
+}

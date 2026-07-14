@@ -1,0 +1,72 @@
+{
+  "task_id": "columnar_filter_sum_v1100_d",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/columnar_filter_sum_v1100_d/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstddef>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#endif\n\nuint64_t filter_sum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint8_t>& flags,\n    uint32_t key_threshold,\n    int iters) {\n    \n    const size_t n = keys.size();\n    const uint32_t* __restrict k_ptr = keys.data();\n    const uint32_t* __restrict v_ptr = values.data();\n    const uint8_t* __restrict f_ptr = flags.data();\n    \n    uint64_t sum = 0;\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        sum = 0;\n        \n#if defined(__AVX2__)\n        __m256i sum_vec = _mm256_setzero_si256();\n        const __m256i mask3 = _mm256_set1_epi32(3);\n        const __m256i zero = _mm256_setzero_si256();\n        const __m256i thresh = _mm256_set1_epi32(key_threshold);\n        \n        size_t i = 0;\n        const size_t vec_end = (n >= 8) ? (n - 7) : 0;\n        \n        for (; i < vec_end; i += 8) {\n            // Load 8 keys\n            __m256i k = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(k_ptr + i));\n            \n            // Load 8 values\n            __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(v_ptr + i));\n            \n            // Load 8 flags (as bytes), zero-extend to 32-bit\n            __m128i f8 = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(f_ptr + i));\n            __m256i f32 = _mm256_cvtepu8_epi32(f8);\n            \n            // flags != 0\n            __m256i flag_mask = _mm256_cmpgt_epi32(f32, zero);\n            \n            // keys < key_threshold (unsigned comparison via bias trick)\n            // For unsigned compare: a < b iff (a ^ 0x80000000) < (b ^ 0x80000000) as signed\n            const __m256i bias = _mm256_set1_epi32(0x80000000u);\n            __m256i k_biased = _mm256_xor_si256(k, bias);\n            __m256i thresh_biased = _mm256_xor_si256(thresh, bias);\n            __m256i lt_mask = _mm256_cmpgt_epi32(thresh_biased, k_biased);\n            \n            // (keys & 3) == 0\n            __m256i k_and_3 = _mm256_and_si256(k, mask3);\n            __m256i mod_mask = _mm256_cmpeq_epi32(k_and_3, zero);\n            \n            // Combine all masks\n            __m256i combined = _mm256_and_si256(flag_mask, _mm256_and_si256(lt_mask, mod_mask));\n            \n            // Mask values and accumulate\n            __m256i masked_v = _mm256_and_si256(v, combined);\n            sum_vec = _mm256_add_epi64(sum_vec, \n                _mm256_add_epi64(\n                    _mm256_cvtepu32_epi64(_mm256_castsi256_si128(masked_v)),\n                    _mm256_cvtepu32_epi64(_mm256_extracti128_si256(masked_v, 1))\n                ));\n        }\n        \n        // Horizontal sum of sum_vec (4 x 64-bit)\n        __m128i lo = _mm256_castsi256_si128(sum_vec);\n        __m128i hi = _mm256_extracti128_si256(sum_vec, 1);\n        __m128i sum128 = _mm_add_epi64(lo, hi);\n        sum128 = _mm_add_epi64(sum128, _mm_srli_si128(sum128, 8));\n        sum = static_cast<uint64_t>(_mm_cvtsi128_si64(sum128));\n        \n        // Scalar tail\n        for (; i < n; ++i) {\n            uint32_t key = k_ptr[i];\n            if (f_ptr[i] && key < key_threshold && ((key & 3u) == 0u)) {\n                sum += static_cast<uint64_t>(v_ptr[i]);\n            }\n        }\n#else\n        // Scalar fallback with loop unrolling\n        size_t i = 0;\n        const size_t unroll_end = (n >= 4) ? (n - 3) : 0;\n        \n        for (; i < unroll_end; i += 4) {\n            uint32_t k0 = k_ptr[i], k1 = k_ptr[i+1], k2 = k_ptr[i+2], k3 = k_ptr[i+3];\n            uint8_t f0 = f_ptr[i], f1 = f_ptr[i+1], f2 = f_ptr[i+2], f3 = f_ptr[i+3];\n            \n            if (f0 && k0 < key_threshold && ((k0 & 3u) == 0u)) sum += v_ptr[i];\n            if (f1 && k1 < key_threshold && ((k1 & 3u) == 0u)) sum += v_ptr[i+1];\n            if (f2 && k2 < key_threshold && ((k2 & 3u) == 0u)) sum += v_ptr[i+2];\n            if (f3 && k3 < key_threshold && ((k3 & 3u) == 0u)) sum += v_ptr[i+3];\n        }\n        \n        for (; i < n; ++i) {\n            uint32_t key = k_ptr[i];\n            if (f_ptr[i] && key < key_threshold && ((key & 3u) == 0u)) {\n                sum += static_cast<uint64_t>(v_ptr[i]);\n            }\n        }\n#endif\n    }\n    \n    return sum;\n}",
+  "baseline": {
+    "task_id": "columnar_filter_sum_v1100_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2260230458,
+    "min_elapsed_ns": 2230944423,
+    "max_elapsed_ns": 2283546271,
+    "all_elapsed_ns": [
+      2230944423,
+      2260230458,
+      2283546271
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2230944423,
+      "expected_sum": 939228839,
+      "actual_sum": 939228839
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "columnar_filter_sum_v1100_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2234758889,
+    "min_elapsed_ns": 1995072721,
+    "max_elapsed_ns": 2295968712,
+    "all_elapsed_ns": [
+      2234758889,
+      1995072721,
+      2295968712
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2234758889,
+      "expected_sum": 939228839,
+      "actual_sum": 939228839
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "columnar_filter_sum_v1100_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1567094161,
+    "min_elapsed_ns": 1554554714,
+    "max_elapsed_ns": 1567969899,
+    "all_elapsed_ns": [
+      1567969899,
+      1567094161,
+      1554554714
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1567969899,
+      "expected_sum": 939228839,
+      "actual_sum": 939228839
+    },
+    "status": "ok"
+  }
+}

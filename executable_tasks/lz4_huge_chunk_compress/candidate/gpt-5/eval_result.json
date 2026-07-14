@@ -1,0 +1,57 @@
+{
+  "task_id": "lz4_huge_chunk_compress",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/lz4_huge_chunk_compress/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include \"lz4.h\"\n\n#include <algorithm>\n#include <vector>\n#include <string>\n\nnamespace {\n// Use larger chunks to reduce per-chunk overhead and improve throughput.\nconstexpr std::size_t kChunkSize = 1u << 20; // 1 MiB\n// Higher acceleration favors speed over ratio, preserving correctness.\nconstexpr int kAcceleration = 8;\n}\n\nint compress_chunks(const std::string& input, std::vector<std::string>& chunks) {\n  chunks.clear();\n  if (input.empty()) return 0;\n\n  // Pre-reserve number of chunks to minimize reallocations.\n  const std::size_t totalSize = input.size();\n  const std::size_t numChunks = (totalSize + kChunkSize - 1) / kChunkSize;\n  chunks.reserve(numChunks);\n\n  // Allocate reusable external state for LZ4 compression to avoid per-call setup cost.\n  std::vector<char> state(static_cast<std::size_t>(LZ4_sizeofState()));\n\n  int totalCompressed = 0;\n\n  const char* base = input.data();\n  const int boundFull = LZ4_compressBound(static_cast<int>(kChunkSize));\n\n  for (std::size_t offset = 0; offset < totalSize; offset += kChunkSize) {\n    const std::size_t takeSz = std::min(kChunkSize, totalSize - offset);\n    const int take = static_cast<int>(takeSz);\n    const int bound = (takeSz == kChunkSize) ? boundFull : LZ4_compressBound(take);\n\n    std::string compressed;\n    compressed.resize(static_cast<std::size_t>(bound));\n\n    int n = LZ4_compress_fast_extState(\n        state.data(),\n        base + offset,\n        &compressed[0],\n        take,\n        bound,\n        kAcceleration);\n\n    if (n <= 0) {\n      // Compression failed; signal error\n      return -1;\n    }\n\n    compressed.resize(static_cast<std::size_t>(n));\n    totalCompressed += n;\n    chunks.push_back(std::move(compressed));\n  }\n\n  return totalCompressed;\n}\n",
+  "baseline": {
+    "task_id": "lz4_huge_chunk_compress",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 38827883,
+    "min_elapsed_ns": 38159847,
+    "max_elapsed_ns": 44130233,
+    "all_elapsed_ns": [
+      38159847,
+      38827883,
+      44130233
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 38159847,
+      "compressed_size": 6216527
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "lz4_huge_chunk_compress",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 37255757,
+    "min_elapsed_ns": 34140429,
+    "max_elapsed_ns": 38553323,
+    "all_elapsed_ns": [
+      38553323,
+      34140429,
+      37255757
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 38553323,
+      "compressed_size": 6542951
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "lz4_huge_chunk_compress",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/lz4_huge_chunk_compress/candidate/bench']' returned non-zero exit status 1."
+  }
+}

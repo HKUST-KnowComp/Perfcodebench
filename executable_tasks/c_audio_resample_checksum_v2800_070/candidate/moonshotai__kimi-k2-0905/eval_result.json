@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_070",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_070/candidate/moonshotai__kimi-k2-0905/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <stdint.h>\n#include <stdlib.h>\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n    static int16_t* out = NULL;          /* reused buffer */\n    static size_t   out_cap = 0;\n\n    if (output_len > (int)out_cap) {\n        out = (int16_t*)realloc(out, (size_t)output_len * sizeof(int16_t));\n        if (!out) return 0;\n        out_cap = (size_t)output_len;\n    }\n\n    /* fixed-point interpolation setup (1.30 format) */\n    const int in_len_minus_1 = input_len - 1;\n    const int out_len_minus_1 = output_len - 1;\n    const uint32_t scale = ((uint32_t)1 << 30) / out_len_minus_1;\n\n    uint64_t hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        /* resample --------------------------------------------------------- */\n        uint32_t pos = 0;\n        for (int i = 0; i < output_len; ++i) {\n            int left  = (int)(pos >> 30);\n            int right = left + 1;\n            if (right >= input_len) right = input_len - 1;\n            uint32_t frac = pos & ((1u << 30) - 1);\n            int32_t v = ((int32_t)src[left] * ((1u << 30) - frac) +\n                         (int32_t)src[right] * frac) >> 30;\n            out[i] = (int16_t)v;\n            pos += scale * in_len_minus_1;\n        }\n\n        /* vectorized checksum --------------------------------------------- */\n        const int16_t* p   = out;\n        size_t n           = (size_t)output_len;\n        uint64_t h0 = 1469598103934665603ULL;\n        uint64_t h1 = 1469598103934665603ULL;\n        uint64_t h2 = 1469598103934665603ULL;\n        uint64_t h3 = 1469598103934665603ULL;\n\n        while (n >= 8) {\n            h0 ^= (uint16_t)p[0]; h0 *= 1099511628211ULL;\n            h1 ^= (uint16_t)p[1]; h1 *= 1099511628211ULL;\n            h2 ^= (uint16_t)p[2]; h2 *= 1099511628211ULL;\n            h3 ^= (uint16_t)p[3]; h3 *= 1099511628211ULL;\n            h0 ^= (uint16_t)p[4]; h0 *= 1099511628211ULL;\n            h1 ^= (uint16_t)p[5]; h1 *= 1099511628211ULL;\n            h2 ^= (uint16_t)p[6]; h2 *= 1099511628211ULL;\n            h3 ^= (uint16_t)p[7]; h3 *= 1099511628211ULL;\n            p += 8; n -= 8;\n        }\n        while (n--) {\n            h0 ^= (uint16_t)(*p++); h0 *= 1099511628211ULL;\n        }\n        hash = h0 ^ h1 ^ h2 ^ h3;\n    }\n    return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_070",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 9312000,
+    "min_elapsed_ns": 8925000,
+    "max_elapsed_ns": 9832000,
+    "all_elapsed_ns": [
+      9312000,
+      9832000,
+      8925000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9312000,
+      "expected_checksum": 13131824402151615091,
+      "actual_checksum": 13131824402151615091
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_070",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8764000,
+    "min_elapsed_ns": 8656000,
+    "max_elapsed_ns": 9083000,
+    "all_elapsed_ns": [
+      8764000,
+      9083000,
+      8656000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8764000,
+      "expected_checksum": 13131824402151615091,
+      "actual_checksum": 13131824402151615091
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_070",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 7059000,
+    "min_elapsed_ns": 7027000,
+    "max_elapsed_ns": 7263000,
+    "all_elapsed_ns": [
+      7059000,
+      7263000,
+      7027000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7059000,
+      "expected_checksum": 13131824402151615091,
+      "actual_checksum": 13131824402151615091
+    },
+    "status": "ok"
+  }
+}

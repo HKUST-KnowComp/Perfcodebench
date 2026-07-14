@@ -1,0 +1,72 @@
+{
+  "task_id": "sorted_interval_lookup_sum_v500_f",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sorted_interval_lookup_sum_v500_f/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <algorithm>\n#include <immintrin.h>\n\nuint64_t interval_lookup_sum(\n    const std::vector<uint32_t>& starts,\n    const std::vector<uint32_t>& ends,\n    const std::vector<uint32_t>& payloads,\n    const std::vector<uint32_t>& probes,\n    const std::vector<uint32_t>& weights,\n    int iters)\n{\n    const uint32_t  n = starts.size();\n    const uint32_t  m = probes.size();\n    if (n == 0 || m == 0 || iters <= 0) return 0;\n\n    // build a contiguous index array so we can binary-search on starts\n    // and still know the original position (needed for ends/payloads)\n    std::vector<uint32_t> idx(n);\n    for (uint32_t i = 0; i < n; ++i) idx[i] = i;\n\n    uint64_t sum = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t local = 0;\n\n        // unroll by 8 to expose ILP and let compiler vectorise remainder\n        uint32_t i = 0;\n        for (; i + 8 <= m; i += 8) {\n            uint64_t psum = 0;\n            #pragma unroll\n            for (uint32_t k = 0; k < 8; ++k) {\n                const uint32_t probe = probes[i + k];\n                const auto it = std::upper_bound(starts.begin(), starts.end(), probe);\n                if (it == starts.begin()) continue;                 // probe < starts[0]\n                const uint32_t j = static_cast<uint32_t>(std::prev(it) - starts.begin());\n                if (probe >= ends[j]) continue;                     // not inside interval\n                psum += static_cast<uint64_t>(payloads[j]) * static_cast<uint64_t>(weights[i + k]);\n            }\n            local += psum;\n        }\n        // scalar tail\n        for (; i < m; ++i) {\n            const uint32_t probe = probes[i];\n            const auto it = std::upper_bound(starts.begin(), starts.end(), probe);\n            if (it == starts.begin()) continue;\n            const uint32_t j = static_cast<uint32_t>(std::prev(it) - starts.begin());\n            if (probe >= ends[j]) continue;\n            local += static_cast<uint64_t>(payloads[j]) * static_cast<uint64_t>(weights[i]);\n        }\n        sum = local;\n    }\n    return sum;\n}",
+  "baseline": {
+    "task_id": "sorted_interval_lookup_sum_v500_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 467126199,
+    "min_elapsed_ns": 466903199,
+    "max_elapsed_ns": 467678408,
+    "all_elapsed_ns": [
+      467678408,
+      466903199,
+      467126199
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 467678408,
+      "expected_sum": 85831039488,
+      "actual_sum": 85831039488
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sorted_interval_lookup_sum_v500_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 55703406,
+    "min_elapsed_ns": 55402488,
+    "max_elapsed_ns": 55761405,
+    "all_elapsed_ns": [
+      55703406,
+      55761405,
+      55402488
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 55703406,
+      "expected_sum": 85831039488,
+      "actual_sum": 85831039488
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sorted_interval_lookup_sum_v500_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 525851203,
+    "min_elapsed_ns": 523957428,
+    "max_elapsed_ns": 529613588,
+    "all_elapsed_ns": [
+      525851203,
+      523957428,
+      529613588
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 525851203,
+      "expected_sum": 85831039488,
+      "actual_sum": 85831039488
+    },
+    "status": "ok"
+  }
+}

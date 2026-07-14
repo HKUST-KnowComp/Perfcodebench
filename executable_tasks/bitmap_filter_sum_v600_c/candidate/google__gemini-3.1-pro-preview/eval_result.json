@@ -1,0 +1,72 @@
+{
+  "task_id": "bitmap_filter_sum_v600_c",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/bitmap_filter_sum_v600_c/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 8,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <cstring>\n#include <cstdint>\n\nuint64_t bitmap_filter_sum(\n    const std::vector<uint32_t>& enabled_keys,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int iters) {\n    \n    if (probe_keys.empty()) return 0;\n\n    // Pre-allocate bitmap buffer outside the iteration loop to avoid repeated allocations.\n    // Using a bit-packed uint64_t array for cache efficiency and fast lookups.\n    size_t bitmap_size = (static_cast<size_t>(key_space) + 64) / 64;\n    std::vector<uint64_t> bitmap(bitmap_size, 0);\n    \n    uint64_t total_sum = 0;\n    const size_t n = probe_keys.size();\n\n    for (int iter = 0; iter < iters; ++iter) {\n        // Reset bitmap for each iteration as per baseline logic\n        std::memset(bitmap.data(), 0, bitmap.size() * sizeof(uint64_t));\n        \n        for (uint32_t key : enabled_keys) {\n            if (key <= key_space) {\n                bitmap[key >> 6] |= (1ULL << (key & 63));\n            }\n        }\n\n        uint64_t current_sum = 0;\n        size_t i = 0;\n        \n        // Unroll the loop to improve throughput\n        for (; i + 4 <= n; i += 4) {\n            uint32_t k0 = probe_keys[i];\n            uint32_t k1 = probe_keys[i+1];\n            uint32_t k2 = probe_keys[i+2];\n            uint32_t k3 = probe_keys[i+3];\n\n            if ((bitmap[k0 >> 6] >> (k0 & 63)) & 1) current_sum += values[i];\n            if ((bitmap[k1 >> 6] >> (k1 & 63)) & 1) current_sum += values[i+1];\n            if ((bitmap[k2 >> 6] >> (k2 & 63)) & 1) current_sum += values[i+2];\n            if ((bitmap[k3 >> 6] >> (k3 & 63)) & 1) current_sum += values[i+3];\n        }\n\n        // Handle remaining elements\n        for (; i < n; ++i) {\n            uint32_t k = probe_keys[i];\n            if ((bitmap[k >> 6] >> (k & 63)) & 1) {\n                current_sum += values[i];\n            }\n        }\n        \n        total_sum = current_sum;\n    }\n\n    return total_sum;\n}",
+  "baseline": {
+    "task_id": "bitmap_filter_sum_v600_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3302738821,
+    "min_elapsed_ns": 2910325023,
+    "max_elapsed_ns": 3554301360,
+    "all_elapsed_ns": [
+      3554301360,
+      3302738821,
+      2910325023
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3554301360,
+      "expected_sum": 2151677952,
+      "actual_sum": 2151677952
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "bitmap_filter_sum_v600_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 520007136,
+    "min_elapsed_ns": 500040586,
+    "max_elapsed_ns": 560207284,
+    "all_elapsed_ns": [
+      560207284,
+      520007136,
+      500040586
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 560207284,
+      "expected_sum": 2151677952,
+      "actual_sum": 2151677952
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "bitmap_filter_sum_v600_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 394859935,
+    "min_elapsed_ns": 394212419,
+    "max_elapsed_ns": 398568680,
+    "all_elapsed_ns": [
+      394859935,
+      398568680,
+      394212419
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 394859935,
+      "expected_sum": 2151677952,
+      "actual_sum": 2151677952
+    },
+    "status": "ok"
+  }
+}

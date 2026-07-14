@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_id_remap_checksum",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_id_remap_checksum/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 14,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nstatic inline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t remap_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& probes,\n    int iters) {\n  const std::size_t n = keys.size();\n  if (n == 0 || probes.empty() || iters <= 0) {\n    return 0;\n  }\n\n  uint32_t min_key = keys.front();\n  uint32_t max_key = keys.back();\n\n  // Fast path for dense, contiguous ids: direct indexing table.\n  // This matches the task's intended workload and avoids per-probe binary search.\n  const uint64_t span64 = static_cast<uint64_t>(max_key) - static_cast<uint64_t>(min_key) + 1ULL;\n  if (span64 == n) {\n    uint64_t hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n      hash = 1469598103934665603ULL;\n\n      const uint32_t* probe_ptr = probes.data();\n      const uint32_t* probe_end = probe_ptr + probes.size();\n      const uint32_t* value_base = values.data();\n\n      for (; probe_ptr != probe_end; ++probe_ptr) {\n        const uint32_t idx = *probe_ptr - min_key;\n        hash = mix(hash, value_base[idx]);\n      }\n    }\n    return hash;\n  }\n\n  // Fallback: branch-light lower_bound specialized for random-access arrays.\n  uint64_t hash = 0;\n  const uint32_t* key_base = keys.data();\n  const uint32_t* value_base = values.data();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n\n    const uint32_t* probe_ptr = probes.data();\n    const uint32_t* probe_end = probe_ptr + probes.size();\n    for (; probe_ptr != probe_end; ++probe_ptr) {\n      const uint32_t probe = *probe_ptr;\n      std::size_t first = 0;\n      std::size_t count = n;\n      while (count > 0) {\n        const std::size_t step = count >> 1;\n        const std::size_t mid = first + step;\n        if (key_base[mid] < probe) {\n          first = mid + 1;\n          count -= step + 1;\n        } else {\n          count = step;\n        }\n      }\n      hash = mix(hash, value_base[first]);\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "dense_id_remap_checksum",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 8600797916,
+    "min_elapsed_ns": 8179743877,
+    "max_elapsed_ns": 8615142491,
+    "all_elapsed_ns": [
+      8179743877,
+      8615142491,
+      8600797916
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8179743877,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_id_remap_checksum",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 100206945,
+    "min_elapsed_ns": 98216448,
+    "max_elapsed_ns": 100469892,
+    "all_elapsed_ns": [
+      100206945,
+      98216448,
+      100469892
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 100206945,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_id_remap_checksum",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 92907176,
+    "min_elapsed_ns": 92883077,
+    "max_elapsed_ns": 92985949,
+    "all_elapsed_ns": [
+      92883077,
+      92907176,
+      92985949
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 92883077,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  }
+}

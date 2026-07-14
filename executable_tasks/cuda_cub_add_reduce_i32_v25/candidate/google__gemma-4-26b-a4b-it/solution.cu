@@ -1,0 +1,1 @@
+The optimization follows standard high-performance CUDA reduction patterns: 1. Use warp-level shuffle instructions for intra-warp reduction. 2. Use shared memory for intra-block reduction. 3. Use a two-pass approach (block-level reduction followed by a final reduction) to avoid global atomic contention. 4. Ensure coalesced memory access patterns.

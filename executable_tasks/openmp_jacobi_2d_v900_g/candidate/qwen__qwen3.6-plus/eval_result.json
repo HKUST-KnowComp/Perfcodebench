@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_jacobi_2d_v900_g",
+  "model": "qwen/qwen3.6-plus",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v900_g/candidate/qwen__qwen3.6-plus/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  std::vector<uint32_t> a = input;\n  std::vector<uint32_t> b(a.size());\n  \n  const size_t C = static_cast<size_t>(cols);\n  const size_t R = static_cast<size_t>(rows);\n  \n  for (int step = 0; step < steps; ++step) {\n    uint32_t* pa = a.data();\n    uint32_t* pb = b.data();\n    \n    // Copy top and bottom boundary rows\n    for (size_t c = 0; c < C; ++c) {\n      pb[c] = pa[c];\n      pb[(R - 1) * C + c] = pa[(R - 1) * C + c];\n    }\n    \n    #pragma omp parallel for schedule(static)\n    for (size_t r = 1; r < R - 1; ++r) {\n      size_t base = r * C;\n      pb[base] = pa[base];\n      pb[base + C - 1] = pa[base + C - 1];\n      for (size_t c = 1; c < C - 1; ++c) {\n        size_t idx = base + c;\n        pb[idx] = (pa[idx] * 4u + pa[idx - 1] + pa[idx + 1] + pa[idx - C] + pa[idx + C]) >> 3;\n      }\n    }\n    \n    a.swap(b);\n  }\n  \n  return checksum_u32(a);\n}\n",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v900_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 259900482,
+    "min_elapsed_ns": 194268388,
+    "max_elapsed_ns": 583517998,
+    "all_elapsed_ns": [
+      259900482,
+      194268388,
+      583517998
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 259900482,
+      "expected_checksum": 12029295753894677787,
+      "actual_checksum": 12029295753894677787
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v900_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 498756238,
+    "min_elapsed_ns": 265308392,
+    "max_elapsed_ns": 845770348,
+    "all_elapsed_ns": [
+      845770348,
+      265308392,
+      498756238
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 845770348,
+      "expected_checksum": 12029295753894677787,
+      "actual_checksum": 12029295753894677787
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v900_g",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-fopenmp', '-Iexecutable_tasks/openmp_jacobi_2d_v900_g/harness', 'executable_tasks/openmp_jacobi_2d_v900_g/harness/benchmark_main.cpp', 'executable_tasks/openmp_jacobi_2d_v900_g/candidate/qwen__qwen3.6-plus/solution.cpp', '-o', 'build/openmp_jacobi_2d_v900_g/candidate/bench']' returned non-zero exit status 1."
+  }
+}

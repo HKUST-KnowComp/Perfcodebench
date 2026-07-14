@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_120",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_120/candidate/claude-opus-4.5/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\nstatic uint64_t checksum_i16(const int16_t* data, size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  const uint64_t prime = 1099511628211ULL;\n  size_t i = 0;\n  size_t n4 = n & ~(size_t)3;\n  for (; i < n4; i += 4) {\n    hash ^= (uint16_t)data[i];\n    hash *= prime;\n    hash ^= (uint16_t)data[i + 1];\n    hash *= prime;\n    hash ^= (uint16_t)data[i + 2];\n    hash *= prime;\n    hash ^= (uint16_t)data[i + 3];\n    hash *= prime;\n  }\n  for (; i < n; ++i) {\n    hash ^= (uint16_t)data[i];\n    hash *= prime;\n  }\n  return hash;\n}\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n  if (output_len <= 0 || input_len <= 0) return 0;\n  \n  int16_t* out = (int16_t*)malloc((size_t)output_len * sizeof(int16_t));\n  if (!out) return 0;\n  \n  uint64_t hash = 0;\n  \n  /* Fixed-point with 32 fractional bits */\n  const uint64_t frac_bits = 32;\n  const uint64_t one = (uint64_t)1 << frac_bits;\n  const uint64_t half = (uint64_t)1 << (frac_bits - 1);\n  \n  /* step = (input_len - 1) / (output_len - 1) in fixed-point */\n  uint64_t step = 0;\n  if (output_len > 1) {\n    step = ((uint64_t)(input_len - 1) << frac_bits) / (uint64_t)(output_len - 1);\n  }\n  \n  const int max_left = input_len - 2;\n  const int last_idx = input_len - 1;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t pos_fixed = 0;\n    int i = 0;\n    int out4 = output_len & ~3;\n    \n    for (; i < out4; i += 4) {\n      /* Sample 0 */\n      int left0 = (int)(pos_fixed >> frac_bits);\n      uint64_t frac0 = pos_fixed & (one - 1);\n      if (left0 > max_left) left0 = max_left;\n      int right0 = left0 + 1;\n      if (right0 > last_idx) right0 = last_idx;\n      int32_t s_left0 = src[left0];\n      int32_t s_right0 = src[right0];\n      int64_t interp0 = ((int64_t)s_left0 << frac_bits) + (int64_t)(s_right0 - s_left0) * (int64_t)frac0;\n      int64_t rounded0 = (interp0 >= 0) ? (interp0 + (int64_t)half) : (interp0 - (int64_t)half);\n      out[i] = (int16_t)(rounded0 >> frac_bits);\n      pos_fixed += step;\n      \n      /* Sample 1 */\n      int left1 = (int)(pos_fixed >> frac_bits);\n      uint64_t frac1 = pos_fixed & (one - 1);\n      if (left1 > max_left) left1 = max_left;\n      int right1 = left1 + 1;\n      if (right1 > last_idx) right1 = last_idx;\n      int32_t s_left1 = src[left1];\n      int32_t s_right1 = src[right1];\n      int64_t interp1 = ((int64_t)s_left1 << frac_bits) + (int64_t)(s_right1 - s_left1) * (int64_t)frac1;\n      int64_t rounded1 = (interp1 >= 0) ? (interp1 + (int64_t)half) : (interp1 - (int64_t)half);\n      out[i + 1] = (int16_t)(rounded1 >> frac_bits);\n      pos_fixed += step;\n      \n      /* Sample 2 */\n      int left2 = (int)(pos_fixed >> frac_bits);\n      uint64_t frac2 = pos_fixed & (one - 1);\n      if (left2 > max_left) left2 = max_left;\n      int right2 = left2 + 1;\n      if (right2 > last_idx) right2 = last_idx;\n      int32_t s_left2 = src[left2];\n      int32_t s_right2 = src[right2];\n      int64_t interp2 = ((int64_t)s_left2 << frac_bits) + (int64_t)(s_right2 - s_left2) * (int64_t)frac2;\n      int64_t rounded2 = (interp2 >= 0) ? (interp2 + (int64_t)half) : (interp2 - (int64_t)half);\n      out[i + 2] = (int16_t)(rounded2 >> frac_bits);\n      pos_fixed += step;\n      \n      /* Sample 3 */\n      int left3 = (int)(pos_fixed >> frac_bits);\n      uint64_t frac3 = pos_fixed & (one - 1);\n      if (left3 > max_left) left3 = max_left;\n      int right3 = left3 + 1;\n      if (right3 > last_idx) right3 = last_idx;\n      int32_t s_left3 = src[left3];\n      int32_t s_right3 = src[right3];\n      int64_t interp3 = ((int64_t)s_left3 << frac_bits) + (int64_t)(s_right3 - s_left3) * (int64_t)frac3;\n      int64_t rounded3 = (interp3 >= 0) ? (interp3 + (int64_t)half) : (interp3 - (int64_t)half);\n      out[i + 3] = (int16_t)(rounded3 >> frac_bits);\n      pos_fixed += step;\n    }\n    \n    for (; i < output_len; ++i) {\n      int left = (int)(pos_fixed >> frac_bits);\n      uint64_t frac = pos_fixed & (one - 1);\n      if (left > max_left) left = max_left;\n      int right = left + 1;\n      if (right > last_idx) right = last_idx;\n      int32_t s_left = src[left];\n      int32_t s_right = src[right];\n      int64_t interp = ((int64_t)s_left << frac_bits) + (int64_t)(s_right - s_left) * (int64_t)frac;\n      int64_t rounded = (interp >= 0) ? (interp + (int64_t)half) : (interp - (int64_t)half);\n      out[i] = (int16_t)(rounded >> frac_bits);\n      pos_fixed += step;\n    }\n    \n    hash = checksum_i16(out, (size_t)output_len);\n  }\n  \n  free(out);\n  return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_120",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5995000,
+    "min_elapsed_ns": 5442000,
+    "max_elapsed_ns": 6148000,
+    "all_elapsed_ns": [
+      5442000,
+      6148000,
+      5995000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5442000,
+      "expected_checksum": 2294548428485069063,
+      "actual_checksum": 2294548428485069063
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_120",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4957000,
+    "min_elapsed_ns": 4934000,
+    "max_elapsed_ns": 5942000,
+    "all_elapsed_ns": [
+      4934000,
+      5942000,
+      4957000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4934000,
+      "expected_checksum": 2294548428485069063,
+      "actual_checksum": 2294548428485069063
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_120",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 4133000,
+    "min_elapsed_ns": 4069000,
+    "max_elapsed_ns": 4361000,
+    "all_elapsed_ns": [
+      4133000,
+      4069000,
+      4361000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4133000,
+      "expected_checksum": 2294548428485069063,
+      "actual_checksum": 2294548428485069063
+    },
+    "status": "ok"
+  }
+}

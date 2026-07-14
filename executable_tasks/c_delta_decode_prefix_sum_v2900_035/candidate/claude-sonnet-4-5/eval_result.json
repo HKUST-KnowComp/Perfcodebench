@@ -1,0 +1,59 @@
+{
+  "task_id": "c_delta_decode_prefix_sum_v2900_035",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_delta_decode_prefix_sum_v2900_035/candidate/claude-sonnet-4-5/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\n#if defined(__x86_64__) || defined(_M_X64)\n#include <immintrin.h>\n#endif\n\nuint64_t run(const int32_t* deltas, size_t count, int iters) {\n  uint64_t total = 0;\n  const uint64_t magic = 0x9E3779B1LL;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    total = 0;\n    int64_t current = 0;\n    \n#if defined(__AVX2__)\n    size_t vec_count = count & ~7;\n    if (vec_count >= 8) {\n      __m256i v_current = _mm256_setzero_si256();\n      __m256i v_sum = _mm256_setzero_si256();\n      __m256i v_magic = _mm256_set1_epi64x(magic);\n      \n      for (size_t i = 0; i < vec_count; i += 8) {\n        __m128i d0 = _mm_loadu_si128((__m128i*)(deltas + i));\n        __m128i d1 = _mm_loadu_si128((__m128i*)(deltas + i + 4));\n        __m256i deltas_vec = _mm256_set_m128i(d1, d0);\n        __m256i deltas_64 = _mm256_cvtepi32_epi64(_mm256_castsi256_si128(deltas_vec));\n        __m256i deltas_64_hi = _mm256_cvtepi32_epi64(_mm256_extracti128_si256(deltas_vec, 1));\n        \n        __m256i prefix0 = _mm256_add_epi64(v_current, deltas_64);\n        v_current = _mm256_permute4x64_epi64(prefix0, 0xFF);\n        __m256i scan0 = _mm256_add_epi64(prefix0, _mm256_slli_si256(prefix0, 8));\n        scan0 = _mm256_add_epi64(scan0, _mm256_permute2x128_si256(_mm256_setzero_si256(), scan0, 0x03));\n        \n        __m256i prefix1 = _mm256_add_epi64(v_current, deltas_64_hi);\n        v_current = _mm256_permute4x64_epi64(prefix1, 0xFF);\n        __m256i scan1 = _mm256_add_epi64(prefix1, _mm256_slli_si256(prefix1, 8));\n        scan1 = _mm256_add_epi64(scan1, _mm256_permute2x128_si256(_mm256_setzero_si256(), scan1, 0x03));\n        \n        scan0 = _mm256_add_epi64(scan0, v_magic);\n        scan1 = _mm256_add_epi64(scan1, v_magic);\n        v_sum = _mm256_add_epi64(v_sum, scan0);\n        v_sum = _mm256_add_epi64(v_sum, scan1);\n      }\n      \n      int64_t temp[4];\n      _mm256_storeu_si256((__m256i*)temp, v_sum);\n      total += temp[0] + temp[1] + temp[2] + temp[3];\n      current = _mm256_extract_epi64(v_current, 3);\n    }\n    \n    for (size_t i = vec_count; i < count; ++i) {\n      current += deltas[i];\n      total += (uint64_t)(current + magic);\n    }\n#else\n    size_t unroll_count = count & ~3;\n    uint64_t acc0 = 0, acc1 = 0, acc2 = 0, acc3 = 0;\n    \n    for (size_t i = 0; i < unroll_count; i += 4) {\n      current += deltas[i];\n      acc0 += (uint64_t)(current + magic);\n      current += deltas[i + 1];\n      acc1 += (uint64_t)(current + magic);\n      current += deltas[i + 2];\n      acc2 += (uint64_t)(current + magic);\n      current += deltas[i + 3];\n      acc3 += (uint64_t)(current + magic);\n    }\n    \n    total = acc0 + acc1 + acc2 + acc3;\n    \n    for (size_t i = unroll_count; i < count; ++i) {\n      current += deltas[i];\n      total += (uint64_t)(current + magic);\n    }\n#endif\n  }\n  \n  return total;\n}",
+  "baseline": {
+    "task_id": "c_delta_decode_prefix_sum_v2900_035",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1709000,
+    "min_elapsed_ns": 1614000,
+    "max_elapsed_ns": 1756000,
+    "all_elapsed_ns": [
+      1756000,
+      1614000,
+      1709000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1756000,
+      "expected_checksum": 385867779986767,
+      "actual_checksum": 385867779986767
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_delta_decode_prefix_sum_v2900_035",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 806000,
+    "min_elapsed_ns": 798000,
+    "max_elapsed_ns": 807000,
+    "all_elapsed_ns": [
+      798000,
+      806000,
+      807000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 798000,
+      "expected_checksum": 385867779986767,
+      "actual_checksum": 385867779986767
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_delta_decode_prefix_sum_v2900_035",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/c_delta_decode_prefix_sum_v2900_035/candidate/bench']' returned non-zero exit status 1."
+  }
+}

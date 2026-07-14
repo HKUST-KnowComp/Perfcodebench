@@ -1,0 +1,59 @@
+{
+  "task_id": "genomic_kmer_histogram_checksum_v2600_h",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/genomic_kmer_histogram_checksum_v2600_h/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstring>\n#include <string>\n#include <vector>\n\nnamespace {\n\ninline uint32_t encode_base(char c) {\n  // Branchless encoding: A=0, C=1, G=2, T=3\n  // ASCII: A=65, C=67, G=71, T=84\n  // Use bit pattern: (c >> 1) & 3 gives us a unique 2-bit value\n  return (c >> 1) & 3u;\n}\n\nuint64_t checksum_counts(const std::vector<uint32_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  const uint32_t* data = counts.data();\n  const size_t size = counts.size();\n  \n  // Process in chunks for better instruction-level parallelism\n  size_t i = 0;\n  for (; i + 3 < size; i += 4) {\n    uint64_t h0 = hash ^ data[i];\n    uint64_t h1 = h0 * 1099511628211ULL ^ data[i+1];\n    uint64_t h2 = h1 * 1099511628211ULL ^ data[i+2];\n    hash = h2 * 1099511628211ULL ^ data[i+3];\n    hash *= 1099511628211ULL;\n  }\n  \n  for (; i < size; ++i) {\n    hash ^= data[i];\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t kmer_histogram_checksum(const std::string& dna, int k, int iters) {\n  const size_t n = dna.size();\n  if (n < static_cast<size_t>(k)) return 1469598103934665603ULL;\n  \n  const size_t bins = 1u << (2 * k);\n  const uint32_t mask = bins - 1u;\n  std::vector<uint32_t> dense(bins);\n  \n  uint64_t hash = 0;\n  const char* seq = dna.data();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    // Fast zero using memset\n    std::memset(dense.data(), 0, bins * sizeof(uint32_t));\n    \n    // Build initial k-mer\n    uint32_t kmer = 0;\n    for (int i = 0; i < k - 1; ++i) {\n      kmer = (kmer << 2) | encode_base(seq[i]);\n    }\n    \n    // Rolling window: slide through sequence\n    for (size_t i = k - 1; i < n; ++i) {\n      kmer = ((kmer << 2) | encode_base(seq[i])) & mask;\n      dense[kmer]++;\n    }\n    \n    hash = checksum_counts(dense);\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 327326037,
+    "min_elapsed_ns": 306327997,
+    "max_elapsed_ns": 352419702,
+    "all_elapsed_ns": [
+      306327997,
+      352419702,
+      327326037
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 306327997,
+      "expected_checksum": 5814237120368028560,
+      "actual_checksum": 5814237120368028560
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 15167755,
+    "min_elapsed_ns": 14812765,
+    "max_elapsed_ns": 15662896,
+    "all_elapsed_ns": [
+      14812765,
+      15167755,
+      15662896
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 14812765,
+      "expected_checksum": 5814237120368028560,
+      "actual_checksum": 5814237120368028560
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_h",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/genomic_kmer_histogram_checksum_v2600_h/candidate/bench']' returned non-zero exit status 1."
+  }
+}

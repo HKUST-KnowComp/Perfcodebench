@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v06",
+  "model": "bytedance-seed/seed-2.0-mini",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v06/candidate/bytedance-seed__seed-2.0-mini/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void histogram_shared_u8(const unsigned char* input, unsigned int* output, int n) {\n  __shared__ unsigned int sh_hist[256];\n  const int bin = threadIdx.x;\n\n  // Initialize shared histogram to zero\n  sh_hist[bin] = 0;\n  __syncthreads();\n\n  // Grid-stride loop to process all input elements\n  for (int idx = blockIdx.x * blockDim.x + threadIdx.x; idx < n; idx += blockDim.x * gridDim.x) {\n    const unsigned char c = input[idx];\n    atomicAdd(&sh_hist[c], 1U);\n  }\n  __syncthreads();\n\n  // Aggregate local block histogram to global output\n  atomicAdd(&output[bin], sh_hist[bin]);\n}\n\n}  // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters) {\n  constexpr int kBlockSize = 256;\n  const int grid_size = (n <= 0) ? 0 : (n + kBlockSize - 1) / kBlockSize;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    // Reset output histogram to zero for this iteration\n    cudaMemset(output, 0, 256 * sizeof(unsigned int));\n    // Launch kernel only if there are valid elements to process\n    if (grid_size > 0) {\n      histogram_shared_u8<<<grid_size, kBlockSize>>>(input, output, n);\n    }\n  }\n}",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v06",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 38932289,
+    "min_elapsed_ns": 38932033,
+    "max_elapsed_ns": 38939327,
+    "all_elapsed_ns": [
+      38932033,
+      38932289,
+      38939327
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 38932033,
+      "checksum": 269484032
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v06",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 651040,
+    "min_elapsed_ns": 643616,
+    "max_elapsed_ns": 655103,
+    "all_elapsed_ns": [
+      651040,
+      655103,
+      643616
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 651040,
+      "checksum": 269484032
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v06",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_histogram256_shared_u8_v06/candidate/bench']' timed out after 5 seconds"
+  }
+}

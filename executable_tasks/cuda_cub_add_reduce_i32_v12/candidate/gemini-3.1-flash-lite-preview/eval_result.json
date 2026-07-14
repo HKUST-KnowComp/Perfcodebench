@@ -1,0 +1,33 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v12",
+  "model": "gemini-3.1-flash-lite-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v12/candidate/gemini-3.1-flash-lite-preview/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n__global__ void reduce_kernel(const int* input, int* output, int n) {\n    extern __shared__ int sdata[];\n    unsigned int tid = threadIdx.x;\n    unsigned int i = blockIdx.x * (blockDim.x * 2) + threadIdx.x;\n    \n    int sum = 0;\n    if (i < n) sum += input[i];\n    if (i + blockDim.x < n) sum += input[i + blockDim.x];\n    \n    sdata[tid] = sum;\n    __syncthreads();\n\n    for (unsigned int s = blockDim.x / 2; s > 32; s >>= 1) {\n        if (tid < s) sdata[tid] += sdata[tid + s];\n        __syncthreads();\n    }\n\n    if (tid < 32) {\n        volatile int* vdata = sdata;\n        for (int s = 32; s > 0; s >>= 1) vdata[tid] += vdata[tid + s];\n        if (tid == 0) atomicAdd(output, vdata[0]);\n    }\n}\n}\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    const int threads = 256;\n    const int blocks = (n + (threads * 2) - 1) / (threads * 2);\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, sizeof(int));\n        reduce_kernel<<<blocks, threads, threads * sizeof(int)>>>(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v12",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v12/baseline/bench']' timed out after 5 seconds"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v12",
+    "variant": "reference",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v12/reference/bench']' timed out after 5 seconds"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v12",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v12/candidate/bench']' timed out after 5 seconds"
+  }
+}

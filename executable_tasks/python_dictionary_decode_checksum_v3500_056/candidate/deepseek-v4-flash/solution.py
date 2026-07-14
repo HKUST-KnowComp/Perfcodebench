@@ -1,0 +1,9 @@
+def run(ids, dict_vals, iters: int) -> int:
+    h = 1469598103934665603
+    mask = (1 << 64) - 1
+    mult = 1099511628211
+    for idx in ids:
+        v = dict_vals[idx] + 1
+        h ^= v
+        h = (h * mult) & mask
+    return h

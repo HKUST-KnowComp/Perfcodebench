@@ -1,0 +1,72 @@
+{
+  "task_id": "zstd_block_decompress_v1000_g",
+  "model": "deepseek-v4-pro",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/zstd_block_decompress_v1000_g/candidate/deepseek-v4-pro/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include \"zstd.h\"\n\n#include <cstddef>\n#include <memory>\n\nnamespace {\n\nuint64_t checksum_bytes(const char* data, std::size_t size) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (std::size_t i = 0; i < size; ++i) {\n    hash ^= static_cast<uint64_t>(static_cast<unsigned char>(data[i]));\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n// Thread-local DCtx to avoid context creation overhead on each call.\nthread_local struct DCtxWrapper {\n  ZSTD_DCtx* ctx;\n  DCtxWrapper() : ctx(ZSTD_createDCtx()) {}\n  ~DCtxWrapper() { ZSTD_freeDCtx(ctx); }\n} dctx_wrapper;\n\n}  // namespace\n\nuint64_t decompress_checksum(const std::string& compressed, std::size_t decompressed_size) {\n  // Allocate uninitialized buffer \u2013 avoids zero-fill of std::string.\n  std::unique_ptr<char[]> buffer(new char[decompressed_size]);\n  size_t n;\n  if (dctx_wrapper.ctx) {\n    n = ZSTD_decompressDCtx(dctx_wrapper.ctx, buffer.get(), decompressed_size,\n                            compressed.data(), compressed.size());\n  } else {\n    n = ZSTD_decompress(buffer.get(), decompressed_size,\n                        compressed.data(), compressed.size());\n  }\n  if (ZSTD_isError(n) || n != decompressed_size) {\n    return 0;\n  }\n  return checksum_bytes(buffer.get(), decompressed_size);\n}\n",
+  "baseline": {
+    "task_id": "zstd_block_decompress_v1000_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 850449,
+    "min_elapsed_ns": 842436,
+    "max_elapsed_ns": 2068843,
+    "all_elapsed_ns": [
+      2068843,
+      850449,
+      842436
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2068843,
+      "expected_checksum": 13088917858810170103,
+      "actual_checksum": 13088917858810170103
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "zstd_block_decompress_v1000_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 885678,
+    "min_elapsed_ns": 822580,
+    "max_elapsed_ns": 891880,
+    "all_elapsed_ns": [
+      891880,
+      885678,
+      822580
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 891880,
+      "expected_checksum": 13088917858810170103,
+      "actual_checksum": 13088917858810170103
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "zstd_block_decompress_v1000_g",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 777138,
+    "min_elapsed_ns": 776870,
+    "max_elapsed_ns": 778956,
+    "all_elapsed_ns": [
+      778956,
+      777138,
+      776870
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 778956,
+      "expected_checksum": 13088917858810170103,
+      "actual_checksum": 13088917858810170103
+    },
+    "status": "ok"
+  }
+}

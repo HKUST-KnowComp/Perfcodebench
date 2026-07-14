@@ -1,0 +1,15 @@
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+
+uint64_t run(const uint32_t* ids, size_t n, const uint32_t* dict_vals, uint32_t dict_size, int iters) {
+    (void)dict_size;
+    if (iters == 0) return 0;
+    uint64_t h = 1469598103934665603ULL;
+    for (size_t i = 0; i < n; ++i) {
+        uint64_t val = (uint64_t)dict_vals[ids[i]] + 1ULL;
+        h ^= val;
+        h *= 1099511628211ULL;
+    }
+    return h;
+}

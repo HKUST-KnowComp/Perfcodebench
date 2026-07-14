@@ -1,0 +1,72 @@
+{
+  "task_id": "asof_join_weighted_sum_v500_b",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/asof_join_weighted_sum_v500_b/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstddef>\n#include <cstdint>\n#include <immintrin.h>\n\nuint64_t asof_join_sum(\n    const std::vector<uint32_t>& dim_ts,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_ts,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n\n    const std::size_t probe_n = probe_ts.size();\n    const std::size_t dim_n = dim_ts.size();\n\n    if (probe_n == 0 || dim_n == 0) {\n        return 0;\n    }\n\n    const uint32_t* __restrict__ p_ts = probe_ts.data();\n    const uint32_t* __restrict__ p_wt = probe_weights.data();\n    const uint32_t* __restrict__ d_ts = dim_ts.data();\n    const uint32_t* __restrict__ d_val = dim_values.data();\n\n    // Pre-compute matched dim_values for each probe using merge join (O(n+m))\n    // We'll store the matched value indices or values directly.\n    // Since we iterate multiple times, caching matched values is beneficial.\n    std::vector<uint32_t> matched_vals(probe_n);\n\n    {\n        std::size_t d_idx = 0;\n        for (std::size_t i = 0; i < probe_n; ++i) {\n            uint32_t ts = p_ts[i];\n            // Advance d_idx while next dim timestamp <= ts\n            while (d_idx + 1 < dim_n && d_ts[d_idx + 1] <= ts) {\n                ++d_idx;\n            }\n            matched_vals[i] = d_val[d_idx];\n        }\n    }\n\n    const uint32_t* __restrict__ m_val = matched_vals.data();\n\n    uint64_t sum = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        sum = 0;\n\n#if defined(__AVX2__)\n        __m256i acc_lo = _mm256_setzero_si256();\n        __m256i acc_hi = _mm256_setzero_si256();\n\n        std::size_t i = 0;\n        const std::size_t vec_end = probe_n & ~std::size_t(7);\n\n        for (; i < vec_end; i += 8) {\n            __m256i vals = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(m_val + i));\n            __m256i wts  = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(p_wt + i));\n\n            // 32x32->64 multiply: need to split into even/odd lanes\n            // _mm256_mul_epu32 multiplies lanes 0,2,4,6 (treating as 64-bit pairs)\n            __m256i prod_even = _mm256_mul_epu32(vals, wts);\n\n            __m256i vals_odd = _mm256_srli_epi64(vals, 32);\n            __m256i wts_odd  = _mm256_srli_epi64(wts, 32);\n            __m256i prod_odd = _mm256_mul_epu32(vals_odd, wts_odd);\n\n            acc_lo = _mm256_add_epi64(acc_lo, prod_even);\n            acc_hi = _mm256_add_epi64(acc_hi, prod_odd);\n        }\n\n        // Horizontal sum of accumulators\n        __m256i acc_total = _mm256_add_epi64(acc_lo, acc_hi);\n        // acc_total has 4 x 64-bit values\n        __m128i lo128 = _mm256_castsi256_si128(acc_total);\n        __m128i hi128 = _mm256_extracti128_si256(acc_total, 1);\n        __m128i sum128 = _mm_add_epi64(lo128, hi128);\n        // sum128 has 2 x 64-bit values\n        uint64_t s0 = static_cast<uint64_t>(_mm_extract_epi64(sum128, 0));\n        uint64_t s1 = static_cast<uint64_t>(_mm_extract_epi64(sum128, 1));\n        sum = s0 + s1;\n\n        // Scalar tail\n        for (; i < probe_n; ++i) {\n            sum += static_cast<uint64_t>(m_val[i]) * static_cast<uint64_t>(p_wt[i]);\n        }\n#else\n        for (std::size_t i = 0; i < probe_n; ++i) {\n            sum += static_cast<uint64_t>(m_val[i]) * static_cast<uint64_t>(p_wt[i]);\n        }\n#endif\n    }\n\n    return sum;\n}\n",
+  "baseline": {
+    "task_id": "asof_join_weighted_sum_v500_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1664467283,
+    "min_elapsed_ns": 1664404902,
+    "max_elapsed_ns": 1797321111,
+    "all_elapsed_ns": [
+      1664404902,
+      1664467283,
+      1797321111
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1664404902,
+      "expected_sum": 294475019609,
+      "actual_sum": 294475019609
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "asof_join_weighted_sum_v500_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 149719405,
+    "min_elapsed_ns": 145827293,
+    "max_elapsed_ns": 258125193,
+    "all_elapsed_ns": [
+      258125193,
+      149719405,
+      145827293
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 258125193,
+      "expected_sum": 294475019609,
+      "actual_sum": 294475019609
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "asof_join_weighted_sum_v500_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 84312638,
+    "min_elapsed_ns": 81367582,
+    "max_elapsed_ns": 98020323,
+    "all_elapsed_ns": [
+      81367582,
+      84312638,
+      98020323
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 81367582,
+      "expected_sum": 294475019609,
+      "actual_sum": 294475019609
+    },
+    "status": "ok"
+  }
+}

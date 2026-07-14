@@ -1,0 +1,72 @@
+{
+  "task_id": "bitmap_filter_sum",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/bitmap_filter_sum/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 15,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstring>\n\nuint64_t bitmap_filter_sum(\n    const std::vector<uint32_t>& enabled_keys,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int iters) {\n  \n  const size_t num_words = (static_cast<size_t>(key_space) + 63) / 64;\n  std::vector<uint64_t> bitmap(num_words);\n  \n  const uint32_t* __restrict__ probe_ptr = probe_keys.data();\n  const uint32_t* __restrict__ values_ptr = values.data();\n  const size_t n = probe_keys.size();\n  \n  uint64_t sum = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    std::memset(bitmap.data(), 0, num_words * sizeof(uint64_t));\n    \n    for (uint32_t key : enabled_keys) {\n      bitmap[key >> 6] |= (1ULL << (key & 63));\n    }\n    \n    sum = 0;\n    \n    size_t i = 0;\n    const size_t unroll_limit = (n >= 4) ? (n - 3) : 0;\n    \n    for (; i < unroll_limit; i += 4) {\n      uint32_t k0 = probe_ptr[i];\n      uint32_t k1 = probe_ptr[i + 1];\n      uint32_t k2 = probe_ptr[i + 2];\n      uint32_t k3 = probe_ptr[i + 3];\n      \n      uint64_t m0 = (bitmap[k0 >> 6] >> (k0 & 63)) & 1;\n      uint64_t m1 = (bitmap[k1 >> 6] >> (k1 & 63)) & 1;\n      uint64_t m2 = (bitmap[k2 >> 6] >> (k2 & 63)) & 1;\n      uint64_t m3 = (bitmap[k3 >> 6] >> (k3 & 63)) & 1;\n      \n      sum += m0 * values_ptr[i];\n      sum += m1 * values_ptr[i + 1];\n      sum += m2 * values_ptr[i + 2];\n      sum += m3 * values_ptr[i + 3];\n    }\n    \n    for (; i < n; ++i) {\n      uint32_t k = probe_ptr[i];\n      if (bitmap[k >> 6] & (1ULL << (k & 63))) {\n        sum += values_ptr[i];\n      }\n    }\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "bitmap_filter_sum",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 8773583940,
+    "min_elapsed_ns": 8110047779,
+    "max_elapsed_ns": 8994226637,
+    "all_elapsed_ns": [
+      8994226637,
+      8110047779,
+      8773583940
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8994226637,
+      "expected_sum": 4303355904,
+      "actual_sum": 4303355904
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "bitmap_filter_sum",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1479314516,
+    "min_elapsed_ns": 1438754140,
+    "max_elapsed_ns": 1630483732,
+    "all_elapsed_ns": [
+      1479314516,
+      1438754140,
+      1630483732
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1479314516,
+      "expected_sum": 4303355904,
+      "actual_sum": 4303355904
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "bitmap_filter_sum",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 200006570,
+    "min_elapsed_ns": 198783314,
+    "max_elapsed_ns": 277149013,
+    "all_elapsed_ns": [
+      200006570,
+      277149013,
+      198783314
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 200006570,
+      "expected_sum": 4303355904,
+      "actual_sum": 4303355904
+    },
+    "status": "ok"
+  }
+}

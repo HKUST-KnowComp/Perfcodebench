@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce_v1800_b",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v1800_b/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 8,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <atomic>\n#include <thread>\n#include <vector>\n#include <algorithm>\n\nnamespace {\n\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  // Use std::atomic to allow concurrent updates to different buckets without a global mutex.\n  // We use a vector of atomics. Note: std::atomic is not CopyInsertable, so we manage memory carefully.\n  // To avoid the overhead of atomic initialization in every loop, we use a single vector of atomics.\n  // However, since we need to reset it every iteration, we'll use a vector of uint64_t and \n  // perform atomic operations via std::atomic_ref (C++20) or simply use a vector of std::atomic.\n  \n  // Since we need to reset the counts every iteration, and std::atomic is not easily resettable via fill,\n  // we will use a vector of std::atomic<uint64_t> and use a loop to reset them.\n  \n  std::vector<std::atomic<uint64_t>> counts(static_cast<std::size_t>(key_space));\n  for (size_t i = 0; i < counts.size(); ++i) {\n    counts[i].store(0, std::memory_order_relaxed);\n  }\n\n  uint64_t final_hash = 0;\n  const std::size_t num_keys = keys.size();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    // Reset counts for the new iteration\n    for (size_t i = 0; i < counts.size(); ++i) {\n      counts[i].store(0, std::memory_order_relaxed);\n    }\n\n    std::vector<std::thread> threads;\n    const std::size_t chunk = num_keys / static_cast<std::size_t>(num_threads);\n\n    for (int t = 0; t < num_threads; ++t) {\n      const std::size_t begin = static_cast<std::size_t>(t) * chunk;\n      const std::size_t end = (t + 1 == num_threads) ? num_keys : begin + chunk;\n\n      threads.emplace_back([&, begin, end]() {\n        for (std::size_t i = begin; i < end; ++i) {\n          // Use relaxed memory order as we only care about the final sum after all threads join\n          counts[static_cast<std::size_t>(keys[i])].fetch_add(static_cast<uint64_t>(values[i]), std::memory_order_relaxed);\n        }\n      });\n    }\n\n    for (std::thread& th : threads) {\n      th.join();\n    }\n\n    // Convert atomics to a standard vector for the checksum function\n    std::vector<uint64_t> snapshot(static_cast<std::size_t>(key_space));\n    for (size_t i = 0; i < snapshot.size(); ++i) {\n      snapshot[i] = counts[i].load(std::memory_order_relaxed);\n    }\n    final_hash = checksum_u64(snapshot);\n  }\n\n  return final_hash;\n}",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v1800_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4697390105,
+    "min_elapsed_ns": 4559817318,
+    "max_elapsed_ns": 6133914590,
+    "all_elapsed_ns": [
+      4559817318,
+      4697390105,
+      6133914590
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4559817318,
+      "expected_checksum": 12324317024754664323,
+      "actual_checksum": 12324317024754664323
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v1800_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 143185806,
+    "min_elapsed_ns": 135144403,
+    "max_elapsed_ns": 170549873,
+    "all_elapsed_ns": [
+      143185806,
+      170549873,
+      135144403
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 143185806,
+      "expected_checksum": 12324317024754664323,
+      "actual_checksum": 12324317024754664323
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v1800_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 301617576,
+    "min_elapsed_ns": 268721132,
+    "max_elapsed_ns": 333890664,
+    "all_elapsed_ns": [
+      268721132,
+      301617576,
+      333890664
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 268721132,
+      "expected_checksum": 12324317024754664323,
+      "actual_checksum": 12324317024754664323
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_dimension_join_sum_v1100_h",
+  "model": "qwen/qwen3.6-max-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_dimension_join_sum_v1100_h/candidate/qwen__qwen3.6-max-preview/solution.cpp",
+  "benchmark_timeout_sec": 16,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <algorithm>\n#include <vector>\n#include <cstdint>\n#include <cstddef>\n\nuint64_t join_sum(\n    const std::vector<uint32_t>& dim_keys,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n    \n    if (dim_keys.empty() || probe_keys.empty()) return 0;\n\n    uint32_t min_k = dim_keys.front();\n    uint32_t max_k = dim_keys.back();\n    uint64_t range = (uint64_t)max_k - min_k + 1;\n\n    // Direct lookup table for dense keys. Threshold prevents OOM on sparse data.\n    if (range < 64'000'000) {\n        std::vector<uint32_t> lut(range);\n        for (size_t i = 0; i < dim_keys.size(); ++i) {\n            lut[dim_keys[i] - min_k] = dim_values[i];\n        }\n\n        const uint32_t* pk = probe_keys.data();\n        const uint32_t* pw = probe_weights.data();\n        const uint32_t* lt = lut.data();\n        size_t n = probe_keys.size();\n        uint64_t sum = 0;\n\n        for (int iter = 0; iter < iters; ++iter) {\n            sum = 0;\n            for (size_t i = 0; i < n; ++i) {\n                sum += (uint64_t)lt[pk[i] - min_k] * pw[i];\n            }\n        }\n        return sum;\n    } else {\n        // Fallback to binary search for unexpectedly sparse/large key ranges\n        uint64_t sum = 0;\n        for (int iter = 0; iter < iters; ++iter) {\n            sum = 0;\n            for (size_t i = 0; i < probe_keys.size(); ++i) {\n                auto it = std::lower_bound(dim_keys.begin(), dim_keys.end(), probe_keys[i]);\n                size_t idx = (size_t)(it - dim_keys.begin());\n                sum += (uint64_t)dim_values[idx] * probe_weights[i];\n            }\n        }\n        return sum;\n    }\n}\n",
+  "baseline": {
+    "task_id": "dense_dimension_join_sum_v1100_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 9859054425,
+    "min_elapsed_ns": 9731585090,
+    "max_elapsed_ns": 10768325917,
+    "all_elapsed_ns": [
+      10768325917,
+      9731585090,
+      9859054425
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10768325917,
+      "expected_sum": 73207382016,
+      "actual_sum": 73207382016
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_dimension_join_sum_v1100_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 65506561,
+    "min_elapsed_ns": 62206159,
+    "max_elapsed_ns": 82241480,
+    "all_elapsed_ns": [
+      65506561,
+      82241480,
+      62206159
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 65506561,
+      "expected_sum": 73207382016,
+      "actual_sum": 73207382016
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_dimension_join_sum_v1100_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 69089048,
+    "min_elapsed_ns": 66321944,
+    "max_elapsed_ns": 76227108,
+    "all_elapsed_ns": [
+      66321944,
+      69089048,
+      76227108
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 66321944,
+      "expected_sum": 73207382016,
+      "actual_sum": 73207382016
+    },
+    "status": "ok"
+  }
+}

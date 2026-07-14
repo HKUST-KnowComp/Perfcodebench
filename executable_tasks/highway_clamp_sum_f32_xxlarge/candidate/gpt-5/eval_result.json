@@ -1,0 +1,59 @@
+{
+  "task_id": "highway_clamp_sum_f32_xxlarge",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_clamp_sum_f32_xxlarge/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"hwy/highway.h\"\n\nHWY_BEFORE_NAMESPACE();\nnamespace hwy {\nnamespace HWY_NAMESPACE {\n\nstatic inline float ClampSumHWY(const float* HWY_RESTRICT data, size_t n) {\n  const ScalableTag<float> d;\n  using V = Vec<decltype(d)>;\n\n  const size_t L = Lanes(d);\n  V sum0 = Zero(d);\n  V sum1 = Zero(d);\n  const V zero = Zero(d);\n\n  size_t i = 0;\n  for (; i + 2 * L <= n; i += 2 * L) {\n    const V v0 = Max(Load(d, data + i), zero);\n    const V v1 = Max(Load(d, data + i + L), zero);\n    sum0 = Add(sum0, v0);\n    sum1 = Add(sum1, v1);\n  }\n  for (; i + L <= n; i += L) {\n    const V v = Max(Load(d, data + i), zero);\n    sum0 = Add(sum0, v);\n  }\n\n  sum0 = Add(sum0, sum1);\n  float sum = ReduceSum(d, sum0);\n\n  for (; i < n; ++i) {\n    const float x = data[i];\n    sum += x > 0.0f ? x : 0.0f;\n    }\n\n  return sum;\n}\n\n}  // namespace HWY_NAMESPACE\n}  // namespace hwy\nHWY_AFTER_NAMESPACE();\n\nfloat clamp_sum(const float* data, std::size_t n) {\n  return hwy::HWY_DYNAMIC_DISPATCH(ClampSumHWY)(data, n);\n}\n",
+  "baseline": {
+    "task_id": "highway_clamp_sum_f32_xxlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6041656,
+    "min_elapsed_ns": 6010725,
+    "max_elapsed_ns": 6043926,
+    "all_elapsed_ns": [
+      6041656,
+      6043926,
+      6010725
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6041656,
+      "expected_sum": 419515000.0,
+      "actual_sum": 419059000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_clamp_sum_f32_xxlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3285209,
+    "min_elapsed_ns": 3209552,
+    "max_elapsed_ns": 3326310,
+    "all_elapsed_ns": [
+      3209552,
+      3326310,
+      3285209
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3209552,
+      "expected_sum": 419515000.0,
+      "actual_sum": 419520000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_clamp_sum_f32_xxlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/highway_clamp_sum_f32_xxlarge/harness', '-Iexternal/highway', 'executable_tasks/highway_clamp_sum_f32_xxlarge/harness/benchmark_main.cpp', 'executable_tasks/highway_clamp_sum_f32_xxlarge/candidate/gpt-5/solution.cpp', 'external/highway/hwy/abort.cc', 'external/highway/hwy/targets.cc', 'external/highway/hwy/aligned_allocator.cc', 'external/highway/hwy/per_target.cc', '-o', 'build/highway_clamp_sum_f32_xxlarge/candidate/bench']' returned non-zero exit status 1."
+  }
+}

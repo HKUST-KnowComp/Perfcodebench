@@ -1,0 +1,59 @@
+{
+  "task_id": "croaring_many_union_cardinality_v2200_f",
+  "model": "deepseek-v4-pro",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/croaring_many_union_cardinality_v2200_f/candidate/deepseek-v4-pro/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <roaring.h>\n\nuint64_t many_union_cardinality(\n    const std::vector<uint32_t>& offsets,\n    const std::vector<uint32_t>& values) {\n  if (offsets.size() < 2) return 0;\n  size_t nshards = offsets.size() - 1;\n  std::vector<roaring_bitmap_t*> bms;\n  bms.reserve(nshards);\n  for (size_t i = 0; i < nshards; ++i) {\n    uint32_t begin = offsets[i];\n    uint32_t end = offsets[i + 1];\n    if (end > begin) {\n      bms.push_back(roaring_bitmap_from_sorted_array(\n          values.data() + begin, end - begin));\n    }\n  }\n  if (bms.empty()) return 0;\n  if (bms.size() == 1) {\n    uint64_t card = roaring_bitmap_cardinality(bms[0]);\n    roaring_bitmap_free(bms[0]);\n    return card;\n  }\n  std::vector<const roaring_bitmap_t*> cptr(bms.size());\n  for (size_t i = 0; i < bms.size(); ++i) cptr[i] = bms[i];\n  roaring_bitmap_t* result =\n      roaring_bitmap_or_many(bms.size(), cptr.data());\n  uint64_t card = roaring_bitmap_cardinality(result);\n  roaring_bitmap_free(result);\n  for (auto* b : bms) roaring_bitmap_free(b);\n  return card;\n}",
+  "baseline": {
+    "task_id": "croaring_many_union_cardinality_v2200_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 269420543,
+    "min_elapsed_ns": 258652473,
+    "max_elapsed_ns": 270364162,
+    "all_elapsed_ns": [
+      270364162,
+      269420543,
+      258652473
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 270364162,
+      "expected_cardinality": 881237,
+      "actual_cardinality": 881237
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "croaring_many_union_cardinality_v2200_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 17978058,
+    "min_elapsed_ns": 17119576,
+    "max_elapsed_ns": 18288286,
+    "all_elapsed_ns": [
+      18288286,
+      17119576,
+      17978058
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 18288286,
+      "expected_cardinality": 881237,
+      "actual_cardinality": 881237
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "croaring_many_union_cardinality_v2200_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/croaring_many_union_cardinality_v2200_f/harness', '-Iexternal/croaring_amalg', 'executable_tasks/croaring_many_union_cardinality_v2200_f/harness/benchmark_main.cpp', 'executable_tasks/croaring_many_union_cardinality_v2200_f/candidate/deepseek-v4-pro/solution.cpp', 'external/croaring_amalg/roaring.c', '-o', 'build/croaring_many_union_cardinality_v2200_f/candidate/bench']' returned non-zero exit status 1."
+  }
+}

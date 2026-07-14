@@ -1,0 +1,72 @@
+{
+  "task_id": "c_delta_decode_prefix_sum_v2900_113",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_delta_decode_prefix_sum_v2900_113/candidate/claude-sonnet-4-5/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\n#ifdef __AVX2__\n#include <immintrin.h>\n#endif\n\nuint64_t run(const int32_t* deltas, size_t count, int iters) {\n  uint64_t total = 0;\n  const int64_t offset = 0x9E3779B1LL;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    int64_t current = 0;\n    uint64_t sum = 0;\n    \n#ifdef __AVX2__\n    if (count >= 4) {\n      size_t simd_count = count & ~3ULL;\n      __m128i v_current = _mm_setzero_si128();\n      __m256i v_offset = _mm256_set1_epi64x(offset);\n      __m256i v_sum = _mm256_setzero_si256();\n      \n      for (size_t i = 0; i < simd_count; i += 4) {\n        __m128i deltas_i32 = _mm_loadu_si128((__m128i*)&deltas[i]);\n        __m256i deltas_i64 = _mm256_cvtepi32_epi64(deltas_i32);\n        \n        __m128i d0 = _mm256_castsi256_si128(deltas_i64);\n        __m128i d1 = _mm256_extracti128_si256(deltas_i64, 1);\n        \n        __m128i s0 = _mm_add_epi64(v_current, d0);\n        __m128i s1 = _mm_add_epi64(s0, _mm_bsrli_si128(d0, 8));\n        __m128i s2 = _mm_add_epi64(s1, d1);\n        __m128i s3 = _mm_add_epi64(s2, _mm_bsrli_si128(d1, 8));\n        \n        __m256i prefix = _mm256_setr_epi64x(\n          _mm_extract_epi64(s0, 0),\n          _mm_extract_epi64(s1, 0),\n          _mm_extract_epi64(s2, 0),\n          _mm_extract_epi64(s3, 0)\n        );\n        \n        v_current = _mm_set1_epi64x(_mm_extract_epi64(s3, 0));\n        \n        __m256i adjusted = _mm256_add_epi64(prefix, v_offset);\n        v_sum = _mm256_add_epi64(v_sum, adjusted);\n      }\n      \n      current = _mm_extract_epi64(v_current, 0);\n      \n      uint64_t temp[4];\n      _mm256_storeu_si256((__m256i*)temp, v_sum);\n      sum = temp[0] + temp[1] + temp[2] + temp[3];\n      \n      for (size_t i = simd_count; i < count; ++i) {\n        current += (int64_t)deltas[i];\n        sum += (uint64_t)(current + offset);\n      }\n    } else\n#endif\n    {\n      size_t i = 0;\n      size_t unroll_count = count & ~3ULL;\n      \n      uint64_t sum0 = 0, sum1 = 0, sum2 = 0, sum3 = 0;\n      \n      for (; i < unroll_count; i += 4) {\n        current += (int64_t)deltas[i];\n        sum0 += (uint64_t)(current + offset);\n        \n        current += (int64_t)deltas[i + 1];\n        sum1 += (uint64_t)(current + offset);\n        \n        current += (int64_t)deltas[i + 2];\n        sum2 += (uint64_t)(current + offset);\n        \n        current += (int64_t)deltas[i + 3];\n        sum3 += (uint64_t)(current + offset);\n      }\n      \n      sum = sum0 + sum1 + sum2 + sum3;\n      \n      for (; i < count; ++i) {\n        current += (int64_t)deltas[i];\n        sum += (uint64_t)(current + offset);\n      }\n    }\n    \n    total = sum;\n  }\n  \n  return total;\n}",
+  "baseline": {
+    "task_id": "c_delta_decode_prefix_sum_v2900_113",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 7948000,
+    "min_elapsed_ns": 7859000,
+    "max_elapsed_ns": 8223000,
+    "all_elapsed_ns": [
+      7859000,
+      7948000,
+      8223000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7859000,
+      "expected_checksum": 1205330067344835,
+      "actual_checksum": 1205330067344835
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_delta_decode_prefix_sum_v2900_113",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3585000,
+    "min_elapsed_ns": 3550000,
+    "max_elapsed_ns": 3589000,
+    "all_elapsed_ns": [
+      3589000,
+      3550000,
+      3585000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3589000,
+      "expected_checksum": 1205330067344835,
+      "actual_checksum": 1205330067344835
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_delta_decode_prefix_sum_v2900_113",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 3145000,
+    "min_elapsed_ns": 3111000,
+    "max_elapsed_ns": 3154000,
+    "all_elapsed_ns": [
+      3111000,
+      3145000,
+      3154000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3111000,
+      "expected_checksum": 1205330067344835,
+      "actual_checksum": 1205330067344835
+    },
+    "status": "ok"
+  }
+}

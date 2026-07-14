@@ -1,0 +1,59 @@
+{
+  "task_id": "moe_router_top2_v2200_f",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/moe_router_top2_v2200_f/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nstatic inline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\nuint64_t moe_router_checksum(const std::vector<int32_t>& logits, int tokens, int experts, int iters) {\n  uint64_t hash = 0;\n  const int32_t* data = logits.data();\n  const size_t stokens = static_cast<size_t>(tokens);\n  const size_t sexperts = static_cast<size_t>(experts);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;  // FNV-1a 64-bit offset basis\n    const int32_t* row = data;\n\n    for (size_t t = 0; t < stokens; ++t) {\n      // Assume at least two experts as in the baseline harness.\n      // Initialize top-2 with first two experts, then scan the rest.\n      int best1_idx = 0;\n      int best2_idx = 1;\n      int32_t best1_val = row[0];\n      int32_t best2_val = row[1];\n\n      // Ensure best1 is better than best2 with the same comparator used by baseline.\n      if (best2_val > best1_val || (best2_val == best1_val && best2_idx < best1_idx)) {\n        int32_t tmpv = best1_val; best1_val = best2_val; best2_val = tmpv;\n        int tmpi = best1_idx; best1_idx = best2_idx; best2_idx = tmpi;\n      }\n\n      for (size_t e = 2; e < sexperts; ++e) {\n        int32_t v = row[e];\n        int ei = static_cast<int>(e);\n        if (v > best1_val || (v == best1_val && ei < best1_idx)) {\n          // Promote to best1, demote previous best1 to best2.\n          best2_val = best1_val;\n          best2_idx = best1_idx;\n          best1_val = v;\n          best1_idx = ei;\n        } else if (v > best2_val || (v == best2_val && ei < best2_idx)) {\n          best2_val = v;\n          best2_idx = ei;\n        }\n      }\n\n      // Mix results into the checksum, matching baseline casting behavior.\n      hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(best1_val)));\n      hash = mix(hash, static_cast<uint64_t>(best1_idx));\n      hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(best2_val)));\n      hash = mix(hash, static_cast<uint64_t>(best2_idx));\n\n      row += sexperts;\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "moe_router_top2_v2200_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1598938,
+    "min_elapsed_ns": 1582676,
+    "max_elapsed_ns": 1608953,
+    "all_elapsed_ns": [
+      1608953,
+      1598938,
+      1582676
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1608953,
+      "expected_checksum": 12409451272583453862,
+      "actual_checksum": 12409451272583453862
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "moe_router_top2_v2200_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1190102,
+    "min_elapsed_ns": 1156325,
+    "max_elapsed_ns": 1313007,
+    "all_elapsed_ns": [
+      1190102,
+      1156325,
+      1313007
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1190102,
+      "expected_checksum": 12409451272583453862,
+      "actual_checksum": 12409451272583453862
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "moe_router_top2_v2200_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/moe_router_top2_v2200_f/harness', 'executable_tasks/moe_router_top2_v2200_f/harness/benchmark_main.cpp', 'executable_tasks/moe_router_top2_v2200_f/candidate/gpt-5/solution.cpp', '-o', 'build/moe_router_top2_v2200_f/candidate/bench']' returned non-zero exit status 1."
+  }
+}

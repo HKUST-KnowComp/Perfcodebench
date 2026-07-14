@@ -1,0 +1,72 @@
+{
+  "task_id": "coo_to_csr_offsets_checksum_small",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/coo_to_csr_offsets_checksum_small/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <algorithm>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t csr_offsets_hash(const std::vector<uint32_t>& row_ids, uint32_t rows, int iters) {\n  std::vector<uint32_t> offsets(static_cast<size_t>(rows) + 1);\n  uint64_t final_hash = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    // Reset offsets\n    std::fill(offsets.begin(), offsets.end(), 0);\n\n    // Since row_ids are sorted, we can count occurrences efficiently\n    // row_ids[i] is the row index of the i-th element.\n    // The offset for row r is the number of elements in rows 0 to r-1.\n    // Therefore, offsets[r+1] = count of elements with row_id <= r.\n    \n    size_t nnz = row_ids.size();\n    if (nnz > 0) {\n      size_t current_row = 0;\n      for (size_t i = 0; i < nnz; ++i) {\n        uint32_t row = row_ids[i];\n        // All rows from current_row to row-1 have 0 elements starting from current_row\n        // But we only need to mark the end of the current row.\n        // The number of elements in row 'row' is (i+1) - (first index of row).\n        // Actually, the simplest way to build CSR offsets from sorted COO is:\n        // offsets[row + 1] = i + 1; // This is not quite right because it doesn't handle empty rows.\n      }\n    }\n\n    // Correct logic for sorted row_ids to CSR offsets:\n    // offsets[0] = 0\n    // offsets[r+1] = count of elements in row_ids < r+1\n    size_t count = 0;\n    for (uint32_t r = 0; r < rows; ++r) {\n      while (count < nnz && row_ids[count] == r) {\n        count++;\n      }\n      offsets[r + 1] = static_cast<uint32_t>(count);\n    }\n\n    uint64_t hash = 1469598103934665603ULL;\n    for (uint32_t v : offsets) {\n      hash = mix(hash, v);\n    }\n    final_hash = hash;\n  }\n  return final_hash;\n}\n",
+  "baseline": {
+    "task_id": "coo_to_csr_offsets_checksum_small",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 52754298,
+    "min_elapsed_ns": 51968237,
+    "max_elapsed_ns": 52890632,
+    "all_elapsed_ns": [
+      52754298,
+      52890632,
+      51968237
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 52754298,
+      "expected_checksum": 3348087426937911193,
+      "actual_checksum": 3348087426937911193
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "coo_to_csr_offsets_checksum_small",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8481256,
+    "min_elapsed_ns": 8424407,
+    "max_elapsed_ns": 8529234,
+    "all_elapsed_ns": [
+      8529234,
+      8481256,
+      8424407
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8529234,
+      "expected_checksum": 3348087426937911193,
+      "actual_checksum": 3348087426937911193
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "coo_to_csr_offsets_checksum_small",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 7813285,
+    "min_elapsed_ns": 7590937,
+    "max_elapsed_ns": 7859249,
+    "all_elapsed_ns": [
+      7590937,
+      7859249,
+      7813285
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7590937,
+      "expected_checksum": 3348087426937911193,
+      "actual_checksum": 3348087426937911193
+    },
+    "status": "ok"
+  }
+}

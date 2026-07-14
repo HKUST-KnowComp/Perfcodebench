@@ -1,0 +1,59 @@
+{
+  "task_id": "frame_of_reference_filter_sum_v500_c",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/frame_of_reference_filter_sum_v500_c/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\nuint64_t frame_filter_sum(\n    const std::vector<uint16_t>& deltas,\n    uint32_t base,\n    uint32_t low,\n    uint32_t high,\n    int iters) {\n    uint64_t total_sum = 0;\n    const size_t n = deltas.size();\n    const uint16_t* data = deltas.data();\n\n    // Pre-calculate range relative to base to avoid adding base inside the loop\n    // value = base + delta\n    // low <= base + delta <= high  =>  low - base <= delta <= high - base\n    \n    // Since delta is uint16_t, we can clamp the relative range to [0, 65535]\n    uint32_t rel_low = (low > base) ? (low - base) : 0;\n    uint32_t rel_high = (high >= base) ? (high - base) : 0xFFFFFFFF;\n    \n    // If rel_low > 65535 or rel_high < 0, no delta can satisfy the condition\n    if (rel_low > 65535 || (high < base)) {\n        return 0;\n    }\n\n    // Optimization: if the range covers all possible uint16_t values, \n    // we can use a faster sum path.\n    if (rel_low == 0 && rel_high >= 65535) {\n        uint64_t inner_sum = 0;\n        for (size_t i = 0; i < n; ++i) {\n            inner_sum += data[i];\n        }\n        uint64_t base_part = static_cast<uint64_t>(base) * n;\n        return (inner_sum + base_part) * iters;\n    }\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t current_sum = 0;\n        for (size_t i = 0; i < n; ++i) {\n            uint32_t delta = data[i];\n            if (delta >= rel_low && delta <= rel_high) {\n                current_sum += (base + delta);\n            }\n        }\n        total_sum = current_sum; // The original code resets sum = 0 and returns the last iteration's sum\n    }\n\n    // Note: The original baseline code does 'sum = 0' inside the loop and returns the final sum.\n    // This means it effectively only returns the sum of the LAST iteration.\n    // To preserve exact behavior of the baseline provided:\n    return total_sum;\n}",
+  "baseline": {
+    "task_id": "frame_of_reference_filter_sum_v500_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 238553255,
+    "min_elapsed_ns": 229829077,
+    "max_elapsed_ns": 304979575,
+    "all_elapsed_ns": [
+      304979575,
+      229829077,
+      238553255
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 304979575,
+      "expected_sum": 40562278400,
+      "actual_sum": 40562278400
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "frame_of_reference_filter_sum_v500_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 141571636,
+    "min_elapsed_ns": 138181737,
+    "max_elapsed_ns": 152240554,
+    "all_elapsed_ns": [
+      152240554,
+      141571636,
+      138181737
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 152240554,
+      "expected_sum": 40562278400,
+      "actual_sum": 40562278400
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "frame_of_reference_filter_sum_v500_c",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/frame_of_reference_filter_sum_v500_c/harness', 'executable_tasks/frame_of_reference_filter_sum_v500_c/harness/benchmark_main.cpp', 'executable_tasks/frame_of_reference_filter_sum_v500_c/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/frame_of_reference_filter_sum_v500_c/candidate/bench']' returned non-zero exit status 1."
+  }
+}

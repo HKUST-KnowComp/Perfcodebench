@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v23",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v23/candidate/google__gemma-4-31b-it/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <device_launch_parameters.h>\n\nnamespace {\n\n__global__ void reduce_kernel(const int* __restrict__ input, int* __restrict__ output, int n) {\n    // Use shared memory for block-level reduction\n    __shared__ int sdata[32];\n\n    int tid = threadIdx.x;\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    int sum = 0;\n\n    // Grid-stride loop to handle n > total threads\n    int grid_size = blockDim.x * gridDim.x;\n    for (int i = idx; i < n; i += grid_size) {\n        sum += input[i];\n    }\n\n    // Warp-level reduction\n    for (int offset = 16; offset > 0; offset /= 2) {\n        sum += __shfl_down_sync(0xFFFFFFFF, sum, offset);\n    }\n\n    // Store warp results in shared memory\n    if ((tid & 31) == 0) {\n        sdata[tid / 32] = sum;\n    }\n\n    __syncthreads();\n\n    // Final reduction of the 32 warp results by the first warp\n    if (tid < 32) {\n        int final_sum = sdata[tid];\n        for (int offset = 16; offset > 0; offset /= 2) {\n            final_sum += __shfl_down_sync(0xFFFFFFFF, final_sum, offset);\n        }\n        if (tid == 0) {\n            atomicAdd(output, final_sum);\n        }\n    }\n}\n\n} // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    // Tuning parameters: 256 threads per block, enough blocks to saturate GPU\n    const int threads_per_block = 256;\n    const int blocks_per_grid = (n + threads_per_block - 1) / threads_per_block;\n    // Cap blocks to avoid excessive overhead for very large n, as grid-stride loop handles it\n    const int capped_blocks = (blocks_per_grid > 1024) ? 1024 : blocks_per_grid;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemsetAsync(output, 0, sizeof(int), 0);\n        reduce_kernel<<<capped_blocks, threads_per_block>>>(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v23",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 315008,
+    "min_elapsed_ns": 314815,
+    "max_elapsed_ns": 315647,
+    "all_elapsed_ns": [
+      314815,
+      315647,
+      315008
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 314815,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v23",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2504352,
+    "min_elapsed_ns": 2469536,
+    "max_elapsed_ns": 2531968,
+    "all_elapsed_ns": [
+      2504352,
+      2469536,
+      2531968
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2504352,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v23",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v23/candidate/bench']' timed out after 5 seconds"
+  }
+}

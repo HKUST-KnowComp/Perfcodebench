@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce_v1100_d",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v1100_d/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 7,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <thread>\n#include <vector>\n\nnamespace {\n\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  const std::size_t n = keys.size();\n  const std::size_t ks = static_cast<std::size_t>(key_space);\n\n  if (values.size() != n) {\n    return 0;\n  }\n  if (iters <= 0) {\n    return checksum_u64(std::vector<uint64_t>(ks, 0));\n  }\n  if (num_threads <= 1 || n == 0 || ks == 0) {\n    std::vector<uint64_t> counts(ks, 0);\n    uint64_t hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n      std::fill(counts.begin(), counts.end(), 0);\n      for (std::size_t i = 0; i < n; ++i) {\n        counts[static_cast<std::size_t>(keys[i])] += static_cast<uint64_t>(values[i]);\n      }\n      hash = checksum_u64(counts);\n    }\n    return hash;\n  }\n\n  const int threads = num_threads;\n  std::vector<std::vector<uint64_t>> locals;\n  locals.resize(static_cast<std::size_t>(threads));\n  for (int t = 0; t < threads; ++t) {\n    locals[static_cast<std::size_t>(t)].assign(ks, 0);\n  }\n\n  std::vector<uint64_t> counts(ks, 0);\n  std::vector<std::thread> workers;\n  workers.reserve(static_cast<std::size_t>(threads));\n\n  const std::size_t chunk = n / static_cast<std::size_t>(threads);\n  uint64_t hash = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    for (int t = 0; t < threads; ++t) {\n      std::fill(locals[static_cast<std::size_t>(t)].begin(),\n                locals[static_cast<std::size_t>(t)].end(), 0);\n    }\n\n    workers.clear();\n    for (int t = 0; t < threads; ++t) {\n      const std::size_t begin = static_cast<std::size_t>(t) * chunk;\n      const std::size_t end = (t + 1 == threads) ? n : begin + chunk;\n      workers.emplace_back([&, t, begin, end]() {\n        std::vector<uint64_t>& local = locals[static_cast<std::size_t>(t)];\n        for (std::size_t i = begin; i < end; ++i) {\n          local[static_cast<std::size_t>(keys[i])] += static_cast<uint64_t>(values[i]);\n        }\n      });\n    }\n    for (std::thread& th : workers) {\n      th.join();\n    }\n\n    std::fill(counts.begin(), counts.end(), 0);\n    for (int t = 0; t < threads; ++t) {\n      const std::vector<uint64_t>& local = locals[static_cast<std::size_t>(t)];\n      for (std::size_t k = 0; k < ks; ++k) {\n        counts[k] += local[k];\n      }\n    }\n\n    hash = checksum_u64(counts);\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v1100_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5237618164,
+    "min_elapsed_ns": 4270260399,
+    "max_elapsed_ns": 6281336586,
+    "all_elapsed_ns": [
+      4270260399,
+      5237618164,
+      6281336586
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4270260399,
+      "expected_checksum": 4927837675318346627,
+      "actual_checksum": 4927837675318346627
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v1100_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 17197181,
+    "min_elapsed_ns": 16411378,
+    "max_elapsed_ns": 18869272,
+    "all_elapsed_ns": [
+      18869272,
+      17197181,
+      16411378
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 18869272,
+      "expected_checksum": 4927837675318346627,
+      "actual_checksum": 4927837675318346627
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v1100_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 12645649,
+    "min_elapsed_ns": 12611088,
+    "max_elapsed_ns": 12942732,
+    "all_elapsed_ns": [
+      12611088,
+      12942732,
+      12645649
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12611088,
+      "expected_checksum": 4927837675318346627,
+      "actual_checksum": 4927837675318346627
+    },
+    "status": "ok"
+  }
+}

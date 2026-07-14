@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_id_remap_checksum",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_id_remap_checksum/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 14,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <algorithm>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t remap_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& probes,\n    int iters) {\n  if (keys.empty()) return 0;\n\n  // Find the maximum key to determine the size of the lookup table\n  uint32_t max_key = 0;\n  for (uint32_t k : keys) {\n    if (k > max_key) max_key = k;\n  }\n\n  // Create a lookup table for O(1) access. \n  // Since keys are sorted (implied by lower_bound usage), we can fill this efficiently.\n  std::vector<uint32_t> lookup(max_key + 1);\n  size_t current_key_idx = 0;\n  for (uint32_t i = 0; i <= max_key; ++i) {\n    while (current_key_idx < keys.size() && keys[current_key_idx] < i) {\n      current_key_idx++;\n    }\n    // The baseline used lower_bound, which returns the first element NOT LESS than probe.\n    // If i is greater than all keys, it returns keys.end() (index = keys.size()).\n    if (current_key_idx < keys.size()) {\n      lookup[i] = values[current_key_idx];\n    } else {\n      // This case handles probes that exceed the maximum key in the keys vector\n      // However, the lookup table only goes up to max_key. \n      // Probes > max_key will be handled separately in the loop.\n      lookup[i] = values[keys.size()]; // This is technically out of bounds for values if values.size() == keys.size()\n    }\n  }\n\n  // To handle the case where values.size() might be keys.size() + 1 (for the end iterator case)\n  // we need to be careful. The baseline: idx = it - keys.begin(). \n  // If it == keys.end(), idx == keys.size().\n  uint32_t default_val = (values.size() > keys.size()) ? values[keys.size()] : 0;\n\n  uint64_t final_hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (uint32_t probe : probes) {\n      uint32_t val;\n      if (probe <= max_key) {\n        val = lookup[probe];\n      } else {\n        val = default_val;\n      }\n      hash = mix(hash, val);\n    }\n    final_hash = hash;\n  }\n  return final_hash;\n}",
+  "baseline": {
+    "task_id": "dense_id_remap_checksum",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 8600797916,
+    "min_elapsed_ns": 8179743877,
+    "max_elapsed_ns": 8615142491,
+    "all_elapsed_ns": [
+      8179743877,
+      8615142491,
+      8600797916
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8179743877,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_id_remap_checksum",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 100206945,
+    "min_elapsed_ns": 98216448,
+    "max_elapsed_ns": 100469892,
+    "all_elapsed_ns": [
+      100206945,
+      98216448,
+      100469892
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 100206945,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_id_remap_checksum",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 96133614,
+    "min_elapsed_ns": 94540349,
+    "max_elapsed_ns": 98915898,
+    "all_elapsed_ns": [
+      98915898,
+      96133614,
+      94540349
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 98915898,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  }
+}

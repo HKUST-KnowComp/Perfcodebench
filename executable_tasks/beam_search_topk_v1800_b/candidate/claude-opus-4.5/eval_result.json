@@ -1,0 +1,72 @@
+{
+  "task_id": "beam_search_topk_v1800_b",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v1800_b/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits, int beams, int vocab, int topk, int iters) {\n  std::vector<int> indices(static_cast<std::size_t>(vocab));\n  for (int i = 0; i < vocab; ++i) {\n    indices[static_cast<std::size_t>(i)] = i;\n  }\n  \n  std::vector<int> work(static_cast<std::size_t>(vocab));\n  \n  uint64_t hash = 0;\n  const std::size_t k = static_cast<std::size_t>(topk);\n  const std::size_t v_size = static_cast<std::size_t>(vocab);\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    for (int b = 0; b < beams; ++b) {\n      const int32_t* row = logits.data() + static_cast<std::size_t>(b) * v_size;\n      \n      // Copy indices for this beam\n      std::copy(indices.begin(), indices.end(), work.begin());\n      \n      // Comparator: higher score wins, ties broken by lower index\n      auto cmp = [row](int a, int b) {\n        int32_t sa = row[a];\n        int32_t sb = row[b];\n        return sa > sb || (sa == sb && a < b);\n      };\n      \n      // Partial sort to get top-k elements\n      std::partial_sort(work.begin(), work.begin() + static_cast<std::ptrdiff_t>(k), work.end(), cmp);\n      \n      // Hash the top-k results\n      for (std::size_t i = 0; i < k; ++i) {\n        int idx = work[i];\n        hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(row[idx])));\n        hash = mix(hash, static_cast<uint64_t>(idx));\n      }\n    }\n  }\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "beam_search_topk_v1800_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 307590653,
+    "min_elapsed_ns": 289868030,
+    "max_elapsed_ns": 311430170,
+    "all_elapsed_ns": [
+      311430170,
+      289868030,
+      307590653
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 311430170,
+      "expected_checksum": 18022694749003232885,
+      "actual_checksum": 18022694749003232885
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v1800_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 6025385,
+    "min_elapsed_ns": 5535236,
+    "max_elapsed_ns": 6490596,
+    "all_elapsed_ns": [
+      5535236,
+      6490596,
+      6025385
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5535236,
+      "expected_checksum": 18022694749003232885,
+      "actual_checksum": 18022694749003232885
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v1800_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 7849084,
+    "min_elapsed_ns": 7456284,
+    "max_elapsed_ns": 13567659,
+    "all_elapsed_ns": [
+      13567659,
+      7849084,
+      7456284
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 13567659,
+      "expected_checksum": 18022694749003232885,
+      "actual_checksum": 18022694749003232885
+    },
+    "status": "ok"
+  }
+}

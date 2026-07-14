@@ -1,0 +1,72 @@
+{
+  "task_id": "is_utf8_validate_xlarge",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/is_utf8_validate_xlarge/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <immintrin.h>\n#include <cstdint>\n\n#ifdef _OPENMP\n#include <omp.h>\n#endif\n\nnamespace {\n\n// Fast ASCII check using SIMD\ninline bool is_ascii_simd(const unsigned char* data, size_t len) {\n  const unsigned char* p = data;\n  const unsigned char* end = data + len;\n  \n#ifdef __AVX2__\n  // Process 32 bytes at a time with AVX2\n  while (end - p >= 32) {\n    __m256i chunk = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(p));\n    if (_mm256_movemask_epi8(chunk) != 0) return false;\n    p += 32;\n  }\n#endif\n  \n#ifdef __SSE4_2__\n  // Process 16 bytes at a time with SSE\n  while (end - p >= 16) {\n    __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(p));\n    if (_mm_movemask_epi8(chunk) != 0) return false;\n    p += 16;\n  }\n#endif\n  \n  // Scalar tail\n  while (p < end) {\n    if (*p++ & 0x80) return false;\n  }\n  return true;\n}\n\n// Optimized UTF-8 validation with SIMD fast paths\nbool is_valid_utf8_optimized(const std::string& s) {\n  if (s.empty()) return true;\n  \n  const unsigned char* p = reinterpret_cast<const unsigned char*>(s.data());\n  const unsigned char* end = p + s.size();\n  const unsigned char* start = p;\n  \n  // Fast path: check if entire string is ASCII\n  if (s.size() >= 16) {\n    const unsigned char* scan_end = end - 15;\n    const unsigned char* scan = p;\n    bool all_ascii = true;\n    \n#ifdef __SSE4_2__\n    while (scan < scan_end) {\n      __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(scan));\n      if (_mm_movemask_epi8(chunk) != 0) {\n        all_ascii = false;\n        break;\n      }\n      scan += 16;\n    }\n#else\n    for (; scan < scan_end; scan += 16) {\n      uint64_t w1 = *reinterpret_cast<const uint64_t*>(scan);\n      uint64_t w2 = *reinterpret_cast<const uint64_t*>(scan + 8);\n      if ((w1 | w2) & 0x8080808080808080ULL) {\n        all_ascii = false;\n        break;\n      }\n    }\n#endif\n    \n    if (all_ascii) {\n      // Check remaining bytes\n      while (scan < end) {\n        if (*scan++ & 0x80) {\n          all_ascii = false;\n          break;\n        }\n      }\n      if (all_ascii) return true;\n    }\n  }\n  \n  // Full UTF-8 validation\n  p = start;\n  while (p < end) {\n    const unsigned char c = *p++;\n    \n    // ASCII fast path\n    if (c <= 0x7F) continue;\n    \n    // 2-byte sequence\n    if (c >= 0xC2 && c <= 0xDF) {\n      if (p >= end || (*p & 0xC0U) != 0x80U) return false;\n      ++p;\n      continue;\n    }\n    \n    // 3-byte sequences\n    if (c >= 0xE0 && c <= 0xEF) {\n      if (end - p < 2) return false;\n      \n      const unsigned char b1 = p[0];\n      const unsigned char b2 = p[1];\n      \n      if (c == 0xE0) {\n        if (b1 < 0xA0 || b1 > 0xBF || (b2 & 0xC0U) != 0x80U) return false;\n      } else if (c == 0xED) {\n        if (b1 < 0x80 || b1 > 0x9F || (b2 & 0xC0U) != 0x80U) return false;\n      } else {\n        if ((b1 & 0xC0U) != 0x80U || (b2 & 0xC0U) != 0x80U) return false;\n      }\n      p += 2;\n      continue;\n    }\n    \n    // 4-byte sequences\n    if (c >= 0xF0 && c <= 0xF4) {\n      if (end - p < 3) return false;\n      \n      const unsigned char b1 = p[0];\n      const unsigned char b2 = p[1];\n      const unsigned char b3 = p[2];\n      \n      if (c == 0xF0) {\n        if (b1 < 0x90 || b1 > 0xBF || (b2 & 0xC0U) != 0x80U || (b3 & 0xC0U) != 0x80U) return false;\n      } else if (c == 0xF4) {\n        if (b1 < 0x80 || b1 > 0x8F || (b2 & 0xC0U) != 0x80U || (b3 & 0xC0U) != 0x80U) return false;\n      } else {\n        if ((b1 & 0xC0U) != 0x80U || (b2 & 0xC0U) != 0x80U || (b3 & 0xC0U) != 0x80U) return false;\n      }\n      p += 3;\n      continue;\n    }\n    \n    return false;\n  }\n  return true;\n}\n\n}  // namespace\n\nstd::size_t count_valid_strings(const std::vector<std::string>& inputs) {\n  const size_t n = inputs.size();\n  if (n == 0) return 0;\n  \n  std::size_t count = 0;\n  \n#ifdef _OPENMP\n  // Use parallel processing for large datasets\n  if (n >= 1000) {\n    #pragma omp parallel for reduction(+:count) schedule(dynamic, 64)\n    for (size_t i = 0; i < n; ++i) {\n      count += is_valid_utf8_optimized(inputs[i]) ? 1U : 0U;\n    }\n    return count;\n  }\n#endif\n  \n  // Serial processing for smaller datasets\n  for (const auto& s : inputs) {\n    count += is_valid_utf8_optimized(s) ? 1U : 0U;\n  }\n  return count;\n}",
+  "baseline": {
+    "task_id": "is_utf8_validate_xlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 15470817,
+    "min_elapsed_ns": 15429968,
+    "max_elapsed_ns": 15582715,
+    "all_elapsed_ns": [
+      15429968,
+      15470817,
+      15582715
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15429968,
+      "expected_count": 83333,
+      "actual_count": 83333
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "is_utf8_validate_xlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1187120,
+    "min_elapsed_ns": 1158310,
+    "max_elapsed_ns": 1246335,
+    "all_elapsed_ns": [
+      1158310,
+      1187120,
+      1246335
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1158310,
+      "expected_count": 83333,
+      "actual_count": 83333
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "is_utf8_validate_xlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 13269935,
+    "min_elapsed_ns": 13159356,
+    "max_elapsed_ns": 13452067,
+    "all_elapsed_ns": [
+      13452067,
+      13269935,
+      13159356
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 13452067,
+      "expected_count": 83333,
+      "actual_count": 83333
+    },
+    "status": "ok"
+  }
+}

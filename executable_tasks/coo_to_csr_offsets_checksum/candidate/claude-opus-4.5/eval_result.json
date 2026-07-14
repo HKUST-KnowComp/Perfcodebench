@@ -1,0 +1,72 @@
+{
+  "task_id": "coo_to_csr_offsets_checksum",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/coo_to_csr_offsets_checksum/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstring>\n#include <vector>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t csr_offsets_hash(const std::vector<uint32_t>& row_ids, uint32_t rows, int iters) {\n  const size_t n = row_ids.size();\n  const size_t offset_size = static_cast<size_t>(rows) + 1u;\n  std::vector<uint32_t> offsets(offset_size);\n  uint64_t hash = 0;\n  \n  const uint32_t* __restrict__ row_ptr = row_ids.data();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    // Clear offsets - use memset for speed\n    std::memset(offsets.data(), 0, offset_size * sizeof(uint32_t));\n    \n    // Since row_ids are sorted, we can count occurrences directly\n    // by incrementing counts for each row\n    for (size_t i = 0; i < n; ++i) {\n      ++offsets[static_cast<size_t>(row_ptr[i]) + 1u];\n    }\n    \n    // Convert counts to offsets via prefix sum\n    uint32_t cumsum = 0;\n    for (size_t r = 0; r < offset_size; ++r) {\n      cumsum += offsets[r];\n      offsets[r] = cumsum;\n    }\n    \n    // Compute hash\n    hash = 1469598103934665603ULL;\n    const uint32_t* __restrict__ off_ptr = offsets.data();\n    \n    // Unroll hash computation\n    size_t i = 0;\n    const size_t unroll_end = offset_size - (offset_size % 4);\n    for (; i < unroll_end; i += 4) {\n      hash = mix(hash, off_ptr[i]);\n      hash = mix(hash, off_ptr[i + 1]);\n      hash = mix(hash, off_ptr[i + 2]);\n      hash = mix(hash, off_ptr[i + 3]);\n    }\n    for (; i < offset_size; ++i) {\n      hash = mix(hash, off_ptr[i]);\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "coo_to_csr_offsets_checksum",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 239109587,
+    "min_elapsed_ns": 236921030,
+    "max_elapsed_ns": 297839118,
+    "all_elapsed_ns": [
+      239109587,
+      236921030,
+      297839118
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 239109587,
+      "expected_checksum": 10481953510414940057,
+      "actual_checksum": 10481953510414940057
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "coo_to_csr_offsets_checksum",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 42962770,
+    "min_elapsed_ns": 40582839,
+    "max_elapsed_ns": 45041410,
+    "all_elapsed_ns": [
+      45041410,
+      42962770,
+      40582839
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 45041410,
+      "expected_checksum": 10481953510414940057,
+      "actual_checksum": 10481953510414940057
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "coo_to_csr_offsets_checksum",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 32368358,
+    "min_elapsed_ns": 32352258,
+    "max_elapsed_ns": 32378813,
+    "all_elapsed_ns": [
+      32352258,
+      32368358,
+      32378813
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 32352258,
+      "expected_checksum": 10481953510414940057,
+      "actual_checksum": 10481953510414940057
+    },
+    "status": "ok"
+  }
+}

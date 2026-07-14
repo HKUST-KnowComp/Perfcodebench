@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_id_remap_checksum_v500_i",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_id_remap_checksum_v500_i/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 20,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n// Optimized search for the first element >= probe\ninline size_t find_index(const uint32_t* keys, size_t size, uint32_t probe) {\n  size_t low = 0;\n  size_t high = size;\n  while (low < high) {\n    size_t mid = low + (high - low) / 2;\n    if (keys[mid] < probe) {\n      low = mid + 1;\n    } else {\n      high = mid;\n    }\n  }\n  return low;\n}\n\n}  // namespace\n\nuint64_t remap_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& probes,\n    int iters) {\n  \n  if (probes.empty()) return 0;\n  if (keys.empty()) return 0;\n\n  const size_t n_keys = keys.size();\n  const uint32_t* keys_ptr = keys.data();\n  const uint32_t* values_ptr = values.data();\n  const uint32_t first_key = keys_ptr[0];\n  const uint32_t last_key = keys_ptr[n_keys - 1];\n\n  // Check if the mapping is perfectly dense (contiguous range)\n  bool is_dense = (last_key - first_key == (uint32_t)(n_keys - 1));\n\n  uint64_t hash = 0;\n  \n  // The benchmark expects 'iters' iterations of work.\n  // We optimize the inner loop based on the density of the keys.\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    \n    if (is_dense) {\n      for (uint32_t probe : probes) {\n        size_t idx;\n        if (probe <= first_key) {\n          idx = 0;\n        } else if (probe > last_key) {\n          idx = n_keys; // This matches std::lower_bound behavior (returns end())\n        } else {\n          idx = static_cast<size_t>(probe - first_key);\n        }\n        \n        // Note: std::lower_bound returns keys.end() if no element is >= probe.\n        // The baseline uses values[idx], which would be out of bounds if idx == keys.size().\n        // We must preserve the baseline's behavior (even if it risks OOB) for correctness.\n        hash = mix(hash, values_ptr[idx]);\n      }\n    } else {\n      // Fallback to optimized binary search if not dense\n      for (uint32_t probe : probes) {\n        size_t idx = find_index(keys_ptr, n_keys, probe);\n        hash = mix(hash, values_ptr[idx]);\n      }\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "dense_id_remap_checksum_v500_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 12888289999,
+    "min_elapsed_ns": 12631323380,
+    "max_elapsed_ns": 12909840065,
+    "all_elapsed_ns": [
+      12631323380,
+      12888289999,
+      12909840065
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12631323380,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_id_remap_checksum_v500_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 147373096,
+    "min_elapsed_ns": 143431709,
+    "max_elapsed_ns": 147726238,
+    "all_elapsed_ns": [
+      147373096,
+      147726238,
+      143431709
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 147373096,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_id_remap_checksum_v500_i",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 140067755,
+    "min_elapsed_ns": 139587846,
+    "max_elapsed_ns": 146729493,
+    "all_elapsed_ns": [
+      140067755,
+      146729493,
+      139587846
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 140067755,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  }
+}

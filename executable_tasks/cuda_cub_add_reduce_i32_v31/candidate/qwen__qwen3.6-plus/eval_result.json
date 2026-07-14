@@ -1,0 +1,33 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v31",
+  "model": "qwen/qwen3.6-plus",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v31/candidate/qwen__qwen3.6-plus/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\nconstexpr int BLOCK_SIZE = 256;\n\n__global__ void reduce_kernel(const int* __restrict__ input, int* __restrict__ output, int n) {\n    __shared__ int sdata[BLOCK_SIZE];\n    unsigned int tid = threadIdx.x;\n    unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;\n    unsigned int gridSize = blockDim.x * gridDim.x;\n    \n    int my_sum = 0;\n    while (i < n) {\n        my_sum += input[i];\n        i += gridSize;\n    }\n    sdata[tid] = my_sum;\n    __syncthreads();\n    \n    for (unsigned int s = BLOCK_SIZE / 2; s > 32; s >>= 1) {\n        if (tid < s) {\n            sdata[tid] += sdata[tid + s];\n        }\n        __syncthreads();\n    }\n    \n    if (tid < 32) {\n        int val = sdata[tid];\n        val += __shfl_down_sync(0xffffffff, val, 16);\n        val += __shfl_down_sync(0xffffffff, val, 8);\n        val += __shfl_down_sync(0xffffffff, val, 4);\n        val += __shfl_down_sync(0xffffffff, val, 2);\n        val += __shfl_down_sync(0xffffffff, val, 1);\n        if (tid == 0) {\n            atomicAdd(output, val);\n        }\n    }\n}\n} // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    int num_blocks = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;\n    if (num_blocks > 1024) num_blocks = 1024;\n    if (num_blocks == 0) num_blocks = 1;\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, sizeof(int));\n        reduce_kernel<<<num_blocks, BLOCK_SIZE>>>(input, output, n);\n    }\n}\n",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v31",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v31/baseline/bench']' timed out after 5 seconds"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v31",
+    "variant": "reference",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v31/reference/bench']' timed out after 5 seconds"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v31",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v31/candidate/bench']' returned non-zero exit status 2."
+  }
+}

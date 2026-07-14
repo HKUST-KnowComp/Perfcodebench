@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v23",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v23/candidate/gpt-5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__inline__ __device__ unsigned int warpReduceSum(unsigned int val) {\n  unsigned mask = 0xffffffffu;\n  val += __shfl_down_sync(mask, val, 16);\n  val += __shfl_down_sync(mask, val, 8);\n  val += __shfl_down_sync(mask, val, 4);\n  val += __shfl_down_sync(mask, val, 2);\n  val += __shfl_down_sync(mask, val, 1);\n  return val;\n}\n\ntemplate <int BLOCK_SIZE>\n__global__ void block_atomic_reduce_kernel(const int* __restrict__ input, int n, int* __restrict__ output) {\n  unsigned int local = 0u;\n  int idx = blockIdx.x * BLOCK_SIZE + threadIdx.x;\n  int stride = BLOCK_SIZE * gridDim.x;\n\n  for (int i = idx; i < n; i += stride) {\n    local += static_cast<unsigned int>(input[i]);\n  }\n\n  // Intra-warp reduction\n  local = warpReduceSum(local);\n\n  __shared__ unsigned int smem[32];\n  int lane = threadIdx.x & 31;\n  int wid = threadIdx.x >> 5;\n  int numWarps = (BLOCK_SIZE + 31) >> 5;\n\n  if (lane == 0) smem[wid] = local;\n  __syncthreads();\n\n  unsigned int blockSum = 0u;\n  if (threadIdx.x < 32) {\n    if (threadIdx.x < numWarps) blockSum = smem[threadIdx.x];\n    blockSum = warpReduceSum(blockSum);\n    if (threadIdx.x == 0) {\n      atomicAdd(reinterpret_cast<unsigned int*>(output), blockSum);\n    }\n  }\n}\n\n}  // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n  // Handle empty input quickly\n  if (n <= 0) {\n    for (int iter = 0; iter < iters; ++iter) {\n      cudaMemset(output, 0, sizeof(int));\n    }\n    return;\n  }\n\n  int device = 0;\n  cudaGetDevice(&device);\n  int smCount = 0;\n  cudaDeviceGetAttribute(&smCount, cudaDevAttrMultiProcessorCount, device);\n\n  const int BLOCK_SIZE = 256;\n  int blocks = (smCount > 0 ? smCount * 8 : 1024);\n  int maxBlocks = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;\n  if (maxBlocks < blocks) blocks = maxBlocks;\n  if (blocks < 1) blocks = 1;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    cudaMemset(output, 0, sizeof(int));\n    block_atomic_reduce_kernel<BLOCK_SIZE><<<blocks, BLOCK_SIZE>>>(input, n, output);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v23",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 315008,
+    "min_elapsed_ns": 314815,
+    "max_elapsed_ns": 315647,
+    "all_elapsed_ns": [
+      314815,
+      315647,
+      315008
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 314815,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v23",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2504352,
+    "min_elapsed_ns": 2469536,
+    "max_elapsed_ns": 2531968,
+    "all_elapsed_ns": [
+      2504352,
+      2469536,
+      2531968
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2504352,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v23",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v23/candidate/bench']' timed out after 5 seconds"
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "task_id": "lz4_small_chunk_compress",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/lz4_small_chunk_compress/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include \"lz4.h\"\n\nnamespace {\nconstexpr std::size_t kChunkSize = 1 << 12; // 4 KiB\nconstexpr int kAcceleration = 8;            // higher accel -> faster, still lossless\n}\n\nint compress_chunks(const std::string& input, std::vector<std::string>& chunks) {\n  chunks.clear();\n  const std::size_t input_size = input.size();\n  if (input_size == 0) return 0;\n\n  const char* src = input.data();\n\n  // Reserve space to avoid vector reallocations\n  const std::size_t num_chunks = (input_size + kChunkSize - 1) / kChunkSize;\n  chunks.reserve(num_chunks);\n\n  // Prepare reusable external state for LZ4 to avoid per-call allocations\n  int stateSize = LZ4_sizeofState();\n  std::vector<char> stateBuf;\n  stateBuf.resize(stateSize > 0 ? static_cast<std::size_t>(stateSize) : 0);\n  void* statePtr = stateBuf.empty() ? nullptr : static_cast<void*>(stateBuf.data());\n\n  const int boundStandard = LZ4_compressBound(static_cast<int>(kChunkSize));\n\n  int total = 0;\n  for (std::size_t offset = 0; offset < input_size; offset += kChunkSize) {\n    const std::size_t remaining = input_size - offset;\n    const int isize = static_cast<int>(remaining < kChunkSize ? remaining : kChunkSize);\n    const int bound = (isize == static_cast<int>(kChunkSize)) ? boundStandard : LZ4_compressBound(isize);\n\n    // Allocate output buffer once and compress directly into it\n    chunks.emplace_back();\n    std::string& out = chunks.back();\n    out.resize(static_cast<std::size_t>(bound));\n\n    int n;\n    if (statePtr) {\n      n = LZ4_compress_fast_extState(statePtr, src + offset, &out[0], isize, bound, kAcceleration);\n    } else {\n      n = LZ4_compress_fast(src + offset, &out[0], isize, bound, kAcceleration);\n    }\n\n    if (n <= 0) {\n      chunks.pop_back();\n      return -1;\n    }\n\n    out.resize(static_cast<std::size_t>(n));\n    total += n;\n  }\n\n  return total;\n}\n",
+  "baseline": {
+    "task_id": "lz4_small_chunk_compress",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 20832458,
+    "min_elapsed_ns": 19652519,
+    "max_elapsed_ns": 22853530,
+    "all_elapsed_ns": [
+      19652519,
+      22853530,
+      20832458
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 19652519,
+      "compressed_size": 3547630
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "lz4_small_chunk_compress",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5428687,
+    "min_elapsed_ns": 5084089,
+    "max_elapsed_ns": 5561311,
+    "all_elapsed_ns": [
+      5084089,
+      5561311,
+      5428687
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5084089,
+      "compressed_size": 4176289
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "lz4_small_chunk_compress",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 4241782,
+    "min_elapsed_ns": 3993251,
+    "max_elapsed_ns": 4458456,
+    "all_elapsed_ns": [
+      3993251,
+      4241782,
+      4458456
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3993251,
+      "compressed_size": 4176289
+    },
+    "status": "ok"
+  }
+}

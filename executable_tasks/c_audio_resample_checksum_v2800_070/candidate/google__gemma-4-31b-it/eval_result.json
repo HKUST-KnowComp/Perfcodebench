@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_070",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_070/candidate/google__gemma-4-31b-it/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\nstatic uint64_t checksum_i16(const int16_t* data, size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (size_t i = 0; i < n; ++i) {\n    hash ^= (uint16_t)data[i];\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n  if (output_len <= 0) return 0;\n  \n  int16_t* out = (int16_t*)malloc((size_t)output_len * sizeof(int16_t));\n  if (!out) return 0;\n\n  uint64_t hash = 0;\n  \n  // Precompute fixed-point step\n  // pos = i * (input_len - 1) / (output_len - 1)\n  // We use a 64-bit fixed point representation for the position.\n  // Let's use 32 bits for the fractional part.\n  const uint64_t scale = 1ULL << 32;\n  const uint64_t step = (output_len > 1) ? \n      ((uint64_t)(input_len - 1) * scale) / (output_len - 1) : 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t current_pos_fp = 0;\n    for (int i = 0; i < output_len; ++i) {\n      uint64_t left = current_pos_fp >> 32;\n      uint64_t frac_fp = current_pos_fp & 0xFFFFFFFF;\n      \n      uint64_t right = left + 1;\n      if (right >= (uint64_t)input_len) right = (uint64_t)input_len - 1;\n\n      int32_t s_left = src[left];\n      int32_t s_right = src[right];\n      \n      // Linear interpolation: sample = s_left + frac * (s_right - s_left)\n      // Using fixed point: sample_fp = s_left * scale + (frac_fp * (s_right - s_left))\n      int64_t sample_fp = ((int64_t)s_left << 32) + ((int64_t)frac_fp * (s_right - s_left));\n      \n      // Rounding: (sample_fp + 0.5 * scale) if positive, (sample_fp - 0.5 * scale) if negative\n      // 0.5 * scale is 1ULL << 31\n      if (sample_fp >= 0) {\n        out[i] = (int16_t)((sample_fp + (1ULL << 31)) >> 32);\n      } else {\n        out[i] = (int16_t)((sample_fp - (1ULL << 31)) >> 32);\n      }\n      \n      current_pos_fp += step;\n    }\n    hash = checksum_i16(out, (size_t)output_len);\n  }\n\n  free(out);\n  return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_070",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 9312000,
+    "min_elapsed_ns": 8925000,
+    "max_elapsed_ns": 9832000,
+    "all_elapsed_ns": [
+      9312000,
+      9832000,
+      8925000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9312000,
+      "expected_checksum": 13131824402151615091,
+      "actual_checksum": 13131824402151615091
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_070",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8764000,
+    "min_elapsed_ns": 8656000,
+    "max_elapsed_ns": 9083000,
+    "all_elapsed_ns": [
+      8764000,
+      9083000,
+      8656000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8764000,
+      "expected_checksum": 13131824402151615091,
+      "actual_checksum": 13131824402151615091
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_070",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 7253000,
+    "min_elapsed_ns": 7096000,
+    "max_elapsed_ns": 7656000,
+    "all_elapsed_ns": [
+      7656000,
+      7253000,
+      7096000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7656000,
+      "expected_checksum": 13131824402151615091,
+      "actual_checksum": 13131824402151615091
+    },
+    "status": "ok"
+  }
+}

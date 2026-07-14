@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_jacobi_2d_v600_j",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v600_j/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n} // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  if (rows <= 0 || cols <= 0) return 0;\n  \n  std::vector<uint32_t> a = input;\n  std::vector<uint32_t> b(a.size(), 0);\n  \n  // Pre-copy boundaries to b to avoid conditional checks in the hot loop\n  // However, since boundaries are constant across steps, we can just ensure \n  // they are copied once or handled correctly.\n  // For simplicity and speed, we handle the interior in parallel and edges separately.\n\n  const std::size_t total_size = static_cast<std::size_t>(rows) * cols;\n  const std::size_t c_size = static_cast<std::size_t>(cols);\n\n  for (int step = 0; step < steps; ++step) {\n    // 1. Handle boundaries (Rows 0 and rows-1, and Cols 0 and cols-1)\n    // These values remain constant throughout the iterations because they are assigned a[idx]\n    // But we must ensure they are correctly set in 'b' if 'a' changes (though they don't).\n    // Actually, the rule says b[idx] = a[idx] for boundaries. \n    // Since boundaries never change, we can initialize b with a's boundaries once.\n    if (step == 0) {\n        for (int r = 0; r < rows; ++r) {\n            b[static_cast<std::size_t>(r) * c_size] = a[static_cast<std::size_t>(r) * c_size];\n            b[static_cast<std::size_t>(r) * c_size + c_size - 1] = a[static_cast<std::size_t>(r) * c_size + c_size - 1];\n        }\n        for (int c = 0; c < cols; ++c) {\n            b[c] = a[c];\n            b[static_cast<std::size_t>(rows - 1) * c_size + c] = a[static_cast<std::size_t>(rows - 1) * c_size + c];\n        }\n    }\n\n    // 2. Compute interior in parallel\n    #pragma omp parallel for schedule(static)\n    for (int r = 1; r < rows - 1; ++r) {\n      const std::size_t row_offset = static_cast<std::size_t>(r) * c_size;\n      for (int c = 1; c < cols - 1; ++c) {\n        const std::size_t idx = row_offset + c;\n        b[idx] = (a[idx] * 4u + a[idx - 1] + a[idx + 1] + \n                  a[idx - c_size] + a[idx + c_size]) / 8u;\n      }\n    }\n    \n    a.swap(b);\n  }\n\n  return checksum_u32(a);\n}",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v600_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 362793581,
+    "min_elapsed_ns": 178627422,
+    "max_elapsed_ns": 506119093,
+    "all_elapsed_ns": [
+      178627422,
+      362793581,
+      506119093
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 178627422,
+      "expected_checksum": 9512188109832611599,
+      "actual_checksum": 9512188109832611599
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v600_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 496689565,
+    "min_elapsed_ns": 242993915,
+    "max_elapsed_ns": 1756962810,
+    "all_elapsed_ns": [
+      1756962810,
+      242993915,
+      496689565
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1756962810,
+      "expected_checksum": 9512188109832611599,
+      "actual_checksum": 9512188109832611599
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v600_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 2581765961,
+    "min_elapsed_ns": 1923091603,
+    "max_elapsed_ns": 4066458074,
+    "all_elapsed_ns": [
+      4066458074,
+      2581765961,
+      1923091603
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4066458074,
+      "expected_checksum": 9512188109832611599,
+      "actual_checksum": 9512188109832611599
+    },
+    "status": "ok"
+  }
+}

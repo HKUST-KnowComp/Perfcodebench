@@ -1,0 +1,33 @@
+{
+  "task_id": "cuda_thrust_sort_i32_v27",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_thrust_sort_i32_v27/candidate/gpt-5.4/solution.cu",
+  "benchmark_timeout_sec": 67,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cub/cub.cuh>\n\nnamespace {\n\ninline int div_up(int a, int b) {\n  return (a + b - 1) / b;\n}\n\n__global__ void copy_kernel(const int* __restrict__ input,\n                            int* __restrict__ output,\n                            int n) {\n  int idx = blockIdx.x * blockDim.x + threadIdx.x;\n  if (idx < n) output[idx] = input[idx];\n}\n\n}  // namespace\n\nvoid sort_vec_i32(const int* input, int* output, int n, int iters) {\n  if (n <= 0 || iters <= 0) return;\n\n  cudaError_t err;\n\n  int* temp_keys = nullptr;\n  err = cudaMalloc(&temp_keys, static_cast<size_t>(n) * sizeof(int));\n  if (err != cudaSuccess) return;\n\n  void* d_temp_storage = nullptr;\n  size_t temp_storage_bytes = 0;\n\n  err = cub::DeviceRadixSort::SortKeys(\n      d_temp_storage, temp_storage_bytes, output, temp_keys, n);\n  if (err != cudaSuccess) {\n    cudaFree(temp_keys);\n    return;\n  }\n\n  err = cudaMalloc(&d_temp_storage, temp_storage_bytes);\n  if (err != cudaSuccess) {\n    cudaFree(temp_keys);\n    return;\n  }\n\n  const int threads = 256;\n  const int blocks = div_up(n, threads);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    copy_kernel<<<blocks, threads>>>(input, output, n);\n    cub::DeviceRadixSort::SortKeys(\n        d_temp_storage, temp_storage_bytes, output, temp_keys, n);\n  }\n\n  cudaFree(d_temp_storage);\n  cudaFree(temp_keys);\n}\n",
+  "baseline": {
+    "task_id": "cuda_thrust_sort_i32_v27",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_thrust_sort_i32_v27/baseline/bench']' returned non-zero exit status 1."
+  },
+  "reference": {
+    "task_id": "cuda_thrust_sort_i32_v27",
+    "variant": "reference",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_thrust_sort_i32_v27/reference/bench']' returned non-zero exit status 1."
+  },
+  "candidate": {
+    "task_id": "cuda_thrust_sort_i32_v27",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_thrust_sort_i32_v27/candidate/bench']' returned non-zero exit status 1."
+  }
+}

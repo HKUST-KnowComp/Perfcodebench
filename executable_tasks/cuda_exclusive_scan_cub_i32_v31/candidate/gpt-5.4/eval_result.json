@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_exclusive_scan_cub_i32_v31",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_exclusive_scan_cub_i32_v31/candidate/gpt-5.4/solution.cu",
+  "benchmark_timeout_sec": 10,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n#include <cub/cub.cuh>\n\nnamespace {\n\nstruct TempStorageCache {\n  void* ptr = nullptr;\n  size_t bytes = 0;\n  int device = -1;\n\n  ~TempStorageCache() {\n    if (ptr) {\n      cudaFree(ptr);\n    }\n  }\n\n  void ensure(size_t required_bytes) {\n    int current_device = 0;\n    cudaGetDevice(&current_device);\n\n    if (ptr && (device != current_device || bytes < required_bytes)) {\n      cudaFree(ptr);\n      ptr = nullptr;\n      bytes = 0;\n      device = -1;\n    }\n\n    if (!ptr) {\n      cudaMalloc(&ptr, required_bytes);\n      bytes = required_bytes;\n      device = current_device;\n    }\n  }\n};\n\nTempStorageCache& storage_cache() {\n  static TempStorageCache cache;\n  return cache;\n}\n\n}  // namespace\n\nvoid exclusive_scan_i32(const int* input, int* output, int n, int iters) {\n  if (iters <= 0) return;\n\n  size_t temp_storage_bytes = 0;\n  cub::DeviceScan::ExclusiveSum(nullptr, temp_storage_bytes, input, output, n);\n\n  if (temp_storage_bytes > 0) {\n    TempStorageCache& cache = storage_cache();\n    cache.ensure(temp_storage_bytes);\n    for (int iter = 0; iter < iters; ++iter) {\n      cub::DeviceScan::ExclusiveSum(cache.ptr, temp_storage_bytes, input, output, n);\n    }\n  } else {\n    for (int iter = 0; iter < iters; ++iter) {\n      cub::DeviceScan::ExclusiveSum(nullptr, temp_storage_bytes, input, output, n);\n    }\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v31",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1941364379,
+    "min_elapsed_ns": 1941268554,
+    "max_elapsed_ns": 1941447021,
+    "all_elapsed_ns": [
+      1941364379,
+      1941268554,
+      1941447021
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1941364379,
+      "checksum": 7215574418032
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v31",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 952351,
+    "min_elapsed_ns": 926656,
+    "max_elapsed_ns": 959775,
+    "all_elapsed_ns": [
+      926656,
+      959775,
+      952351
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 926656,
+      "checksum": 7215574418032
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v31",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_exclusive_scan_cub_i32_v31/candidate/bench']' returned non-zero exit status 1."
+  }
+}

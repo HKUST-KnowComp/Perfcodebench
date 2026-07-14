@@ -1,0 +1,72 @@
+{
+  "task_id": "c_groupby_histogram_checksum_v3300_049",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_groupby_histogram_checksum_v3300_049/candidate/moonshotai__kimi-k2-0905/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#endif\n\nuint64_t run(const uint32_t* keys, const uint32_t* vals, size_t n, uint32_t buckets, int iters) {\n    /* allocate once, reuse every iteration */\n    uint64_t* hist64 = (uint64_t*)calloc(buckets ? buckets : 1, sizeof(uint64_t));\n    if (!hist64) return 0;\n\n    /* temporary 32-bit buffer for faster vectorized adds */\n    uint32_t* hist32 = (uint32_t*)hist64;\n\n    /* number of 32-bit buckets we actually touch */\n    const size_t buckets32 = (size_t)buckets * 2;\n\n    /* --- main loop --- */\n    for (int iter = 0; iter < iters; ++iter) {\n        /* fast zero: memset is vectorized by the libc */\n        memset(hist32, 0, buckets * sizeof(uint64_t));\n\n        size_t i = 0;\n\n#if defined(__AVX2__)\n        /* process 8 elements per iteration with AVX2 */\n        const size_t n_vec = n & ~7ULL;\n        for (; i < n_vec; i += 8) {\n            __m256i k = _mm256_loadu_si256((const __m256i*)(keys + i));\n            __m256i v = _mm256_loadu_si256((const __m256i*)(vals + i));\n\n            /* scatter-add: do 8 scalar adds; scatter intrinsics are not worth it here */\n            for (int lane = 0; lane < 8; ++lane) {\n                uint32_t idx = ((uint32_t*)&k)[lane];\n                ((uint32_t*)&hist32)[idx] += ((uint32_t*)&v)[lane];\n            }\n        }\n#endif\n\n        /* scalar tail */\n        for (; i < n; ++i) {\n            hist32[keys[i]] += vals[i];\n        }\n\n        /* --- checksum --- */\n        uint64_t hash = 1469598103934665603ULL;\n        for (uint32_t b = 0; b < buckets; ++b) {\n            hash ^= (hist64[b] + 1ULL);\n            hash *= 1099511628211ULL;\n        }\n\n        /* store hash so that the compiler doesn't optimize the loop away */\n        hist64[0] = hash;\n    }\n\n    uint64_t final_hash = hist64[0];\n    free(hist64);\n    return final_hash;\n}",
+  "baseline": {
+    "task_id": "c_groupby_histogram_checksum_v3300_049",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2324000,
+    "min_elapsed_ns": 2274000,
+    "max_elapsed_ns": 2426000,
+    "all_elapsed_ns": [
+      2274000,
+      2324000,
+      2426000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2274000,
+      "expected_checksum": 7300464195059894027,
+      "actual_checksum": 7300464195059894027
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_groupby_histogram_checksum_v3300_049",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2708000,
+    "min_elapsed_ns": 2323000,
+    "max_elapsed_ns": 2785000,
+    "all_elapsed_ns": [
+      2785000,
+      2708000,
+      2323000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2785000,
+      "expected_checksum": 7300464195059894027,
+      "actual_checksum": 7300464195059894027
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_groupby_histogram_checksum_v3300_049",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 2533000,
+    "min_elapsed_ns": 2286000,
+    "max_elapsed_ns": 2590000,
+    "all_elapsed_ns": [
+      2286000,
+      2590000,
+      2533000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2286000,
+      "expected_checksum": 7300464195059894027,
+      "actual_checksum": 7300464195059894027
+    },
+    "status": "ok"
+  }
+}

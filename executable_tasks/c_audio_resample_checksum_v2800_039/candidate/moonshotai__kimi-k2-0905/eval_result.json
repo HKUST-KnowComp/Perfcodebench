@@ -1,0 +1,59 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_039",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_039/candidate/moonshotai__kimi-k2-0905/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n\n/* 32-bit fixed-point interpolation: 15 bits fractional part */\n#define FRAC_BITS 15\n#define FRAC_UNIT (1<<FRAC_BITS)\n#define FRAC_MASK (FRAC_UNIT-1)\n\nstatic uint64_t checksum_i16(const int16_t* data, size_t n)\n{\n    uint64_t h = 1469598103934665603ULL;\n    size_t i = 0;\n    /* process 4 samples per iteration */\n    for (; i + 3 < n; i += 4) {\n        uint64_t v = *(uint64_t*)(data + i);\n        h ^= v;\n        h *= 1099511628211ULL;\n    }\n    /* tail */\n    for (; i < n; ++i) {\n        h ^= (uint16_t)data[i];\n        h *= 1099511628211ULL;\n    }\n    return h;\n}\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters)\n{\n    static __thread int16_t* out = NULL;\n    static __thread size_t out_cap = 0;\n\n    if ((size_t)output_len > out_cap) {\n        out_cap = output_len;\n        out = (int16_t*)realloc(out, out_cap * sizeof(int16_t));\n        if (!out) return 0;\n    }\n\n    const int in_last  = input_len - 1;\n    const int out_last = output_len - 1;\n    const uint32_t ratio = ((uint64_t)in_last << FRAC_BITS) / out_last;\n\n    uint64_t hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        int16_t* dst = out;\n        uint32_t pos = 0;\n        for (int i = 0; i < output_len; ++i) {\n            int left  = (int)(pos >> FRAC_BITS);\n            int right = left + 1;\n            if (right >= input_len) right = in_last;\n            uint32_t frac = pos & FRAC_MASK;\n            int32_t l = src[left];\n            int32_t r = src[right];\n            int32_t v = l + (((r - l) * (int32_t)frac) >> FRAC_BITS);\n            dst[i] = (int16_t)v;\n            pos += ratio;\n        }\n        hash = checksum_i16(dst, (size_t)output_len);\n    }\n    return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_039",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6192000,
+    "min_elapsed_ns": 6186000,
+    "max_elapsed_ns": 6562000,
+    "all_elapsed_ns": [
+      6562000,
+      6192000,
+      6186000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6562000,
+      "expected_checksum": 11317365290659187483,
+      "actual_checksum": 11317365290659187483
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_039",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 6309000,
+    "min_elapsed_ns": 6150000,
+    "max_elapsed_ns": 6792000,
+    "all_elapsed_ns": [
+      6792000,
+      6309000,
+      6150000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6792000,
+      "expected_checksum": 11317365290659187483,
+      "actual_checksum": 11317365290659187483
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_039",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/c_audio_resample_checksum_v2800_039/candidate/bench']' returned non-zero exit status 1."
+  }
+}

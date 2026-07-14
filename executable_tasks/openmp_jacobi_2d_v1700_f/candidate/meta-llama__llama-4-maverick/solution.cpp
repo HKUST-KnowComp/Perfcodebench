@@ -1,0 +1,43 @@
+#include "interface.h"
+#include <omp.h>
+#include <cstdint>
+#include <vector>
+
+namespace {
+
+uint64_t checksum_u32(const std::vector<uint32_t>& data) {
+  uint64_t hash = 1469598103934665603ULL;
+  for (uint32_t v : data) {
+    hash ^= static_cast<uint64_t>(v);
+    hash *= 1099511628211ULL;
+  }
+  return hash;
+}
+
+}  // namespace
+
+uint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {
+  std::vector<uint32_t> a = input;
+  std::vector<uint32_t> b(a.size(), 0);
+  const std::size_t cols_s = static_cast<std::size_t>(cols);
+  #pragma omp parallel
+  {
+    for (int step = 0; step < steps; ++step) {
+      #pragma omp for
+      for (int row = 0; row < rows; ++row) {
+        for (int col = 0; col < cols; ++col) {
+          const std::size_t idx = static_cast<std::size_t>(row) * cols_s + static_cast<std::size_t>(col);
+          if (row == 0 || col == 0 || row == rows - 1 || col == cols - 1) {
+            b[idx] = a[idx];
+          } else {
+            b[idx] = (a[idx] * 4u + a[idx - 1] + a[idx + 1] +
+                      a[idx - cols_s] + a[idx + cols_s]) / 8u;
+          }
+        }
+      }
+      #pragma omp single
+      a.swap(b);
+    }
+  }
+  return checksum_u32(a);
+}

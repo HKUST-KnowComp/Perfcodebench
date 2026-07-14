@@ -1,0 +1,72 @@
+{
+  "task_id": "beam_search_topk_v2200_b",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v2200_b/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <utility>\n#include <vector>\n\nnamespace {\n\nstruct IndexedScore {\n  int32_t score;\n  int index;\n  \n  bool operator<(const IndexedScore& other) const {\n    return score > other.score || (score == other.score && index < other.index);\n  }\n};\n\nuint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits, int beams, int vocab, int topk, int iters) {\n  std::vector<IndexedScore> row(static_cast<std::size_t>(vocab));\n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    for (int b = 0; b < beams; ++b) {\n      const std::size_t base = static_cast<std::size_t>(b) * static_cast<std::size_t>(vocab);\n      \n      // Prefetch next beam if available\n      if (b + 1 < beams) {\n        const std::size_t next_base = static_cast<std::size_t>(b + 1) * static_cast<std::size_t>(vocab);\n        __builtin_prefetch(&logits[next_base], 0, 0);\n      }\n      \n      // Build indexed scores\n      for (int v = 0; v < vocab; ++v) {\n        row[static_cast<std::size_t>(v)] = {logits[base + static_cast<std::size_t>(v)], v};\n      }\n      \n      // Partial sort: only sort the top-k elements\n      std::partial_sort(row.begin(), \n                       row.begin() + topk, \n                       row.end());\n      \n      // Hash top-k results\n      for (int k = 0; k < topk; ++k) {\n        hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(row[static_cast<std::size_t>(k)].score)));\n        hash = mix(hash, static_cast<uint64_t>(row[static_cast<std::size_t>(k)].index));\n      }\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "beam_search_topk_v2200_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 277849509,
+    "min_elapsed_ns": 267020252,
+    "max_elapsed_ns": 311199860,
+    "all_elapsed_ns": [
+      311199860,
+      277849509,
+      267020252
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 311199860,
+      "expected_checksum": 3223124996355890236,
+      "actual_checksum": 3223124996355890236
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v2200_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4578704,
+    "min_elapsed_ns": 3753156,
+    "max_elapsed_ns": 4955272,
+    "all_elapsed_ns": [
+      3753156,
+      4578704,
+      4955272
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3753156,
+      "expected_checksum": 3223124996355890236,
+      "actual_checksum": 3223124996355890236
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v2200_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 5394295,
+    "min_elapsed_ns": 5334859,
+    "max_elapsed_ns": 5544787,
+    "all_elapsed_ns": [
+      5394295,
+      5544787,
+      5334859
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5394295,
+      "expected_checksum": 3223124996355890236,
+      "actual_checksum": 3223124996355890236
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "topk_ordered_sum_v1100_j",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/topk_ordered_sum_v1100_j/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n\nuint64_t topk_sum(const std::vector<uint32_t>& scores, int k, int iters) {\n  const std::size_t n = scores.size();\n  if (iters <= 0) return 0;\n\n  // Normalize k to valid range [0, n]\n  std::size_t m = 0;\n  if (k > 0) {\n    m = static_cast<std::size_t>(k);\n    if (m > n) m = n;\n  }\n\n  // Heuristic threshold: for small/medium k use a min-heap; otherwise use nth_element\n  const std::size_t HEAP_THRESHOLD = 1024;\n\n  uint64_t sum = 0;\n\n  // Preallocate buffers once to avoid repeated allocations across iterations\n  std::vector<uint32_t> tmp;\n  tmp.reserve(n);\n  std::vector<uint32_t> heap;\n  heap.reserve(m);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    if (m == 0) {\n      sum = 0;\n      continue;\n    }\n\n    if (m < n && m <= HEAP_THRESHOLD) {\n      // Min-heap approach: O(n log k), no full-array copy\n      heap.clear();\n      // Build initial heap from first m elements and compute initial sum\n      uint64_t local_sum = 0;\n      heap.insert(heap.end(), scores.begin(), scores.begin() + m);\n      for (std::size_t i = 0; i < m; ++i) local_sum += heap[i];\n      std::make_heap(heap.begin(), heap.end(), std::greater<uint32_t>()); // min-heap\n\n      for (std::size_t i = m; i < n; ++i) {\n        uint32_t s = scores[i];\n        // If current score exceeds min of heap, replace and adjust sum\n        if (s > heap.front()) {\n          uint32_t old_min = heap.front();\n          std::pop_heap(heap.begin(), heap.end(), std::greater<uint32_t>());\n          heap.back() = s;\n          std::push_heap(heap.begin(), heap.end(), std::greater<uint32_t>());\n          local_sum += static_cast<uint64_t>(s) - static_cast<uint64_t>(old_min);\n        }\n      }\n      sum = local_sum;\n    } else {\n      // nth_element approach: average O(n), requires a copy\n      tmp = scores; // uses reserved capacity to avoid reallocations\n      if (m == n) {\n        uint64_t local_sum = 0;\n        for (std::size_t i = 0; i < n; ++i) local_sum += static_cast<uint64_t>(tmp[i]);\n        sum = local_sum;\n      } else {\n        std::nth_element(tmp.begin(), tmp.begin() + static_cast<std::ptrdiff_t>(m), tmp.end(), std::greater<uint32_t>());\n        uint64_t local_sum = 0;\n        for (std::size_t i = 0; i < m; ++i) local_sum += static_cast<uint64_t>(tmp[i]);\n        sum = local_sum;\n      }\n    }\n  }\n\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "topk_ordered_sum_v1100_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1398452906,
+    "min_elapsed_ns": 1341512789,
+    "max_elapsed_ns": 1539005461,
+    "all_elapsed_ns": [
+      1398452906,
+      1539005461,
+      1341512789
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1398452906,
+      "expected_sum": 536695393,
+      "actual_sum": 536695393
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "topk_ordered_sum_v1100_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 119846154,
+    "min_elapsed_ns": 118190892,
+    "max_elapsed_ns": 126313746,
+    "all_elapsed_ns": [
+      126313746,
+      119846154,
+      118190892
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 126313746,
+      "expected_sum": 536695393,
+      "actual_sum": 536695393
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "topk_ordered_sum_v1100_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 11359356,
+    "min_elapsed_ns": 11145918,
+    "max_elapsed_ns": 15975315,
+    "all_elapsed_ns": [
+      15975315,
+      11359356,
+      11145918
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15975315,
+      "expected_sum": 536695393,
+      "actual_sum": 536695393
+    },
+    "status": "ok"
+  }
+}

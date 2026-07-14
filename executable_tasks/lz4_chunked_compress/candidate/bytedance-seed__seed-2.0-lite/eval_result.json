@@ -1,0 +1,69 @@
+{
+  "task_id": "lz4_chunked_compress",
+  "model": "bytedance-seed/seed-2.0-lite",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/lz4_chunked_compress/candidate/bytedance-seed__seed-2.0-lite/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include \"lz4hc.h\"\n\n#include <algorithm>\n\nnamespace {\nconstexpr std::size_t kChunkSize = 1 << 16;\n}\n\nint compress_chunks(const std::string& input, std::vector<std::string>& chunks) {\n  chunks.clear();\n  if (input.empty()) return 0;\n\n  // Pre-calculate number of chunks to reserve vector capacity upfront\n  const std::size_t num_chunks = (input.size() + kChunkSize - 1) / kChunkSize;\n  chunks.reserve(num_chunks);\n\n  // Single reusable scratch buffer sized for maximum possible chunk compression output\n  const std::size_t max_scratch_size = LZ4_compressBound(static_cast<int>(kChunkSize));\n  std::string scratch(max_scratch_size, '\\0');\n  int total = 0;\n\n  for (std::size_t offset = 0; offset < input.size(); offset += kChunkSize) {\n    const std::size_t take = std::min(kChunkSize, input.size() - offset);\n    const int n = LZ4_compress_HC(\n        input.data() + offset, scratch.data(), static_cast<int>(take), \n        static_cast<int>(max_scratch_size), 12);\n    if (n <= 0) {\n      return -1;\n    }\n    // Construct chunk directly in reserved vector memory, only copy actual compressed bytes\n    chunks.emplace_back(scratch.data(), static_cast<std::size_t>(n));\n    total += n;\n  }\n  return total;\n}",
+  "baseline": {
+    "task_id": "lz4_chunked_compress",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 65427501,
+    "min_elapsed_ns": 55425408,
+    "max_elapsed_ns": 65631763,
+    "all_elapsed_ns": [
+      65631763,
+      65427501,
+      55425408
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 65631763,
+      "compressed_size": 867798
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "lz4_chunked_compress",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4440573,
+    "min_elapsed_ns": 3972969,
+    "max_elapsed_ns": 4693884,
+    "all_elapsed_ns": [
+      4693884,
+      3972969,
+      4440573
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4693884,
+      "compressed_size": 978021
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "lz4_chunked_compress",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 42989632,
+    "min_elapsed_ns": 42863382,
+    "max_elapsed_ns": 47537361,
+    "all_elapsed_ns": [
+      42989632,
+      47537361,
+      42863382
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 42989632,
+      "compressed_size": 867798
+    },
+    "status": "ok"
+  }
+}

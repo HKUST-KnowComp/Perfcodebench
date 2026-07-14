@@ -1,0 +1,59 @@
+{
+  "task_id": "java_topk_selection_checksum_v3401_004",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/java_topk_selection_checksum_v3401_004/candidate/google__gemma-4-26b-a4b-it/Solution.java",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "import java.util.*;\n\npublic class Solution {\n  public static long run(int[] scores, int k, int iters) {\n    int n = scores.length;\n    // Pack score and index into a single long for primitive processing.\n    // We want descending score, then ascending index.\n    // To use standard long comparison (ascending), we transform the score:\n    // New Score = (MAX_INT - original_score). \n    // However, to handle negative scores and avoid overflow, we use a bit-trick:\n    // We want higher score to have a 'smaller' bit representation for ascending sort.\n    // Or more simply: pack as (inverted_score << 32) | (index).\n    // Since we need descending score, we can use (Integer.MAX_VALUE - score) or similar.\n    // Let's use: long val = ((long)score << 32) | (index & 0xFFFFFFFFL);\n    // But we need to sort by score DESC, then index ASC.\n    // Let's pack: [32 bits: score (inverted)] [32 bits: index]\n    // To invert score for descending order: score_bits = ~score_bits (if we treat as unsigned)\n    // Actually, a simpler way: pack as (long)score << 32 | (index & 0xFFFFFFFFL).\n    // Then we need to sort such that score is high to low, then index low to high.\n    \n    long[] packed = new long[n];\n    long h = 0;\n\n    for (int iter = 0; iter < iters; iter++) {\n      for (int i = 0; i < n; i++) {\n        // We want to sort by score DESC, then index ASC.\n        // In a standard ascending sort of longs:\n        // We want higher score to appear 'smaller'.\n        // We want lower index to appear 'smaller' if scores are equal.\n        // Let's map score 's' to 'unsigned_max - s'.\n        // Since scores are ints, we can use: (long)score << 32 | (index & 0xFFFFFFFFL)\n        // and then use a custom comparator or transform the bits.\n        \n        // Transformation for ascending sort to achieve (score DESC, index ASC):\n        // 1. Flip the sign bit of the score to reverse order.\n        // 2. Keep index as is.\n        // But wait, the simplest way to handle the 'score DESC, index ASC' requirement \n        // in a single long for ascending sort is:\n        // bits = ((long)score << 32) | (index & 0xFFFFFFFFL);\n        // Then we need to sort such that score is high to low.\n        // Let's use: long val = ((long)score << 32) | (index & 0xFFFFFFFFL);\n        // To sort DESC score, ASC index: \n        // We can use: long val = ((long)score << 32) | (index & 0xFFFFFFFFL);\n        // And use a custom Quickselect/Sort logic.\n        \n        // Let's use a more robust packing for ascending sort:\n        // We want (score1, index1) < (score2, index2) if \n        // score1 > score2 OR (score1 == score2 AND index1 < index2).\n        // Let's map score 's' to 'unsigned_int_max - s'.\n        // Since we don't know the range, let's use: \n        // long val = ((long)score ^ 0x80000000L) << 32 | (index & 0xFFFFFFFFL);\n        // This doesn't quite work for the index part. \n        \n        // Let's just use the raw values and a custom Quickselect to avoid bit-math confusion.\n        // Actually, the most performant way is to pack: \n        // long val = ((long)score << 32) | (index & 0xFFFFFFFFL);\n        // And use a custom comparison in Quickselect.\n        packed[i] = ((long)scores[i] << 32) | (i & 0xFFFFFFFFL);\n      }\n\n      // Quickselect to find the top k elements.\n      // We need the k elements that would be at the start of the sorted array.\n      quickSelect(packed, 0, n - 1, k);\n\n      // The top k elements are now in packed[0...k-1], but they are not necessarily sorted.\n      // The requirement says: \"checksum over the ordered winners\".\n      // The original code sorted the whole array. So we must sort the top k.\n      Arrays.sort(packed, 0, k, (a, b) -> {\n        long s1 = a >>> 32;\n        long s2 = b >>> 32;\n        if (s1 != s2) return Long.compare(s2, s1); // Descending score\n        return Long.compare(a & 0xFFFFFFFFL, b & 0xFFFFFFFFL); // Ascending index\n      });\n\n      h = 1469598103934665603L;\n      for (int i = 0; i < k; i++) {\n        long s = packed[i] >>> 32;\n        long idx = packed[i] & 0xFFFFFFFFL;\n        h ^= (s << 32) ^ idx;\n        h *= 1099511628211L;\n      }\n    }\n    return h;\n  }\n\n  private static void quickSelect(long[] arr, int left, int right, int k) {\n    while (right > left) {\n      int pivotIndex = partition(arr, left, right);\n      if (pivotIndex == k) return;\n      if (pivotIndex < k) left = pivotIndex + 1;\n      else right = pivotIndex - 1;\n    }\n  }\n\n  private static int partition(long[] arr, int left, int right) {\n    // Use middle element as pivot to avoid O(n^2) on sorted data\n    int mid = left + (right - left) / 2;\n    long pivot = arr[mid];\n    swap(arr, mid, right);\n    int storeIndex = left;\n    for (int i = left; i < right; i++) {\n      if (compare(arr[i], pivot) < 0) {\n        swap(arr, i, storeIndex);\n        storeIndex++;\n      }\n    }\n    swap(arr, storeIndex, right);\n    return storeIndex;\n  }\n\n  private static int compare(long a, long b) {\n    // Returns < 0 if a should come before b in the sorted order (score DESC, index ASC)\n    long s1 = a >>> 32;\n    long s2 = b >>> 32;\n    if (s1 != s2) return Long.compare(s2, s1);\n    return Long.compare(a & 0xFFFFFFFFL, b & 0xFFFFFFFFL);\n  }\n\n  private static void swap(long[] arr, int i, int j) {\n    long temp = arr[i];\n    arr[i] = arr[j];\n    arr[j] = temp;\n  }\n}",
+  "baseline": {
+    "task_id": "java_topk_selection_checksum_v3401_004",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1801969036,
+    "min_elapsed_ns": 1730114586,
+    "max_elapsed_ns": 1881972048,
+    "all_elapsed_ns": [
+      1881972048,
+      1801969036,
+      1730114586
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1881972048,
+      "expected_checksum": -4186963419682356048,
+      "actual_checksum": -4186963419682356048
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "java_topk_selection_checksum_v3401_004",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 132462098,
+    "min_elapsed_ns": 124732438,
+    "max_elapsed_ns": 148910475,
+    "all_elapsed_ns": [
+      124732438,
+      132462098,
+      148910475
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 124732438,
+      "expected_checksum": -4186963419682356048,
+      "actual_checksum": -4186963419682356048
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "java_topk_selection_checksum_v3401_004",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['javac', '-d', 'build/java_topk_selection_checksum_v3401_004/candidate', 'executable_tasks/java_topk_selection_checksum_v3401_004/harness/BenchmarkMain.java', 'executable_tasks/java_topk_selection_checksum_v3401_004/candidate/google__gemma-4-26b-a4b-it/Solution.java']' returned non-zero exit status 1."
+  }
+}

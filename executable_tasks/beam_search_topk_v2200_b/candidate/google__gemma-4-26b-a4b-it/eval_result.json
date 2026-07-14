@@ -1,0 +1,72 @@
+{
+  "task_id": "beam_search_topk_v2200_b",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v2200_b/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <utility>\n#include <vector>\n#include <cstdint>\n\nnamespace {\n\n// Tie-breaking: higher score first, then lower index.\n// To use std::nth_element/std::sort, we define a strict weak ordering.\n// We want the 'top' elements to be at the beginning.\nstruct Token {\n    int32_t score;\n    int32_t id;\n\n    bool operator<(const Token& other) const {\n        if (score != other.score) {\n            return score > other.score;\n        }\n        return id < other.id;\n    }\n};\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n} // namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits, int beams, int vocab, int topk, int iters) {\n    if (vocab <= 0 || beams <= 0 || topk <= 0) return 0;\n    \n    // Pre-allocate buffer to avoid reallocations inside loops\n    std::vector<Token> row(static_cast<size_t>(vocab));\n    uint64_t hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        hash = 1469598103934665603ULL;\n        for (int b = 0; b < beams; ++b) {\n            const size_t base = static_cast<size_t>(b) * static_cast<size_t>(vocab);\n            \n            // Load logits into the Token buffer\n            for (int v = 0; v < vocab; ++v) {\n                row[v] = {logits[base + v], v};\n            }\n\n            // Use nth_element to find the top-k elements in O(V) average time\n            if (topk < vocab) {\n                std::nth_element(row.begin(), row.begin() + topk, row.end());\n                // The first topk elements are the ones we want, but they aren't sorted among themselves.\n                // We must sort only the top-k to ensure deterministic checksum.\n                std::sort(row.begin(), row.begin() + topk);\n            } else {\n                // If topk >= vocab, we just sort everything\n                std::sort(row.begin(), row.end());\n            }\n\n            // Accumulate hash\n            int actual_k = std::min(topk, vocab);\n            for (int k = 0; k < actual_k; ++k) {\n                hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(row[k].score)));\n                hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(row[k].id)));\n            }\n        }\n    }\n    return hash;\n}\n",
+  "baseline": {
+    "task_id": "beam_search_topk_v2200_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 277849509,
+    "min_elapsed_ns": 267020252,
+    "max_elapsed_ns": 311199860,
+    "all_elapsed_ns": [
+      311199860,
+      277849509,
+      267020252
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 311199860,
+      "expected_checksum": 3223124996355890236,
+      "actual_checksum": 3223124996355890236
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v2200_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4578704,
+    "min_elapsed_ns": 3753156,
+    "max_elapsed_ns": 4955272,
+    "all_elapsed_ns": [
+      3753156,
+      4578704,
+      4955272
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3753156,
+      "expected_checksum": 3223124996355890236,
+      "actual_checksum": 3223124996355890236
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v2200_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 41723754,
+    "min_elapsed_ns": 39733828,
+    "max_elapsed_ns": 43217656,
+    "all_elapsed_ns": [
+      43217656,
+      39733828,
+      41723754
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 43217656,
+      "expected_checksum": 3223124996355890236,
+      "actual_checksum": 3223124996355890236
+    },
+    "status": "ok"
+  }
+}

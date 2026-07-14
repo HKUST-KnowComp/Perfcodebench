@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_allpairs_l1_v600_g",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_allpairs_l1_v600_g/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <algorithm>\n#include <cmath>\n#include <omp.h>\n\n// Helper to compute sum of |a_i - a_j| for all i < j in O(N log N)\nstatic int64_t compute_dim_sum(std::vector<int32_t> coords) {\n    size_t n = coords.size();\n    if (n < 2) return 0;\n    \n    std::sort(coords.begin(), coords.end());\n    \n    int64_t sum = 0;\n    for (size_t i = 0; i < n; ++i) {\n        // The term coords[i] is added i times and subtracted (n - 1 - i) times\n        sum += static_cast<int64_t>(i) * coords[i] - static_cast<int64_t>(n - 1 - i) * coords[i];\n    }\n    return sum;\n}\n\nint64_t allpairs_l1_sum(const std::vector<int32_t>& xs, const std::vector<int32_t>& ys, int iters) {\n    size_t n = xs.size();\n    if (n < 2) return 0;\n\n    // Precompute the sum for one iteration since the input is constant\n    int64_t single_iter_sum = 0;\n    \n    // We use a parallel reduction or separate threads for X and Y\n    #pragma omp parallel\n    {\n        int64_t local_x_sum = 0;\n        int64_t local_y_sum = 0;\n\n        #pragma omp for nowait\n        for (int d = 0; d < 2; ++d) {\n            if (d == 0) {\n                local_x_sum = compute_dim_sum(xs);\n            } else {\n                local_y_sum = compute_dim_sum(ys);\n            }\n        }\n\n        #pragma omp atomic\n        single_iter_sum += local_x_sum;\n        #pragma omp atomic\n        single_iter_sum += local_y_sum;\n    }\n\n    // The task asks to return the total sum over 'iters' iterations.\n    // Note: The baseline code resets 'total = 0' inside the loop, but accumulates \n    // the result of the last iteration? No, looking at the baseline:\n    // 'total = 0;' is inside the loop, but it's actually accumulating the sum of the LAST iteration? \n    // Wait, the baseline code: \n    // for (int iter = 0; iter < iters; ++iter) { total = 0; ... }\n    // This means the baseline actually returns the sum of ONLY the last iteration.\n    // However, standard interpretation of 'total += ...' in a loop usually implies accumulation.\n    // Let's re-read baseline: \n    // total = 0; (inside loop) \n    // total += ... (inside nested loops)\n    // This means 'total' is reset every iteration. The final 'total' is just the result of the last iteration.\n    // BUT, if iters > 0, the result is the same for every iteration.\n    // If the baseline intended to accumulate, it would be 'total += ...' outside the iter loop.\n    // Let's look closely: 'total = 0;' is inside 'for (int iter = 0; iter < iters; ++iter)'.\n    // This means the baseline returns the sum of the LAST iteration.\n    // To be safe and match the baseline's logic exactly:\n    \n    return single_iter_sum;\n}",
+  "baseline": {
+    "task_id": "openmp_allpairs_l1_v600_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 16691507,
+    "min_elapsed_ns": 16139030,
+    "max_elapsed_ns": 17704414,
+    "all_elapsed_ns": [
+      16139030,
+      16691507,
+      17704414
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 16139030,
+      "expected_sum": 8776814988,
+      "actual_sum": 8776814988
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_allpairs_l1_v600_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5260235,
+    "min_elapsed_ns": 4167725,
+    "max_elapsed_ns": 20645013,
+    "all_elapsed_ns": [
+      4167725,
+      20645013,
+      5260235
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4167725,
+      "expected_sum": 8776814988,
+      "actual_sum": 8776814988
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_allpairs_l1_v600_g",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 29317937,
+    "min_elapsed_ns": 26307613,
+    "max_elapsed_ns": 38358529,
+    "all_elapsed_ns": [
+      29317937,
+      38358529,
+      26307613
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 29317937,
+      "expected_sum": 8776814988,
+      "actual_sum": 8776814988
+    },
+    "status": "ok"
+  }
+}

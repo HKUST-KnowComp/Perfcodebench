@@ -1,0 +1,72 @@
+{
+  "task_id": "genomic_kmer_histogram_checksum_v2600_i",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/genomic_kmer_histogram_checksum_v2600_i/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <string>\n#include <cstring>\n\nnamespace {\n\nalignas(64) constexpr uint8_t BASE_TO_BITS[256] = {\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n    0,0,0,1,0,0,0,2,0,0,0,0,0,0,0,0, // A=0, C=1, G=2\n    0,0,0,0,3,0,0,0,0,0,0,0,0,0,0,0, // T=3\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0\n};\n\n}  // namespace\n\nuint64_t kmer_histogram_checksum(const std::string& dna, int k, int iters) {\n    const size_t n = dna.size();\n    if (n < static_cast<size_t>(k)) {\n        uint64_t hash = 1469598103934665603ULL;\n        const size_t bins = 1u << (2 * k);\n        for (size_t i = 0; i < bins; ++i) {\n            hash *= 1099511628211ULL;\n        }\n        return hash;\n    }\n    \n    const size_t bins = 1u << (2 * k);\n    const uint32_t mask = static_cast<uint32_t>(bins - 1);\n    const char* data = dna.data();\n    const size_t num_kmers = n - static_cast<size_t>(k) + 1;\n    \n    uint64_t hash = 0;\n    \n    // Specialized path for k=4 (256 bins, fits in cache)\n    if (k == 4) {\n        alignas(64) uint32_t counts[256];\n        \n        for (int iter = 0; iter < iters; ++iter) {\n            std::memset(counts, 0, sizeof(counts));\n            \n            // Build initial k-mer\n            uint32_t kmer = 0;\n            for (int i = 0; i < 4; ++i) {\n                kmer = (kmer << 2) | BASE_TO_BITS[static_cast<unsigned char>(data[i])];\n            }\n            counts[kmer]++;\n            \n            // Rolling hash for remaining k-mers\n            for (size_t i = 1; i < num_kmers; ++i) {\n                kmer = ((kmer << 2) | BASE_TO_BITS[static_cast<unsigned char>(data[i + 3])]) & 0xFF;\n                counts[kmer]++;\n            }\n            \n            // Compute checksum\n            hash = 1469598103934665603ULL;\n            for (size_t i = 0; i < 256; ++i) {\n                hash ^= static_cast<uint64_t>(counts[i]);\n                hash *= 1099511628211ULL;\n            }\n        }\n    } else {\n        // General path for other k values\n        uint32_t* counts = new uint32_t[bins];\n        \n        for (int iter = 0; iter < iters; ++iter) {\n            std::memset(counts, 0, bins * sizeof(uint32_t));\n            \n            // Build initial k-mer\n            uint32_t kmer = 0;\n            for (int i = 0; i < k; ++i) {\n                kmer = (kmer << 2) | BASE_TO_BITS[static_cast<unsigned char>(data[i])];\n            }\n            counts[kmer]++;\n            \n            // Rolling hash for remaining k-mers\n            for (size_t i = 1; i < num_kmers; ++i) {\n                kmer = ((kmer << 2) | BASE_TO_BITS[static_cast<unsigned char>(data[i + k - 1])]) & mask;\n                counts[kmer]++;\n            }\n            \n            // Compute checksum\n            hash = 1469598103934665603ULL;\n            for (size_t i = 0; i < bins; ++i) {\n                hash ^= static_cast<uint64_t>(counts[i]);\n                hash *= 1099511628211ULL;\n            }\n        }\n        \n        delete[] counts;\n    }\n    \n    return hash;\n}",
+  "baseline": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 113168315,
+    "min_elapsed_ns": 112707465,
+    "max_elapsed_ns": 114672418,
+    "all_elapsed_ns": [
+      112707465,
+      113168315,
+      114672418
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 112707465,
+      "expected_checksum": 12717981375386407860,
+      "actual_checksum": 12717981375386407860
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4985725,
+    "min_elapsed_ns": 4661291,
+    "max_elapsed_ns": 5796847,
+    "all_elapsed_ns": [
+      5796847,
+      4661291,
+      4985725
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5796847,
+      "expected_checksum": 12717981375386407860,
+      "actual_checksum": 12717981375386407860
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_i",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 4297726,
+    "min_elapsed_ns": 4292520,
+    "max_elapsed_ns": 4815258,
+    "all_elapsed_ns": [
+      4815258,
+      4297726,
+      4292520
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4815258,
+      "expected_checksum": 12717981375386407860,
+      "actual_checksum": 12717981375386407860
+    },
+    "status": "ok"
+  }
+}

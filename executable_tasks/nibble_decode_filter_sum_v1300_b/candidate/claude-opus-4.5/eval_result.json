@@ -1,0 +1,72 @@
+{
+  "task_id": "nibble_decode_filter_sum_v1300_b",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/nibble_decode_filter_sum_v1300_b/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstddef>\n\n#if defined(__SSE2__) && defined(__SSE4_1__)\n#include <emmintrin.h>\n#include <smmintrin.h>\n#define USE_SSE 1\n#else\n#define USE_SSE 0\n#endif\n\nuint64_t nibble_filter_sum(const std::vector<uint8_t>& packed, uint8_t threshold, int iters) {\n    uint64_t sum = 0;\n    const uint8_t* data = packed.data();\n    const size_t n = packed.size();\n\n#if USE_SSE\n    const __m128i mask_lo = _mm_set1_epi8(0x0F);\n    const __m128i thresh_vec = _mm_set1_epi8(static_cast<char>(threshold));\n    const __m128i zero = _mm_setzero_si128();\n\n    for (int iter = 0; iter < iters; ++iter) {\n        __m128i acc0 = _mm_setzero_si128();\n        __m128i acc1 = _mm_setzero_si128();\n        __m128i acc2 = _mm_setzero_si128();\n        __m128i acc3 = _mm_setzero_si128();\n\n        size_t i = 0;\n        const size_t vec_end = n & ~15ULL;\n\n        for (; i < vec_end; i += 16) {\n            __m128i bytes = _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + i));\n            __m128i lo = _mm_and_si128(bytes, mask_lo);\n            __m128i hi = _mm_and_si128(_mm_srli_epi16(bytes, 4), mask_lo);\n\n            // Compare greater than threshold (unsigned via saturating sub)\n            __m128i lo_above = _mm_cmpgt_epi8(_mm_sub_epi8(lo, thresh_vec), zero);\n            __m128i hi_above = _mm_cmpgt_epi8(_mm_sub_epi8(hi, thresh_vec), zero);\n\n            // Mask values not above threshold\n            lo = _mm_and_si128(lo, lo_above);\n            hi = _mm_and_si128(hi, hi_above);\n\n            // Unpack to 16-bit and accumulate\n            __m128i lo_lo16 = _mm_unpacklo_epi8(lo, zero);\n            __m128i lo_hi16 = _mm_unpackhi_epi8(lo, zero);\n            __m128i hi_lo16 = _mm_unpacklo_epi8(hi, zero);\n            __m128i hi_hi16 = _mm_unpackhi_epi8(hi, zero);\n\n            acc0 = _mm_add_epi16(acc0, lo_lo16);\n            acc1 = _mm_add_epi16(acc1, lo_hi16);\n            acc2 = _mm_add_epi16(acc2, hi_lo16);\n            acc3 = _mm_add_epi16(acc3, hi_hi16);\n\n            // Prevent overflow: reduce every 4096 iterations (16-bit can hold 65535, max nibble=15)\n            if ((i & 0xFFF0) == 0xFFF0 && i > 0) {\n                // Widen to 32-bit and reduce\n                __m128i sum32_0 = _mm_add_epi32(_mm_unpacklo_epi16(acc0, zero), _mm_unpackhi_epi16(acc0, zero));\n                __m128i sum32_1 = _mm_add_epi32(_mm_unpacklo_epi16(acc1, zero), _mm_unpackhi_epi16(acc1, zero));\n                __m128i sum32_2 = _mm_add_epi32(_mm_unpacklo_epi16(acc2, zero), _mm_unpackhi_epi16(acc2, zero));\n                __m128i sum32_3 = _mm_add_epi32(_mm_unpacklo_epi16(acc3, zero), _mm_unpackhi_epi16(acc3, zero));\n                __m128i total32 = _mm_add_epi32(_mm_add_epi32(sum32_0, sum32_1), _mm_add_epi32(sum32_2, sum32_3));\n                // Horizontal sum\n                total32 = _mm_add_epi32(total32, _mm_srli_si128(total32, 8));\n                total32 = _mm_add_epi32(total32, _mm_srli_si128(total32, 4));\n                sum += static_cast<uint32_t>(_mm_cvtsi128_si32(total32));\n                acc0 = acc1 = acc2 = acc3 = zero;\n            }\n        }\n\n        // Final reduction of accumulators\n        __m128i sum32_0 = _mm_add_epi32(_mm_unpacklo_epi16(acc0, zero), _mm_unpackhi_epi16(acc0, zero));\n        __m128i sum32_1 = _mm_add_epi32(_mm_unpacklo_epi16(acc1, zero), _mm_unpackhi_epi16(acc1, zero));\n        __m128i sum32_2 = _mm_add_epi32(_mm_unpacklo_epi16(acc2, zero), _mm_unpackhi_epi16(acc2, zero));\n        __m128i sum32_3 = _mm_add_epi32(_mm_unpacklo_epi16(acc3, zero), _mm_unpackhi_epi16(acc3, zero));\n        __m128i total32 = _mm_add_epi32(_mm_add_epi32(sum32_0, sum32_1), _mm_add_epi32(sum32_2, sum32_3));\n        total32 = _mm_add_epi32(total32, _mm_srli_si128(total32, 8));\n        total32 = _mm_add_epi32(total32, _mm_srli_si128(total32, 4));\n        sum += static_cast<uint32_t>(_mm_cvtsi128_si32(total32));\n\n        // Scalar tail\n        for (; i < n; ++i) {\n            uint8_t lo = data[i] & 0x0F;\n            uint8_t hi = data[i] >> 4;\n            if (lo > threshold) sum += lo;\n            if (hi > threshold) sum += hi;\n        }\n\n        // Reset sum for next iteration except last\n        if (iter < iters - 1) sum = 0;\n    }\n#else\n    for (int iter = 0; iter < iters; ++iter) {\n        sum = 0;\n        for (size_t i = 0; i < n; ++i) {\n            uint8_t lo = data[i] & 0x0F;\n            uint8_t hi = data[i] >> 4;\n            if (lo > threshold) sum += lo;\n            if (hi > threshold) sum += hi;\n        }\n    }\n#endif\n\n    return sum;\n}",
+  "baseline": {
+    "task_id": "nibble_decode_filter_sum_v1300_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 571515357,
+    "min_elapsed_ns": 566838420,
+    "max_elapsed_ns": 610042562,
+    "all_elapsed_ns": [
+      571515357,
+      610042562,
+      566838420
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 571515357,
+      "expected_sum": 157286400,
+      "actual_sum": 157286400
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "nibble_decode_filter_sum_v1300_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 187335449,
+    "min_elapsed_ns": 185732029,
+    "max_elapsed_ns": 197975599,
+    "all_elapsed_ns": [
+      187335449,
+      197975599,
+      185732029
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 187335449,
+      "expected_sum": 157286400,
+      "actual_sum": 157286400
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "nibble_decode_filter_sum_v1300_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 191433594,
+    "min_elapsed_ns": 187169266,
+    "max_elapsed_ns": 195642654,
+    "all_elapsed_ns": [
+      195642654,
+      191433594,
+      187169266
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 195642654,
+      "expected_sum": 157286400,
+      "actual_sum": 157286400
+    },
+    "status": "ok"
+  }
+}

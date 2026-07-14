@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_019",
+  "model": "bytedance-seed/seed-2.0-lite",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_019/candidate/bytedance-seed__seed-2.0-lite/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\nstatic uint64_t checksum_i16(const int16_t* data, size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (size_t i = 0; i < n; ++i) {\n    hash ^= (uint16_t)data[i];\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n  if (iters <= 0) return 0;\n\n  // Allocate output buffer once to eliminate per-iteration malloc/free overhead\n  const size_t out_bytes = (size_t)output_len * sizeof(int16_t);\n  int16_t* out = (int16_t*)malloc(out_bytes);\n  if (!out) return 0;\n\n  // Precompute resampling coefficients once, reused across all iterations\n  typedef struct {\n    int left_idx;\n    int right_idx;\n    double w_left;\n    double w_right;\n  } ResampleCoeff;\n  ResampleCoeff* coeffs = (ResampleCoeff*)malloc((size_t)output_len * sizeof(ResampleCoeff));\n  if (!coeffs) {\n    free(out);\n    return 0;\n  }\n\n  const double scale = (double)(input_len - 1) / (double)(output_len - 1);\n  for (int i = 0; i < output_len; ++i) {\n    const double pos = (double)i * scale;\n    const int left = (int)pos;\n    int right = left + 1;\n    if (right >= input_len) right = input_len - 1;\n    const double frac = pos - (double)left;\n    coeffs[i].left_idx = left;\n    coeffs[i].right_idx = right;\n    coeffs[i].w_left = 1.0 - frac;\n    coeffs[i].w_right = frac;\n  }\n\n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    // Tight hot inner loop with no redundant calculations\n    for (int i = 0; i < output_len; ++i) {\n      const ResampleCoeff c = coeffs[i];\n      const double sample = (double)src[c.left_idx] * c.w_left + (double)src[c.right_idx] * c.w_right;\n      int16_t s;\n      if (sample >= 0.0) {\n        s = (int16_t)(sample + 0.5);\n      } else {\n        s = (int16_t)(sample - 0.5);\n      }\n      out[i] = s;\n    }\n    hash = checksum_i16(out, (size_t)output_len);\n  }\n\n  // Single cleanup pass\n  free(coeffs);\n  free(out);\n  return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_019",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5018000,
+    "min_elapsed_ns": 4256000,
+    "max_elapsed_ns": 5046000,
+    "all_elapsed_ns": [
+      5018000,
+      5046000,
+      4256000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5018000,
+      "expected_checksum": 4303663497125953472,
+      "actual_checksum": 4303663497125953472
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_019",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4279000,
+    "min_elapsed_ns": 4156000,
+    "max_elapsed_ns": 4778000,
+    "all_elapsed_ns": [
+      4156000,
+      4279000,
+      4778000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4156000,
+      "expected_checksum": 4303663497125953472,
+      "actual_checksum": 4303663497125953472
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_019",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 3346000,
+    "min_elapsed_ns": 3321000,
+    "max_elapsed_ns": 3865000,
+    "all_elapsed_ns": [
+      3346000,
+      3321000,
+      3865000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3346000,
+      "expected_checksum": 4303663497125953472,
+      "actual_checksum": 4303663497125953472
+    },
+    "status": "ok"
+  }
+}

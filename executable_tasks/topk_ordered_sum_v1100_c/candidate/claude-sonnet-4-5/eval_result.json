@@ -1,0 +1,59 @@
+{
+  "task_id": "topk_ordered_sum_v1100_c",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/topk_ordered_sum_v1100_c/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 7,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <immintrin.h>\n\nuint64_t topk_sum(const std::vector<uint32_t>& scores, int k, int iters) {\n  std::vector<uint32_t> tmp;\n  uint64_t sum = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    tmp = scores;\n    \n    // Partition so that the k-th element is in its sorted position\n    // and all elements before it are >= it\n    std::nth_element(tmp.begin(), tmp.begin() + k - 1, tmp.end(), std::greater<uint32_t>());\n    \n    // Sum the top k elements using SIMD\n    sum = 0;\n    int i = 0;\n    \n    // Process 8 elements at a time with AVX2\n    __m256i sum_vec = _mm256_setzero_si256();\n    for (; i + 7 < k; i += 8) {\n      __m256i vals = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&tmp[i]));\n      // Convert uint32 to uint64 for accumulation without overflow\n      __m128i low = _mm256_castsi256_si128(vals);\n      __m128i high = _mm256_extracti128_si256(vals, 1);\n      __m256i low64 = _mm256_cvtepu32_epi64(low);\n      __m256i high64 = _mm256_cvtepu32_epi64(high);\n      sum_vec = _mm256_add_epi64(sum_vec, low64);\n      sum_vec = _mm256_add_epi64(sum_vec, high64);\n    }\n    \n    // Horizontal sum of the vector\n    alignas(32) uint64_t temp[4];\n    _mm256_store_si256(reinterpret_cast<__m256i*>(temp), sum_vec);\n    sum = temp[0] + temp[1] + temp[2] + temp[3];\n    \n    // Handle remaining elements\n    for (; i < k; ++i) {\n      sum += static_cast<uint64_t>(tmp[i]);\n    }\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "topk_ordered_sum_v1100_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3695536672,
+    "min_elapsed_ns": 3660417516,
+    "max_elapsed_ns": 3750977024,
+    "all_elapsed_ns": [
+      3660417516,
+      3695536672,
+      3750977024
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3660417516,
+      "expected_sum": 134209472,
+      "actual_sum": 134209472
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "topk_ordered_sum_v1100_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 237146544,
+    "min_elapsed_ns": 235748987,
+    "max_elapsed_ns": 238013784,
+    "all_elapsed_ns": [
+      235748987,
+      237146544,
+      238013784
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 235748987,
+      "expected_sum": 134209472,
+      "actual_sum": 134209472
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "topk_ordered_sum_v1100_c",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/topk_ordered_sum_v1100_c/harness', 'executable_tasks/topk_ordered_sum_v1100_c/harness/benchmark_main.cpp', 'executable_tasks/topk_ordered_sum_v1100_c/candidate/claude-sonnet-4-5/solution.cpp', '-o', 'build/topk_ordered_sum_v1100_c/candidate/bench']' returned non-zero exit status 1."
+  }
+}

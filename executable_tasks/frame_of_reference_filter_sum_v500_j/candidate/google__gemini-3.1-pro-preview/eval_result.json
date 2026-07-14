@@ -1,0 +1,59 @@
+{
+  "task_id": "frame_of_reference_filter_sum_v500_j",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/frame_of_reference_filter_sum_v500_j/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <cstdint>\n#include <immintrin.h>\n#include <algorithm>\n\nuint64_t frame_filter_sum(\n    const std::vector<uint16_t>& deltas,\n    uint32_t base,\n    uint32_t low,\n    uint32_t high,\n    int iters) {\n    \n    if (high < low) return 0;\n\n    // Pre-calculate delta range [d_low, d_high]\n    // base + delta >= low  => delta >= low - base\n    // base + delta <= high => delta <= high - base\n    int64_t d_low_64 = static_cast<int64_t>(low) - static_cast<int64_t>(base);\n    int64_t d_high_64 = static_cast<int64_t>(high) - static_cast<int64_t>(base);\n\n    if (d_high_64 < 0 || d_low_64 > 65535) return 0;\n\n    uint16_t d_low = static_cast<uint16_t>(std::max<int64_t>(0, d_low_64));\n    uint16_t d_high = static_cast<uint16_t>(std::min<int64_t>(65535, d_high_64));\n    uint16_t d_range = d_high - d_low;\n\n    const uint16_t* data = deltas.data();\n    size_t n = deltas.size();\n    uint64_t final_sum = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t current_delta_sum = 0;\n        uint64_t current_count = 0;\n\n        size_t i = 0;\n        __m256i v_d_low = _mm256_set1_epi16(d_low);\n        __m256i v_d_range = _mm256_set1_epi16(d_range);\n        __m256i v_zero = _mm256_setzero_si256();\n        __m256i v_delta_sum_acc = _mm256_setzero_si256();\n        __m256i v_count_acc = _mm256_setzero_si256();\n        __m256i v_one = _mm256_set1_epi16(1);\n\n        for (; i + 15 < n; i += 16) {\n            __m256i v_delta = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(data + i));\n            \n            // Range check: (uint16_t)(delta - d_low) <= d_range\n            __m256i v_sub = _mm256_sub_epi16(v_delta, v_d_low);\n            __m256i v_mask = _mm256_cmpeq_epi16(_mm256_min_epu16(v_sub, v_d_range), v_sub);\n\n            // Accumulate deltas and counts\n            __m256i v_filtered_delta = _mm256_and_si256(v_mask, v_delta);\n            __m256i v_filtered_count = _mm256_and_si256(v_mask, v_one);\n\n            v_delta_sum_acc = _mm256_add_epi16(v_delta_sum_acc, v_filtered_delta);\n            v_count_acc = _mm256_add_epi16(v_count_acc, v_filtered_count);\n\n            // Periodically drain 16-bit accumulators to prevent overflow (max 65535 / 16 ~ 4096 iterations)\n            if ((i & 0x7FFF) == 0x7FF0) {\n                __m256i low_bits = _mm256_unpacklo_epi16(v_delta_sum_acc, v_zero);\n                __m256i high_bits = _mm256_unpackhi_epi16(v_delta_sum_acc, v_zero);\n                uint32_t tmp_deltas[8];\n                _mm256_storeu_si256(reinterpret_cast<__m256i*>(tmp_deltas), _mm256_add_epi32(low_bits, high_bits));\n                for(int k=0; k<8; ++k) current_delta_sum += tmp_deltas[k];\n\n                low_bits = _mm256_unpacklo_epi16(v_count_acc, v_zero);\n                high_bits = _mm256_unpackhi_epi16(v_count_acc, v_zero);\n                _mm256_storeu_si256(reinterpret_cast<__m256i*>(tmp_deltas), _mm256_add_epi32(low_bits, high_bits));\n                for(int k=0; k<8; ++k) current_count += tmp_deltas[k];\n\n                v_delta_sum_acc = _mm256_setzero_si256();\n                v_count_acc = _mm256_setzero_si256();\n            }\n        }\n\n        // Final drain for SIMD accumulators\n        uint16_t tmp_d[16], tmp_c[16];\n        _mm256_storeu_si256(reinterpret_cast<__m256i*>(tmp_d), v_delta_sum_acc);\n        _mm256_storeu_si256(reinterpret_cast<__m256i*>(tmp_c), v_count_acc);\n        for (int k = 0; k < 16; ++k) {\n            current_delta_sum += tmp_d[k];\n            current_count += tmp_c[k];\n        }\n\n        // Scalar tail\n        for (; i < n; ++i) {\n            uint16_t d = data[i];\n            if (static_cast<uint16_t>(d - d_low) <= d_range) {\n                current_delta_sum += d;\n                current_count++;\n            }\n        }\n\n        final_sum = current_count * static_cast<uint64_t>(base) + current_delta_sum;\n    }\n\n    return final_sum;\n}",
+  "baseline": {
+    "task_id": "frame_of_reference_filter_sum_v500_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 227680780,
+    "min_elapsed_ns": 214409194,
+    "max_elapsed_ns": 234320921,
+    "all_elapsed_ns": [
+      234320921,
+      227680780,
+      214409194
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 234320921,
+      "expected_sum": 99864576000,
+      "actual_sum": 99864576000
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "frame_of_reference_filter_sum_v500_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 123254092,
+    "min_elapsed_ns": 120245949,
+    "max_elapsed_ns": 126133936,
+    "all_elapsed_ns": [
+      123254092,
+      126133936,
+      120245949
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 123254092,
+      "expected_sum": 99864576000,
+      "actual_sum": 99864576000
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "frame_of_reference_filter_sum_v500_j",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/frame_of_reference_filter_sum_v500_j/harness', 'executable_tasks/frame_of_reference_filter_sum_v500_j/harness/benchmark_main.cpp', 'executable_tasks/frame_of_reference_filter_sum_v500_j/candidate/google__gemini-3.1-pro-preview/solution.cpp', '-o', 'build/frame_of_reference_filter_sum_v500_j/candidate/bench']' returned non-zero exit status 1."
+  }
+}

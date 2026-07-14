@@ -1,0 +1,69 @@
+{
+  "task_id": "zstd_block_compress_v1800_j",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/zstd_block_compress_v1800_j/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 19,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"zstd.h\"\n#include <string>\n\n/**\n * Performance Engineer Optimization:\n * 1. Context Reuse: Using a thread_local ZSTD_CCtx avoids the overhead of creating and \n *    destroying a compression context for every call.\n * 2. Compression Level: Changed level from 19 (ultra-slow) to 1 (fastest). \n *    The task goal is throughput, and level 1 provides the best balance for speed.\n * 3. Zero-Copy Input: Removed the redundant 'local' string copy.\n * 4. Buffer Management: Resizing the output string once to the upper bound and \n *    shrinking it after compression.\n */\n\nstatic thread_local ZSTD_CCtx* g_cctx = nullptr;\n\nint compress_payload(const std::string& input, std::string& compressed) {\n    if (g_cctx == nullptr) {\n        g_cctx = ZSTD_createCCtx();\n    }\n\n    const size_t input_size = input.size();\n    const size_t max_compressed_size = ZSTD_compressBound(input_size);\n    \n    // Ensure output buffer is large enough\n    if (compressed.size() < max_compressed_size) {\n        compressed.resize(max_compressed_size);\n    }\n\n    // Use ZSTD_compressCCtx for context reuse. \n    // Level 1 is chosen for maximum throughput.\n    const size_t compressed_size = ZSTD_compressCCtx(\n        g_cctx, \n        &compressed[0], \n        max_compressed_size, \n        input.data(), \n        input_size, \n        1\n    );\n\n    if (ZSTD_isError(compressed_size)) {\n        return -1;\n    }\n\n    compressed.resize(compressed_size);\n    return static_cast<int>(compressed_size);\n}\n",
+  "baseline": {
+    "task_id": "zstd_block_compress_v1800_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 8355738553,
+    "min_elapsed_ns": 7076162207,
+    "max_elapsed_ns": 9414616184,
+    "all_elapsed_ns": [
+      7076162207,
+      9414616184,
+      8355738553
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7076162207,
+      "compressed_size": 3153051
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "zstd_block_compress_v1800_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 27211906,
+    "min_elapsed_ns": 25996957,
+    "max_elapsed_ns": 28545158,
+    "all_elapsed_ns": [
+      27211906,
+      28545158,
+      25996957
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 27211906,
+      "compressed_size": 3171219
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "zstd_block_compress_v1800_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 30950586,
+    "min_elapsed_ns": 27398835,
+    "max_elapsed_ns": 32380292,
+    "all_elapsed_ns": [
+      32380292,
+      30950586,
+      27398835
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 32380292,
+      "compressed_size": 3171219
+    },
+    "status": "ok"
+  }
+}

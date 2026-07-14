@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_exclusive_scan_cub_i32_v25",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_exclusive_scan_cub_i32_v25/candidate/claude-opus-4.5/solution.cu",
+  "benchmark_timeout_sec": 8,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int BLOCK_SIZE = 256;\nconstexpr int ELEMENTS_PER_BLOCK = BLOCK_SIZE * 2;\n\n__global__ void scan_block_kernel(const int* input, int* output, int* block_sums, int n) {\n    __shared__ int temp[ELEMENTS_PER_BLOCK];\n    \n    int tid = threadIdx.x;\n    int block_offset = blockIdx.x * ELEMENTS_PER_BLOCK;\n    \n    // Load input into shared memory\n    int ai = tid;\n    int bi = tid + BLOCK_SIZE;\n    int global_ai = block_offset + ai;\n    int global_bi = block_offset + bi;\n    \n    temp[ai] = (global_ai < n) ? input[global_ai] : 0;\n    temp[bi] = (global_bi < n) ? input[global_bi] : 0;\n    \n    // Up-sweep (reduce) phase\n    int offset = 1;\n    for (int d = ELEMENTS_PER_BLOCK >> 1; d > 0; d >>= 1) {\n        __syncthreads();\n        if (tid < d) {\n            int ai_idx = offset * (2 * tid + 1) - 1;\n            int bi_idx = offset * (2 * tid + 2) - 1;\n            temp[bi_idx] += temp[ai_idx];\n        }\n        offset *= 2;\n    }\n    \n    // Save block sum and clear last element\n    if (tid == 0) {\n        if (block_sums != nullptr) {\n            block_sums[blockIdx.x] = temp[ELEMENTS_PER_BLOCK - 1];\n        }\n        temp[ELEMENTS_PER_BLOCK - 1] = 0;\n    }\n    \n    // Down-sweep phase\n    for (int d = 1; d < ELEMENTS_PER_BLOCK; d *= 2) {\n        offset >>= 1;\n        __syncthreads();\n        if (tid < d) {\n            int ai_idx = offset * (2 * tid + 1) - 1;\n            int bi_idx = offset * (2 * tid + 2) - 1;\n            int t = temp[ai_idx];\n            temp[ai_idx] = temp[bi_idx];\n            temp[bi_idx] += t;\n        }\n    }\n    __syncthreads();\n    \n    // Write results to global memory\n    if (global_ai < n) output[global_ai] = temp[ai];\n    if (global_bi < n) output[global_bi] = temp[bi];\n}\n\n__global__ void add_block_sums_kernel(int* output, const int* block_sums, int n) {\n    int idx = blockIdx.x * ELEMENTS_PER_BLOCK + threadIdx.x;\n    if (blockIdx.x > 0 && idx < n) {\n        output[idx] += block_sums[blockIdx.x];\n    }\n    int idx2 = idx + BLOCK_SIZE;\n    if (blockIdx.x > 0 && idx2 < n) {\n        output[idx2] += block_sums[blockIdx.x];\n    }\n}\n\n__global__ void scan_block_sums_kernel(int* block_sums, int num_blocks) {\n    // Simple sequential scan for block sums (typically small)\n    if (threadIdx.x == 0 && blockIdx.x == 0) {\n        int running = 0;\n        for (int i = 0; i < num_blocks; ++i) {\n            int val = block_sums[i];\n            block_sums[i] = running;\n            running += val;\n        }\n    }\n}\n\n}  // namespace\n\nvoid exclusive_scan_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0) return;\n    \n    int num_blocks = (n + ELEMENTS_PER_BLOCK - 1) / ELEMENTS_PER_BLOCK;\n    \n    int* block_sums = nullptr;\n    if (num_blocks > 1) {\n        cudaMalloc(&block_sums, num_blocks * sizeof(int));\n    }\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        if (num_blocks == 1) {\n            scan_block_kernel<<<1, BLOCK_SIZE>>>(input, output, nullptr, n);\n        } else {\n            // Phase 1: Scan each block independently, save block sums\n            scan_block_kernel<<<num_blocks, BLOCK_SIZE>>>(input, output, block_sums, n);\n            \n            // Phase 2: Scan block sums\n            scan_block_sums_kernel<<<1, 1>>>(block_sums, num_blocks);\n            \n            // Phase 3: Add scanned block sums to each block\n            add_block_sums_kernel<<<num_blocks, BLOCK_SIZE>>>(output, block_sums, n);\n        }\n    }\n    \n    if (block_sums != nullptr) {\n        cudaFree(block_sums);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v25",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4188072265,
+    "min_elapsed_ns": 4187458007,
+    "max_elapsed_ns": 4190876464,
+    "all_elapsed_ns": [
+      4187458007,
+      4190876464,
+      4188072265
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4187458007,
+      "checksum": 28862128849801
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v25",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2759392,
+    "min_elapsed_ns": 2752383,
+    "max_elapsed_ns": 2800031,
+    "all_elapsed_ns": [
+      2752383,
+      2759392,
+      2800031
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2752383,
+      "checksum": 28862128849801
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v25",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_exclusive_scan_cub_i32_v25/candidate/bench']' timed out after 8 seconds"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "highway_dot_product_small",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_dot_product_small/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <hwy/highway.h>\n\nnamespace {\nnamespace hn = hwy::HWY_NAMESPACE;\n\nfloat DotScalar(const float* a, const float* b, std::size_t n) {\n  float sum = 0.0f;\n  for (std::size_t i = 0; i < n; ++i) {\n    sum += a[i] * b[i];\n  }\n  return sum;\n}\n}  // namespace\n\nfloat dot_product(const float* a, const float* b, std::size_t n) {\n  if (n == 0) return 0.0f;\n\n  const hn::ScalableTag<float> d;\n  const std::size_t lanes = hn::Lanes(d);\n\n  // For very small inputs, scalar avoids SIMD setup overhead.\n  if (n < lanes) {\n    return DotScalar(a, b, n);\n  }\n\n  std::size_t i = 0;\n  auto acc0 = hn::Zero(d);\n  auto acc1 = hn::Zero(d);\n\n  // Unroll by 2 to improve throughput on small/medium vectors while\n  // keeping code size modest.\n  const std::size_t step = 2 * lanes;\n  for (; i + step <= n; i += step) {\n    const auto va0 = hn::LoadU(d, a + i);\n    const auto vb0 = hn::LoadU(d, b + i);\n    const auto va1 = hn::LoadU(d, a + i + lanes);\n    const auto vb1 = hn::LoadU(d, b + i + lanes);\n    acc0 = hn::MulAdd(va0, vb0, acc0);\n    acc1 = hn::MulAdd(va1, vb1, acc1);\n  }\n\n  auto acc = acc0 + acc1;\n\n  for (; i + lanes <= n; i += lanes) {\n    const auto va = hn::LoadU(d, a + i);\n    const auto vb = hn::LoadU(d, b + i);\n    acc = hn::MulAdd(va, vb, acc);\n  }\n\n  float sum = hn::GetLane(hn::SumOfLanes(d, acc));\n\n  for (; i < n; ++i) {\n    sum += a[i] * b[i];\n  }\n\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "highway_dot_product_small",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 182051,
+    "min_elapsed_ns": 181414,
+    "max_elapsed_ns": 182351,
+    "all_elapsed_ns": [
+      182051,
+      182351,
+      181414
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 182051,
+      "expected_dot": -221178,
+      "actual_dot": -221178
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_dot_product_small",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 54737,
+    "min_elapsed_ns": 53750,
+    "max_elapsed_ns": 57243,
+    "all_elapsed_ns": [
+      57243,
+      54737,
+      53750
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 57243,
+      "expected_dot": -221178,
+      "actual_dot": -221179
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_dot_product_small",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 51201,
+    "min_elapsed_ns": 49791,
+    "max_elapsed_ns": 55650,
+    "all_elapsed_ns": [
+      51201,
+      49791,
+      55650
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 51201,
+      "expected_dot": -221178,
+      "actual_dot": -221178
+    },
+    "status": "ok"
+  }
+}

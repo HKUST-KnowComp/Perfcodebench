@@ -1,0 +1,59 @@
+{
+  "task_id": "c_topk_selection_checksum_v3601_007",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_topk_selection_checksum_v3601_007/candidate/google__gemma-4-26b-a4b-it/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include <stdint.h>\n#include <stdlib.h>\n\ntypedef struct {\n  uint32_t score;\n  uint32_t index;\n} Pair;\n\nstatic inline int cmp_pair_desc(const Pair* a, const Pair* b) {\n  if (a->score != b->score) return (a->score < b->score) ? 1 : -1;\n  return (a->index > b->index) ? 1 : -1;\n}\n\nstatic inline int cmp_pair_asc(const Pair* a, const Pair* b) {\n  if (a->score != b->score) return (a->score > b->score) ? 1 : -1;\n  return (a->index > b->index) ? 1 : -1;\n}\n\n// Standard quickselect implementation to partition top-k elements\nstatic void quickselect(Pair* arr, size_t n, size_t k) {\n    size_t left = 0, right = n - 1;\n    while (left < right) {\n        Pair pivot = arr[(left + right) / 2];\n        size_t i = left, j = right;\n        while (i <= j) {\n            while (cmp_pair_desc(&arr[i], &pivot) < 0) i++;\n            while (cmp_pair_desc(&arr[j], &pivot) > 0) j--;\n            if (i <= j) {\n                Pair tmp = arr[i];\n                arr[i] = arr[j];\n                arr[j] = tmp;\n                i++;\n                j--;\n            }\n        }\n        if (k <= j) right = j;\n        else if (i <= k) left = i;\n        else break;\n    }\n}\n\n// Using a simpler partition for stability and correctness in top-k\nstatic void partition_top_k(Pair* arr, size_t n, size_t k) {\n    size_t left = 0, right = n - 1;\n    while (left < right) {\n        Pair pivot = arr[left + (right - left) / 2];\n        size_t i = left, j = right;\n        while (i <= j) {\n            while (cmp_pair_desc(&arr[i], &pivot) < 0) i++;\n            while (cmp_pair_desc(&arr[j], &pivot) > 0) j--;\n            if (i <= j) {\n                Pair tmp = arr[i];\n                arr[i] = arr[j];\n                arr[j] = tmp;\n                i++;\n                j--;\n            }\n        }\n        if (k <= j) right = j;\n        else if (i <= k) left = i;\n        else break;\n    }\n}\n\n// Comparison for qsort on the small k subset\nstatic int qsort_cmp(const void* a, const void* b) {\n    return cmp_pair_desc((const Pair*)a, (const Pair*)b);\n}\n\nuint64_t run(const uint32_t* scores, size_t n, int k, int iters) {\n    if (n == 0 || k <= 0) return 0;\n    Pair* pairs = (Pair*)malloc(n * sizeof(Pair));\n    if (!pairs) return 0;\n\n    uint64_t h = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        for (size_t i = 0; i < n; ++i) {\n            pairs[i].score = scores[i];\n            pairs[i].index = (uint32_t)i;\n        }\n\n        // Use quickselect to move top k elements to the front\n        // We use a standard nth_element style approach\n        size_t l = 0, r = n - 1;\n        size_t target = (size_t)k - 1;\n        while (l < r) {\n            Pair pivot = pairs[l + (r - l) / 2];\n            size_t i = l, j = r;\n            while (i <= j) {\n                while (cmp_pair_desc(&pairs[i], &pivot) < 0) i++;\n                while (cmp_pair_desc(&pairs[j], &pivot) > 0) j--;\n                if (i <= j) {\n                    Pair tmp = pairs[i];\n                    pairs[i] = pairs[j];\n                    pairs[j] = tmp;\n                    i++;\n                    j--;\n                }\n            }\n            if (target <= j) r = j;\n            else if (target >= i) l = i;\n            else break;\n        }\n\n        // Sort only the top k elements to ensure correct checksum order\n        qsort(pairs, k, sizeof(Pair), qsort_cmp);\n\n        h = 1469598103934665603ULL;\n        for (int i = 0; i < k; ++i) {\n            h ^= ((uint64_t)pairs[i].score << 32) ^ pairs[i].index;\n            h *= 1099511628211ULL;\n        }\n    }\n\n    free(pairs);\n    return h;\n}",
+  "baseline": {
+    "task_id": "c_topk_selection_checksum_v3601_007",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 516179000,
+    "min_elapsed_ns": 514144000,
+    "max_elapsed_ns": 517078000,
+    "all_elapsed_ns": [
+      514144000,
+      517078000,
+      516179000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 514144000,
+      "expected_checksum": 9182630688561873748,
+      "actual_checksum": 9182630688561873748
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_topk_selection_checksum_v3601_007",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2855000,
+    "min_elapsed_ns": 2851000,
+    "max_elapsed_ns": 2856000,
+    "all_elapsed_ns": [
+      2851000,
+      2856000,
+      2855000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2851000,
+      "expected_checksum": 9182630688561873748,
+      "actual_checksum": 9182630688561873748
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_topk_selection_checksum_v3601_007",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/c_topk_selection_checksum_v3601_007/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "highway_dot_product_xxlarge",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_dot_product_xxlarge/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <hwy/highway.h>\n\nnamespace {\nnamespace hn = hwy::HWY_NAMESPACE;\n\nfloat DotProductHWY(const float* a, const float* b, std::size_t n) {\n  const hn::ScalableTag<float> d;\n  using V = hn::Vec<decltype(d)>;\n\n  std::size_t i = 0;\n  V vsum = hn::Zero(d);\n\n  const std::size_t lanes = hn::Lanes(d);\n  const std::size_t unroll = 4;\n  const std::size_t step = lanes * unroll;\n\n  for (; i + step <= n; i += step) {\n    vsum = hn::Add(vsum, hn::Mul(hn::LoadU(d, a + i), hn::LoadU(d, b + i)));\n    vsum = hn::Add(vsum, hn::Mul(hn::LoadU(d, a + i + lanes), hn::LoadU(d, b + i + lanes)));\n    vsum = hn::Add(vsum, hn::Mul(hn::LoadU(d, a + i + 2 * lanes), hn::LoadU(d, b + i + 2 * lanes)));\n    vsum = hn::Add(vsum, hn::Mul(hn::LoadU(d, a + i + 3 * lanes), hn::LoadU(d, b + i + 3 * lanes)));\n  }\n\n  for (; i + lanes <= n; i += lanes) {\n    vsum = hn::Add(vsum, hn::Mul(hn::LoadU(d, a + i), hn::LoadU(d, b + i)));\n  }\n\n  float sum = hn::GetLane(hn::SumOfLanes(d, vsum));\n\n  for (; i < n; ++i) {\n    sum += a[i] * b[i];\n  }\n\n  return sum;\n}\n}  // namespace\n\nfloat dot_product(const float* a, const float* b, std::size_t n) {\n  return DotProductHWY(a, b, n);\n}\n",
+  "baseline": {
+    "task_id": "highway_dot_product_xxlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6499402,
+    "min_elapsed_ns": 6440938,
+    "max_elapsed_ns": 6507922,
+    "all_elapsed_ns": [
+      6440938,
+      6507922,
+      6499402
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6440938,
+      "expected_dot": 2631150.0,
+      "actual_dot": 2631600.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_dot_product_xxlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5361025,
+    "min_elapsed_ns": 5229245,
+    "max_elapsed_ns": 5536127,
+    "all_elapsed_ns": [
+      5536127,
+      5361025,
+      5229245
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5536127,
+      "expected_dot": 2631150.0,
+      "actual_dot": 2631140.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_dot_product_xxlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 5061883,
+    "min_elapsed_ns": 4939972,
+    "max_elapsed_ns": 5080408,
+    "all_elapsed_ns": [
+      5080408,
+      5061883,
+      4939972
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5080408,
+      "expected_dot": 2631150.0,
+      "actual_dot": 2631140.0
+    },
+    "status": "ok"
+  }
+}

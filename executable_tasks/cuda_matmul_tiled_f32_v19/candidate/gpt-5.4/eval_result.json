@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_matmul_tiled_f32_v19",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_matmul_tiled_f32_v19/candidate/gpt-5.4/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int TILE_M = 64;\nconstexpr int TILE_N = 64;\nconstexpr int TILE_K = 16;\nconstexpr int THREADS_X = 16;\nconstexpr int THREADS_Y = 16;\nconstexpr int WPT_M = 4;\nconstexpr int WPT_N = 4;\n\n__global__ void matmul_tiled_kernel(const float* __restrict__ a,\n                                    const float* __restrict__ b,\n                                    float* __restrict__ c,\n                                    int n) {\n  __shared__ float As[TILE_M][TILE_K];\n  __shared__ float Bs[TILE_K][TILE_N];\n\n  const int tx = threadIdx.x;\n  const int ty = threadIdx.y;\n\n  const int block_row = blockIdx.y * TILE_M;\n  const int block_col = blockIdx.x * TILE_N;\n\n  const int row_base = block_row + ty * WPT_M;\n  const int col_base = block_col + tx * WPT_N;\n\n  float acc[WPT_M][WPT_N];\n#pragma unroll\n  for (int i = 0; i < WPT_M; ++i) {\n#pragma unroll\n    for (int j = 0; j < WPT_N; ++j) {\n      acc[i][j] = 0.0f;\n    }\n  }\n\n  for (int kb = 0; kb < n; kb += TILE_K) {\n    const int linear_tid = ty * THREADS_X + tx;\n\n#pragma unroll\n    for (int idx = linear_tid; idx < TILE_M * TILE_K; idx += THREADS_X * THREADS_Y) {\n      const int r = idx / TILE_K;\n      const int k = idx - r * TILE_K;\n      const int gr = block_row + r;\n      const int gk = kb + k;\n      As[r][k] = (gr < n && gk < n) ? a[gr * n + gk] : 0.0f;\n    }\n\n#pragma unroll\n    for (int idx = linear_tid; idx < TILE_K * TILE_N; idx += THREADS_X * THREADS_Y) {\n      const int k = idx / TILE_N;\n      const int ccol = idx - k * TILE_N;\n      const int gk = kb + k;\n      const int gc = block_col + ccol;\n      Bs[k][ccol] = (gk < n && gc < n) ? b[gk * n + gc] : 0.0f;\n    }\n\n    __syncthreads();\n\n#pragma unroll\n    for (int k = 0; k < TILE_K; ++k) {\n      float a_frag[WPT_M];\n      float b_frag[WPT_N];\n\n#pragma unroll\n      for (int i = 0; i < WPT_M; ++i) {\n        a_frag[i] = As[ty * WPT_M + i][k];\n      }\n#pragma unroll\n      for (int j = 0; j < WPT_N; ++j) {\n        b_frag[j] = Bs[k][tx * WPT_N + j];\n      }\n\n#pragma unroll\n      for (int i = 0; i < WPT_M; ++i) {\n#pragma unroll\n        for (int j = 0; j < WPT_N; ++j) {\n          acc[i][j] += a_frag[i] * b_frag[j];\n        }\n      }\n    }\n\n    __syncthreads();\n  }\n\n#pragma unroll\n  for (int i = 0; i < WPT_M; ++i) {\n    const int row = row_base + i;\n    if (row < n) {\n#pragma unroll\n      for (int j = 0; j < WPT_N; ++j) {\n        const int col = col_base + j;\n        if (col < n) {\n          c[row * n + col] = acc[i][j];\n        }\n      }\n    }\n  }\n}\n\n}  // namespace\n\nvoid matmul_f32(const float* a, const float* b, float* c, int n, int iters) {\n  const dim3 block(THREADS_X, THREADS_Y);\n  const dim3 grid((n + TILE_N - 1) / TILE_N, (n + TILE_M - 1) / TILE_M);\n  for (int iter = 0; iter < iters; ++iter) {\n    matmul_tiled_kernel<<<grid, block>>>(a, b, c, n);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_matmul_tiled_f32_v19",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 485983,
+    "min_elapsed_ns": 484672,
+    "max_elapsed_ns": 487040,
+    "all_elapsed_ns": [
+      487040,
+      485983,
+      484672
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 487040,
+      "max_abs_error": 0,
+      "checksum": 1947170000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_matmul_tiled_f32_v19",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 362208,
+    "min_elapsed_ns": 360960,
+    "max_elapsed_ns": 362879,
+    "all_elapsed_ns": [
+      362879,
+      360960,
+      362208
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 362879,
+      "max_abs_error": 0,
+      "checksum": 1947170000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_matmul_tiled_f32_v19",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_matmul_tiled_f32_v19/candidate/bench']' timed out after 5 seconds"
+  }
+}

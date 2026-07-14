@@ -1,0 +1,72 @@
+{
+  "task_id": "dictionary_groupby_sum_v500_g",
+  "model": "deepseek-v4-pro",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dictionary_groupby_sum_v500_g/candidate/deepseek-v4-pro/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <string>\n#include <unordered_map>\n#include <vector>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t dictionary_groupby_checksum(\n    const std::vector<std::string>& dictionary,\n    const std::vector<uint16_t>& codes,\n    const std::vector<uint32_t>& values,\n    int iters) {\n  if (iters <= 0) {\n    return 0;\n  }\n\n  // Map each distinct string in dictionary to a canonical accumulator index.\n  std::unordered_map<std::string, std::size_t> str_to_id;\n  std::vector<std::size_t> canonical_idx(dictionary.size());\n  for (std::size_t i = 0; i < dictionary.size(); ++i) {\n    const std::string& s = dictionary[i];\n    auto it = str_to_id.find(s);\n    if (it == str_to_id.end()) {\n      std::size_t id = str_to_id.size();\n      str_to_id[s] = id;\n      canonical_idx[i] = id;\n    } else {\n      canonical_idx[i] = it->second;\n    }\n  }\n\n  const std::size_t num_distinct = str_to_id.size();\n  std::vector<uint64_t> accumulators(num_distinct, 0);\n\n  // Precompute canonical index for each code to avoid dictionary indirection inside the hot loop.\n  std::vector<std::size_t> code_canonical_idx(codes.size());\n  for (std::size_t i = 0; i < codes.size(); ++i) {\n    code_canonical_idx[i] = canonical_idx[codes[i]];\n  }\n\n  const std::size_t N = codes.size();\n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    // Zero accumulators.\n    std::fill(accumulators.begin(), accumulators.end(), uint64_t(0));\n\n    // Aggregate values by canonical ID.\n    for (std::size_t i = 0; i < N; ++i) {\n      accumulators[code_canonical_idx[i]] += static_cast<uint64_t>(values[i]);\n    }\n\n    hash = 1469598103934665603ULL;\n    for (std::size_t i = 0; i < dictionary.size(); ++i) {\n      hash = mix(hash, accumulators[canonical_idx[i]]);\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "dictionary_groupby_sum_v500_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 335950614,
+    "min_elapsed_ns": 331601031,
+    "max_elapsed_ns": 344241005,
+    "all_elapsed_ns": [
+      344241005,
+      331601031,
+      335950614
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 344241005,
+      "expected_checksum": 6590704489164905347,
+      "actual_checksum": 6590704489164905347
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dictionary_groupby_sum_v500_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8175595,
+    "min_elapsed_ns": 8165668,
+    "max_elapsed_ns": 8200908,
+    "all_elapsed_ns": [
+      8175595,
+      8165668,
+      8200908
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8175595,
+      "expected_checksum": 6590704489164905347,
+      "actual_checksum": 6590704489164905347
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dictionary_groupby_sum_v500_g",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 27190994,
+    "min_elapsed_ns": 24234576,
+    "max_elapsed_ns": 27970896,
+    "all_elapsed_ns": [
+      27190994,
+      27970896,
+      24234576
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 27190994,
+      "expected_checksum": 6590704489164905347,
+      "actual_checksum": 6590704489164905347
+    },
+    "status": "ok"
+  }
+}

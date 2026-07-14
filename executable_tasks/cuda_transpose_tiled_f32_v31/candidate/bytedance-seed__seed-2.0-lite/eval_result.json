@@ -1,0 +1,69 @@
+{
+  "task_id": "cuda_transpose_tiled_f32_v31",
+  "model": "bytedance-seed/seed-2.0-lite",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_transpose_tiled_f32_v31/candidate/bytedance-seed__seed-2.0-lite/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\nconstexpr int kTileDim = 32;\n\n__global__ void transpose_optimized_kernel(const float* input, float* output, int width, int height) {\n    // Shared memory tile with +1 column padding to eliminate shared memory bank conflicts\n    __shared__ float tile[kTileDim][kTileDim + 1];\n    \n    // Calculate input coordinates for the current thread\n    const int x_in = blockIdx.x * kTileDim + threadIdx.x;\n    const int y_in = blockIdx.y * kTileDim + threadIdx.y;\n    \n    // Load tile from global memory (fully coalesced read operation)\n    if (x_in < width && y_in < height) {\n        tile[threadIdx.y][threadIdx.x] = input[y_in * width + x_in];\n    }\n    \n    // Synchronize all threads in the block to ensure tile is fully loaded\n    __syncthreads();\n    \n    // Calculate transposed output coordinates\n    const int x_out = blockIdx.y * kTileDim + threadIdx.x;\n    const int y_out = blockIdx.x * kTileDim + threadIdx.y;\n    \n    // Write transposed tile to global memory (fully coalesced write operation)\n    if (x_out < height && y_out < width) {\n        output[y_out * height + x_out] = tile[threadIdx.x][threadIdx.y];\n    }\n}\n\n} // namespace\n\nvoid transpose_f32(const float* input, float* output, int width, int height, int iters) {\n    const dim3 block(kTileDim, kTileDim);\n    const dim3 grid((width + kTileDim - 1) / kTileDim, (height + kTileDim - 1) / kTileDim);\n    for (int iter = 0; iter < iters; ++iter) {\n        transpose_optimized_kernel<<<grid, block>>>(input, output, width, height);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_transpose_tiled_f32_v31",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5237919,
+    "min_elapsed_ns": 5235583,
+    "max_elapsed_ns": 5280831,
+    "all_elapsed_ns": [
+      5237919,
+      5280831,
+      5235583
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5237919,
+      "checksum": 147456000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_transpose_tiled_f32_v31",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 493503,
+    "min_elapsed_ns": 486111,
+    "max_elapsed_ns": 511359,
+    "all_elapsed_ns": [
+      511359,
+      493503,
+      486111
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 511359,
+      "checksum": 147456000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_transpose_tiled_f32_v31",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 624736,
+    "min_elapsed_ns": 619104,
+    "max_elapsed_ns": 630367,
+    "all_elapsed_ns": [
+      624736,
+      630367,
+      619104
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 624736,
+      "checksum": 147456000.0
+    },
+    "status": "ok"
+  }
+}

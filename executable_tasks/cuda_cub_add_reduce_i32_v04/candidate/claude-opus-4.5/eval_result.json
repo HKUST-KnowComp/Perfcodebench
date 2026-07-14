@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v04",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v04/candidate/claude-opus-4.5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__device__ __forceinline__ int warp_reduce_sum(int val) {\n    #pragma unroll\n    for (int offset = 16; offset > 0; offset >>= 1) {\n        val += __shfl_down_sync(0xffffffff, val, offset);\n    }\n    return val;\n}\n\n__global__ void optimized_reduce_kernel(const int* __restrict__ input, int* __restrict__ output, int n) {\n    // Each thread accumulates multiple elements\n    int sum = 0;\n    int tid = blockIdx.x * blockDim.x + threadIdx.x;\n    int stride = blockDim.x * gridDim.x;\n    \n    // Grid-stride loop with vectorized loads when possible\n    int idx = tid * 4;\n    int stride4 = stride * 4;\n    \n    // Process 4 elements at a time using int4\n    while (idx + 3 < n) {\n        int4 vals = *reinterpret_cast<const int4*>(input + idx);\n        sum += vals.x + vals.y + vals.z + vals.w;\n        idx += stride4;\n    }\n    \n    // Handle remaining elements\n    int remaining_start = (n / 4) * 4;\n    for (int i = tid + remaining_start; i < n; i += stride) {\n        sum += input[i];\n    }\n    \n    // Warp-level reduction\n    int lane = threadIdx.x & 31;\n    int warp_id = threadIdx.x >> 5;\n    \n    sum = warp_reduce_sum(sum);\n    \n    // Shared memory for inter-warp reduction\n    __shared__ int warp_sums[32];\n    \n    if (lane == 0) {\n        warp_sums[warp_id] = sum;\n    }\n    __syncthreads();\n    \n    // First warp reduces all warp sums\n    if (warp_id == 0) {\n        int num_warps = blockDim.x >> 5;\n        sum = (lane < num_warps) ? warp_sums[lane] : 0;\n        sum = warp_reduce_sum(sum);\n        \n        if (lane == 0) {\n            atomicAdd(output, sum);\n        }\n    }\n}\n\n}  // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    if (n == 0) {\n        for (int iter = 0; iter < iters; ++iter) {\n            cudaMemsetAsync(output, 0, sizeof(int));\n        }\n        return;\n    }\n    \n    // Optimal configuration: 256 threads per block\n    const int block_size = 256;\n    // Use enough blocks to saturate the GPU but not too many to cause excessive atomics\n    // Each thread processes multiple elements via grid-stride loop\n    int num_blocks = min(1024, (n + block_size * 4 - 1) / (block_size * 4));\n    num_blocks = max(num_blocks, 1);\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemsetAsync(output, 0, sizeof(int));\n        optimized_reduce_kernel<<<num_blocks, block_size>>>(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v04",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 23932704,
+    "min_elapsed_ns": 23906175,
+    "max_elapsed_ns": 23957696,
+    "all_elapsed_ns": [
+      23957696,
+      23906175,
+      23932704
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 23957696,
+      "expected_sum": 62914560,
+      "actual_sum": 62914560
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v04",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1302783,
+    "min_elapsed_ns": 1302047,
+    "max_elapsed_ns": 1304512,
+    "all_elapsed_ns": [
+      1304512,
+      1302047,
+      1302783
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1304512,
+      "expected_sum": 62914560,
+      "actual_sum": 62914560
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v04",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v04/candidate/bench']' timed out after 5 seconds"
+  }
+}

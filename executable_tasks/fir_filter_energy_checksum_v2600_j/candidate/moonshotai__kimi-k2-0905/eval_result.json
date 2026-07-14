@@ -1,0 +1,59 @@
+{
+  "task_id": "fir_filter_energy_checksum_v2600_j",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/fir_filter_energy_checksum_v2600_j/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <immintrin.h>\n#include <algorithm>\n\nuint64_t fir_energy_checksum(\n    const std::vector<int16_t>& signal,\n    const std::vector<int16_t>& taps,\n    int iters)\n{\n    const std::size_t M = taps.size();\n    const std::size_t N = signal.size();\n    if (M == 0 || N == 0 || iters == 0) return 0;\n\n    // Reverse taps once and zero-pad so we can always do 16-element loads\n    alignas(32) std::vector<int16_t> rev_taps_padded(M + 31, 0);\n    for (std::size_t i = 0; i < M; ++i)\n        rev_taps_padded[i] = taps[M - 1 - i];\n\n    // Allocate reusable output buffer\n    std::vector<int64_t> output(N);\n\n    const __m256i *ptaps = reinterpret_cast<const __m256i*>(rev_taps_padded.data());\n\n    for (int iter = 0; iter < iters; ++iter) {\n        std::fill(output.begin(), output.end(), 0);\n\n        // FIR: outer loop walks over taps, inner loop over signal (cache-friendly)\n        for (std::size_t k = 0; k < M; ++k) {\n            const int16_t tap = rev_taps_padded[k];\n            const __m256i vt = _mm256_set1_epi16(tap);\n            std::size_t i = 0;\n\n            // Process 16 samples at a time\n            for (; i + 15 < N - k; i += 16) {\n                __m256i vs = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&signal[i]));\n                __m256i prod = _mm256_madd_epi16(vs, vt); // 16\u00d716\u219232 multiply-add\n                __m256i lo   = _mm256_unpacklo_epi32(prod, _mm256_setzero_si256());\n                __m256i hi   = _mm256_unpackhi_epi32(prod, _mm256_setzero_si256());\n                __m256i vout_lo = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&output[i + k]));\n                __m256i vout_hi = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&output[i + k + 8]));\n                vout_lo = _mm256_add_epi64(vout_lo, lo);\n                vout_hi = _mm256_add_epi64(vout_hi, hi);\n                _mm256_storeu_si256(reinterpret_cast<__m256i*>(&output[i + k]), vout_lo);\n                _mm256_storeu_si256(reinterpret_cast<__m256i*>(&output[i + k + 8]), vout_hi);\n            }\n            // Scalar tail\n            for (; i < N - k; ++i)\n                output[i + k] += static_cast<int64_t>(signal[i]) * static_cast<int64_t>(tap);\n        }\n\n        // Compute checksum\n        uint64_t total = 1469598103934665603ULL;\n        for (std::size_t i = 0; i < N; ++i) {\n            int64_t acc = output[i];\n            uint64_t v = static_cast<uint64_t>(acc * acc + 3 * acc);\n            total ^= v;\n            total *= 1099511628211ULL;\n        }\n        if (iter == iters - 1) return total;\n    }\n    return 0;\n}",
+  "baseline": {
+    "task_id": "fir_filter_energy_checksum_v2600_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 13005959,
+    "min_elapsed_ns": 12865434,
+    "max_elapsed_ns": 13018808,
+    "all_elapsed_ns": [
+      13005959,
+      12865434,
+      13018808
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 13005959,
+      "expected_checksum": 8633924258125192551,
+      "actual_checksum": 8633924258125192551
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "fir_filter_energy_checksum_v2600_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 13682038,
+    "min_elapsed_ns": 13407035,
+    "max_elapsed_ns": 14150531,
+    "all_elapsed_ns": [
+      13407035,
+      13682038,
+      14150531
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 13407035,
+      "expected_checksum": 8633924258125192551,
+      "actual_checksum": 8633924258125192551
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "fir_filter_energy_checksum_v2600_j",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/fir_filter_energy_checksum_v2600_j/harness', 'executable_tasks/fir_filter_energy_checksum_v2600_j/harness/benchmark_main.cpp', 'executable_tasks/fir_filter_energy_checksum_v2600_j/candidate/moonshotai__kimi-k2-0905/solution.cpp', '-o', 'build/fir_filter_energy_checksum_v2600_j/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_jacobi_2d_v1700_i",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v1700_i/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  const size_t n = data.size();\n  \n  #pragma omp parallel\n  {\n    uint64_t local_hash = 1469598103934665603ULL;\n    #pragma omp for nowait schedule(static)\n    for (size_t i = 0; i < n; ++i) {\n      local_hash ^= static_cast<uint64_t>(data[i]);\n      local_hash *= 1099511628211ULL;\n    }\n    \n    #pragma omp critical\n    {\n      for (size_t i = 0; i < n; ++i) {\n        hash ^= static_cast<uint64_t>(data[i]);\n        hash *= 1099511628211ULL;\n      }\n    }\n  }\n  \n  hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  std::vector<uint32_t> a = input;\n  std::vector<uint32_t> b(a.size(), 0);\n  \n  const size_t cols_sz = static_cast<size_t>(cols);\n  \n  for (int step = 0; step < steps; ++step) {\n    const uint32_t* __restrict__ src = a.data();\n    uint32_t* __restrict__ dst = b.data();\n    \n    // Top row\n    for (int col = 0; col < cols; ++col) {\n      dst[col] = src[col];\n    }\n    \n    // Bottom row\n    const size_t last_row_offset = static_cast<size_t>(rows - 1) * cols_sz;\n    for (int col = 0; col < cols; ++col) {\n      dst[last_row_offset + col] = src[last_row_offset + col];\n    }\n    \n    // Interior rows\n    #pragma omp parallel for schedule(static)\n    for (int row = 1; row < rows - 1; ++row) {\n      const size_t row_offset = static_cast<size_t>(row) * cols_sz;\n      const size_t prev_row = row_offset - cols_sz;\n      const size_t next_row = row_offset + cols_sz;\n      \n      // Left boundary\n      dst[row_offset] = src[row_offset];\n      \n      // Interior columns\n      for (int col = 1; col < cols - 1; ++col) {\n        const size_t idx = row_offset + col;\n        dst[idx] = (src[idx] * 4u + src[idx - 1] + src[idx + 1] +\n                    src[prev_row + col] + src[next_row + col]) / 8u;\n      }\n      \n      // Right boundary\n      dst[row_offset + cols - 1] = src[row_offset + cols - 1];\n    }\n    \n    a.swap(b);\n  }\n  \n  return checksum_u32(a);\n}\n",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v1700_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 157165203,
+    "min_elapsed_ns": 129841030,
+    "max_elapsed_ns": 183231825,
+    "all_elapsed_ns": [
+      129841030,
+      183231825,
+      157165203
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 129841030,
+      "expected_checksum": 2090076965995993664,
+      "actual_checksum": 2090076965995993664
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v1700_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 167752209,
+    "min_elapsed_ns": 64262215,
+    "max_elapsed_ns": 479281059,
+    "all_elapsed_ns": [
+      479281059,
+      64262215,
+      167752209
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 479281059,
+      "expected_checksum": 2090076965995993664,
+      "actual_checksum": 2090076965995993664
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v1700_i",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-fopenmp', '-Iexecutable_tasks/openmp_jacobi_2d_v1700_i/harness', 'executable_tasks/openmp_jacobi_2d_v1700_i/harness/benchmark_main.cpp', 'executable_tasks/openmp_jacobi_2d_v1700_i/candidate/claude-sonnet-4-5/solution.cpp', '-o', 'build/openmp_jacobi_2d_v1700_i/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "sparse_accumulator_checksum_v500_g",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sparse_accumulator_checksum_v500_g/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n#include <cstdint>\n\nnamespace {\n\nconstexpr uint64_t FNV_OFFSET_BASIS = 1469598103934665603ULL;\nconstexpr uint64_t FNV_PRIME = 1099511628211ULL;\n\n// Computes (base^exp) mod 2^64 in O(log exp) time.\nuint64_t power(uint64_t base, uint64_t exp) {\n    uint64_t res = 1;\n    while (exp > 0) {\n        if (exp % 2 == 1) res *= base;\n        base *= base;\n        exp /= 2;\n    }\n    return res;\n}\n\nstruct Entry {\n    uint32_t index;\n    uint64_t value;\n};\n\n} // namespace\n\nuint64_t sparse_accumulator_hash(\n    const std::vector<uint32_t>& indices,\n    const std::vector<uint32_t>& values,\n    uint32_t domain,\n    int iters) {\n    \n    if (iters <= 0) return 0;\n    if (domain == 0) return FNV_OFFSET_BASIS;\n\n    // Step 1: Accumulate values for each index.\n    // Since the inputs are constant across iterations, we only compute this once.\n    size_t n = indices.size();\n    if (n == 0) {\n        return power(FNV_PRIME, domain) * FNV_OFFSET_BASIS;\n    }\n\n    std::vector<Entry> entries(n);\n    for (size_t i = 0; i < n; ++i) {\n        entries[i] = {indices[i], static_cast<uint64_t>(values[i])};\n    }\n\n    std::sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) {\n        return a.index < b.index;\n    });\n\n    // Merge duplicate indices\n    size_t unique_count = 0;\n    if (n > 0) {\n        unique_count = 1;\n        for (size_t i = 1; i < n; ++i) {\n            if (entries[i].index == entries[unique_count - 1].index) {\n                entries[unique_count - 1].value += entries[i].value;\n            } else {\n                entries[unique_count] = entries[i];\n                unique_count++;\n            }\n        }\n    }\n\n    // Step 2: Compute the hash efficiently.\n    // The hash update for a zero value is: hash = (hash ^ 0) * FNV_PRIME = hash * FNV_PRIME.\n    // For a gap of size 'k', the hash becomes: hash * (FNV_PRIME^k).\n    uint64_t hash = FNV_OFFSET_BASIS;\n    uint32_t last_idx = 0;\n    bool started = false;\n\n    for (size_t i = 0; i < unique_count; ++i) {\n        uint32_t idx = entries[i].index;\n        if (idx >= domain) break; // Ignore indices outside the domain\n\n        // Apply multiplier for the gap of zeros before this index\n        uint32_t gap = idx - (started ? last_idx + 1 : 0);\n        if (gap > 0) {\n            hash *= power(FNV_PRIME, gap);\n        }\n\n        // Apply the update for the current index\n        hash ^= entries[i].value;\n        hash *= FNV_PRIME;\n\n        last_idx = idx;\n        started = true;\n    }\n\n    // Apply multiplier for the remaining zeros in the domain\n    uint32_t final_gap = domain - (started ? last_idx + 1 : 0);\n    if (final_gap > 0) {\n        hash *= power(FNV_PRIME, final_gap);\n    }\n\n    // The result is the same for every iteration because the inputs don't change.\n    return hash;\n}\n",
+  "baseline": {
+    "task_id": "sparse_accumulator_checksum_v500_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 636128232,
+    "min_elapsed_ns": 560535761,
+    "max_elapsed_ns": 643498041,
+    "all_elapsed_ns": [
+      560535761,
+      636128232,
+      643498041
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 560535761,
+      "expected_checksum": 15555753143162004331,
+      "actual_checksum": 15555753143162004331
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sparse_accumulator_checksum_v500_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 130277454,
+    "min_elapsed_ns": 126046565,
+    "max_elapsed_ns": 143792608,
+    "all_elapsed_ns": [
+      143792608,
+      130277454,
+      126046565
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 143792608,
+      "expected_checksum": 15555753143162004331,
+      "actual_checksum": 15555753143162004331
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sparse_accumulator_checksum_v500_g",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 388743261,
+    "min_elapsed_ns": 376439153,
+    "max_elapsed_ns": 396757043,
+    "all_elapsed_ns": [
+      396757043,
+      376439153,
+      388743261
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 396757043,
+      "expected_checksum": 15555753143162004331,
+      "actual_checksum": 15555753143162004331
+    },
+    "status": "ok"
+  }
+}

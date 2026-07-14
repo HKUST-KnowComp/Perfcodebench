@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_084",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_084/candidate/gpt-5.4/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\nstatic uint64_t checksum_i16(const int16_t* data, size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (size_t i = 0; i < n; ++i) {\n    hash ^= (uint16_t)data[i];\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n  if (src == NULL || input_len <= 0 || output_len <= 0 || iters <= 0) {\n    return 0;\n  }\n\n  int16_t* out = (int16_t*)malloc((size_t)output_len * sizeof(int16_t));\n  if (!out) return 0;\n\n  if (input_len == 1 || output_len == 1) {\n    int16_t v = src[0];\n    for (int i = 0; i < output_len; ++i) out[i] = v;\n    uint64_t hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n      hash = checksum_i16(out, (size_t)output_len);\n    }\n    free(out);\n    return hash;\n  }\n\n  const int in_last = input_len - 1;\n  const int out_last = output_len - 1;\n\n  int* left_idx = (int*)malloc((size_t)output_len * sizeof(int));\n  uint32_t* frac_q32 = (uint32_t*)malloc((size_t)output_len * sizeof(uint32_t));\n  if (!left_idx || !frac_q32) {\n    free(left_idx);\n    free(frac_q32);\n    free(out);\n    return 0;\n  }\n\n  {\n    uint64_t num = 0;\n    const uint64_t step = (((uint64_t)in_last) << 32) / (uint64_t)out_last;\n    for (int i = 0; i < output_len; ++i) {\n      int left = (int)(num >> 32);\n      uint32_t frac = (uint32_t)num;\n      if (left >= in_last) {\n        left = in_last;\n        frac = 0;\n      }\n      left_idx[i] = left;\n      frac_q32[i] = frac;\n      num += step;\n    }\n    left_idx[out_last] = in_last;\n    frac_q32[out_last] = 0;\n  }\n\n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    for (int i = 0; i < output_len; ++i) {\n      int left = left_idx[i];\n      int right = left + 1;\n      if (right >= input_len) right = input_len - 1;\n\n      int32_t a = (int32_t)src[left];\n      int32_t b = (int32_t)src[right];\n      int32_t diff = b - a;\n      uint32_t frac = frac_q32[i];\n\n      int64_t interp = ((int64_t)diff * (int64_t)frac);\n      int32_t rounded;\n      if (interp >= 0) {\n        rounded = a + (int32_t)((interp + 0x80000000LL) >> 32);\n      } else {\n        rounded = a + (int32_t)((interp - 0x80000000LL) >> 32);\n      }\n      out[i] = (int16_t)rounded;\n    }\n    hash = checksum_i16(out, (size_t)output_len);\n  }\n\n  free(frac_q32);\n  free(left_idx);\n  free(out);\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_084",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 12448000,
+    "min_elapsed_ns": 11788000,
+    "max_elapsed_ns": 13176000,
+    "all_elapsed_ns": [
+      11788000,
+      13176000,
+      12448000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11788000,
+      "expected_checksum": 10180140470447909299,
+      "actual_checksum": 10180140470447909299
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_084",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 12099000,
+    "min_elapsed_ns": 11668000,
+    "max_elapsed_ns": 12411000,
+    "all_elapsed_ns": [
+      12099000,
+      12411000,
+      11668000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12099000,
+      "expected_checksum": 10180140470447909299,
+      "actual_checksum": 10180140470447909299
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_084",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 368000,
+    "min_elapsed_ns": 359000,
+    "max_elapsed_ns": 391000,
+    "all_elapsed_ns": [
+      391000,
+      368000,
+      359000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 391000,
+      "expected_checksum": 10180140470447909299,
+      "actual_checksum": 10180140470447909299
+    },
+    "status": "ok"
+  }
+}

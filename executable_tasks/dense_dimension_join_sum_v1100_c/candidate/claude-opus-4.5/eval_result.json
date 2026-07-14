@@ -1,0 +1,59 @@
+{
+  "task_id": "dense_dimension_join_sum_v1100_c",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_dimension_join_sum_v1100_c/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 28,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstring>\n#include <vector>\n#include <algorithm>\n\n#if defined(__x86_64__) || defined(_M_X64)\n#include <immintrin.h>\n#define HAS_AVX2 1\n#else\n#define HAS_AVX2 0\n#endif\n\nuint64_t join_sum(\n    const std::vector<uint32_t>& dim_keys,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n\n    if (dim_keys.empty() || probe_keys.empty()) {\n        return 0;\n    }\n\n    // Build direct-address lookup table\n    uint32_t min_key = dim_keys[0];\n    uint32_t max_key = dim_keys[0];\n    for (size_t i = 1; i < dim_keys.size(); ++i) {\n        if (dim_keys[i] < min_key) min_key = dim_keys[i];\n        if (dim_keys[i] > max_key) max_key = dim_keys[i];\n    }\n\n    const size_t table_size = static_cast<size_t>(max_key - min_key) + 1;\n    std::vector<uint32_t> lookup(table_size, 0);\n\n    for (size_t i = 0; i < dim_keys.size(); ++i) {\n        lookup[dim_keys[i] - min_key] = dim_values[i];\n    }\n\n    const uint32_t* lookup_ptr = lookup.data();\n    const uint32_t* probe_keys_ptr = probe_keys.data();\n    const uint32_t* probe_weights_ptr = probe_weights.data();\n    const size_t n = probe_keys.size();\n\n    uint64_t sum = 0;\n\n#if HAS_AVX2\n    const __m256i vmin_key = _mm256_set1_epi32(static_cast<int32_t>(min_key));\n\n    for (int iter = 0; iter < iters; ++iter) {\n        __m256i vsum0 = _mm256_setzero_si256();\n        __m256i vsum1 = _mm256_setzero_si256();\n        __m256i vsum2 = _mm256_setzero_si256();\n        __m256i vsum3 = _mm256_setzero_si256();\n\n        size_t i = 0;\n        const size_t vec_end = (n / 32) * 32;\n\n        for (; i < vec_end; i += 32) {\n            // Prefetch ahead\n            if (i + 128 < n) {\n                _mm_prefetch(reinterpret_cast<const char*>(probe_keys_ptr + i + 128), _MM_HINT_T0);\n                _mm_prefetch(reinterpret_cast<const char*>(probe_weights_ptr + i + 128), _MM_HINT_T0);\n            }\n\n            // Load 32 keys and weights\n            __m256i keys0 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(probe_keys_ptr + i));\n            __m256i keys1 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(probe_keys_ptr + i + 8));\n            __m256i keys2 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(probe_keys_ptr + i + 16));\n            __m256i keys3 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(probe_keys_ptr + i + 24));\n\n            __m256i weights0 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(probe_weights_ptr + i));\n            __m256i weights1 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(probe_weights_ptr + i + 8));\n            __m256i weights2 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(probe_weights_ptr + i + 16));\n            __m256i weights3 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(probe_weights_ptr + i + 24));\n\n            // Compute indices\n            __m256i idx0 = _mm256_sub_epi32(keys0, vmin_key);\n            __m256i idx1 = _mm256_sub_epi32(keys1, vmin_key);\n            __m256i idx2 = _mm256_sub_epi32(keys2, vmin_key);\n            __m256i idx3 = _mm256_sub_epi32(keys3, vmin_key);\n\n            // Gather dim_values\n            __m256i vals0 = _mm256_i32gather_epi32(reinterpret_cast<const int*>(lookup_ptr), idx0, 4);\n            __m256i vals1 = _mm256_i32gather_epi32(reinterpret_cast<const int*>(lookup_ptr), idx1, 4);\n            __m256i vals2 = _mm256_i32gather_epi32(reinterpret_cast<const int*>(lookup_ptr), idx2, 4);\n            __m256i vals3 = _mm256_i32gather_epi32(reinterpret_cast<const int*>(lookup_ptr), idx3, 4);\n\n            // Multiply and accumulate (32-bit x 32-bit -> 64-bit)\n            // Process low and high halves separately\n            __m256i prod0_lo = _mm256_mul_epu32(vals0, weights0);\n            __m256i prod0_hi = _mm256_mul_epu32(_mm256_srli_epi64(vals0, 32), _mm256_srli_epi64(weights0, 32));\n            __m256i prod1_lo = _mm256_mul_epu32(vals1, weights1);\n            __m256i prod1_hi = _mm256_mul_epu32(_mm256_srli_epi64(vals1, 32), _mm256_srli_epi64(weights1, 32));\n            __m256i prod2_lo = _mm256_mul_epu32(vals2, weights2);\n            __m256i prod2_hi = _mm256_mul_epu32(_mm256_srli_epi64(vals2, 32), _mm256_srli_epi64(weights2, 32));\n            __m256i prod3_lo = _mm256_mul_epu32(vals3, weights3);\n            __m256i prod3_hi = _mm256_mul_epu32(_mm256_srli_epi64(vals3, 32), _mm256_srli_epi64(weights3, 32));\n\n            vsum0 = _mm256_add_epi64(vsum0, prod0_lo);\n            vsum0 = _mm256_add_epi64(vsum0, prod0_hi);\n            vsum1 = _mm256_add_epi64(vsum1, prod1_lo);\n            vsum1 = _mm256_add_epi64(vsum1, prod1_hi);\n            vsum2 = _mm256_add_epi64(vsum2, prod2_lo);\n            vsum2 = _mm256_add_epi64(vsum2, prod2_hi);\n            vsum3 = _mm256_add_epi64(vsum3, prod3_lo);\n            vsum3 = _mm256_add_epi64(vsum3, prod3_hi);\n        }\n\n        // Combine vector sums\n        __m256i vsum_all = _mm256_add_epi64(_mm256_add_epi64(vsum0, vsum1), _mm256_add_epi64(vsum2, vsum3));\n        \n        // Horizontal sum\n        __m128i lo = _mm256_castsi256_si128(vsum_all);\n        __m128i hi = _mm256_extracti128_si256(vsum_all, 1);\n        __m128i sum128 = _mm_add_epi64(lo, hi);\n        sum = static_cast<uint64_t>(_mm_extract_epi64(sum128, 0)) + static_cast<uint64_t>(_mm_extract_epi64(sum128, 1));\n\n        // Scalar tail\n        for (; i < n; ++i) {\n            uint32_t idx = probe_keys_ptr[i] - min_key;\n            sum += static_cast<uint64_t>(lookup_ptr[idx]) * static_cast<uint64_t>(probe_weights_ptr[i]);\n        }\n    }\n#else\n    // Scalar fallback with unrolling\n    for (int iter = 0; iter < iters; ++iter) {\n        sum = 0;\n        size_t i = 0;\n        const size_t n4 = (n / 4) * 4;\n        \n        for (; i < n4; i += 4) {\n            uint32_t idx0 = probe_keys_ptr[i] - min_key;\n            uint32_t idx1 = probe_keys_ptr[i + 1] - min_key;\n            uint32_t idx2 = probe_keys_ptr[i + 2] - min_key;\n            uint32_t idx3 = probe_keys_ptr[i + 3] - min_key;\n            \n            sum += static_cast<uint64_t>(lookup_ptr[idx0]) * static_cast<uint64_t>(probe_weights_ptr[i]);\n            sum += static_cast<uint64_t>(lookup_ptr[idx1]) * static_cast<uint64_t>(probe_weights_ptr[i + 1]);\n            sum += static_cast<uint64_t>(lookup_ptr[idx2]) * static_cast<uint64_t>(probe_weights_ptr[i + 2]);\n            sum += static_cast<uint64_t>(lookup_ptr[idx3]) * static_cast<uint64_t>(probe_weights_ptr[i + 3]);\n        }\n        \n        for (; i < n; ++i) {\n            uint32_t idx = probe_keys_ptr[i] - min_key;\n            sum += static_cast<uint64_t>(lookup_ptr[idx]) * static_cast<uint64_t>(probe_weights_ptr[i]);\n        }\n    }\n#endif\n\n    return sum;\n}",
+  "baseline": {
+    "task_id": "dense_dimension_join_sum_v1100_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 18149582590,
+    "min_elapsed_ns": 17472556571,
+    "max_elapsed_ns": 18707926413,
+    "all_elapsed_ns": [
+      18149582590,
+      18707926413,
+      17472556571
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 18149582590,
+      "expected_sum": 292829528064,
+      "actual_sum": 292829528064
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_dimension_join_sum_v1100_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 149692840,
+    "min_elapsed_ns": 126423263,
+    "max_elapsed_ns": 154490076,
+    "all_elapsed_ns": [
+      126423263,
+      154490076,
+      149692840
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 126423263,
+      "expected_sum": 292829528064,
+      "actual_sum": 292829528064
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_dimension_join_sum_v1100_c",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/dense_dimension_join_sum_v1100_c/harness', 'executable_tasks/dense_dimension_join_sum_v1100_c/harness/benchmark_main.cpp', 'executable_tasks/dense_dimension_join_sum_v1100_c/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/dense_dimension_join_sum_v1100_c/candidate/bench']' returned non-zero exit status 1."
+  }
+}

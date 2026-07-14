@@ -1,0 +1,72 @@
+{
+  "task_id": "frame_of_reference_filter_sum_v500_d",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/frame_of_reference_filter_sum_v500_d/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <cstddef>\n\nuint64_t frame_filter_sum(\n    const std::vector<uint16_t>& deltas,\n    uint32_t base,\n    uint32_t low,\n    uint32_t high,\n    int iters)\n{\n    // Pre-compute the inclusive 16-bit delta range that survives the filter.\n    // Because base + delta must be in [low,high], delta must be in:\n    //   [low - base, high - base]  (clamped to 0..65535)\n    const uint32_t delta_low  = (low  > base) ? static_cast<uint16_t>(low  - base) : 0u;\n    const uint32_t delta_high = (high < base + 0xFFFFu) ? static_cast<uint16_t>(high - base) : 0xFFFFu;\n\n    const uint16_t* const data = deltas.data();\n    const size_t n = deltas.size();\n    uint64_t total = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t sum = 0;\n        size_t i = 0;\n\n        // Process 8 deltas per iteration (unrolled)\n        for (; i + 8 <= n; i += 8) {\n            uint16_t d0 = data[i+0];\n            uint16_t d1 = data[i+1];\n            uint16_t d2 = data[i+2];\n            uint16_t d3 = data[i+3];\n            uint16_t d4 = data[i+4];\n            uint16_t d5 = data[i+5];\n            uint16_t d6 = data[i+6];\n            uint16_t d7 = data[i+7];\n\n            // Branchless conditional add: (d >= delta_low) & (d <= delta_high)\n            auto acc = [&](uint16_t d) {\n                uint32_t in_range = (d >= delta_low) & (d <= delta_high);\n                sum += in_range * (base + static_cast<uint64_t>(d));\n            };\n            acc(d0); acc(d1); acc(d2); acc(d3);\n            acc(d4); acc(d5); acc(d6); acc(d7);\n        }\n        // Tail\n        for (; i < n; ++i) {\n            uint16_t d = data[i];\n            if (d >= delta_low && d <= delta_high) {\n                sum += base + static_cast<uint64_t>(d);\n            }\n        }\n        total = sum;\n    }\n    return total;\n}",
+  "baseline": {
+    "task_id": "frame_of_reference_filter_sum_v500_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 273671197,
+    "min_elapsed_ns": 242817438,
+    "max_elapsed_ns": 318166588,
+    "all_elapsed_ns": [
+      273671197,
+      318166588,
+      242817438
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 273671197,
+      "expected_sum": 119467622400,
+      "actual_sum": 119467622400
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "frame_of_reference_filter_sum_v500_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 140603150,
+    "min_elapsed_ns": 139093141,
+    "max_elapsed_ns": 158319160,
+    "all_elapsed_ns": [
+      158319160,
+      139093141,
+      140603150
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 158319160,
+      "expected_sum": 119467622400,
+      "actual_sum": 119467622400
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "frame_of_reference_filter_sum_v500_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 177076314,
+    "min_elapsed_ns": 173571330,
+    "max_elapsed_ns": 182122086,
+    "all_elapsed_ns": [
+      182122086,
+      173571330,
+      177076314
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 182122086,
+      "expected_sum": 119467622400,
+      "actual_sum": 119467622400
+    },
+    "status": "ok"
+  }
+}

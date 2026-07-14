@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_thrust_reduce_f32",
+  "model": "deepseek-v4-flash",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_thrust_reduce_f32/candidate/deepseek-v4-flash/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n// First kernel: each block reduces a portion of the input using shared memory tree reduction.\n__global__ void partial_reduce_kernel(const float* input, float* partial, int n) {\n    extern __shared__ float sdata[];\n    unsigned int tid = threadIdx.x;\n    unsigned int idx = blockIdx.x * blockDim.x + tid;\n    float sum = 0.0f;\n    // Grid-stride loop to cover all elements\n    while (idx < n) {\n        sum += input[idx];\n        idx += gridDim.x * blockDim.x;\n    }\n    sdata[tid] = sum;\n    __syncthreads();\n    // Tree reduction in shared memory\n    for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) {\n        if (tid < s) {\n            sdata[tid] += sdata[tid + s];\n        }\n        __syncthreads();\n    }\n    if (tid == 0) {\n        partial[blockIdx.x] = sdata[0];\n    }\n}\n\n// Second kernel: reduce the array of partial sums to a single value.\n__global__ void total_reduce_kernel(const float* partial, float* result, int num_blocks) {\n    extern __shared__ float sdata[];\n    unsigned int tid = threadIdx.x;\n    unsigned int idx = tid;\n    float sum = 0.0f;\n    while (idx < num_blocks) {\n        sum += partial[idx];\n        idx += blockDim.x;\n    }\n    sdata[tid] = sum;\n    __syncthreads();\n    for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) {\n        if (tid < s) {\n            sdata[tid] += sdata[tid + s];\n        }\n        __syncthreads();\n    }\n    if (tid == 0) {\n        *result = sdata[0];\n    }\n}\n\n} // anonymous namespace\n\nfloat reduce_f32(const float* input, int n, int iters) {\n    // Handle empty input\n    if (n == 0) return 0.0f;\n\n    const int blockSize = 256;\n    // Number of blocks: at most 256 to keep partial array small, but at least enough to cover n.\n    int numBlocks = (n + blockSize - 1) / blockSize;\n    if (numBlocks > 256) numBlocks = 256;\n\n    float *d_partial = nullptr;\n    float *d_result  = nullptr;\n    cudaMalloc(&d_partial, numBlocks * sizeof(float));\n    cudaMalloc(&d_result,  sizeof(float));\n\n    // Perform the reduction iters times\n    for (int iter = 0; iter < iters; ++iter) {\n        // First kernel: reduce chunks\n        partial_reduce_kernel<<<numBlocks, blockSize, blockSize * sizeof(float)>>>(input, d_partial, n);\n        // Second kernel: combine block sums\n        // If only one block, we can directly use its result\n        if (numBlocks == 1) {\n            cudaMemcpy(d_result, d_partial, sizeof(float), cudaMemcpyDeviceToDevice);\n        } else {\n            // Use a single block of size up to 256 to reduce partial sums\n            int reduceBlockSize = (numBlocks < blockSize) ? numBlocks : blockSize;\n            total_reduce_kernel<<<1, reduceBlockSize, reduceBlockSize * sizeof(float)>>>(\n                d_partial, d_result, numBlocks);\n        }\n    }\n\n    float actual = 0.0f;\n    cudaMemcpy(&actual, d_result, sizeof(float), cudaMemcpyDeviceToHost);\n    cudaFree(d_partial);\n    cudaFree(d_result);\n    return actual;\n}\n",
+  "baseline": {
+    "task_id": "cuda_thrust_reduce_f32",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 253755416,
+    "min_elapsed_ns": 250764953,
+    "max_elapsed_ns": 255401565,
+    "all_elapsed_ns": [
+      255401565,
+      250764953,
+      253755416
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 255401565,
+      "expected_sum": 12582800.0,
+      "actual_sum": 12496400.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_thrust_reduce_f32",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2688640,
+    "min_elapsed_ns": 761568,
+    "max_elapsed_ns": 12081151,
+    "all_elapsed_ns": [
+      12081151,
+      2688640,
+      761568
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12081151,
+      "expected_sum": 12582800.0,
+      "actual_sum": 12582800.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_thrust_reduce_f32",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_thrust_reduce_f32/candidate/bench']' timed out after 5 seconds"
+  }
+}

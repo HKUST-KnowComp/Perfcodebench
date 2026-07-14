@@ -1,0 +1,22 @@
+#include "interface.h"
+#include <stdint.h>
+#include <stdlib.h>
+
+uint64_t run(const int32_t* deltas, size_t count, int iters) {
+  uint64_t total = 0;
+  if (count == 0) return 0;
+
+  for (int iter = 0; iter < iters; ++iter) {
+    uint64_t iter_total = 0;
+    int64_t current = 0;
+    
+    // Unrolling could be added here for further micro-optimization,
+    // but the primary gain is removing the O(N) memory allocation and second pass.
+    for (size_t i = 0; i < count; ++i) {
+      current += (int64_t)deltas[i];
+      iter_total += (uint64_t)(current + 0x9E3779B1LL);
+    }
+    total = iter_total;
+  }
+  return total;
+}

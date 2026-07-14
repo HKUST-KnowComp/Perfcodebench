@@ -1,0 +1,72 @@
+{
+  "task_id": "beam_search_topk_v2000_b",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v2000_b/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <vector>\n\nnamespace {\n\nstruct Token {\n    int32_t score;\n    int index;\n\n    // Deterministic tie-breaking: higher score first, then lower index first\n    bool operator>(const Token& other) const {\n        if (score != other.score) return score > other.score;\n        return index < other.index;\n    }\n};\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n} // namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits, int beams, int vocab, int topk, int iters) {\n    std::vector<Token> row(vocab);\n    uint64_t hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        hash = 1469598103934665603ULL;\n        for (int b = 0; b < beams; ++b) {\n            const int32_t* beam_logits = &logits[b * vocab];\n            \n            for (int v = 0; v < vocab; ++v) {\n                row[v] = {beam_logits[v], v};\n            }\n\n            // Use nth_element to get top-k in O(vocab) instead of O(vocab log vocab)\n            std::nth_element(row.begin(), row.begin() + topk, row.end(), std::greater<Token>());\n            \n            // nth_element doesn't sort the first k elements, so we must sort them to ensure deterministic checksum\n            std::sort(row.begin(), row.begin() + topk, std::greater<Token>());\n\n            for (int k = 0; k < topk; ++k) {\n                hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(row[k].score)));\n                hash = mix(hash, static_cast<uint64_t>(row[k].index));\n            }\n        }\n    }\n    return hash;\n}",
+  "baseline": {
+    "task_id": "beam_search_topk_v2000_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 288336790,
+    "min_elapsed_ns": 272290776,
+    "max_elapsed_ns": 289892444,
+    "all_elapsed_ns": [
+      288336790,
+      289892444,
+      272290776
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 288336790,
+      "expected_checksum": 14431094425673165040,
+      "actual_checksum": 14431094425673165040
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v2000_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3426944,
+    "min_elapsed_ns": 3426607,
+    "max_elapsed_ns": 3567124,
+    "all_elapsed_ns": [
+      3567124,
+      3426944,
+      3426607
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3567124,
+      "expected_checksum": 14431094425673165040,
+      "actual_checksum": 14431094425673165040
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v2000_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 31899395,
+    "min_elapsed_ns": 31363649,
+    "max_elapsed_ns": 32560504,
+    "all_elapsed_ns": [
+      32560504,
+      31363649,
+      31899395
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 32560504,
+      "expected_checksum": 14431094425673165040,
+      "actual_checksum": 14431094425673165040
+    },
+    "status": "ok"
+  }
+}

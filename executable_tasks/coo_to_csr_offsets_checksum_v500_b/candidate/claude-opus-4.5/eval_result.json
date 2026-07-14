@@ -1,0 +1,59 @@
+{
+  "task_id": "coo_to_csr_offsets_checksum_v500_b",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/coo_to_csr_offsets_checksum_v500_b/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstdint>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t csr_offsets_hash(const std::vector<uint32_t>& row_ids, uint32_t rows, int iters) {\n  const size_t nnz = row_ids.size();\n  const size_t offset_size = static_cast<size_t>(rows) + 1u;\n  std::vector<uint32_t> offsets(offset_size);\n  uint64_t hash = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    // Zero out offsets\n    for (size_t i = 0; i < offset_size; ++i) {\n      offsets[i] = 0;\n    }\n\n    // Count occurrences of each row (store count in offsets[row+1])\n    const uint32_t* __restrict row_ptr = row_ids.data();\n    uint32_t* __restrict off_ptr = offsets.data();\n    \n    for (size_t i = 0; i < nnz; ++i) {\n      ++off_ptr[row_ptr[i] + 1];\n    }\n\n    // Prefix sum to convert counts to offsets\n    uint32_t cumsum = 0;\n    for (size_t i = 0; i < offset_size; ++i) {\n      cumsum += off_ptr[i];\n      off_ptr[i] = cumsum;\n    }\n\n    // Compute hash\n    hash = 1469598103934665603ULL;\n    for (size_t i = 0; i < offset_size; ++i) {\n      hash = mix(hash, off_ptr[i]);\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "coo_to_csr_offsets_checksum_v500_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 915841091,
+    "min_elapsed_ns": 756743014,
+    "max_elapsed_ns": 916811756,
+    "all_elapsed_ns": [
+      756743014,
+      915841091,
+      916811756
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 756743014,
+      "expected_checksum": 16589140619240994713,
+      "actual_checksum": 16589140619240994713
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "coo_to_csr_offsets_checksum_v500_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 135589797,
+    "min_elapsed_ns": 133807673,
+    "max_elapsed_ns": 148695836,
+    "all_elapsed_ns": [
+      148695836,
+      135589797,
+      133807673
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 148695836,
+      "expected_checksum": 16589140619240994713,
+      "actual_checksum": 16589140619240994713
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "coo_to_csr_offsets_checksum_v500_b",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/coo_to_csr_offsets_checksum_v500_b/harness', 'executable_tasks/coo_to_csr_offsets_checksum_v500_b/harness/benchmark_main.cpp', 'executable_tasks/coo_to_csr_offsets_checksum_v500_b/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/coo_to_csr_offsets_checksum_v500_b/candidate/bench']' returned non-zero exit status 1."
+  }
+}

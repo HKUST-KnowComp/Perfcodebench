@@ -1,0 +1,59 @@
+{
+  "task_id": "packet_ipv4_classify_checksum_v2600_a",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/packet_ipv4_classify_checksum_v2600_a/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstddef>\n#include <cstdint>\n\nnamespace {\n\nconstexpr std::size_t kPacketSize = 64;\n\n// Lookup table for first octet: 1 if could be private (10, 172, 192), 0 otherwise\n// For 10.x.x.x -> always private\n// For 172.x.x.x -> need to check second octet (16-31)\n// For 192.x.x.x -> need to check second octet (168)\nalignas(64) constexpr uint8_t kFirstOctetPrivate[256] = {\n    [10] = 2,   // definitely private\n    [172] = 1,  // maybe private (need second octet check)\n    [192] = 1,  // maybe private (need second octet check)\n};\n\ninline uint32_t classify_private(const uint8_t* src) {\n    const uint8_t o0 = src[0];\n    const uint8_t o1 = src[1];\n    const uint8_t tag = kFirstOctetPrivate[o0];\n    if (tag == 2) return 5u;  // 10.x.x.x\n    if (tag == 1) {\n        if (o0 == 172u && o1 >= 16u && o1 < 32u) return 5u;\n        if (o0 == 192u && o1 == 168u) return 5u;\n    }\n    return 11u;\n}\n\ninline uint32_t compute_port_bucket(uint8_t protocol, uint16_t dst_port) {\n    if (protocol != 6u && protocol != 17u) return 3u;\n    if (dst_port < 1024u) return 0u;\n    if (dst_port < 8192u) return 1u;\n    return 2u;\n}\n\n}  // namespace\n\nuint64_t classify_packets_checksum(\n    const std::vector<uint8_t>& packets,\n    std::size_t packet_count,\n    int iters) {\n    \n    const uint8_t* __restrict__ data = packets.data();\n    uint64_t hash = 0;\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        hash = 1469598103934665603ULL;\n        \n        std::size_t i = 0;\n        const std::size_t count4 = packet_count & ~std::size_t(3);\n        \n        // Process 4 packets at a time\n        for (; i < count4; i += 4) {\n            const uint8_t* p0 = data + i * kPacketSize;\n            const uint8_t* p1 = p0 + kPacketSize;\n            const uint8_t* p2 = p1 + kPacketSize;\n            const uint8_t* p3 = p2 + kPacketSize;\n            \n            // Packet 0\n            {\n                const uint8_t ttl = p0[8];\n                const uint8_t protocol = p0[9];\n                const uint8_t* src = p0 + 12;\n                const uint16_t dst_port = (static_cast<uint16_t>(p0[22]) << 8) | p0[23];\n                \n                const uint32_t ttl_bucket = ttl >> 6;\n                const uint32_t port_bucket = compute_port_bucket(protocol, dst_port);\n                const uint32_t priv = classify_private(src);\n                \n                const uint32_t key = static_cast<uint32_t>(protocol) * 131u + \n                                     ttl_bucket * 17u + priv + port_bucket * 23u;\n                hash ^= static_cast<uint64_t>(key);\n                hash *= 1099511628211ULL;\n            }\n            \n            // Packet 1\n            {\n                const uint8_t ttl = p1[8];\n                const uint8_t protocol = p1[9];\n                const uint8_t* src = p1 + 12;\n                const uint16_t dst_port = (static_cast<uint16_t>(p1[22]) << 8) | p1[23];\n                \n                const uint32_t ttl_bucket = ttl >> 6;\n                const uint32_t port_bucket = compute_port_bucket(protocol, dst_port);\n                const uint32_t priv = classify_private(src);\n                \n                const uint32_t key = static_cast<uint32_t>(protocol) * 131u + \n                                     ttl_bucket * 17u + priv + port_bucket * 23u;\n                hash ^= static_cast<uint64_t>(key);\n                hash *= 1099511628211ULL;\n            }\n            \n            // Packet 2\n            {\n                const uint8_t ttl = p2[8];\n                const uint8_t protocol = p2[9];\n                const uint8_t* src = p2 + 12;\n                const uint16_t dst_port = (static_cast<uint16_t>(p2[22]) << 8) | p2[23];\n                \n                const uint32_t ttl_bucket = ttl >> 6;\n                const uint32_t port_bucket = compute_port_bucket(protocol, dst_port);\n                const uint32_t priv = classify_private(src);\n                \n                const uint32_t key = static_cast<uint32_t>(protocol) * 131u + \n                                     ttl_bucket * 17u + priv + port_bucket * 23u;\n                hash ^= static_cast<uint64_t>(key);\n                hash *= 1099511628211ULL;\n            }\n            \n            // Packet 3\n            {\n                const uint8_t ttl = p3[8];\n                const uint8_t protocol = p3[9];\n                const uint8_t* src = p3 + 12;\n                const uint16_t dst_port = (static_cast<uint16_t>(p3[22]) << 8) | p3[23];\n                \n                const uint32_t ttl_bucket = ttl >> 6;\n                const uint32_t port_bucket = compute_port_bucket(protocol, dst_port);\n                const uint32_t priv = classify_private(src);\n                \n                const uint32_t key = static_cast<uint32_t>(protocol) * 131u + \n                                     ttl_bucket * 17u + priv + port_bucket * 23u;\n                hash ^= static_cast<uint64_t>(key);\n                hash *= 1099511628211ULL;\n            }\n        }\n        \n        // Handle remaining packets\n        for (; i < packet_count; ++i) {\n            const uint8_t* p = data + i * kPacketSize;\n            \n            const uint8_t ttl = p[8];\n            const uint8_t protocol = p[9];\n            const uint8_t* src = p + 12;\n            const uint16_t dst_port = (static_cast<uint16_t>(p[22]) << 8) | p[23];\n            \n            const uint32_t ttl_bucket = ttl >> 6;\n            const uint32_t port_bucket = compute_port_bucket(protocol, dst_port);\n            const uint32_t priv = classify_private(src);\n            \n            const uint32_t key = static_cast<uint32_t>(protocol) * 131u + \n                                 ttl_bucket * 17u + priv + port_bucket * 23u;\n            hash ^= static_cast<uint64_t>(key);\n            hash *= 1099511628211ULL;\n        }\n    }\n    \n    return hash;\n}",
+  "baseline": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 982304,
+    "min_elapsed_ns": 927544,
+    "max_elapsed_ns": 1340314,
+    "all_elapsed_ns": [
+      1340314,
+      927544,
+      982304
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1340314,
+      "expected_checksum": 7659490708124657445,
+      "actual_checksum": 7659490708124657445
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 835478,
+    "min_elapsed_ns": 722241,
+    "max_elapsed_ns": 851940,
+    "all_elapsed_ns": [
+      835478,
+      722241,
+      851940
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 835478,
+      "expected_checksum": 7659490708124657445,
+      "actual_checksum": 7659490708124657445
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_a",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/packet_ipv4_classify_checksum_v2600_a/harness', 'executable_tasks/packet_ipv4_classify_checksum_v2600_a/harness/benchmark_main.cpp', 'executable_tasks/packet_ipv4_classify_checksum_v2600_a/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/packet_ipv4_classify_checksum_v2600_a/candidate/bench']' returned non-zero exit status 1."
+  }
+}

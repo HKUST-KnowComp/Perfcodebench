@@ -1,0 +1,57 @@
+#include "interface.h"
+
+#include <cstdint>
+#include <vector>
+
+uint64_t join_sum(
+    const std::vector<uint32_t>& dim_keys,
+    const std::vector<uint32_t>& dim_values,
+    const std::vector<uint32_t>& probe_keys,
+    const std::vector<uint32_t>& probe_weights,
+    int iters) {
+  const std::size_t dim_n = dim_keys.size();
+  const std::size_t probe_n = probe_keys.size();
+
+  if (dim_n == 0 || probe_n == 0 || iters <= 0) {
+    return 0;
+  }
+
+  uint32_t max_key = 0;
+  for (std::size_t i = 0; i < dim_n; ++i) {
+    const uint32_t k = dim_keys[i];
+    if (k > max_key) max_key = k;
+  }
+
+  std::vector<uint32_t> dense(max_key + 1);
+  for (std::size_t i = 0; i < dim_n; ++i) {
+    dense[dim_keys[i]] = dim_values[i];
+  }
+
+  const uint32_t* __restrict dense_ptr = dense.data();
+  const uint32_t* __restrict pk = probe_keys.data();
+  const uint32_t* __restrict pw = probe_weights.data();
+
+  uint64_t sum = 0;
+  for (int iter = 0; iter < iters; ++iter) {
+    uint64_t s0 = 0;
+    uint64_t s1 = 0;
+    uint64_t s2 = 0;
+    uint64_t s3 = 0;
+
+    std::size_t i = 0;
+    const std::size_t unroll_end = probe_n & ~std::size_t(3);
+    for (; i < unroll_end; i += 4) {
+      s0 += static_cast<uint64_t>(dense_ptr[pk[i]]) * static_cast<uint64_t>(pw[i]);
+      s1 += static_cast<uint64_t>(dense_ptr[pk[i + 1]]) * static_cast<uint64_t>(pw[i + 1]);
+      s2 += static_cast<uint64_t>(dense_ptr[pk[i + 2]]) * static_cast<uint64_t>(pw[i + 2]);
+      s3 += static_cast<uint64_t>(dense_ptr[pk[i + 3]]) * static_cast<uint64_t>(pw[i + 3]);
+    }
+    for (; i < probe_n; ++i) {
+      s0 += static_cast<uint64_t>(dense_ptr[pk[i]]) * static_cast<uint64_t>(pw[i]);
+    }
+
+    sum = s0 + s1 + s2 + s3;
+  }
+
+  return sum;
+}

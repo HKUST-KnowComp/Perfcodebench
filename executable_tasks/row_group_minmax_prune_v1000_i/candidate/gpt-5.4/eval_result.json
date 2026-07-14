@@ -1,0 +1,59 @@
+{
+  "task_id": "row_group_minmax_prune_v1000_i",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/row_group_minmax_prune_v1000_i/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nuint64_t row_group_range_sum(\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& mins,\n    const std::vector<uint32_t>& maxs,\n    uint32_t low,\n    uint32_t high,\n    uint32_t block_size,\n    int iters) {\n  const uint32_t* data = values.empty() ? nullptr : values.data();\n  const uint32_t* minp = mins.empty() ? nullptr : mins.data();\n  const uint32_t* maxp = maxs.empty() ? nullptr : maxs.data();\n  const size_t n = values.size();\n\n  if (iters <= 0 || n == 0) return 0;\n  if (low > high) return 0;\n\n  // Fallback to full scan if metadata is unusable.\n  if (block_size == 0) {\n    uint64_t sum = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n      uint64_t s = 0;\n      const uint32_t* p = data;\n      const uint32_t* end = data + n;\n      while (p != end) {\n        uint32_t v = *p++;\n        if (v >= low && v <= high) s += static_cast<uint64_t>(v);\n      }\n      sum = s;\n    }\n    return sum;\n  }\n\n  const size_t block_count = (n + static_cast<size_t>(block_size) - 1) / static_cast<size_t>(block_size);\n  if (mins.size() < block_count || maxs.size() < block_count || minp == nullptr || maxp == nullptr) {\n    uint64_t sum = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n      uint64_t s = 0;\n      const uint32_t* p = data;\n      const uint32_t* end = data + n;\n      while (p != end) {\n        uint32_t v = *p++;\n        if (v >= low && v <= high) s += static_cast<uint64_t>(v);\n      }\n      sum = s;\n    }\n    return sum;\n  }\n\n  uint64_t sum = 0;\n  const size_t bs = static_cast<size_t>(block_size);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t s = 0;\n    size_t base = 0;\n\n    for (size_t g = 0; g < block_count; ++g, base += bs) {\n      const uint32_t gmin = minp[g];\n      const uint32_t gmax = maxp[g];\n\n      if (gmax < low || gmin > high) {\n        continue;\n      }\n\n      size_t len = n - base;\n      if (len > bs) len = bs;\n      const uint32_t* p = data + base;\n      const uint32_t* end = p + len;\n\n      if (gmin >= low && gmax <= high) {\n        uint64_t local = 0;\n        while ((end - p) >= 8) {\n          local += static_cast<uint64_t>(p[0]);\n          local += static_cast<uint64_t>(p[1]);\n          local += static_cast<uint64_t>(p[2]);\n          local += static_cast<uint64_t>(p[3]);\n          local += static_cast<uint64_t>(p[4]);\n          local += static_cast<uint64_t>(p[5]);\n          local += static_cast<uint64_t>(p[6]);\n          local += static_cast<uint64_t>(p[7]);\n          p += 8;\n        }\n        while (p != end) {\n          local += static_cast<uint64_t>(*p++);\n        }\n        s += local;\n      } else {\n        uint64_t local = 0;\n        while ((end - p) >= 8) {\n          uint32_t v0 = p[0];\n          uint32_t v1 = p[1];\n          uint32_t v2 = p[2];\n          uint32_t v3 = p[3];\n          uint32_t v4 = p[4];\n          uint32_t v5 = p[5];\n          uint32_t v6 = p[6];\n          uint32_t v7 = p[7];\n          if (v0 >= low && v0 <= high) local += static_cast<uint64_t>(v0);\n          if (v1 >= low && v1 <= high) local += static_cast<uint64_t>(v1);\n          if (v2 >= low && v2 <= high) local += static_cast<uint64_t>(v2);\n          if (v3 >= low && v3 <= high) local += static_cast<uint64_t>(v3);\n          if (v4 >= low && v4 <= high) local += static_cast<uint64_t>(v4);\n          if (v5 >= low && v5 <= high) local += static_cast<uint64_t>(v5);\n          if (v6 >= low && v6 <= high) local += static_cast<uint64_t>(v6);\n          if (v7 >= low && v7 <= high) local += static_cast<uint64_t>(v7);\n          p += 8;\n        }\n        while (p != end) {\n          uint32_t v = *p++;\n          if (v >= low && v <= high) local += static_cast<uint64_t>(v);\n        }\n        s += local;\n      }\n    }\n\n    sum = s;\n  }\n\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "row_group_minmax_prune_v1000_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 34114226,
+    "min_elapsed_ns": 33937393,
+    "max_elapsed_ns": 34483745,
+    "all_elapsed_ns": [
+      34483745,
+      34114226,
+      33937393
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 34483745,
+      "expected_sum": 55291932,
+      "actual_sum": 55291932
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "row_group_minmax_prune_v1000_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 585824,
+    "min_elapsed_ns": 578830,
+    "max_elapsed_ns": 627083,
+    "all_elapsed_ns": [
+      578830,
+      585824,
+      627083
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 578830,
+      "expected_sum": 55291932,
+      "actual_sum": 55291932
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "row_group_minmax_prune_v1000_i",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/row_group_minmax_prune_v1000_i/harness', 'executable_tasks/row_group_minmax_prune_v1000_i/harness/benchmark_main.cpp', 'executable_tasks/row_group_minmax_prune_v1000_i/candidate/gpt-5.4/solution.cpp', '-o', 'build/row_group_minmax_prune_v1000_i/candidate/bench']' returned non-zero exit status 1."
+  }
+}

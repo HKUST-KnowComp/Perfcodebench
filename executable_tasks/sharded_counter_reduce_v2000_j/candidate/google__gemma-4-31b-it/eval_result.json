@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce_v2000_j",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v2000_j/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <thread>\n#include <atomic>\n#include <algorithm>\n\nnamespace {\n\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  \n  if (iters == 0) return 0;\n\n  const size_t n_keys = keys.size();\n  const size_t k_space = static_cast<size_t>(key_space);\n  \n  // To avoid repeated thread creation overhead, we use a structure where\n  // each thread has its own private buffer to avoid contention.\n  // We allocate a 2D array: [num_threads][key_space]\n  std::vector<std::vector<uint64_t>> thread_local_counts(num_threads, std::vector<uint64_t>(k_space, 0));\n  std::vector<uint64_t> global_counts(k_space, 0);\n  uint64_t final_hash = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    // Reset buffers for this iteration\n    for (int t = 0; t < num_threads; ++t) {\n      std::fill(thread_local_counts[t].begin(), thread_local_counts[t].end(), 0);\n    }\n\n    std::vector<std::thread> workers;\n    const size_t chunk = n_keys / num_threads;\n\n    for (int t = 0; t < num_threads; ++t) {\n      const size_t begin = t * chunk;\n      const size_t end = (t == num_threads - 1) ? n_keys : (t + 1) * chunk;\n      \n      workers.emplace_back([&, t, begin, end]() {\n        uint64_t* local_buf = thread_local_counts[t].data();\n        const uint32_t* k_ptr = &keys[begin];\n        const uint32_t* v_ptr = &values[begin];\n        const size_t len = end - begin;\n        for (size_t i = 0; i < len; ++i) {\n          local_buf[k_ptr[i]] += v_ptr[i];\n        }\n      });\n    }\n\n    for (auto& w : workers) w.join();\n\n    // Reduction phase\n    std::fill(global_counts.begin(), global_counts.end(), 0);\n    for (int t = 0; t < num_threads; ++t) {\n      const uint64_t* local_buf = thread_local_counts[t].data();\n      for (size_t k = 0; k < k_space; ++k) {\n        global_counts[k] += local_buf[k];\n      }\n    }\n    \n    final_hash = checksum_u64(global_counts);\n  }\n\n  return final_hash;\n}",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v2000_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 185719259,
+    "min_elapsed_ns": 184393916,
+    "max_elapsed_ns": 203092458,
+    "all_elapsed_ns": [
+      185719259,
+      184393916,
+      203092458
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 185719259,
+      "expected_checksum": 7233755933056025475,
+      "actual_checksum": 7233755933056025475
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v2000_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1147634,
+    "min_elapsed_ns": 1129400,
+    "max_elapsed_ns": 4371992,
+    "all_elapsed_ns": [
+      4371992,
+      1147634,
+      1129400
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4371992,
+      "expected_checksum": 7233755933056025475,
+      "actual_checksum": 7233755933056025475
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v2000_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 2523312,
+    "min_elapsed_ns": 1811838,
+    "max_elapsed_ns": 2693725,
+    "all_elapsed_ns": [
+      1811838,
+      2693725,
+      2523312
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1811838,
+      "expected_checksum": 7233755933056025475,
+      "actual_checksum": 7233755933056025475
+    },
+    "status": "ok"
+  }
+}

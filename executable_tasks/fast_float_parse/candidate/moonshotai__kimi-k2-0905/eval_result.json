@@ -1,0 +1,72 @@
+{
+  "task_id": "fast_float_parse",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/fast_float_parse/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <fast_float/fast_float.h>\n#include <cstring>\n#include <cstdint>\n\n// ---- constants -----------------------------------------------------------\nstatic constexpr uint64_t MAX_BATCH = 1ULL << 20; // ~1M numbers\n\n// ---- helper: parse a range [first,last) into a double --------------------\nstatic inline double parse_range(const char* first, const char* last)\n{\n    double v = 0.0;\n    fast_float::from_chars(first, last, v);\n    return v;\n}\n\n// ---- main routine --------------------------------------------------------\ndouble parse_sum(const std::string& input)\n{\n    const char* p   = input.data();\n    const char* end = p + input.size();\n\n    // fast path: empty input\n    if (p == end) return 0.0;\n\n    // Use 64-bit accumulator to reduce rounding error, fold into double once.\n    __int128 total128 = 0;\n    uint64_t   count   = 0;\n\n    while (p < end)\n    {\n        const char* line_end = static_cast<const char*>(\n            std::memchr(p, '\\n', end - p));\n        if (!line_end) line_end = end;\n\n        double v = parse_range(p, line_end);\n        total128 += static_cast<int64_t>(v * (1LL << 30));\n        ++count;\n\n        p = (line_end < end && *line_end == '\\n') ? line_end + 1 : line_end;\n\n        // Flush to double periodically to avoid overflow in the 128-bit int\n        if (count >= MAX_BATCH)\n        {\n            total128 = static_cast<__int128>(static_cast<double>(total128) / (1LL << 30));\n            count = 0;\n        }\n    }\n    return static_cast<double>(total128) / (1LL << 30);\n}",
+  "baseline": {
+    "task_id": "fast_float_parse",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 21732730,
+    "min_elapsed_ns": 20684411,
+    "max_elapsed_ns": 30291968,
+    "all_elapsed_ns": [
+      20684411,
+      21732730,
+      30291968
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 20684411,
+      "expected_sum": -14618308.753247797,
+      "actual_sum": -14618308.753247797
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "fast_float_parse",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5253707,
+    "min_elapsed_ns": 5114223,
+    "max_elapsed_ns": 5357653,
+    "all_elapsed_ns": [
+      5114223,
+      5253707,
+      5357653
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5114223,
+      "expected_sum": -14618308.753247797,
+      "actual_sum": -14618308.753247797
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "fast_float_parse",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 4349218,
+    "min_elapsed_ns": 4302068,
+    "max_elapsed_ns": 5429414,
+    "all_elapsed_ns": [
+      4349218,
+      4302068,
+      5429414
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4349218,
+      "expected_sum": -14618308.753247797,
+      "actual_sum": -14618308.753248185
+    },
+    "status": "ok"
+  }
+}

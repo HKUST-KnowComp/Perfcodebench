@@ -1,0 +1,72 @@
+{
+  "task_id": "dictionary_distinct_count_v500_g",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dictionary_distinct_count_v500_g/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <string>\n#include <vector>\n\nuint64_t dictionary_distinct(\n    const std::vector<std::string>& dictionary,\n    const std::vector<uint16_t>& codes,\n    int iters) {\n  uint64_t count = 0;\n\n  if (iters <= 0) return 0;\n  if (codes.empty() || dictionary.empty()) return 0;\n\n  const std::size_t dict_size = dictionary.size();\n\n  // Fast path: codes are uint16_t, so when the dictionary fits in 65536 entries\n  // every valid code maps to a unique dictionary entry. Distinct decoded strings\n  // are then exactly the distinct dictionary strings referenced by the codes.\n  // We avoid materializing decoded strings and avoid hashing strings entirely.\n  if (dict_size <= 65536u) {\n    std::vector<uint8_t> code_seen(dict_size, 0);\n    std::vector<uint16_t> touched_codes;\n    touched_codes.reserve(codes.size() < dict_size ? codes.size() : dict_size);\n\n    std::vector<uint8_t> dict_mark(dict_size, 0);\n    std::vector<std::size_t> touched_dict;\n    touched_dict.reserve(codes.size() < dict_size ? codes.size() : dict_size);\n\n    for (int iter = 0; iter < iters; ++iter) {\n      touched_codes.clear();\n      for (uint16_t code : codes) {\n        const std::size_t idx = static_cast<std::size_t>(code);\n        if (!code_seen[idx]) {\n          code_seen[idx] = 1;\n          touched_codes.push_back(code);\n        }\n      }\n\n      touched_dict.clear();\n      for (uint16_t code : touched_codes) {\n        const std::size_t idx = static_cast<std::size_t>(code);\n        const std::string& s = dictionary[idx];\n\n        // Compare only against already-touched unique-code entries. This keeps\n        // work proportional to the number of unique referenced codes and avoids\n        // expensive hash tables / string copies.\n        bool found = false;\n        for (std::size_t existing_idx : touched_dict) {\n          if (dictionary[existing_idx] == s) {\n            found = true;\n            break;\n          }\n        }\n        if (!found) {\n          dict_mark[idx] = 1;\n          touched_dict.push_back(idx);\n        }\n      }\n\n      count = static_cast<uint64_t>(touched_dict.size());\n\n      for (uint16_t code : touched_codes) {\n        code_seen[static_cast<std::size_t>(code)] = 0;\n      }\n      for (std::size_t idx : touched_dict) {\n        dict_mark[idx] = 0;\n      }\n    }\n\n    return count;\n  }\n\n  // Fallback for oversized dictionaries: still avoid decoding/materialization.\n  // Since codes are uint16_t, only indices representable by uint16_t can appear.\n  const std::size_t reachable = 65536u;\n  const std::size_t mark_size = dict_size < reachable ? dict_size : reachable;\n\n  std::vector<uint8_t> code_seen(mark_size, 0);\n  std::vector<uint16_t> touched_codes;\n  touched_codes.reserve(codes.size() < mark_size ? codes.size() : mark_size);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    touched_codes.clear();\n    for (uint16_t code : codes) {\n      const std::size_t idx = static_cast<std::size_t>(code);\n      if (idx < mark_size && !code_seen[idx]) {\n        code_seen[idx] = 1;\n        touched_codes.push_back(code);\n      }\n    }\n\n    std::size_t distinct = 0;\n    for (std::size_t i = 0; i < touched_codes.size(); ++i) {\n      const std::string& s = dictionary[static_cast<std::size_t>(touched_codes[i])];\n      bool found = false;\n      for (std::size_t j = 0; j < i; ++j) {\n        if (dictionary[static_cast<std::size_t>(touched_codes[j])] == s) {\n          found = true;\n          break;\n        }\n      }\n      if (!found) ++distinct;\n    }\n\n    count = static_cast<uint64_t>(distinct);\n\n    for (uint16_t code : touched_codes) {\n      code_seen[static_cast<std::size_t>(code)] = 0;\n    }\n  }\n\n  return count;\n}\n",
+  "baseline": {
+    "task_id": "dictionary_distinct_count_v500_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 805066342,
+    "min_elapsed_ns": 567008919,
+    "max_elapsed_ns": 842395934,
+    "all_elapsed_ns": [
+      567008919,
+      805066342,
+      842395934
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 567008919,
+      "expected_count": 512,
+      "actual_count": 512
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dictionary_distinct_count_v500_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 18876114,
+    "min_elapsed_ns": 17772785,
+    "max_elapsed_ns": 19499393,
+    "all_elapsed_ns": [
+      18876114,
+      19499393,
+      17772785
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 18876114,
+      "expected_count": 512,
+      "actual_count": 512
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dictionary_distinct_count_v500_g",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 19889536,
+    "min_elapsed_ns": 18747151,
+    "max_elapsed_ns": 20799425,
+    "all_elapsed_ns": [
+      20799425,
+      19889536,
+      18747151
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 20799425,
+      "expected_count": 512,
+      "actual_count": 512
+    },
+    "status": "ok"
+  }
+}

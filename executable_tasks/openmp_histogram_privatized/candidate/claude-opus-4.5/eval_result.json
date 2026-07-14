@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_histogram_privatized",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_histogram_privatized/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstring>\n#include <omp.h>\n#include <vector>\n\nnamespace {\n\nconstexpr int CACHE_LINE = 64;\nconstexpr int BINS = 256;\n// Pad each thread's histogram to avoid false sharing\nconstexpr int PADDED_BINS = ((BINS * sizeof(uint32_t) + CACHE_LINE - 1) / CACHE_LINE) * CACHE_LINE / sizeof(uint32_t);\n\nint num_threads() {\n  return std::max(1, std::min(8, omp_get_max_threads()));\n}\n\nuint64_t checksum_u32(const uint32_t* data, int n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (int i = 0; i < n; ++i) {\n    hash ^= static_cast<uint64_t>(data[i]);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t histogram_checksum(const std::vector<uint8_t>& input, int bins, int iters) {\n  const int nthreads = num_threads();\n  omp_set_num_threads(nthreads);\n  \n  // Allocate thread-private histograms with padding to avoid false sharing\n  // Using aligned allocation for better cache behavior\n  std::vector<uint32_t> all_counts(static_cast<size_t>(nthreads) * PADDED_BINS, 0);\n  std::vector<uint32_t> counts(static_cast<size_t>(bins), 0);\n  \n  const uint8_t* __restrict__ data = input.data();\n  const size_t n = input.size();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    // Clear all private histograms\n    std::memset(all_counts.data(), 0, all_counts.size() * sizeof(uint32_t));\n    \n#pragma omp parallel\n    {\n      const int tid = omp_get_thread_num();\n      uint32_t* __restrict__ local_counts = all_counts.data() + static_cast<size_t>(tid) * PADDED_BINS;\n      \n#pragma omp for schedule(static) nowait\n      for (size_t i = 0; i < n; ++i) {\n        local_counts[data[i]]++;\n      }\n    }\n    \n    // Reduce all thread-private histograms into final counts\n    std::memset(counts.data(), 0, static_cast<size_t>(bins) * sizeof(uint32_t));\n    for (int t = 0; t < nthreads; ++t) {\n      const uint32_t* __restrict__ tc = all_counts.data() + static_cast<size_t>(t) * PADDED_BINS;\n      for (int b = 0; b < bins; ++b) {\n        counts[static_cast<size_t>(b)] += tc[b];\n      }\n    }\n  }\n  \n  return checksum_u32(counts.data(), bins);\n}",
+  "baseline": {
+    "task_id": "openmp_histogram_privatized",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3360487072,
+    "min_elapsed_ns": 3232250111,
+    "max_elapsed_ns": 4081463182,
+    "all_elapsed_ns": [
+      3360487072,
+      4081463182,
+      3232250111
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3360487072,
+      "expected_checksum": 9729173469507480671,
+      "actual_checksum": 9729173469507480671
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_histogram_privatized",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 117208406,
+    "min_elapsed_ns": 35308362,
+    "max_elapsed_ns": 209260187,
+    "all_elapsed_ns": [
+      35308362,
+      117208406,
+      209260187
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 35308362,
+      "expected_checksum": 9729173469507480671,
+      "actual_checksum": 9729173469507480671
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_histogram_privatized",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 69027661,
+    "min_elapsed_ns": 54111165,
+    "max_elapsed_ns": 127958774,
+    "all_elapsed_ns": [
+      69027661,
+      127958774,
+      54111165
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 69027661,
+      "expected_checksum": 9729173469507480671,
+      "actual_checksum": 9729173469507480671
+    },
+    "status": "ok"
+  }
+}

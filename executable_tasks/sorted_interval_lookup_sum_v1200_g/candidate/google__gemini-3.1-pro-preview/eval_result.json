@@ -1,0 +1,72 @@
+{
+  "task_id": "sorted_interval_lookup_sum_v1200_g",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sorted_interval_lookup_sum_v1200_g/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 6,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <algorithm>\n#include <cstdint>\n#include <vector>\n\nuint64_t interval_lookup_sum(\n    const std::vector<uint32_t>& starts,\n    const std::vector<uint32_t>& ends,\n    const std::vector<uint32_t>& payloads,\n    const std::vector<uint32_t>& probes,\n    const std::vector<uint32_t>& weights,\n    int iters) {\n  // The baseline implementation ignores 'ends' and assumes intervals are defined by 'starts'.\n  // Since both 'starts' and 'probes' are sorted, we can use a two-pointer approach.\n  (void)ends;\n\n  const size_t n = starts.size();\n  const size_t m = probes.size();\n  if (n == 0 || m == 0) return 0;\n\n  const uint32_t* __restrict s_ptr = starts.data();\n  const uint32_t* __restrict p_ptr = probes.data();\n  const uint32_t* __restrict w_ptr = weights.data();\n  const uint32_t* __restrict pay_ptr = payloads.data();\n\n  uint64_t total_sum = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    total_sum = 0;\n    size_t probe_idx = 0;\n    size_t interval_idx = 0;\n\n    // Skip probes that are before the first interval start to avoid underflow\n    // (though the baseline logic implies probes[i] >= starts[0])\n    while (probe_idx < m && p_ptr[probe_idx] < s_ptr[0]) {\n        probe_idx++;\n    }\n\n    while (probe_idx < m) {\n        // Find the correct interval for the current probe.\n        // Since probes are sorted, we only ever move interval_idx forward.\n        while (interval_idx + 1 < n && s_ptr[interval_idx + 1] <= p_ptr[probe_idx]) {\n            interval_idx++;\n        }\n\n        const uint32_t next_interval_start = (interval_idx + 1 < n) ? s_ptr[interval_idx + 1] : 0xFFFFFFFF;\n        const uint64_t current_payload = pay_ptr[interval_idx];\n        \n        // Process all probes that fall into the current interval [starts[idx], starts[idx+1]).\n        // This loop is highly amenable to vectorization.\n        uint64_t weight_acc = 0;\n        size_t batch_start = probe_idx;\n        while (probe_idx < m && p_ptr[probe_idx] < next_interval_start) {\n            weight_acc += w_ptr[probe_idx];\n            probe_idx++;\n        }\n        \n        total_sum += current_payload * weight_acc;\n    }\n  }\n\n  return total_sum;\n}",
+  "baseline": {
+    "task_id": "sorted_interval_lookup_sum_v1200_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2403082799,
+    "min_elapsed_ns": 2399352415,
+    "max_elapsed_ns": 2436682276,
+    "all_elapsed_ns": [
+      2436682276,
+      2399352415,
+      2403082799
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2436682276,
+      "expected_sum": 1373514942408,
+      "actual_sum": 1373514942408
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sorted_interval_lookup_sum_v1200_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 224852946,
+    "min_elapsed_ns": 219637919,
+    "max_elapsed_ns": 231046858,
+    "all_elapsed_ns": [
+      219637919,
+      224852946,
+      231046858
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 219637919,
+      "expected_sum": 1373514942408,
+      "actual_sum": 1373514942408
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sorted_interval_lookup_sum_v1200_g",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 149931169,
+    "min_elapsed_ns": 123608467,
+    "max_elapsed_ns": 150030022,
+    "all_elapsed_ns": [
+      150030022,
+      123608467,
+      149931169
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 150030022,
+      "expected_sum": 1373514942408,
+      "actual_sum": 1373514942408
+    },
+    "status": "ok"
+  }
+}

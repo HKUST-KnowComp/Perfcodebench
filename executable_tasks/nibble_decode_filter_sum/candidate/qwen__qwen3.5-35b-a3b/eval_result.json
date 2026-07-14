@@ -1,0 +1,59 @@
+{
+  "task_id": "nibble_decode_filter_sum",
+  "model": "qwen/qwen3.5-35b-a3b",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/nibble_decode_filter_sum/candidate/qwen__qwen3.5-35b-a3b/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstdint>\n\nuint64_t nibble_filter_sum(const std::vector<uint8_t>& packed, uint8_t threshold, int iters) {\n    if (iters <= 0 || packed.empty()) {\n        return 0;\n    }\n\n    uint64_t sum = 0;\n    const uint8_t* data = packed.data();\n    size_t n = packed.size();\n\n    // Preserve the iters loop to match baseline workload expectations,\n    // though the result is identical for every iteration.\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t current_sum = 0;\n        size_t i = 0;\n\n        // Process 2 bytes (4 nibbles) per iteration to reduce loop overhead\n        for (; i + 1 < n; i += 2) {\n            uint8_t b0 = data[i];\n            uint8_t b1 = data[i + 1];\n\n            // Extract nibbles\n            uint8_t n0 = b0 & 0xF;\n            uint8_t n1 = b0 >> 4;\n            uint8_t n2 = b1 & 0xF;\n            uint8_t n3 = b1 >> 4;\n\n            // Branchless accumulation: (condition) * value\n            current_sum += (n0 > threshold) * n0;\n            current_sum += (n1 > threshold) * n1;\n            current_sum += (n2 > threshold) * n2;\n            current_sum += (n3 > threshold) * n3;\n        }\n\n        // Handle remaining byte(s)\n        for (; i < n; ++i) {\n            uint8_t b = data[i];\n            uint8_t n0 = b & 0xF;\n            uint8_t n1 = b >> 4;\n            current_sum += (n0 > threshold) * n0;\n            current_sum += (n1 > threshold) * n1;\n        }\n\n        // Match baseline behavior: sum is reset every iteration\n        sum = current_sum;\n    }\n\n    return sum;\n}",
+  "baseline": {
+    "task_id": "nibble_decode_filter_sum",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 308146238,
+    "min_elapsed_ns": 295796041,
+    "max_elapsed_ns": 315752173,
+    "all_elapsed_ns": [
+      315752173,
+      295796041,
+      308146238
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 315752173,
+      "expected_sum": 39321600,
+      "actual_sum": 39321600
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "nibble_decode_filter_sum",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 121666884,
+    "min_elapsed_ns": 119998508,
+    "max_elapsed_ns": 125153702,
+    "all_elapsed_ns": [
+      121666884,
+      119998508,
+      125153702
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 121666884,
+      "expected_sum": 39321600,
+      "actual_sum": 39321600
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "nibble_decode_filter_sum",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/nibble_decode_filter_sum/harness', 'executable_tasks/nibble_decode_filter_sum/harness/benchmark_main.cpp', 'executable_tasks/nibble_decode_filter_sum/candidate/qwen__qwen3.5-35b-a3b/solution.cpp', '-o', 'build/nibble_decode_filter_sum/candidate/bench']' returned non-zero exit status 1."
+  }
+}

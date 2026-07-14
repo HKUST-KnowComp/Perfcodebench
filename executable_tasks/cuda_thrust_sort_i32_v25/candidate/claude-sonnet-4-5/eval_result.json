@@ -1,0 +1,55 @@
+{
+  "task_id": "cuda_thrust_sort_i32_v25",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_thrust_sort_i32_v25/candidate/claude-sonnet-4-5/solution.cu",
+  "benchmark_timeout_sec": 120,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int RADIX_BITS = 4;\nconstexpr int RADIX_SIZE = 1 << RADIX_BITS;\nconstexpr int RADIX_MASK = RADIX_SIZE - 1;\nconstexpr int BLOCK_SIZE = 256;\nconstexpr int ITEMS_PER_THREAD = 4;\n\n__device__ __forceinline__ int extract_digit(int value, int shift) {\n    return (value >> shift) & RADIX_MASK;\n}\n\n__global__ void radix_sort_kernel(int* data, int* temp, int n, int shift) {\n    __shared__ int local_hist[RADIX_SIZE];\n    __shared__ int global_offset[RADIX_SIZE];\n    __shared__ int block_data[BLOCK_SIZE * ITEMS_PER_THREAD];\n    \n    int tid = threadIdx.x;\n    int lane = tid & 31;\n    int warp = tid >> 5;\n    \n    // Initialize histogram\n    if (tid < RADIX_SIZE) {\n        local_hist[tid] = 0;\n    }\n    __syncthreads();\n    \n    // Load data into shared memory and compute local histogram\n    int local_counts[RADIX_SIZE] = {0};\n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; ++i) {\n        int idx = tid + i * BLOCK_SIZE;\n        int value = 0;\n        if (idx < n) {\n            value = data[idx];\n            block_data[tid + i * BLOCK_SIZE] = value;\n            int digit = extract_digit(value, shift);\n            local_counts[digit]++;\n        }\n    }\n    \n    // Reduce counts within warp using shuffle\n    #pragma unroll\n    for (int d = 0; d < RADIX_SIZE; ++d) {\n        int count = local_counts[d];\n        #pragma unroll\n        for (int offset = 16; offset > 0; offset >>= 1) {\n            count += __shfl_down_sync(0xffffffff, count, offset);\n        }\n        if (lane == 0) {\n            atomicAdd(&local_hist[d], count);\n        }\n    }\n    __syncthreads();\n    \n    // Compute prefix sum (exclusive scan)\n    if (tid < RADIX_SIZE) {\n        int sum = 0;\n        for (int i = 0; i < tid; ++i) {\n            sum += local_hist[i];\n        }\n        global_offset[tid] = sum;\n    }\n    __syncthreads();\n    \n    // Scatter to temp buffer\n    __shared__ int scatter_offset[RADIX_SIZE];\n    if (tid < RADIX_SIZE) {\n        scatter_offset[tid] = global_offset[tid];\n    }\n    __syncthreads();\n    \n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; ++i) {\n        int idx = tid + i * BLOCK_SIZE;\n        if (idx < n) {\n            int value = block_data[tid + i * BLOCK_SIZE];\n            int digit = extract_digit(value, shift);\n            int pos = atomicAdd(&scatter_offset[digit], 1);\n            temp[pos] = value;\n        }\n    }\n}\n\n__global__ void copy_kernel(const int* src, int* dst, int n) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    int stride = blockDim.x * gridDim.x;\n    for (int i = idx; i < n; i += stride) {\n        dst[i] = src[i];\n    }\n}\n\n}  // namespace\n\nvoid sort_vec_i32(const int* input, int* output, int n, int iters) {\n    int* temp;\n    cudaMalloc(&temp, n * sizeof(int));\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        // Copy input to output for first pass\n        copy_kernel<<<(n + 255) / 256, 256>>>(input, output, n);\n        \n        // Radix sort passes (8 passes for 32-bit integers with 4-bit radix)\n        for (int shift = 0; shift < 32; shift += RADIX_BITS) {\n            if ((shift / RADIX_BITS) % 2 == 0) {\n                radix_sort_kernel<<<1, BLOCK_SIZE>>>(output, temp, n, shift);\n            } else {\n                radix_sort_kernel<<<1, BLOCK_SIZE>>>(temp, output, n, shift);\n            }\n        }\n    }\n    \n    cudaFree(temp);\n}",
+  "baseline": {
+    "task_id": "cuda_thrust_sort_i32_v25",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_thrust_sort_i32_v25/baseline/bench']' timed out after 120 seconds"
+  },
+  "reference": {
+    "task_id": "cuda_thrust_sort_i32_v25",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 189662887,
+    "min_elapsed_ns": 186691970,
+    "max_elapsed_ns": 206330520,
+    "all_elapsed_ns": [
+      186691970,
+      206330520,
+      189662887
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 186691970
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_thrust_sort_i32_v25",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 18169504,
+    "min_elapsed_ns": 16170080,
+    "max_elapsed_ns": 24125152,
+    "all_elapsed_ns": [
+      18169504,
+      16170080,
+      24125152
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 18169504
+    },
+    "status": "ok"
+  }
+}

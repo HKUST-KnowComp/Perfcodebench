@@ -1,0 +1,72 @@
+{
+  "task_id": "sparse_accumulator_checksum_v500_f",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sparse_accumulator_checksum_v500_f/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n#include <cstdint>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n// Precompute the transformation for a single zero: h = mix(h, 0)\n// This is a linear transformation in the sense of h_new = h * multiplier + offset\n// where offset is 0 because mix(h, 0) = (h ^ 0) * 1099511628211\n// So mix(h, 0) = h * 1099511628211\n// Applying it K times: h_k = h * (1099511628211^K)\n\nstruct Pair {\n    uint32_t idx;\n    uint32_t val;\n};\n\n} // namespace\n\nuint64_t sparse_accumulator_hash(\n    const std::vector<uint32_t>& indices,\n    const std::vector<uint32_t>& values,\n    uint32_t domain,\n    int iters) {\n    if (domain == 0) return 0;\n\n    // Precompute powers of the multiplier to jump over zero gaps\n    const uint64_t multiplier = 1099511628211ULL;\n    std::vector<uint64_t> pow_mult(64);\n    pow_mult[0] = 1;\n    for (int i = 1; i < 64; ++i) pow_mult[i] = pow_mult[i - 1] * multiplier;\n\n    auto get_jump = [&](uint32_t k) -> uint64_t {\n        uint64_t res = 1;\n        for (int i = 0; i < 32; ++i) {\n            if ((k >> i) & 1) res *= pow_mult[i];\n        }\n        // Note: The above is a bit slow, let's use a simpler binary exponentiation\n        uint64_t base = multiplier;\n        uint64_t ret = 1;\n        while (k > 0) {\n            if (k & 1) ret *= base;\n            base *= base;\n            k >>= 1;\n        }\n        return ret;\n    };\n\n    // Since we need to call get_jump many times, let's use a faster way\n    // or just precompute a small table for the jump.\n    // Actually, the number of non-zero elements is small. \n    // We can use a simple binary exponentiation inside the loop.\n\n    uint64_t final_hash = 0;\n    std::vector<Pair> pairs(indices.size());\n    for (size_t i = 0; i < indices.size(); ++i) {\n        pairs[i] = {indices[i], values[i]};\n    }\n\n    for (int iter = 0; iter < iters; ++iter) {\n        std::sort(pairs.begin(), pairs.end(), [](const Pair& a, const Pair& b) {\n            return a.idx < b.idx;\n        });\n\n        // Aggregate duplicates\n        std::vector<std::pair<uint32_t, uint64_t>> accum;\n        if (!pairs.empty()) {\n            uint32_t curr_idx = pairs[0].idx;\n            uint64_t curr_val = pairs[0].val;\n            for (size_t i = 1; i < pairs.size(); ++i) {\n                if (pairs[i].idx == curr_idx) {\n                    curr_val += pairs[i].val;\n                } else {\n                    accum.push_back({curr_idx, curr_val});\n                    curr_idx = pairs[i].idx;\n                    curr_val = pairs[i].val;\n                }\n            }\n            accum.push_back({curr_idx, curr_val});\n        }\n\n        uint64_t hash = 1469598103934665603ULL;\n        uint32_t current_pos = 0;\n\n        for (const auto& p : accum) {\n            // 1. Handle zeros before this index\n            if (p.first > current_pos) {\n                uint32_t gap = p.first - current_pos;\n                // hash = hash * (multiplier ^ gap)\n                uint64_t m = multiplier;\n                uint64_t res = 1;\n                uint32_t k = gap;\n                while (k > 0) {\n                    if (k & 1) res *= m;\n                    m *= m;\n                    k >>= 1;\n                }\n                hash *= res;\n            }\n            // 2. Handle the non-zero value\n            hash = mix(hash, p.second);\n            current_pos = p.first + 1;\n        }\n\n        // 3. Handle trailing zeros\n        if (current_pos < domain) {\n            uint32_t gap = domain - current_pos;\n            uint64_t m = multiplier;\n            uint64_t res = 1;\n            uint32_t k = gap;\n            while (k > 0) {\n                if (k & 1) res *= m;\n                m *= m;\n                k >>= 1;\n            }\n            hash *= res;\n        }\n        final_hash = hash;\n    }\n\n    return final_hash;\n}\n",
+  "baseline": {
+    "task_id": "sparse_accumulator_checksum_v500_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1643937655,
+    "min_elapsed_ns": 1503666834,
+    "max_elapsed_ns": 1770525105,
+    "all_elapsed_ns": [
+      1503666834,
+      1643937655,
+      1770525105
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1503666834,
+      "expected_checksum": 6438834612977452739,
+      "actual_checksum": 6438834612977452739
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sparse_accumulator_checksum_v500_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 193057544,
+    "min_elapsed_ns": 192252743,
+    "max_elapsed_ns": 224366680,
+    "all_elapsed_ns": [
+      193057544,
+      192252743,
+      224366680
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 193057544,
+      "expected_checksum": 6438834612977452739,
+      "actual_checksum": 6438834612977452739
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sparse_accumulator_checksum_v500_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 3213196731,
+    "min_elapsed_ns": 3172315995,
+    "max_elapsed_ns": 3353011647,
+    "all_elapsed_ns": [
+      3172315995,
+      3353011647,
+      3213196731
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3172315995,
+      "expected_checksum": 6438834612977452739,
+      "actual_checksum": 6438834612977452739
+    },
+    "status": "ok"
+  }
+}

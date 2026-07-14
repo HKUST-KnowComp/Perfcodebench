@@ -1,0 +1,59 @@
+{
+  "task_id": "genomic_kmer_histogram_checksum_v2600_f",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/genomic_kmer_histogram_checksum_v2600_f/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <string>\n#include <vector>\n#include <algorithm>\n#include <cstring>\n\nnamespace {\n\n// FNV-1a constants for 64-bit hashing\nconstexpr uint64_t FNV_OFFSET_BASIS = 1469598103934665603ULL;\nconstexpr uint64_t FNV_PRIME = 1099511628211ULL;\n\n// Fast DNA character to 2-bit encoding\n// A=0, C=1, G=2, T=3\nstatic inline uint32_t char_to_bits(char c) {\n    // Using a simple lookup table approach for speed\n    // 'A' (65) -> 0, 'C' (67) -> 1, 'G' (71) -> 2, 'T' (84) -> 3\n    // This mapping matches the baseline's logic.\n    static const uint8_t lut[256] = []() {\n        uint8_t table[256] = {0};\n        table[(uint8_t)'C'] = 1;\n        table[(uint8_t)'G'] = 2;\n        table[(uint8_t)'T'] = 3;\n        return table;\n    }();\n    return lut[static_cast<uint8_t>(c)];\n}\n\n}\n\nuint64_t kmer_histogram_checksum(const std::string& dna, int k, int iters) {\n    if (k <= 0) return 0;\n    \n    const std::size_t num_bins = 1ULL << (2 * k);\n    const std::size_t dna_len = dna.size();\n    const uint32_t mask = static_cast<uint32_t>(num_bins - 1);\n    \n    // Use a vector for the dense histogram to handle memory safely\n    std::vector<uint32_t> dense(num_bins, 0u);\n    uint64_t final_hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        // Reset histogram for each iteration\n        std::fill(dense.begin(), dense.end(), 0u);\n\n        if (dna_len >= static_cast<std::size_t>(k)) {\n            uint32_t current_kmer = 0;\n            \n            // Initialize the first k-1 characters\n            for (int i = 0; i < k - 1; ++i) {\n                current_kmer = (current_kmer << 2) | char_to_bits(dna[i]);\n            }\n\n            // Sliding window for the rest of the sequence\n            for (std::size_t i = static_cast<std::size_t>(k) - 1; i < dna_len; ++i) {\n                current_kmer = ((current_kmer << 2) | char_to_bits(dna[i])) & mask;\n                dense[current_kmer]++;\n            }\n        }\n\n        // Calculate FNV-1a checksum over the dense histogram\n        uint64_t hash = FNV_OFFSET_BASIS;\n        for (uint32_t count : dense) {\n            hash ^= static_cast<uint64_t>(count);\n            hash *= FNV_PRIME;\n        }\n        final_hash = hash;\n    }\n\n    return final_hash;\n}\n",
+  "baseline": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 210416185,
+    "min_elapsed_ns": 191612884,
+    "max_elapsed_ns": 219299439,
+    "all_elapsed_ns": [
+      191612884,
+      210416185,
+      219299439
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 191612884,
+      "expected_checksum": 12587518254213541686,
+      "actual_checksum": 12587518254213541686
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 18192236,
+    "min_elapsed_ns": 18099195,
+    "max_elapsed_ns": 18272367,
+    "all_elapsed_ns": [
+      18272367,
+      18099195,
+      18192236
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 18272367,
+      "expected_checksum": 12587518254213541686,
+      "actual_checksum": 12587518254213541686
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/genomic_kmer_histogram_checksum_v2600_f/harness', 'executable_tasks/genomic_kmer_histogram_checksum_v2600_f/harness/benchmark_main.cpp', 'executable_tasks/genomic_kmer_histogram_checksum_v2600_f/candidate/google__gemini-3.1-pro-preview/solution.cpp', '-o', 'build/genomic_kmer_histogram_checksum_v2600_f/candidate/bench']' returned non-zero exit status 1."
+  }
+}

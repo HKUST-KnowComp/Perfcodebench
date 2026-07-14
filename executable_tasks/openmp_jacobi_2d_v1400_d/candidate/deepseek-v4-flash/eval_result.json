@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_jacobi_2d_v1400_d",
+  "model": "deepseek-v4-flash",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v1400_d/candidate/deepseek-v4-flash/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  std::vector<uint32_t> a = input;\n  std::vector<uint32_t> b(a.size(), 0);\n\n  const auto* a_ptr = a.data();\n  auto* b_ptr = b.data();\n  const size_t rows_u = static_cast<size_t>(rows);\n  const size_t cols_u = static_cast<size_t>(cols);\n  const size_t stride = cols_u;\n\n  #pragma omp parallel\n  for (int step = 0; step < steps; ++step) {\n    #pragma omp for schedule(static)\n    for (int row = 0; row < rows; ++row) {\n      const size_t row_offset = static_cast<size_t>(row) * stride;\n\n      // Copy entire first and last row unchanged\n      if (row == 0 || row == rows_u - 1) {\n        for (size_t col = 0; col < cols_u; ++col) {\n          b_ptr[row_offset + col] = a_ptr[row_offset + col];\n        }\n        continue;\n      }\n\n      // Left and right boundaries remain unchanged\n      b_ptr[row_offset] = a_ptr[row_offset];\n      b_ptr[row_offset + cols_u - 1] = a_ptr[row_offset + cols_u - 1];\n\n      // Interior columns\n      for (int col = 1; col < cols_u - 1; ++col) {\n        const size_t idx = row_offset + col;\n        b_ptr[idx] = ( (a_ptr[idx] << 2) +\n                        a_ptr[idx - 1] +\n                        a_ptr[idx + 1] +\n                        a_ptr[idx - stride] +\n                        a_ptr[idx + stride] ) >> 3;\n      }\n    }\n\n    #pragma omp master\n    {\n      a.swap(b);\n    }\n    #pragma omp barrier\n\n    // Update pointers after swap (necessary because swap invalidates pointers)\n    a_ptr = a.data();\n    b_ptr = b.data();\n  }\n\n  return checksum_u32(a);\n}\n",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v1400_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 261314787,
+    "min_elapsed_ns": 230233929,
+    "max_elapsed_ns": 325282050,
+    "all_elapsed_ns": [
+      261314787,
+      230233929,
+      325282050
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 261314787,
+      "expected_checksum": 7542740740511110783,
+      "actual_checksum": 7542740740511110783
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v1400_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 295493210,
+    "min_elapsed_ns": 205825109,
+    "max_elapsed_ns": 328952045,
+    "all_elapsed_ns": [
+      328952045,
+      205825109,
+      295493210
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 328952045,
+      "expected_checksum": 7542740740511110783,
+      "actual_checksum": 7542740740511110783
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v1400_d",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-fopenmp', '-Iexecutable_tasks/openmp_jacobi_2d_v1400_d/harness', 'executable_tasks/openmp_jacobi_2d_v1400_d/harness/benchmark_main.cpp', 'executable_tasks/openmp_jacobi_2d_v1400_d/candidate/deepseek-v4-flash/solution.cpp', '-o', 'build/openmp_jacobi_2d_v1400_d/candidate/bench']' returned non-zero exit status 1."
+  }
+}

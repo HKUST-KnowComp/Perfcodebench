@@ -1,0 +1,59 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_039",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_039/candidate/google__gemma-4-26b-a4b-it/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\nstatic uint64_t checksum_i16(const int16_t* data, size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (size_t i = 0; i < n; ++i) {\n    hash ^= (uint16_t)data[i];\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n  if (output_len <= 0) return 0;\n  \n  int16_t* out = (int16_t*)malloc((size_t)output_len * sizeof(int16_t));\n  if (!out) return 0;\n\n  uint64_t hash = 0;\n  \n  // Pre-calculate constants for fixed-point math\n  // We use a large scale to maintain precision equivalent to double\n  // The formula is: pos = i * (input_len - 1) / (output_len - 1)\n  // Let scale = 1LL << 32\n  // pos_fixed = (i * (input_len - 1) * scale) / (output_len - 1)\n  \n  if (output_len == 1) {\n    for (int iter = 0; iter < iters; ++iter) {\n      out[0] = src[0];\n      hash = checksum_i16(out, (size_t)output_len);\n    }\n  } else {\n    const uint64_t scale = 1ULL << 32;\n    const uint64_t numerator_factor = (uint64_t)(input_len - 1) * scale;\n    const uint64_t denominator = (uint64_t)(output_len - 1);\n\n    for (int iter = 0; iter < iters; ++iter) {\n      for (int i = 0; i < output_len; ++i) {\n        uint64_t pos_fixed = ((uint64_t)i * numerator_factor) / denominator;\n        int left = (int)(pos_fixed >> 32);\n        uint32_t frac_fixed = (uint32_t)(pos_fixed & 0xFFFFFFFFULL);\n        \n        int right = left + 1;\n        if (right >= input_len) right = input_len - 1;\n\n        // Linear interpolation: sample = src[left] + frac * (src[right] - src[left])\n        // Using 64-bit to prevent overflow during intermediate steps\n        int64_t s_left = src[left];\n        int64_t s_right = src[right];\n        \n        // frac is [0, 1) in scale 2^32. \n        // To match the original (sample + 0.5) rounding logic:\n        // We need to handle the rounding carefully. \n        // Original: sample = src[left]*(1-frac) + src[right]*frac\n        // sample = src[left] + frac*(src[right] - src[left])\n        \n        int64_t diff = s_right - s_left;\n        // frac_fixed is in [0, 2^32-1]. We want to add 0.5 in the scale.\n        // The 0.5 offset in the original code is applied to the final double.\n        // In fixed point, we add 1 << 31 to the numerator before dividing by 2^32.\n        \n        int64_t interpolated = s_left + ((diff * (int64_t)frac_fixed + (diff >= 0 ? 0x80000000LL : -0x80000000LL)) >> 32);\n        \n        // The original code uses: if (sample >= 0) sample + 0.5 else sample - 0.5\n        // This is equivalent to rounding towards nearest, with halfway cases away from zero.\n        // However, the fixed point math above with the offset handles the rounding.\n        // Let's re-verify the rounding logic to match exactly.\n        // Original: double sample = src[left] * (1.0 - frac) + src[right] * frac;\n        // If sample = 10.5 -> 11. If sample = -10.5 -> -11.\n        \n        // Let's use a more direct approach for the rounding to ensure exact match:\n        // sample_scaled = src[left] * (2^32 - frac_fixed) + src[right] * frac_fixed\n        // sample = sample_scaled / 2^32\n        // We want round(sample) with halfway away from zero.\n        \n        int64_t val_scaled = (s_left * (scale - frac_fixed)) + (s_right * frac_fixed);\n        // To round val_scaled / scale to nearest integer with halfway away from zero:\n        // if val_scaled >= 0: (val_scaled + scale/2) / scale\n        // if val_scaled < 0:  (val_scaled - scale/2) / scale\n        \n        int64_t rounded;\n        if (val_scaled >= 0) {\n            rounded = (val_scaled + (1LL << 31)) >> 32;\n        } else {\n            rounded = (val_scaled - (1LL << 31)) >> 32;\n        }\n        out[i] = (int16_t)rounded;\n      }\n      hash = checksum_i16(out, (size_t)output_len);\n    }\n  }\n\n  free(out);\n  return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_039",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6192000,
+    "min_elapsed_ns": 6186000,
+    "max_elapsed_ns": 6562000,
+    "all_elapsed_ns": [
+      6562000,
+      6192000,
+      6186000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6562000,
+      "expected_checksum": 11317365290659187483,
+      "actual_checksum": 11317365290659187483
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_039",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 6309000,
+    "min_elapsed_ns": 6150000,
+    "max_elapsed_ns": 6792000,
+    "all_elapsed_ns": [
+      6792000,
+      6309000,
+      6150000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6792000,
+      "expected_checksum": 11317365290659187483,
+      "actual_checksum": 11317365290659187483
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_039",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/c_audio_resample_checksum_v2800_039/candidate/bench']' returned non-zero exit status 1."
+  }
+}

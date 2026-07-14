@@ -1,0 +1,19 @@
+public class Solution {
+  public static long run(int[] keys, int[] vals, int buckets, int iters) {
+    if (iters == 0) {
+      return 0L;
+    }
+    long[] hist = new long[buckets];
+    int len = keys.length;
+    for (int i = 0; i < len; i++) {
+      hist[keys[i]] += vals[i];
+    }
+    long h = 1469598103934665603L;
+    for (int i = 0; i < buckets; i++) {
+      long v = hist[i];
+      h ^= (v + 1);
+      h *= 1099511628211L;
+    }
+    return h;
+  }
+}

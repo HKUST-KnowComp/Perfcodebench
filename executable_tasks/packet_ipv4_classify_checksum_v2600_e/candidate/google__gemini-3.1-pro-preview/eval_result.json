@@ -1,0 +1,72 @@
+{
+  "task_id": "packet_ipv4_classify_checksum_v2600_e",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/packet_ipv4_classify_checksum_v2600_e/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstddef>\n#include <cstdint>\n#include <vector>\n\n/**\n * Performance-optimized IPv4 packet classification.\n * \n * Optimization strategies:\n * 1. Direct pointer access to avoid std::vector overhead and redundant memcpys.\n * 2. Branch-reduced logic for classification (port buckets and private IP checks).\n * 3. Manual loop unrolling to improve instruction-level parallelism (ILP).\n * 4. Efficient big-endian port extraction.\n */\n\nuint64_t classify_packets_checksum(\n    const std::vector<uint8_t>& packets,\n    std::size_t packet_count,\n    int iters) {\n  \n  const uint8_t* const base_ptr = packets.data();\n  const uint64_t fnv_prime = 1099511628211ULL;\n  const uint64_t fnv_offset_basis = 1469598103934665603ULL;\n  \n  uint64_t hash = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = fnv_offset_basis;\n    std::size_t i = 0;\n\n    // Unroll loop to process 4 packets at a time for better ILP\n    for (; i + 3 < packet_count; i += 4) {\n      for (int j = 0; j < 4; ++j) {\n        const uint8_t* p = base_ptr + (i + j) * 64;\n        \n        const uint32_t protocol = p[9];\n        const uint32_t ttl_bucket = p[8] >> 6;\n        \n        // Private IP check: 10.x.x.x, 172.16-31.x.x, 192.168.x.x\n        const uint8_t ip0 = p[12];\n        const uint8_t ip1 = p[13];\n        bool is_priv = (ip0 == 10) || \n                       (ip0 == 172 && (ip1 >= 16 && ip1 < 32)) || \n                       (ip0 == 192 && ip1 == 168);\n        \n        uint32_t port_bucket = 3;\n        if (protocol == 6 || protocol == 17) {\n          // Big-endian port extraction\n          const uint32_t dst_port = (static_cast<uint32_t>(p[22]) << 8) | p[23];\n          port_bucket = (dst_port >= 1024) + (dst_port >= 8192);\n        }\n\n        const uint32_t key = protocol * 131 + \n                             ttl_bucket * 17 + \n                             (is_priv ? 5 : 11) + \n                             port_bucket * 23;\n        \n        hash ^= static_cast<uint64_t>(key);\n        hash *= fnv_prime;\n      }\n    }\n\n    // Handle remaining packets\n    for (; i < packet_count; ++i) {\n      const uint8_t* p = base_ptr + i * 64;\n      \n      const uint32_t protocol = p[9];\n      const uint32_t ttl_bucket = p[8] >> 6;\n      \n      const uint8_t ip0 = p[12];\n      const uint8_t ip1 = p[13];\n      bool is_priv = (ip0 == 10) || \n                     (ip0 == 172 && (ip1 >= 16 && ip1 < 32)) || \n                     (ip0 == 192 && ip1 == 168);\n      \n      uint32_t port_bucket = 3;\n      if (protocol == 6 || protocol == 17) {\n        const uint32_t dst_port = (static_cast<uint32_t>(p[22]) << 8) | p[23];\n        port_bucket = (dst_port >= 1024) + (dst_port >= 8192);\n      }\n\n      const uint32_t key = protocol * 131 + \n                           ttl_bucket * 17 + \n                           (is_priv ? 5 : 11) + \n                           port_bucket * 23;\n      \n      hash ^= static_cast<uint64_t>(key);\n      hash *= fnv_prime;\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 568649,
+    "min_elapsed_ns": 453890,
+    "max_elapsed_ns": 576667,
+    "all_elapsed_ns": [
+      568649,
+      576667,
+      453890
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 568649,
+      "expected_checksum": 12449503600715617849,
+      "actual_checksum": 12449503600715617849
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 559648,
+    "min_elapsed_ns": 439685,
+    "max_elapsed_ns": 635607,
+    "all_elapsed_ns": [
+      559648,
+      439685,
+      635607
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 559648,
+      "expected_checksum": 12449503600715617849,
+      "actual_checksum": 12449503600715617849
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_e",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 616423,
+    "min_elapsed_ns": 541305,
+    "max_elapsed_ns": 621681,
+    "all_elapsed_ns": [
+      621681,
+      616423,
+      541305
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 621681,
+      "expected_checksum": 12449503600715617849,
+      "actual_checksum": 12449503600715617849
+    },
+    "status": "ok"
+  }
+}

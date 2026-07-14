@@ -1,0 +1,59 @@
+{
+  "task_id": "dense_histogram_checksum_small",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_histogram_checksum_small/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\nnamespace {\n\nstatic inline uint64_t mix64(uint64_t h, uint64_t v) {\n  h ^= v;\n  h *= 1099511628211ULL; // FNV-1a 64-bit prime\n  return h;\n}\n\n}\n\nuint64_t histogram_checksum(const std::vector<uint32_t>& values, uint32_t bins, int iters) {\n  uint64_t hash = 0; // Preserve behavior: if iters == 0, return 0\n  std::vector<uint32_t> counts(bins);\n\n  const uint32_t* vals = values.data();\n  const size_t nvals = values.size();\n  const size_t B = bins;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    // Clear counts\n    {\n      size_t i = 0;\n      size_t B8 = B & ~size_t(7);\n      for (; i < B8; i += 8) {\n        counts[i + 0] = 0;\n        counts[i + 1] = 0;\n        counts[i + 2] = 0;\n        counts[i + 3] = 0;\n        counts[i + 4] = 0;\n        counts[i + 5] = 0;\n        counts[i + 6] = 0;\n        counts[i + 7] = 0;\n      }\n      for (; i < B; ++i) counts[i] = 0;\n    }\n\n    // Accumulate histogram (ignore values >= bins)\n    {\n      size_t i = 0;\n      size_t n4 = nvals & ~size_t(3);\n      for (; i < n4; i += 4) {\n        uint32_t v0 = vals[i + 0]; if (v0 < bins) ++counts[v0];\n        uint32_t v1 = vals[i + 1]; if (v1 < bins) ++counts[v1];\n        uint32_t v2 = vals[i + 2]; if (v2 < bins) ++counts[v2];\n        uint32_t v3 = vals[i + 3]; if (v3 < bins) ++counts[v3];\n      }\n      for (; i < nvals; ++i) {\n        uint32_t v = vals[i];\n        if (v < bins) ++counts[v];\n      }\n    }\n\n    // Compute checksum via FNV-1a style mixing over bins in order [0, bins)\n    uint64_t h = 1469598103934665603ULL; // FNV-1a 64-bit offset basis\n    {\n      const uint32_t* c = counts.data();\n      size_t i = 0;\n      size_t B4 = B & ~size_t(3);\n      for (; i < B4; i += 4) {\n        h = mix64(h, c[i + 0]);\n        h = mix64(h, c[i + 1]);\n        h = mix64(h, c[i + 2]);\n        h = mix64(h, c[i + 3]);\n      }\n      for (; i < B; ++i) {\n        h = mix64(h, c[i]);\n      }\n    }\n\n    hash = h;\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "dense_histogram_checksum_small",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 316097025,
+    "min_elapsed_ns": 302936343,
+    "max_elapsed_ns": 322693380,
+    "all_elapsed_ns": [
+      316097025,
+      322693380,
+      302936343
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 316097025,
+      "expected_checksum": 9311563719121945475,
+      "actual_checksum": 9311563719121945475
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_histogram_checksum_small",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 36768217,
+    "min_elapsed_ns": 36694000,
+    "max_elapsed_ns": 37050643,
+    "all_elapsed_ns": [
+      36694000,
+      36768217,
+      37050643
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 36694000,
+      "expected_checksum": 9311563719121945475,
+      "actual_checksum": 9311563719121945475
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_histogram_checksum_small",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/dense_histogram_checksum_small/harness', 'executable_tasks/dense_histogram_checksum_small/harness/benchmark_main.cpp', 'executable_tasks/dense_histogram_checksum_small/candidate/gpt-5/solution.cpp', '-o', 'build/dense_histogram_checksum_small/candidate/bench']' returned non-zero exit status 1."
+  }
+}

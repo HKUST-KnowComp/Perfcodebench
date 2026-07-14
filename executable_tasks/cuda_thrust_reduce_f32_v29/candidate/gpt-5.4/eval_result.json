@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_thrust_reduce_f32_v29",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_thrust_reduce_f32_v29/candidate/gpt-5.4/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\nstatic inline int ceil_div(int a, int b) { return (a + b - 1) / b; }\n\n__global__ void reduce_stage1_kernel(const float* __restrict__ input,\n                                     float* __restrict__ partials,\n                                     int n) {\n    __shared__ float sdata[256];\n\n    const unsigned int tid = threadIdx.x;\n    const unsigned int block_size = blockDim.x;\n    const unsigned int grid_stride = block_size * 2 * gridDim.x;\n    unsigned int i = blockIdx.x * (block_size * 2) + tid;\n\n    float sum = 0.0f;\n    while (i < (unsigned int)n) {\n        sum += input[i];\n        unsigned int j = i + block_size;\n        if (j < (unsigned int)n) sum += input[j];\n        i += grid_stride;\n    }\n\n    sdata[tid] = sum;\n    __syncthreads();\n\n    if (block_size >= 256) {\n        if (tid < 128) sdata[tid] += sdata[tid + 128];\n        __syncthreads();\n    }\n    if (block_size >= 128) {\n        if (tid < 64) sdata[tid] += sdata[tid + 64];\n        __syncthreads();\n    }\n\n    if (tid < 32) {\n        volatile float* vsmem = sdata;\n        if (block_size >= 64) vsmem[tid] += vsmem[tid + 32];\n        if (block_size >= 32) vsmem[tid] += vsmem[tid + 16];\n        if (block_size >= 16) vsmem[tid] += vsmem[tid + 8];\n        if (block_size >= 8) vsmem[tid] += vsmem[tid + 4];\n        if (block_size >= 4) vsmem[tid] += vsmem[tid + 2];\n        if (block_size >= 2) vsmem[tid] += vsmem[tid + 1];\n    }\n\n    if (tid == 0) partials[blockIdx.x] = sdata[0];\n}\n\n__global__ void reduce_stage2_kernel(const float* __restrict__ partials,\n                                     float* __restrict__ output,\n                                     int n) {\n    __shared__ float sdata[256];\n\n    const unsigned int tid = threadIdx.x;\n    float sum = 0.0f;\n\n    for (unsigned int i = tid; i < (unsigned int)n; i += blockDim.x) {\n        sum += partials[i];\n    }\n\n    sdata[tid] = sum;\n    __syncthreads();\n\n    if (blockDim.x >= 256) {\n        if (tid < 128) sdata[tid] += sdata[tid + 128];\n        __syncthreads();\n    }\n    if (blockDim.x >= 128) {\n        if (tid < 64) sdata[tid] += sdata[tid + 64];\n        __syncthreads();\n    }\n\n    if (tid < 32) {\n        volatile float* vsmem = sdata;\n        if (blockDim.x >= 64) vsmem[tid] += vsmem[tid + 32];\n        if (blockDim.x >= 32) vsmem[tid] += vsmem[tid + 16];\n        if (blockDim.x >= 16) vsmem[tid] += vsmem[tid + 8];\n        if (blockDim.x >= 8) vsmem[tid] += vsmem[tid + 4];\n        if (blockDim.x >= 4) vsmem[tid] += vsmem[tid + 2];\n        if (blockDim.x >= 2) vsmem[tid] += vsmem[tid + 1];\n    }\n\n    if (tid == 0) *output = sdata[0];\n}\n\n}  // namespace\n\nfloat reduce_f32(const float* input, int n, int iters) {\n    if (n <= 0 || iters <= 0) return 0.0f;\n\n    constexpr int block_size = 256;\n\n    int device = 0;\n    cudaGetDevice(&device);\n    cudaDeviceProp prop;\n    cudaGetDeviceProperties(&prop, device);\n\n    int max_blocks = prop.multiProcessorCount * 8;\n    int blocks = ceil_div(n, block_size * 2);\n    if (blocks < 1) blocks = 1;\n    if (blocks > max_blocks) blocks = max_blocks;\n\n    float* d_partials = nullptr;\n    float* d_out = nullptr;\n    cudaMalloc(&d_partials, static_cast<size_t>(blocks) * sizeof(float));\n    cudaMalloc(&d_out, sizeof(float));\n\n    for (int iter = 0; iter < iters; ++iter) {\n        reduce_stage1_kernel<<<blocks, block_size>>>(input, d_partials, n);\n        reduce_stage2_kernel<<<1, block_size>>>(d_partials, d_out, blocks);\n    }\n\n    float actual = 0.0f;\n    cudaMemcpy(&actual, d_out, sizeof(float), cudaMemcpyDeviceToHost);\n\n    cudaFree(d_partials);\n    cudaFree(d_out);\n    return actual;\n}\n",
+  "baseline": {
+    "task_id": "cuda_thrust_reduce_f32_v29",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 76534851,
+    "min_elapsed_ns": 76525283,
+    "max_elapsed_ns": 76770019,
+    "all_elapsed_ns": [
+      76770019,
+      76534851,
+      76525283
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 76770019,
+      "expected_sum": 3145430.0,
+      "actual_sum": 3145430.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_thrust_reduce_f32_v29",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 663680,
+    "min_elapsed_ns": 644415,
+    "max_elapsed_ns": 927392,
+    "all_elapsed_ns": [
+      644415,
+      663680,
+      927392
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 644415,
+      "expected_sum": 3145430.0,
+      "actual_sum": 3145430.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_thrust_reduce_f32_v29",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_thrust_reduce_f32_v29/candidate/bench']' timed out after 5 seconds"
+  }
+}

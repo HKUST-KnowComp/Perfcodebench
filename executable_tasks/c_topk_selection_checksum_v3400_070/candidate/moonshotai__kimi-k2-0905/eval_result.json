@@ -1,0 +1,59 @@
+{
+  "task_id": "c_topk_selection_checksum_v3400_070",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_topk_selection_checksum_v3400_070/candidate/moonshotai__kimi-k2-0905/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n\ntypedef struct {\n    uint32_t score;\n    uint32_t index;\n} Pair;\n\nstatic inline int cmp_pair_desc(const Pair a, const Pair b) {\n    if (a.score != b.score) return (a.score > b.score) ? -1 : 1;\n    return (a.index < b.index) ? -1 : (a.index > b.index);\n}\n\n/* median-of-three for quickselect pivot */\nstatic inline Pair median3(Pair a, Pair b, Pair c) {\n    int ab = cmp_pair_desc(a, b);\n    int bc = cmp_pair_desc(b, c);\n    int ac = cmp_pair_desc(a, c);\n    if (ab <= 0) {\n        if (bc <= 0) return b;\n        return (ac <= 0) ? a : c;\n    } else {\n        if (ac <= 0) return a;\n        return (bc <= 0) ? c : b;\n    }\n}\n\n/* partition around pivot; returns final pivot index */\nstatic size_t partition(Pair* a, size_t l, size_t r, Pair pivot) {\n    while (1) {\n        while (cmp_pair_desc(a[l], pivot) < 0) ++l;\n        while (cmp_pair_desc(a[r], pivot) > 0) --r;\n        if (l >= r) return r;\n        Pair tmp = a[l]; a[l] = a[r]; a[r] = tmp;\n        ++l; --r;\n    }\n}\n\n/* quickselect: ensure first k elements are the top-k (unordered among themselves) */\nstatic void topk_quickselect(Pair* a, size_t n, size_t k) {\n    size_t l = 0, r = n - 1;\n    while (1) {\n        if (l >= r) break;\n        size_t m = l + ((r - l) >> 1);\n        Pair pivot = median3(a[l], a[m], a[r]);\n        size_t p = partition(a, l, r, pivot);\n        size_t left_size = p - l + 1;\n        if (k <= left_size) {\n            r = p;\n        } else {\n            k -= left_size;\n            l = p + 1;\n        }\n    }\n}\n\n/* insertion sort for small n */\nstatic void insertion_desc(Pair* a, size_t n) {\n    for (size_t i = 1; i < n; ++i) {\n        Pair key = a[i];\n        size_t j = i;\n        while (j > 0 && cmp_pair_desc(a[j - 1], key) > 0) {\n            a[j] = a[j - 1];\n            --j;\n        }\n        a[j] = key;\n    }\n}\n\nuint64_t run(const uint32_t* scores, size_t n, int k, int iters) {\n    if (k <= 0 || n == 0) return 0;\n    if ((size_t)k > n) k = (int)n;\n\n    Pair* pairs = (Pair*)malloc(n * sizeof(Pair));\n    if (!pairs) return 0;\n\n    uint64_t h = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        /* fill array */\n        for (size_t i = 0; i < n; ++i) {\n            pairs[i].score = scores[i];\n            pairs[i].index = (uint32_t)i;\n        }\n\n        /* select top-k */\n        topk_quickselect(pairs, n, (size_t)k);\n\n        /* sort only the top-k slice to establish exact order */\n        if ((size_t)k <= 16) {\n            insertion_desc(pairs, (size_t)k);\n        } else {\n            qsort(pairs, (size_t)k, sizeof(Pair),\n                  (int(*)(const void*,const void*))cmp_pair_desc);\n        }\n\n        /* compute checksum with 4-way unroll */\n        h = 14695981039346656037ULL;\n        int i = 0;\n        for (; i + 3 < k; i += 4) {\n            h ^= ((uint64_t)pairs[i].score << 32) ^ pairs[i].index;\n            h *= 1099511628211ULL;\n            h ^= ((uint64_t)pairs[i+1].score << 32) ^ pairs[i+1].index;\n            h *= 1099511628211ULL;\n            h ^= ((uint64_t)pairs[i+2].score << 32) ^ pairs[i+2].index;\n            h *= 1099511628211ULL;\n            h ^= ((uint64_t)pairs[i+3].score << 32) ^ pairs[i+3].index;\n            h *= 1099511628211ULL;\n        }\n        for (; i < k; ++i) {\n            h ^= ((uint64_t)pairs[i].score << 32) ^ pairs[i].index;\n            h *= 1099511628211ULL;\n        }\n    }\n    free(pairs);\n    return h;\n}",
+  "baseline": {
+    "task_id": "c_topk_selection_checksum_v3400_070",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 307210000,
+    "min_elapsed_ns": 301017000,
+    "max_elapsed_ns": 325276000,
+    "all_elapsed_ns": [
+      301017000,
+      325276000,
+      307210000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 301017000,
+      "expected_checksum": 10589915114134187370,
+      "actual_checksum": 10589915114134187370
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_topk_selection_checksum_v3400_070",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1667000,
+    "min_elapsed_ns": 1667000,
+    "max_elapsed_ns": 1703000,
+    "all_elapsed_ns": [
+      1667000,
+      1667000,
+      1703000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1667000,
+      "expected_checksum": 10589915114134187370,
+      "actual_checksum": 10589915114134187370
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_topk_selection_checksum_v3400_070",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/c_topk_selection_checksum_v3400_070/candidate/bench']' returned non-zero exit status 1."
+  }
+}

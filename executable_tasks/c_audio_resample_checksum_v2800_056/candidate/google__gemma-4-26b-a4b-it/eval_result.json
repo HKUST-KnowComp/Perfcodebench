@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_056",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_056/candidate/google__gemma-4-26b-a4b-it/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\nstatic uint64_t checksum_i16(const int16_t* data, size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (size_t i = 0; i < n; ++i) {\n    hash ^= (uint16_t)data[i];\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n  if (output_len <= 0) return 0;\n  \n  int16_t* out = (int16_t*)malloc((size_t)output_len * sizeof(int16_t));\n  if (!out) return 0;\n\n  uint64_t hash = 0;\n  \n  // Pre-calculate fixed-point constants to avoid double math in the loop\n  // We use a large scale to maintain precision for the fractional part\n  // The formula is: pos = i * (input_len - 1) / (output_len - 1)\n  // We want: left = floor(pos), frac = pos - left\n  // Let scale = 2^32\n  // pos_scaled = i * (input_len - 1) * scale / (output_len - 1)\n  \n  if (output_len == 1) {\n    for (int iter = 0; iter < iters; ++iter) {\n      out[0] = src[0];\n      hash = checksum_i16(out, (size_t)output_len);\n    }\n  } else {\n    const uint64_t scale = 1ULL << 32;\n    const uint64_t step_num = (uint64_t)(input_len - 1) * scale;\n    const uint64_t step_den = (uint64_t)(output_len - 1);\n\n    for (int iter = 0; iter < iters; ++iter) {\n      for (int i = 0; i < output_len; ++i) {\n        uint64_t pos_scaled = (uint64_t)i * step_num / step_den;\n        int left = (int)(pos_scaled >> 32);\n        uint32_t frac_scaled = (uint32_t)(pos_scaled & 0xFFFFFFFFULL);\n        \n        int right = left + 1;\n        if (right >= input_len) right = input_len - 1;\n\n        // Linear interpolation: sample = src[left]*(1-frac) + src[right]*frac\n        // sample = src[left] + frac * (src[right] - src[left])\n        // Using 64-bit to prevent overflow during intermediate calculation\n        int64_t s_left = src[left];\n        int64_t s_right = src[right];\n        int64_t diff = s_right - s_left;\n        \n        // frac is [0, 1), represented as [0, 2^32)\n        // We need to add 0.5 for rounding. In fixed point, 0.5 is 2^31\n        // result = s_left + (diff * frac_scaled) / 2^32\n        // To round: result = (s_left * 2^32 + diff * frac_scaled + 2^31) / 2^32\n        // However, the original code uses: if (sample >= 0) sample + 0.5 else sample - 0.5\n        // This is equivalent to floor(sample + 0.5) for positive and ceil(sample - 0.5) for negative.\n        // Actually, the original code is: (int16_t)(sample + 0.5) if sample >= 0 else (int16_t)(sample - 0.5)\n        // This is standard rounding towards nearest integer, with ties away from zero.\n        \n        int64_t interpolated_scaled = (s_left << 32) + (diff * (int64_t)frac_scaled);\n        // To implement the specific rounding logic: \n        // if sample >= 0: floor(sample + 0.5) -> (interpolated_scaled + 2^31) >> 32\n        // if sample < 0: ceil(sample - 0.5) -> (interpolated_scaled - 2^31) >> 32 (Wait, let's re-check)\n        // Original: if sample >= 0: (int16_t)(sample + 0.5). If sample = -0.5, result = -1.0? No, -0.5 - 0.5 = -1.0.\n        // Let's use the exact logic: \n        // sample = interpolated_scaled / 2^32\n        // if sample >= 0: out = (interpolated_scaled + 2^31) >> 32\n        // else: out = (interpolated_scaled - 2^31) >> 32 (Wait, if sample = -0.1, sample - 0.5 = -0.6, cast to int is -0.6? No, cast to int is -0.6 -> 0? No, double to int is truncation.)\n        // Let's re-read: (int16_t)(sample + 0.5) where sample is double.\n        // If sample = -0.1, sample + 0.5 = 0.4, (int16_t)0.4 = 0.\n        // If sample = -0.6, sample + 0.5 = -0.1, (int16_t)-0.1 = 0.\n        // If sample = -0.7, sample + 0.5 = -0.2, (int16_t)-0.2 = 0.\n        // Wait, the original code: if (sample >= 0.0) { out = sample + 0.5 } else { out = sample - 0.5 }\n        // If sample = -0.1: sample < 0, so out = (int16_t)(-0.1 - 0.5) = (int16_t)(-0.6) = 0.\n        // If sample = -0.6: sample < 0, so out = (int16_t)(-0.6 - 0.5) = (int16_t)(-1.1) = -1.\n        // This is equivalent to: if sample >= 0: floor(sample + 0.5), else: ceil(sample - 0.5).\n        // In fixed point (scale 2^32):\n        // if interpolated_scaled >= 0: (interpolated_scaled + 2^31) >> 32\n        // else: (interpolated_scaled - 2^31) >> 32 (Wait, -1.1 truncated is -1. Correct.)\n        \n        if (interpolated_scaled >= 0) {\n            out[i] = (int16_t)((interpolated_scaled + (1LL << 31)) >> 32);\n        } else {\n            out[i] = (int16_t)((interpolated_scaled - (1LL << 31)) >> 32);\n        }\n      }\n      hash = checksum_i16(out, (size_t)output_len);\n    }\n  }\n\n  free(out);\n  return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_056",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3946000,
+    "min_elapsed_ns": 3901000,
+    "max_elapsed_ns": 4069000,
+    "all_elapsed_ns": [
+      4069000,
+      3946000,
+      3901000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4069000,
+      "expected_checksum": 4390123806707265425,
+      "actual_checksum": 4390123806707265425
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_056",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3972000,
+    "min_elapsed_ns": 3654000,
+    "max_elapsed_ns": 4210000,
+    "all_elapsed_ns": [
+      3972000,
+      4210000,
+      3654000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3972000,
+      "expected_checksum": 4390123806707265425,
+      "actual_checksum": 4390123806707265425
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_056",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 4028000,
+    "min_elapsed_ns": 3794000,
+    "max_elapsed_ns": 4124000,
+    "all_elapsed_ns": [
+      4028000,
+      4124000,
+      3794000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4028000,
+      "expected_checksum": 4390123806707265425,
+      "actual_checksum": 4390123806707265425
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "task_id": "cuda_transpose_tiled_f32_v25",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_transpose_tiled_f32_v25/candidate/google__gemma-4-31b-it/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n// Tile dimensions for shared memory\nconstexpr int TILE_DIM = 32;\n// Block dimensions (threads per block)\nconstexpr int BLOCK_DIM = 16;\n\n__global__ void transpose_optimized_kernel(const float* __restrict__ input, float* __restrict__ output, int width, int height) {\n    // Shared memory tile with padding to avoid bank conflicts\n    __shared__ float tile[TILE_DIM][TILE_DIM + 1];\n\n    int bx = blockIdx.x;\n    int by = blockIdx.y;\n\n    // Each thread handles 2 elements to fill the 32x32 tile with a 16x16 block\n    for (int i = 0; i < 2; ++i) {\n        int x = bx * TILE_DIM + threadIdx.x;\n        int y = by * TILE_DIM + threadIdx.y + (i * BLOCK_DIM);\n\n        if (x < width && y < height) {\n            tile[threadIdx.y + (i * BLOCK_DIM)][threadIdx.x] = input[y * width + x];\n        } else {\n            tile[threadIdx.y + (i * BLOCK_DIM)][threadIdx.x] = 0.0f;\n        }\n    }\n\n    __syncthreads();\n\n    // Transpose the tile and write to global memory\n    // We need to map the 16x16 threads to the 32x32 tile for the output\n    for (int i = 0; i < 2; ++i) {\n        int x_out = bx * TILE_DIM + threadIdx.y + (i * BLOCK_DIM);\n        int y_out = by * TILE_DIM + threadIdx.x;\n\n        if (x_out < width && y_out < height) {\n            // Coalesced write: output is indexed by [x_out * height + y_out]\n            output[x_out * height + y_out] = tile[threadIdx.x][threadIdx.y + (i * BLOCK_DIM)];\n        }\n    }\n}\n\n}  // namespace\n\nvoid transpose_f32(const float* input, float* output, int width, int height, int iters) {\n    const dim3 block(BLOCK_DIM, BLOCK_DIM);\n    const dim3 grid((width + TILE_DIM - 1) / TILE_DIM, (height + TILE_DIM - 1) / TILE_DIM);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        transpose_optimized_kernel<<<grid, block>>>(input, output, width, height);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_transpose_tiled_f32_v25",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_transpose_tiled_f32_v25/baseline/bench']' timed out after 5 seconds"
+  },
+  "reference": {
+    "task_id": "cuda_transpose_tiled_f32_v25",
+    "variant": "reference",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_transpose_tiled_f32_v25/reference/bench']' timed out after 0.09362487399994279 seconds"
+  },
+  "candidate": {
+    "task_id": "cuda_transpose_tiled_f32_v25",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_transpose_tiled_f32_v25/candidate/bench']' returned non-zero exit status 2."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "genomic_banded_edit_distance_checksum_v2601_a",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/genomic_banded_edit_distance_checksum_v2601_a/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <string>\n#include <vector>\n#include <algorithm>\n#include <cstring>\n\nnamespace {\n\ninline int banded_edit_distance(const char* __restrict__ a, int n,\n                                 const char* __restrict__ b, int m,\n                                 int max_band, int* __restrict__ prev, int* __restrict__ curr) {\n    if (n > m) {\n        std::swap(a, b);\n        std::swap(n, m);\n    }\n    \n    const int diff = m - n;\n    if (diff > max_band) {\n        return max_band + 1;\n    }\n    \n    const int band = max_band;\n    const int width = 2 * band + 1;\n    \n    for (int k = 0; k < width; ++k) {\n        prev[k] = band + 1;\n        curr[k] = band + 1;\n    }\n    prev[band] = 0;\n    \n    for (int i = 1; i <= n; ++i) {\n        const int j_min = std::max(1, i - band);\n        const int j_max = std::min(m, i + band);\n        \n        const char ai = a[i - 1];\n        \n        for (int k = 0; k < width; ++k) {\n            curr[k] = band + 1;\n        }\n        \n        for (int j = j_min; j <= j_max; ++j) {\n            const int k = j - i + band;\n            const int cost = (ai == b[j - 1]) ? 0 : 1;\n            \n            int val = band + 1;\n            \n            // substitution/match: prev[k]\n            const int sub = prev[k] + cost;\n            if (sub < val) val = sub;\n            \n            // deletion (i-1, j): prev[k+1]\n            if (k + 1 < width) {\n                const int del = prev[k + 1] + 1;\n                if (del < val) val = del;\n            }\n            \n            // insertion (i, j-1): curr[k-1]\n            if (k > 0) {\n                const int ins = curr[k - 1] + 1;\n                if (ins < val) val = ins;\n            }\n            \n            curr[k] = val;\n        }\n        \n        std::swap(prev, curr);\n    }\n    \n    const int final_k = m - n + band;\n    return (final_k >= 0 && final_k < width) ? prev[final_k] : (band + 1);\n}\n\ninline int full_banded_distance(const char* __restrict__ a, int n,\n                                 const char* __restrict__ b, int m,\n                                 int max_band, int* __restrict__ dp) {\n    if (n > m) {\n        std::swap(a, b);\n        std::swap(n, m);\n    }\n    \n    const int diff = m - n;\n    if (diff > max_band) {\n        return max_band + 1;\n    }\n    \n    const int cols = m + 1;\n    \n    // Initialize first row\n    for (int j = 0; j <= m && j <= max_band; ++j) {\n        dp[j] = j;\n    }\n    for (int j = max_band + 1; j <= m; ++j) {\n        dp[j] = max_band + 1;\n    }\n    \n    for (int i = 1; i <= n; ++i) {\n        const int j_min = std::max(1, i - max_band);\n        const int j_max = std::min(m, i + max_band);\n        \n        int* __restrict__ curr_row = dp + i * cols;\n        const int* __restrict__ prev_row = dp + (i - 1) * cols;\n        \n        // Initialize cells outside band\n        for (int j = 0; j < j_min; ++j) {\n            curr_row[j] = max_band + 1;\n        }\n        if (j_min == 1 && i <= max_band) {\n            curr_row[0] = i;\n        } else if (j_min > 0) {\n            curr_row[j_min - 1] = max_band + 1;\n        }\n        \n        // Set left boundary\n        if (i - max_band <= 0) {\n            curr_row[0] = i;\n        }\n        \n        const char ai = a[i - 1];\n        \n        for (int j = j_min; j <= j_max; ++j) {\n            const int cost = (ai == b[j - 1]) ? 0 : 1;\n            \n            int val = prev_row[j - 1] + cost;  // substitution\n            \n            const int del = prev_row[j] + 1;\n            if (del < val) val = del;\n            \n            const int ins = curr_row[j - 1] + 1;\n            if (ins < val) val = ins;\n            \n            curr_row[j] = val;\n        }\n        \n        for (int j = j_max + 1; j <= m; ++j) {\n            curr_row[j] = max_band + 1;\n        }\n    }\n    \n    return dp[n * cols + m];\n}\n\ninline int optimized_banded_distance(const char* __restrict__ a, int n,\n                                      const char* __restrict__ b, int m,\n                                      int max_band, int* __restrict__ prev, int* __restrict__ curr) {\n    if (n > m) {\n        std::swap(a, b);\n        std::swap(n, m);\n    }\n    \n    const int diff = m - n;\n    if (diff > max_band) {\n        return max_band + 1;\n    }\n    \n    // Two-row approach with direct j indexing\n    const int INF = max_band + n + m + 1;\n    \n    // Initialize prev row (row 0)\n    for (int j = 0; j <= m; ++j) {\n        prev[j] = (j <= max_band) ? j : INF;\n    }\n    \n    for (int i = 1; i <= n; ++i) {\n        const int j_min = std::max(1, i - max_band);\n        const int j_max = std::min(m, i + max_band);\n        \n        // Initialize curr[0] for this row\n        curr[0] = (i <= max_band) ? i : INF;\n        \n        // Initialize cells before j_min\n        for (int j = 1; j < j_min; ++j) {\n            curr[j] = INF;\n        }\n        \n        const char ai = a[i - 1];\n        \n        for (int j = j_min; j <= j_max; ++j) {\n            const int cost = (ai == b[j - 1]) ? 0 : 1;\n            \n            int val = prev[j - 1] + cost;  // substitution\n            \n            const int del = prev[j] + 1;\n            if (del < val) val = del;\n            \n            const int ins = curr[j - 1] + 1;\n            if (ins < val) val = ins;\n            \n            curr[j] = val;\n        }\n        \n        // Initialize cells after j_max\n        for (int j = j_max + 1; j <= m; ++j) {\n            curr[j] = INF;\n        }\n        \n        std::swap(prev, curr);\n    }\n    \n    return std::min(prev[m], max_band + 1);\n}\n\n}  // namespace\n\nuint64_t batch_edit_distance_checksum(\n    const std::vector<std::string>& lhs,\n    const std::vector<std::string>& rhs,\n    int max_band,\n    int iters) {\n    \n    if (lhs.empty()) {\n        uint64_t hash = 0;\n        for (int iter = 0; iter < iters; ++iter) {\n            hash = 1469598103934665603ULL;\n        }\n        return hash;\n    }\n    \n    // Find max string length for buffer allocation\n    std::size_t max_len = 0;\n    for (std::size_t i = 0; i < lhs.size(); ++i) {\n        max_len = std::max(max_len, lhs[i].size());\n        max_len = std::max(max_len, rhs[i].size());\n    }\n    \n    // Allocate reusable buffers\n    std::vector<int> prev_buf(max_len + 2);\n    std::vector<int> curr_buf(max_len + 2);\n    \n    uint64_t hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        hash = 1469598103934665603ULL;\n        for (std::size_t i = 0; i < lhs.size(); ++i) {\n            const std::string& a = lhs[i];\n            const std::string& b = rhs[i];\n            \n            const int d = optimized_banded_distance(\n                a.data(), static_cast<int>(a.size()),\n                b.data(), static_cast<int>(b.size()),\n                max_band, prev_buf.data(), curr_buf.data());\n            \n            hash ^= static_cast<uint64_t>(d + 1);\n            hash *= 1099511628211ULL;\n        }\n    }\n    return hash;\n}",
+  "baseline": {
+    "task_id": "genomic_banded_edit_distance_checksum_v2601_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 507109031,
+    "min_elapsed_ns": 506822895,
+    "max_elapsed_ns": 507512712,
+    "all_elapsed_ns": [
+      507512712,
+      506822895,
+      507109031
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 507512712,
+      "expected_checksum": 12850131920921510531,
+      "actual_checksum": 12850131920921510531
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "genomic_banded_edit_distance_checksum_v2601_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 135993825,
+    "min_elapsed_ns": 135526526,
+    "max_elapsed_ns": 201361014,
+    "all_elapsed_ns": [
+      201361014,
+      135526526,
+      135993825
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 201361014,
+      "expected_checksum": 12850131920921510531,
+      "actual_checksum": 12850131920921510531
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "genomic_banded_edit_distance_checksum_v2601_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 87463812,
+    "min_elapsed_ns": 82452010,
+    "max_elapsed_ns": 90785433,
+    "all_elapsed_ns": [
+      82452010,
+      87463812,
+      90785433
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 82452010,
+      "expected_checksum": 12850131920921510531,
+      "actual_checksum": 12850131920921510531
+    },
+    "status": "ok"
+  }
+}

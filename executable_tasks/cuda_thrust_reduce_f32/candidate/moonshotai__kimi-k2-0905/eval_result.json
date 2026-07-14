@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_thrust_reduce_f32",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_thrust_reduce_f32/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\n__global__ void reduce_warp_shfl(const float* __restrict__ input, float* __restrict__ blockOut, int n)\n{\n    __shared__ float smem[32];\n\n    int tid = threadIdx.x;\n    int idx = blockIdx.x * blockDim.x + tid;\n\n    float val = 0.0f;\n    for (; idx < n; idx += gridDim.x * blockDim.x)\n        val += input[idx];\n\n    // Warp-level reduction using shuffle\n    for (int offset = warpSize / 2; offset > 0; offset /= 2)\n        val += __shfl_down_sync(0xFFFFFFFF, val, offset);\n\n    if (tid % warpSize == 0)\n        smem[tid / warpSize] = val;\n    __syncthreads();\n\n    // Final reduction in first warp\n    if (tid < 32)\n    {\n        val = smem[tid];\n        for (int offset = 16; offset > 0; offset /= 2)\n            val += __shfl_down_sync(0xFFFFFFFF, val, offset);\n        if (tid == 0)\n            blockOut[blockIdx.x] = val;\n    }\n}\n\n__global__ void reduce_final(const float* __restrict__ partial, float* __restrict__ result, int numBlocks)\n{\n    __shared__ float smem[32];\n\n    int tid = threadIdx.x;\n    float val = (tid < numBlocks) ? partial[tid] : 0.0f;\n\n    for (int offset = warpSize / 2; offset > 0; offset /= 2)\n        val += __shfl_down_sync(0xFFFFFFFF, val, offset);\n\n    if (tid % warpSize == 0)\n        smem[tid / warpSize] = val;\n    __syncthreads();\n\n    if (tid < 32)\n    {\n        val = smem[tid];\n        for (int offset = 16; offset > 0; offset /= 2)\n            val += __shfl_down_sync(0xFFFFFFFF, val, offset);\n        if (tid == 0)\n            *result = val;\n    }\n}\n\nfloat reduce_f32(const float* input, int n, int iters)\n{\n    const int blockSize = 128;\n    const int numBlocks = std::min((n + blockSize - 1) / blockSize, 1024);\n\n    float *d_partial = nullptr, *d_result = nullptr;\n    cudaMalloc(&d_partial, numBlocks * sizeof(float));\n    cudaMalloc(&d_result, sizeof(float));\n\n    float h_result = 0.0f;\n    for (int i = 0; i < iters; ++i)\n    {\n        reduce_warp_shfl<<<numBlocks, blockSize>>>(input, d_partial, n);\n        reduce_final<<<1, 32>>>(d_partial, d_result, numBlocks);\n    }\n\n    cudaMemcpy(&h_result, d_result, sizeof(float), cudaMemcpyDeviceToHost);\n    cudaFree(d_partial);\n    cudaFree(d_result);\n    return h_result;\n}",
+  "baseline": {
+    "task_id": "cuda_thrust_reduce_f32",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 253755416,
+    "min_elapsed_ns": 250764953,
+    "max_elapsed_ns": 255401565,
+    "all_elapsed_ns": [
+      255401565,
+      250764953,
+      253755416
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 255401565,
+      "expected_sum": 12582800.0,
+      "actual_sum": 12496400.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_thrust_reduce_f32",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2688640,
+    "min_elapsed_ns": 761568,
+    "max_elapsed_ns": 12081151,
+    "all_elapsed_ns": [
+      12081151,
+      2688640,
+      761568
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12081151,
+      "expected_sum": 12582800.0,
+      "actual_sum": 12582800.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_thrust_reduce_f32",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_thrust_reduce_f32/candidate/bench']' returned non-zero exit status 2."
+  }
+}

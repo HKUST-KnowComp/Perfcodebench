@@ -1,0 +1,72 @@
+{
+  "task_id": "croaring_many_union_cardinality_v2000_j",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/croaring_many_union_cardinality_v2000_j/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstddef>\n#include <cstdint>\n#include <vector>\n\nnamespace {\nstruct Node {\n  uint32_t val;\n  uint32_t idx;  // current index into values\n  uint32_t end;  // end index (exclusive)\n};\n\nstruct MinCmp {\n  bool operator()(const Node &a, const Node &b) const noexcept {\n    return a.val > b.val; // min-heap\n  }\n};\n} // namespace\n\nuint64_t many_union_cardinality(\n    const std::vector<uint32_t>& offsets,\n    const std::vector<uint32_t>& values) {\n  const uint32_t* vals = values.data();\n  const std::size_t shards = offsets.size() > 0 ? offsets.size() - 1 : 0;\n\n  // Build initial heap with first element of each non-empty shard\n  std::vector<Node> heap;\n  heap.reserve(shards);\n  for (std::size_t s = 0; s < shards; ++s) {\n    uint32_t begin = offsets[s];\n    uint32_t end = offsets[s + 1];\n    if (begin >= end) continue; // empty shard\n    // Push first value from shard\n    Node n;\n    n.val = vals[begin];\n    n.idx = begin + 1;\n    n.end = end;\n    heap.push_back(n);\n  }\n  MinCmp cmp;\n  std::make_heap(heap.begin(), heap.end(), cmp);\n\n  uint64_t count = 0;\n  uint32_t last = 0;\n  bool has_last = false;\n\n  while (!heap.empty()) {\n    std::pop_heap(heap.begin(), heap.end(), cmp);\n    Node n = heap.back();\n    heap.pop_back();\n\n    const uint32_t v = n.val;\n    if (!has_last || v != last) {\n      ++count;\n      last = v;\n      has_last = true;\n    }\n\n    // Advance within this shard, skipping duplicates equal to v\n    uint32_t i = n.idx;\n    const uint32_t e = n.end;\n    while (i < e) {\n      uint32_t nv = vals[i++];\n      if (nv != v) {\n        n.val = nv;\n        n.idx = i;\n        heap.push_back(n);\n        std::push_heap(heap.begin(), heap.end(), cmp);\n        break;\n      }\n    }\n    // If i == e or we only saw duplicates equal to v, this shard is exhausted and not reinserted.\n  }\n\n  return count;\n}\n",
+  "baseline": {
+    "task_id": "croaring_many_union_cardinality_v2000_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 325099365,
+    "min_elapsed_ns": 309500657,
+    "max_elapsed_ns": 325333839,
+    "all_elapsed_ns": [
+      325099365,
+      325333839,
+      309500657
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 325099365,
+      "expected_cardinality": 1049935,
+      "actual_cardinality": 1049935
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "croaring_many_union_cardinality_v2000_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 93450025,
+    "min_elapsed_ns": 93281620,
+    "max_elapsed_ns": 99149727,
+    "all_elapsed_ns": [
+      93281620,
+      93450025,
+      99149727
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 93281620,
+      "expected_cardinality": 1049935,
+      "actual_cardinality": 1049935
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "croaring_many_union_cardinality_v2000_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 752808622,
+    "min_elapsed_ns": 750393075,
+    "max_elapsed_ns": 753138292,
+    "all_elapsed_ns": [
+      752808622,
+      750393075,
+      753138292
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 752808622,
+      "expected_cardinality": 1049935,
+      "actual_cardinality": 1049935
+    },
+    "status": "ok"
+  }
+}

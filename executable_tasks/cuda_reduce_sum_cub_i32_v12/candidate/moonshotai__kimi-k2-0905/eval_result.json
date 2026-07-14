@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_reduce_sum_cub_i32_v12",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_reduce_sum_cub_i32_v12/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n#include <cub/cub.cuh>\n#include <cstdint>\n\nnamespace {\n\nconstexpr int BLOCK_SIZE = 256;\nconstexpr int ITEMS_PER_THREAD = 16;\n\n__global__ void block_reduce_kernel(const int* __restrict__ input,\n                                    int* __restrict__ block_sums,\n                                    int n) {\n    using BlockReduce = cub::BlockReduce<int, BLOCK_SIZE>;\n    __shared__ typename BlockReduce::TempStorage temp_storage;\n\n    int sum = 0;\n    int idx = (blockIdx.x * BLOCK_SIZE * ITEMS_PER_THREAD) + threadIdx.x;\n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; ++i) {\n        int offset = idx + i * BLOCK_SIZE;\n        if (offset < n) {\n            sum += input[offset];\n        }\n    }\n    sum = BlockReduce(temp_storage).Sum(sum);\n    if (threadIdx.x == 0) {\n        block_sums[blockIdx.x] = sum;\n    }\n}\n\nstruct Buffers {\n    int* dev_block_sums = nullptr;\n    void* cub_temp_storage = nullptr;\n    size_t cub_temp_storage_bytes = 0;\n    int grid_size = 0;\n\n    ~Buffers() {\n        if (dev_block_sums) {\n            cudaFree(dev_block_sums);\n        }\n        if (cub_temp_storage) {\n            cudaFree(cub_temp_storage);\n        }\n    }\n};\n\nstatic Buffers g_bufs;\n\n}  // namespace\n\nvoid reduce_sum_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0) return;\n\n    static bool initialized = false;\n    if (!initialized) {\n        g_bufs.grid_size = (n + BLOCK_SIZE * ITEMS_PER_THREAD - 1) /\n                           (BLOCK_SIZE * ITEMS_PER_THREAD);\n        cudaMalloc(&g_bufs.dev_block_sums, g_bufs.grid_size * sizeof(int));\n        cub::DeviceReduce::Sum(nullptr, g_bufs.cub_temp_storage_bytes,\n                               g_bufs.dev_block_sums, output, g_bufs.grid_size);\n        cudaMalloc(&g_bufs.cub_temp_storage, g_bufs.cub_temp_storage_bytes);\n        initialized = true;\n    }\n\n    for (int iter = 0; iter < iters; ++iter) {\n        block_reduce_kernel<<<g_bufs.grid_size, BLOCK_SIZE>>>(\n            input, g_bufs.dev_block_sums, n);\n        cub::DeviceReduce::Sum(g_bufs.cub_temp_storage,\n                               g_bufs.cub_temp_storage_bytes,\n                               g_bufs.dev_block_sums, output, g_bufs.grid_size);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_reduce_sum_cub_i32_v12",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4167935,
+    "min_elapsed_ns": 4155744,
+    "max_elapsed_ns": 4168223,
+    "all_elapsed_ns": [
+      4167935,
+      4155744,
+      4168223
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4167935,
+      "expected_sum": 15728640,
+      "actual_sum": 15728640
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_reduce_sum_cub_i32_v12",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 706080,
+    "min_elapsed_ns": 608511,
+    "max_elapsed_ns": 739871,
+    "all_elapsed_ns": [
+      608511,
+      706080,
+      739871
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 608511,
+      "expected_sum": 15728640,
+      "actual_sum": 15728640
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_reduce_sum_cub_i32_v12",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_reduce_sum_cub_i32_v12/candidate/bench']' timed out after 5 seconds"
+  }
+}

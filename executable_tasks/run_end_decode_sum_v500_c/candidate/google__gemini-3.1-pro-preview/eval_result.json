@@ -1,0 +1,59 @@
+{
+  "task_id": "run_end_decode_sum_v500_c",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/run_end_decode_sum_v500_c/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#pragma once\n\n#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n\n/**\n * Optimized run-end decode aggregation.\n * \n * Instead of expanding the run-end encoded data into a full vector (which is slow and memory-intensive),\n * we calculate the sum directly using the run lengths. \n * \n * For each run i:\n *   Length = run_ends[i] - run_ends[i-1]\n *   Value  = values[i]\n *   Sum contribution = Length * Value\n */\nuint64_t run_end_sum(\n    const std::vector<uint32_t>& run_ends,\n    const std::vector<uint32_t>& values,\n    int iters) {\n    \n    if (iters <= 0 || run_ends.empty()) {\n        return 0;\n    }\n\n    uint64_t final_sum = 0;\n    const size_t n = run_ends.size();\n    const uint32_t* __restrict__ re_ptr = run_ends.data();\n    const uint32_t* __restrict__ val_ptr = values.data();\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t current_sum = 0;\n        uint32_t prev = 0;\n        \n        // Unroll or vectorize the summation loop\n        // The compiler can easily vectorize this linear scan.\n        for (size_t i = 0; i < n; ++i) {\n            const uint32_t current_end = re_ptr[i];\n            const uint32_t length = current_end - prev;\n            current_sum += static_cast<uint64_t>(length) * val_ptr[i];\n            prev = current_end;\n        }\n        final_sum = current_sum;\n    }\n\n    return final_sum;\n}",
+  "baseline": {
+    "task_id": "run_end_decode_sum_v500_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 185428689,
+    "min_elapsed_ns": 174585181,
+    "max_elapsed_ns": 297304381,
+    "all_elapsed_ns": [
+      174585181,
+      185428689,
+      297304381
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 174585181,
+      "expected_sum": 13955605504,
+      "actual_sum": 13955605504
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "run_end_decode_sum_v500_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8190959,
+    "min_elapsed_ns": 5335645,
+    "max_elapsed_ns": 11243013,
+    "all_elapsed_ns": [
+      8190959,
+      11243013,
+      5335645
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8190959,
+      "expected_sum": 13955605504,
+      "actual_sum": 13955605504
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "run_end_decode_sum_v500_c",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/run_end_decode_sum_v500_c/harness', 'executable_tasks/run_end_decode_sum_v500_c/harness/benchmark_main.cpp', 'executable_tasks/run_end_decode_sum_v500_c/candidate/google__gemini-3.1-pro-preview/solution.cpp', '-o', 'build/run_end_decode_sum_v500_c/candidate/bench']' returned non-zero exit status 1."
+  }
+}

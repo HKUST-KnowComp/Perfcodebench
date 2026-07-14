@@ -1,0 +1,72 @@
+{
+  "task_id": "graph_bfs_level_checksum_v2600_c",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/graph_bfs_level_checksum_v2600_c/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nuint64_t checksum_levels(const std::vector<int32_t>& levels) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (int32_t level : levels) {\n    hash ^= static_cast<uint64_t>(static_cast<uint32_t>(level + 1));\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t bfs_level_checksum(\n    const std::vector<uint32_t>& offsets,\n    const std::vector<uint32_t>& edges,\n    uint32_t source,\n    int iters) {\n  const uint32_t n = static_cast<uint32_t>(offsets.size() - 1u);\n  std::vector<int32_t> levels(n, -1);\n  \n  // Pre-allocate buffers to avoid reallocations\n  std::vector<uint32_t> frontier;\n  std::vector<uint32_t> next_frontier;\n  frontier.reserve(n);\n  next_frontier.reserve(n);\n\n  uint64_t final_hash = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    std::fill(levels.begin(), levels.end(), -1);\n    frontier.clear();\n    \n    levels[source] = 0;\n    frontier.push_back(source);\n    \n    int32_t depth = 0;\n    while (!frontier.empty()) {\n      next_frontier.clear();\n      for (uint32_t u : frontier) {\n        const uint32_t start = offsets[u];\n        const uint32_t end = offsets[u + 1];\n        for (uint32_t i = start; i < end; ++i) {\n          uint32_t v = edges[i];\n          if (levels[v] == -1) {\n            levels[v] = depth + 1;\n            next_frontier.push_back(v);\n          }\n        }\n      }\n      \n      // The original code used sort/unique on candidates. \n      // To preserve exact correctness for the 'levels' array when multiple nodes in the \n      // same frontier point to the same unvisited node, we must ensure the 'next' \n      // frontier contains unique nodes. \n      // However, the original code's 'levels[v] = depth + 1' happens inside the loop \n      // AFTER the sort/unique. \n      // Wait, looking closely at baseline: \n      // 1. Collect ALL neighbors of frontier into 'candidates'.\n      // 2. Sort and Unique 'candidates'.\n      // 3. For each unique candidate, if levels[v] == -1, set level and add to 'next'.\n      // This means if multiple nodes in 'frontier' point to 'v', 'v' is added to 'next' exactly once.\n      // My optimized version: 'if (levels[v] == -1) { levels[v] = depth + 1; next_frontier.push_back(v); }'\n      // This also ensures 'v' is added to 'next_frontier' exactly once because 'levels[v]' is updated immediately.\n      \n      // To handle the case where multiple nodes in 'frontier' point to the same 'v',\n      // we must ensure 'next_frontier' doesn't have duplicates. \n      // The 'levels[v] = depth + 1' check handles this perfectly.\n      \n      // One edge case: the original code's 'candidates' might contain nodes that were \n      // already visited in PREVIOUS depths. The 'if (levels[v] == -1)' handles that.\n      \n      // There is one subtle difference: the original code's 'candidates' includes \n      // ALL neighbors. If two nodes in 'frontier' point to the same 'v', 'v' is in 'candidates' once.\n      // My code: 'v' is added to 'next_frontier' the first time it is encountered.\n      // To be 100% safe regarding the 'unique' behavior, we should ensure 'next_frontier' \n      // is unique. But since we set 'levels[v]' immediately, 'levels[v] == -1' will be \n      // false for subsequent encounters of 'v' in the same frontier loop.\n      \n      // However, the original code's 'candidates' might contain duplicates that are \n      // removed by 'unique'. My code handles this by the 'levels[v] == -1' check.\n      // BUT, there is a catch: if 'v' is in 'next_frontier', it must be unique.\n      // Let's refine the 'next_frontier' logic to be strictly identical to the baseline's \n      // 'unique' behavior if necessary. \n      // Actually, the baseline's 'candidates' is a collection of all neighbors. \n      // If 'u1' and 'u2' are in 'frontier' and both have neighbor 'v', \n      // 'v' appears twice in 'candidates', then once in 'unique candidates'.\n      // Then 'levels[v]' is checked. \n      // My code: 'u1' sees 'v', 'levels[v]' becomes 'depth+1', 'v' added to 'next'.\n      // 'u2' sees 'v', 'levels[v]' is no longer -1, 'v' is NOT added to 'next'.\n      // This is identical.\n      \n      // Wait, there is one tiny detail: the original code's 'candidates' might contain \n      // nodes that were already visited in previous levels. The 'if (levels[v] == -1)' \n      // in the baseline handles that. My code does too.\n      \n      // One more thing: the baseline's 'candidates' is sorted. Does the order of 'next' \n      // matter for the checksum? No, because the checksum iterates over the 'levels' array, \n      // not the 'frontier' or 'next' arrays. The 'levels' array is the source of truth.\n      \n      std::swap(frontier, next_frontier);\n      ++depth;\n    }\n    final_hash = checksum_levels(levels);\n  }\n  return final_hash;\n}\n",
+  "baseline": {
+    "task_id": "graph_bfs_level_checksum_v2600_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 48646072,
+    "min_elapsed_ns": 48548705,
+    "max_elapsed_ns": 49315489,
+    "all_elapsed_ns": [
+      48646072,
+      48548705,
+      49315489
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 48646072,
+      "expected_checksum": 14869216367153496612,
+      "actual_checksum": 14869216367153496612
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "graph_bfs_level_checksum_v2600_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2851348,
+    "min_elapsed_ns": 2775910,
+    "max_elapsed_ns": 3133779,
+    "all_elapsed_ns": [
+      2775910,
+      3133779,
+      2851348
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2775910,
+      "expected_checksum": 14869216367153496612,
+      "actual_checksum": 14869216367153496612
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "graph_bfs_level_checksum_v2600_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 2564813,
+    "min_elapsed_ns": 2363971,
+    "max_elapsed_ns": 3018806,
+    "all_elapsed_ns": [
+      2564813,
+      2363971,
+      3018806
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2564813,
+      "expected_checksum": 14869216367153496612,
+      "actual_checksum": 14869216367153496612
+    },
+    "status": "ok"
+  }
+}

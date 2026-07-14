@@ -1,0 +1,59 @@
+{
+  "task_id": "columnar_filter_sum",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/columnar_filter_sum/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <immintrin.h>\n\nuint64_t filter_sum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint8_t>& flags,\n    uint32_t key_threshold,\n    int iters)\n{\n    const std::size_t n = keys.size();\n    const uint32_t*  k = keys.data();\n    const uint32_t*  v = values.data();\n    const uint8_t*   f = flags.data();\n\n    uint64_t total = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t sum = 0;\n        std::size_t i = 0;\n\n        // SIMD main loop: 4 elements per iteration\n        const std::size_t simd_end = n & ~std::size_t(3);\n        for (; i < simd_end; i += 4) {\n            __m128i key4   = _mm_loadu_si128((__m128i*)(k + i));\n            __m128i flag4  = _mm_cvtepu8_epi32(_mm_loadu_si32(f + i));\n            __m128i val4   = _mm_loadu_si128((__m128i*)(v + i));\n\n            // flag != 0  -> 0xFFFFFFFF per lane\n            __m128i mask_flag = _mm_cmpgt_epi32(flag4, _mm_setzero_si128());\n            // key < threshold\n            __m128i mask_thresh = _mm_cmplt_epu32(key4, _mm_set1_epi32(key_threshold));\n            // (key & 3) == 0\n            __m128i mask_align = _mm_cmpeq_epi32(_mm_and_si128(key4, _mm_set1_epi32(3)), _mm_setzero_si128());\n\n            // combine masks\n            __m128i mask = _mm_and_si128(_mm_and_si128(mask_flag, mask_thresh), mask_align);\n\n            // zero out non-qualifying values\n            __m128i masked_val = _mm_and_si128(val4, mask);\n\n            // horizontal add of 4 uint32 into scalar\n            __m128i sum64 = _mm_add_epi64(_mm_unpacklo_epi32(masked_val, _mm_setzero_si128()),\n                                          _mm_unpacklo_epi32(_mm_srli_si128(masked_val, 8), _mm_setzero_si128()));\n            uint64_t lo = static_cast<uint64_t>(_mm_cvtsi128_si64(sum64));\n            uint64_t hi = static_cast<uint64_t>(_mm_cvtsi128_si64(_mm_srli_si128(sum64, 8)));\n            sum += lo + hi;\n        }\n\n        // scalar tail\n        for (; i < n; ++i) {\n            if (f[i] && k[i] < key_threshold && ((k[i] & 3u) == 0u)) {\n                sum += v[i];\n            }\n        }\n        total = sum;\n    }\n    return total;\n}",
+  "baseline": {
+    "task_id": "columnar_filter_sum",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3223064731,
+    "min_elapsed_ns": 3177825085,
+    "max_elapsed_ns": 3498611527,
+    "all_elapsed_ns": [
+      3223064731,
+      3177825085,
+      3498611527
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3223064731,
+      "expected_sum": 536885549,
+      "actual_sum": 536885549
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "columnar_filter_sum",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2879361676,
+    "min_elapsed_ns": 2870334920,
+    "max_elapsed_ns": 3158444137,
+    "all_elapsed_ns": [
+      2879361676,
+      3158444137,
+      2870334920
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2879361676,
+      "expected_sum": 536885549,
+      "actual_sum": 536885549
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "columnar_filter_sum",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/columnar_filter_sum/harness', 'executable_tasks/columnar_filter_sum/harness/benchmark_main.cpp', 'executable_tasks/columnar_filter_sum/candidate/moonshotai__kimi-k2-0905/solution.cpp', '-o', 'build/columnar_filter_sum/candidate/bench']' returned non-zero exit status 1."
+  }
+}

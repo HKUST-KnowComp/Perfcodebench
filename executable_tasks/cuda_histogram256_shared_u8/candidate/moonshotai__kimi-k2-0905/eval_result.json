@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 11,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void histogram256_shared_u8_kernel(const unsigned char* __restrict__ input,\n                                              unsigned int* __restrict__      output,\n                                              int n)\n{\n    // 256 bins * 4 bytes = 1024 bytes per block (fits in 48 KB shared memory)\n    __shared__ unsigned int sh_bins[256];\n\n    // Initialize shared bins\n    for (int i = threadIdx.x; i < 256; i += blockDim.x)\n        sh_bins[i] = 0;\n    __syncthreads();\n\n    // Grid-stride loop over input data\n    const int tid = blockIdx.x * blockDim.x + threadIdx.x;\n    const int stride = gridDim.x * blockDim.x;\n\n    for (int idx = tid; idx < n; idx += stride) {\n        unsigned char val = input[idx];\n\n        // Warp-aggregated increment: each warp computes its own partial histogram\n        unsigned int mask = __ballot_sync(0xFFFFFFFF, val == val); // full warp mask\n        unsigned int lane_mask = 1U << (threadIdx.x & 31);\n\n        // Use warp shuffle to aggregate counts within warp\n        for (int offset = 16; offset > 0; offset /= 2) {\n            unsigned char peer_val = __shfl_xor_sync(0xFFFFFFFF, val, offset);\n            unsigned int peer_mask = __ballot_sync(0xFFFFFFFF, peer_val == val);\n            if (val == peer_val)\n                lane_mask |= peer_mask;\n        }\n\n        // Thread holding the lowest lane of each unique value adds the count\n        if ((lane_mask & ((1U << (threadIdx.x & 31)) - 1)) == 0) {\n            unsigned int count = __popc(lane_mask);\n            atomicAdd(&sh_bins[val], count);\n        }\n    }\n    __syncthreads();\n\n    // Write per-block histogram to global memory\n    for (int bin = threadIdx.x; bin < 256; bin += blockDim.x) {\n        atomicAdd(&output[bin], sh_bins[bin]);\n    }\n}\n\n} // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters)\n{\n    constexpr int kBlock = 128;            // 4 warps per block\n    const int kGrid = 960;                 // tuned for most GPUs\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, 256 * sizeof(unsigned int));\n        histogram256_shared_u8_kernel<<<kGrid, kBlock>>>(input, output, n);\n    }\n}\n",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2072608398,
+    "min_elapsed_ns": 2072505859,
+    "max_elapsed_ns": 2072913085,
+    "all_elapsed_ns": [
+      2072913085,
+      2072608398,
+      2072505859
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2072913085,
+      "checksum": 8623489024
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 19879007,
+    "min_elapsed_ns": 19861024,
+    "max_elapsed_ns": 19880512,
+    "all_elapsed_ns": [
+      19880512,
+      19861024,
+      19879007
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 19880512,
+      "checksum": 8623489024
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_histogram256_shared_u8/candidate/bench']' died with <Signals.SIGSEGV: 11>."
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "nibble_decode_filter_sum",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/nibble_decode_filter_sum/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\n#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)\n#include <immintrin.h>\n#define HAS_SSE4 1\n#else\n#define HAS_SSE4 0\n#endif\n\nuint64_t nibble_filter_sum(const std::vector<uint8_t>& packed, uint8_t threshold, int iters) {\n    const uint8_t* data = packed.data();\n    const std::size_t n = packed.size();\n    uint64_t sum = 0;\n\n#if HAS_SSE4\n    const __m128i mask_lo = _mm_set1_epi8(0x0F);\n    const __m128i thresh_vec = _mm_set1_epi8(static_cast<char>(threshold));\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        sum = 0;\n        std::size_t i = 0;\n        \n        // Process 16 bytes at a time (32 nibbles)\n        const std::size_t simd_end = (n >= 16) ? (n - 15) : 0;\n        \n        __m128i acc0 = _mm_setzero_si128();\n        __m128i acc1 = _mm_setzero_si128();\n        __m128i acc2 = _mm_setzero_si128();\n        __m128i acc3 = _mm_setzero_si128();\n        int acc_count = 0;\n        \n        for (; i < simd_end; i += 16) {\n            __m128i bytes = _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + i));\n            \n            // Extract low and high nibbles\n            __m128i lo = _mm_and_si128(bytes, mask_lo);\n            __m128i hi = _mm_and_si128(_mm_srli_epi16(bytes, 4), mask_lo);\n            \n            // Compare > threshold (using signed comparison trick: a > b iff a - b - 1 >= 0 unsigned)\n            // For unsigned: a > b iff max(a,b) != b\n            __m128i lo_gt = _mm_cmpgt_epi8(_mm_xor_si128(lo, _mm_set1_epi8((char)0x80)), \n                                           _mm_xor_si128(thresh_vec, _mm_set1_epi8((char)0x80)));\n            __m128i hi_gt = _mm_cmpgt_epi8(_mm_xor_si128(hi, _mm_set1_epi8((char)0x80)), \n                                           _mm_xor_si128(thresh_vec, _mm_set1_epi8((char)0x80)));\n            \n            // Mask values that don't pass threshold\n            lo = _mm_and_si128(lo, lo_gt);\n            hi = _mm_and_si128(hi, hi_gt);\n            \n            // Horizontal sum using SAD against zero\n            __m128i sad_lo = _mm_sad_epu8(lo, _mm_setzero_si128());\n            __m128i sad_hi = _mm_sad_epu8(hi, _mm_setzero_si128());\n            \n            acc0 = _mm_add_epi64(acc0, sad_lo);\n            acc1 = _mm_add_epi64(acc1, sad_hi);\n            \n            acc_count++;\n            if (acc_count >= 65535) {\n                // Flush accumulators to prevent overflow (very unlikely with nibbles)\n                sum += static_cast<uint64_t>(_mm_extract_epi64(acc0, 0));\n                sum += static_cast<uint64_t>(_mm_extract_epi64(acc0, 1));\n                sum += static_cast<uint64_t>(_mm_extract_epi64(acc1, 0));\n                sum += static_cast<uint64_t>(_mm_extract_epi64(acc1, 1));\n                acc0 = _mm_setzero_si128();\n                acc1 = _mm_setzero_si128();\n                acc_count = 0;\n            }\n        }\n        \n        // Flush remaining accumulator values\n        sum += static_cast<uint64_t>(_mm_extract_epi64(acc0, 0));\n        sum += static_cast<uint64_t>(_mm_extract_epi64(acc0, 1));\n        sum += static_cast<uint64_t>(_mm_extract_epi64(acc1, 0));\n        sum += static_cast<uint64_t>(_mm_extract_epi64(acc1, 1));\n        \n        // Handle remaining bytes\n        for (; i < n; ++i) {\n            uint8_t b = data[i];\n            uint8_t lo = b & 0x0Fu;\n            uint8_t hi = b >> 4u;\n            if (lo > threshold) sum += lo;\n            if (hi > threshold) sum += hi;\n        }\n    }\n#else\n    // Scalar fallback\n    for (int iter = 0; iter < iters; ++iter) {\n        sum = 0;\n        for (std::size_t i = 0; i < n; ++i) {\n            uint8_t b = data[i];\n            uint8_t lo = b & 0x0Fu;\n            uint8_t hi = b >> 4u;\n            if (lo > threshold) sum += lo;\n            if (hi > threshold) sum += hi;\n        }\n    }\n#endif\n\n    return sum;\n}\n",
+  "baseline": {
+    "task_id": "nibble_decode_filter_sum",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 308146238,
+    "min_elapsed_ns": 295796041,
+    "max_elapsed_ns": 315752173,
+    "all_elapsed_ns": [
+      315752173,
+      295796041,
+      308146238
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 315752173,
+      "expected_sum": 39321600,
+      "actual_sum": 39321600
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "nibble_decode_filter_sum",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 121666884,
+    "min_elapsed_ns": 119998508,
+    "max_elapsed_ns": 125153702,
+    "all_elapsed_ns": [
+      121666884,
+      119998508,
+      125153702
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 121666884,
+      "expected_sum": 39321600,
+      "actual_sum": 39321600
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "nibble_decode_filter_sum",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/nibble_decode_filter_sum/harness', 'executable_tasks/nibble_decode_filter_sum/harness/benchmark_main.cpp', 'executable_tasks/nibble_decode_filter_sum/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/nibble_decode_filter_sum/candidate/bench']' returned non-zero exit status 1."
+  }
+}

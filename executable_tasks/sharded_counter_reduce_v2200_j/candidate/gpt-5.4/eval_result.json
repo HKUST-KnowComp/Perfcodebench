@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce_v2200_j",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v2200_j/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <atomic>\n#include <cstdint>\n#include <thread>\n#include <vector>\n\nnamespace {\n\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  const std::size_t n = keys.size();\n  std::vector<uint64_t> counts(static_cast<std::size_t>(key_space), 0);\n\n  if (iters <= 0) {\n    return 0;\n  }\n\n  if (key_space == 0) {\n    uint64_t hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n      hash = checksum_u64(counts);\n    }\n    return hash;\n  }\n\n  if (n == 0 || num_threads <= 1) {\n    uint64_t hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n      std::fill(counts.begin(), counts.end(), 0);\n      for (std::size_t i = 0; i < n; ++i) {\n        counts[static_cast<std::size_t>(keys[i])] += static_cast<uint64_t>(values[i]);\n      }\n      hash = checksum_u64(counts);\n    }\n    return hash;\n  }\n\n  int workers = num_threads;\n  if (workers < 1) workers = 1;\n  if (static_cast<std::size_t>(workers) > n) workers = static_cast<int>(n);\n  if (workers <= 1) {\n    uint64_t hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n      std::fill(counts.begin(), counts.end(), 0);\n      for (std::size_t i = 0; i < n; ++i) {\n        counts[static_cast<std::size_t>(keys[i])] += static_cast<uint64_t>(values[i]);\n      }\n      hash = checksum_u64(counts);\n    }\n    return hash;\n  }\n\n  const std::size_t ks = static_cast<std::size_t>(key_space);\n  std::vector<std::vector<uint64_t>> locals(static_cast<std::size_t>(workers),\n                                            std::vector<uint64_t>(ks, 0));\n  std::vector<std::size_t> begins(static_cast<std::size_t>(workers));\n  std::vector<std::size_t> ends(static_cast<std::size_t>(workers));\n\n  const std::size_t base = n / static_cast<std::size_t>(workers);\n  const std::size_t rem = n % static_cast<std::size_t>(workers);\n  std::size_t pos = 0;\n  for (int t = 0; t < workers; ++t) {\n    const std::size_t len = base + (static_cast<std::size_t>(t) < rem ? 1u : 0u);\n    begins[static_cast<std::size_t>(t)] = pos;\n    ends[static_cast<std::size_t>(t)] = pos + len;\n    pos += len;\n  }\n\n  std::atomic<int> phase{0};\n  std::atomic<int> done_count{0};\n  std::atomic<bool> stop{false};\n  std::vector<std::thread> threads;\n  threads.reserve(static_cast<std::size_t>(workers));\n\n  for (int t = 0; t < workers; ++t) {\n    threads.emplace_back([&, t]() {\n      const std::size_t tid = static_cast<std::size_t>(t);\n      std::vector<uint64_t>& local = locals[tid];\n      int seen_phase = 0;\n      for (;;) {\n        int p;\n        while ((p = phase.load(std::memory_order_acquire)) == seen_phase) {\n          if (stop.load(std::memory_order_acquire)) {\n            return;\n          }\n          std::this_thread::yield();\n        }\n        if (stop.load(std::memory_order_acquire)) {\n          return;\n        }\n        seen_phase = p;\n\n        std::fill(local.begin(), local.end(), 0);\n        const std::size_t begin = begins[tid];\n        const std::size_t end = ends[tid];\n        for (std::size_t i = begin; i < end; ++i) {\n          local[static_cast<std::size_t>(keys[i])] += static_cast<uint64_t>(values[i]);\n        }\n\n        done_count.fetch_add(1, std::memory_order_release);\n      }\n    });\n  }\n\n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    done_count.store(0, std::memory_order_relaxed);\n    phase.fetch_add(1, std::memory_order_release);\n\n    while (done_count.load(std::memory_order_acquire) != workers) {\n      std::this_thread::yield();\n    }\n\n    std::fill(counts.begin(), counts.end(), 0);\n    for (int t = 0; t < workers; ++t) {\n      const std::vector<uint64_t>& local = locals[static_cast<std::size_t>(t)];\n      for (std::size_t k = 0; k < ks; ++k) {\n        counts[k] += local[k];\n      }\n    }\n\n    hash = checksum_u64(counts);\n  }\n\n  stop.store(true, std::memory_order_release);\n  phase.fetch_add(1, std::memory_order_release);\n  for (std::thread& th : threads) {\n    th.join();\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v2200_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 389751380,
+    "min_elapsed_ns": 302347519,
+    "max_elapsed_ns": 427470364,
+    "all_elapsed_ns": [
+      427470364,
+      389751380,
+      302347519
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 427470364,
+      "expected_checksum": 17784583430431138691,
+      "actual_checksum": 17784583430431138691
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v2200_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 7089668,
+    "min_elapsed_ns": 2124699,
+    "max_elapsed_ns": 18529534,
+    "all_elapsed_ns": [
+      7089668,
+      2124699,
+      18529534
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7089668,
+      "expected_checksum": 17784583430431138691,
+      "actual_checksum": 17784583430431138691
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v2200_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1093603,
+    "min_elapsed_ns": 968308,
+    "max_elapsed_ns": 1117181,
+    "all_elapsed_ns": [
+      1093603,
+      1117181,
+      968308
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1093603,
+      "expected_checksum": 17784583430431138691,
+      "actual_checksum": 17784583430431138691
+    },
+    "status": "ok"
+  }
+}

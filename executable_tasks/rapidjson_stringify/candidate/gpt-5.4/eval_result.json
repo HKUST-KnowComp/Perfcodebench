@@ -1,0 +1,59 @@
+{
+  "task_id": "rapidjson_stringify",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/rapidjson_stringify/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <rapidjson/writer.h>\n\n#include <cstdint>\n#include <string>\n#include <vector>\n\nnamespace {\n\nclass StringBufferStream {\n public:\n  explicit StringBufferStream(std::string& out) : out_(out) {}\n\n  void Put(char c) { out_.push_back(c); }\n  void Flush() {}\n\n private:\n  std::string& out_;\n};\n\nstatic inline std::size_t count_escaped_json_string_size(const std::string& s) {\n  std::size_t n = 0;\n  for (unsigned char c : s) {\n    switch (c) {\n      case '\"':\n      case '\\\\':\n      case '\\b':\n      case '\\f':\n      case '\\n':\n      case '\\r':\n      case '\\t':\n        n += 2;\n        break;\n      default:\n        n += (c < 0x20u) ? 6 : 1;\n        break;\n    }\n  }\n  return n;\n}\n\n}  // namespace\n\nstd::string build_json(\n    const std::vector<uint32_t>& ids,\n    const std::vector<uint32_t>& values,\n    const std::vector<std::string>& names) {\n  const std::size_t n = ids.size();\n\n  std::size_t reserve_size = 2;  // [ ]\n  if (n != 0) {\n    reserve_size += n - 1;  // commas between objects\n  }\n\n  for (std::size_t i = 0; i < n; ++i) {\n    reserve_size += 30;  // punctuation + keys + boolean text + quotes around name\n\n    uint32_t x = ids[i];\n    do {\n      ++reserve_size;\n      x /= 10;\n    } while (x != 0);\n\n    x = values[i];\n    do {\n      ++reserve_size;\n      x /= 10;\n    } while (x != 0);\n\n    reserve_size += count_escaped_json_string_size(names[i]);\n  }\n\n  std::string out;\n  out.reserve(reserve_size);\n\n  StringBufferStream stream(out);\n  rapidjson::Writer<StringBufferStream> writer(stream);\n\n  writer.StartArray();\n  for (std::size_t i = 0; i < n; ++i) {\n    writer.StartObject();\n\n    writer.Key(\"id\", 2);\n    writer.Uint(ids[i]);\n\n    writer.Key(\"flag\", 4);\n    writer.Bool((ids[i] % 3U) == 0U);\n\n    writer.Key(\"value\", 5);\n    writer.Uint(values[i]);\n\n    writer.Key(\"name\", 4);\n    writer.String(names[i].data(), static_cast<rapidjson::SizeType>(names[i].size()));\n\n    writer.EndObject();\n  }\n  writer.EndArray();\n\n  return out;\n}\n",
+  "baseline": {
+    "task_id": "rapidjson_stringify",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 18297016,
+    "min_elapsed_ns": 18275400,
+    "max_elapsed_ns": 18366207,
+    "all_elapsed_ns": [
+      18275400,
+      18366207,
+      18297016
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 18275400,
+      "expected_size": 1684993,
+      "actual_size": 1684993
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "rapidjson_stringify",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2382101,
+    "min_elapsed_ns": 2262508,
+    "max_elapsed_ns": 2750354,
+    "all_elapsed_ns": [
+      2750354,
+      2382101,
+      2262508
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2750354,
+      "expected_size": 1684993,
+      "actual_size": 1684993
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "rapidjson_stringify",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/rapidjson_stringify/harness', '-Iexternal/nlohmann_json/single_include', '-Iexternal/rapidjson_src/include', 'executable_tasks/rapidjson_stringify/harness/benchmark_main.cpp', 'executable_tasks/rapidjson_stringify/candidate/gpt-5.4/solution.cpp', '-o', 'build/rapidjson_stringify/candidate/bench']' returned non-zero exit status 1."
+  }
+}

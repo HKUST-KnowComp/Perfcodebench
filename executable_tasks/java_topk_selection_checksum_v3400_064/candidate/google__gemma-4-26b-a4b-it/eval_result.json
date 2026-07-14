@@ -1,0 +1,59 @@
+{
+  "task_id": "java_topk_selection_checksum_v3400_064",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/java_topk_selection_checksum_v3400_064/candidate/google__gemma-4-26b-a4b-it/Solution.java",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "import java.util.Arrays;\n\npublic class Solution {\n  public static long run(int[] scores, int k, int iters) {\n    int n = scores.length;\n    long[] packed = new long[n];\n    long h = 1469598103934665603L;\n\n    for (int iter = 0; iter < iters; iter++) {\n      for (int i = 0; i < n; i++) {\n        // Pack score and index into a long for efficient sorting.\n        // We want descending score, then ascending index.\n        // To use natural ascending order of longs:\n        // 1. Negate score (or use bitwise complement) to flip order.\n        // 2. Use index as is.\n        // However, since scores can be negative, we use a transformation:\n        // We want higher score first. Let's map score to (Integer.MAX_VALUE - score).\n        // Or more simply: pack as (long)score << 32 | (index & 0xFFFFFFFFL).\n        // But we need descending score. Let's use: \n        // (long) (~score) << 32 | (index & 0xFFFFFFFFL) is tricky with negatives.\n        // Let's use: (long) (-(long)scores[i]) << 32 | (index & 0xFFFFFFFFL).\n        // Wait, the requirement is: score DESC, then index ASC.\n        // Let's use: (long) (0xFFFFFFFFL - (unsigned)score) is not quite right.\n        // Correct way: pack as (long) (-(long)scores[i]) << 32 | (index & 0xFFFFFFFFL).\n        // But scores are ints. Let's use: \n        // long val = ((long) scores[i] << 32) | (index & 0xFFFFFFFFL);\n        // To sort DESC score, ASC index: \n        // We can use a custom comparator or transform the bits.\n        // Let's transform: \n        // NewScore = -score (if we treat it as long)\n        // NewIndex = index\n        // This works for descending score. \n        // To handle the full range of int, we use: \n        // long bitScore = (long)scores[i];\n        // long packedVal = (bitScore ^ 0x80000000L) << 32 | (index & 0xFFFFFFFFL);\n        // This maps the smallest int to 0 and largest to 0xFFFFFFFF. \n        // To get DESC score, we want the largest score to have the smallest bitScore.\n        // Let's use: \n        // long bitScore = (long)scores[i];\n        // long packedVal = (~bitScore << 32) | (index & 0xFFFFFFFFL);\n        // Wait, if score is 10, ~10 is ...11110101. If score is 11, ~11 is ...11110100.\n        // So ~11 < ~10. This gives DESC score. \n        // For index: we want ASC index. index 0 < index 1. \n        // So: packedVal = ((long) ~scores[i] << 32) | (index & 0xFFFFFFFFL);\n        // Let's double check: \n        // Score 10, Index 1 -> ~10 << 32 | 1\n        // Score 10, Index 2 -> ~10 << 32 | 2\n        // Score 11, Index 1 -> ~11 << 32 | 1\n        // Since ~11 < ~10, (Score 11, Index 1) comes before (Score 10, Index 1).\n        // This is correct for DESC score, ASC index.\n        packed[i] = ((long) ~scores[i] << 32) | (index & 0xFFFFFFFFL);\n      }\n      \n      Arrays.sort(packed);\n\n      h = 1469598103934665603L;\n      for (int i = 0; i < k; i++) {\n        long p = packed[i];\n        int s = (int) (p >> 32);\n        s = ~s; // undo the ~ \n        int idx = (int) (p & 0xFFFFFFFFL);\n        h ^= (((long) s) << 32) ^ (idx & 0xffffffffL);\n        h *= 1099511628211L;\n      }\n    }\n    return h;\n  }\n}",
+  "baseline": {
+    "task_id": "java_topk_selection_checksum_v3400_064",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2399017832,
+    "min_elapsed_ns": 2265618748,
+    "max_elapsed_ns": 2760703124,
+    "all_elapsed_ns": [
+      2760703124,
+      2399017832,
+      2265618748
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2760703124,
+      "expected_checksum": 5842306421919112706,
+      "actual_checksum": 5842306421919112706
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "java_topk_selection_checksum_v3400_064",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 135091630,
+    "min_elapsed_ns": 104625997,
+    "max_elapsed_ns": 139565199,
+    "all_elapsed_ns": [
+      104625997,
+      139565199,
+      135091630
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 104625997,
+      "expected_checksum": 5842306421919112706,
+      "actual_checksum": 5842306421919112706
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "java_topk_selection_checksum_v3400_064",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['javac', '-d', 'build/java_topk_selection_checksum_v3400_064/candidate', 'executable_tasks/java_topk_selection_checksum_v3400_064/harness/BenchmarkMain.java', 'executable_tasks/java_topk_selection_checksum_v3400_064/candidate/google__gemma-4-26b-a4b-it/Solution.java']' returned non-zero exit status 1."
+  }
+}

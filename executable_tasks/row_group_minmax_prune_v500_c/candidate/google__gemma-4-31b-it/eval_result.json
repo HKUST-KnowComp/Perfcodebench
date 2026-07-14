@@ -1,0 +1,59 @@
+{
+  "task_id": "row_group_minmax_prune_v500_c",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/row_group_minmax_prune_v500_c/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\nuint64_t row_group_range_sum(\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& mins,\n    const std::vector<uint32_t>& maxs,\n    uint32_t low,\n    uint32_t high,\n    uint32_t block_size,\n    int iters) {\n    \n    uint64_t final_sum = 0;\n    const uint32_t* val_ptr = values.data();\n    const uint32_t* min_ptr = mins.data();\n    const uint32_t* max_ptr = maxs.data();\n    const size_t num_values = values.size();\n    const size_t num_groups = mins.size();\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t current_sum = 0;\n        for (size_t g = 0; g < num_groups; ++g) {\n            uint32_t g_min = min_ptr[g];\n            uint32_t g_max = max_ptr[g];\n\n            // Pruning: if the group's range is completely outside [low, high], skip it\n            if (g_min > high || g_max < low) {\n                continue;\n            }\n\n            // If the group's range is entirely within [low, high], we can sum all elements\n            // However, for simplicity and to avoid branching inside the inner loop,\n            // we check the range. Most compilers will vectorize the following loop.\n            const uint32_t* block_start = val_ptr + (g * block_size);\n            const uint32_t* block_end = block_start + block_size;\n            \n            // Safety check for the last block if block_size doesn't perfectly divide num_values\n            if (block_end > val_ptr + num_values) {\n                block_end = val_ptr + num_values;\n            }\n\n            if (g_min >= low && g_max <= high) {\n                // Fast path: all elements in this block are guaranteed to be in range\n                uint64_t block_sum = 0;\n                for (const uint32_t* p = block_start; p < block_end; ++p) {\n                    block_sum += *p;\n                }\n                current_sum += block_sum;\n            } else {\n                // Slow path: filter elements\n                uint64_t block_sum = 0;\n                for (const uint32_t* p = block_start; p < block_end; ++p) {\n                    uint32_t v = *p;\n                    if (v >= low && v <= high) {\n                        block_sum += v;\n                    }\n                }\n                current_sum += block_sum;\n            }\n        }\n        final_sum = current_sum;\n    }\n\n    return final_sum;\n}",
+  "baseline": {
+    "task_id": "row_group_minmax_prune_v500_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 26450898,
+    "min_elapsed_ns": 26315161,
+    "max_elapsed_ns": 27335114,
+    "all_elapsed_ns": [
+      26450898,
+      26315161,
+      27335114
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 26450898,
+      "expected_sum": 21732156,
+      "actual_sum": 21732156
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "row_group_minmax_prune_v500_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 989151,
+    "min_elapsed_ns": 965297,
+    "max_elapsed_ns": 994557,
+    "all_elapsed_ns": [
+      989151,
+      994557,
+      965297
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 989151,
+      "expected_sum": 21732156,
+      "actual_sum": 21732156
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "row_group_minmax_prune_v500_c",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/row_group_minmax_prune_v500_c/harness', 'executable_tasks/row_group_minmax_prune_v500_c/harness/benchmark_main.cpp', 'executable_tasks/row_group_minmax_prune_v500_c/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/row_group_minmax_prune_v500_c/candidate/bench']' returned non-zero exit status 1."
+  }
+}

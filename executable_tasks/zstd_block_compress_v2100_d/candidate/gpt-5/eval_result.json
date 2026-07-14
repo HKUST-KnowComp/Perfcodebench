@@ -1,0 +1,69 @@
+{
+  "task_id": "zstd_block_compress_v2100_d",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/zstd_block_compress_v2100_d/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include \"zstd.h\"\n\n#include <string>\n#include <limits>\n\nint compress_payload(const std::string& input, std::string& compressed) {\n  // Reuse a persistent compression context for better performance across calls\n  static thread_local ZSTD_CCtx* cctx = nullptr;\n  if (cctx == nullptr) {\n    cctx = ZSTD_createCCtx();\n    if (cctx == nullptr) {\n      return -1;\n    }\n    // Prefer fast compression for throughput\n    size_t r = ZSTD_CCtx_setParameter(cctx, ZSTD_c_compressionLevel, 1);\n    if (ZSTD_isError(r)) {\n      // Proceed with default parameters if setting fails\n    }\n  }\n\n  // Enable multithreaded compression for large inputs when available\n  // Fallback silently to single-thread if MT is unsupported or for small inputs\n  if (input.size() >= (1u << 20)) { // Threshold: 1 MiB\n    size_t r = ZSTD_CCtx_setParameter(cctx, ZSTD_c_nbWorkers, 4);\n    if (ZSTD_isError(r)) {\n      (void)ZSTD_CCtx_setParameter(cctx, ZSTD_c_nbWorkers, 0);\n    }\n  } else {\n    (void)ZSTD_CCtx_setParameter(cctx, ZSTD_c_nbWorkers, 0);\n  }\n\n  const size_t bound = ZSTD_compressBound(input.size());\n  compressed.resize(bound);\n\n  const size_t n = ZSTD_compress2(cctx, compressed.data(), bound, input.data(), input.size());\n  if (ZSTD_isError(n)) {\n    return -1;\n  }\n\n  compressed.resize(n);\n  if (n > static_cast<size_t>(std::numeric_limits<int>::max())) {\n    return -1;\n  }\n  return static_cast<int>(n);\n}\n",
+  "baseline": {
+    "task_id": "zstd_block_compress_v2100_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 417456020,
+    "min_elapsed_ns": 415727295,
+    "max_elapsed_ns": 428467975,
+    "all_elapsed_ns": [
+      415727295,
+      417456020,
+      428467975
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 415727295,
+      "compressed_size": 394316
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "zstd_block_compress_v2100_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3390011,
+    "min_elapsed_ns": 2930379,
+    "max_elapsed_ns": 3701303,
+    "all_elapsed_ns": [
+      3390011,
+      3701303,
+      2930379
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3390011,
+      "compressed_size": 396197
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "zstd_block_compress_v2100_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 2915668,
+    "min_elapsed_ns": 2885492,
+    "max_elapsed_ns": 2963029,
+    "all_elapsed_ns": [
+      2885492,
+      2915668,
+      2963029
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2885492,
+      "compressed_size": 396197
+    },
+    "status": "ok"
+  }
+}

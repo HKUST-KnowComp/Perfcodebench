@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_csr_spmv_v600_h",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_csr_spmv_v600_h/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <omp.h>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nuint64_t checksum_i64(const std::vector<int64_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (int64_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n} // namespace\n\nuint64_t csr_spmv_checksum(\n    const std::vector<int>& row_ptr,\n    const std::vector<int>& col_idx,\n    const std::vector<int32_t>& values,\n    const std::vector<int32_t>& dense,\n    int rows,\n    int iters) {\n  std::vector<int64_t> out(static_cast<std::size_t>(rows), 0);\n  \n  const int* __restrict p_row_ptr = row_ptr.data();\n  const int* __restrict p_col_idx = col_idx.data();\n  const int32_t* __restrict p_values = values.data();\n  const int32_t* __restrict p_dense = dense.data();\n  int64_t* __restrict p_out = out.data();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    #pragma omp parallel for schedule(static)\n    for (int row = 0; row < rows; ++row) {\n      int64_t sum = 0;\n      const int start = p_row_ptr[row];\n      const int end = p_row_ptr[row + 1];\n      \n      for (int idx = start; idx < end; ++idx) {\n        sum += static_cast<int64_t>(p_values[idx]) * p_dense[p_col_idx[idx]];\n      }\n      p_out[row] = sum;\n    }\n  }\n\n  return checksum_i64(out);\n}",
+  "baseline": {
+    "task_id": "openmp_csr_spmv_v600_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 92444758,
+    "min_elapsed_ns": 54317583,
+    "max_elapsed_ns": 111037196,
+    "all_elapsed_ns": [
+      54317583,
+      92444758,
+      111037196
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 54317583,
+      "expected_checksum": 17675877025327095995,
+      "actual_checksum": 17675877025327095995
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_csr_spmv_v600_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 925491059,
+    "min_elapsed_ns": 135178398,
+    "max_elapsed_ns": 1150422029,
+    "all_elapsed_ns": [
+      135178398,
+      925491059,
+      1150422029
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 135178398,
+      "expected_checksum": 17675877025327095995,
+      "actual_checksum": 17675877025327095995
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_csr_spmv_v600_h",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/openmp_csr_spmv_v600_h/candidate/bench']' timed out after 5 seconds"
+  }
+}

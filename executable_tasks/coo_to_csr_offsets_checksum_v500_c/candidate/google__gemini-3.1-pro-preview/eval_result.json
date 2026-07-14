@@ -1,0 +1,72 @@
+{
+  "task_id": "coo_to_csr_offsets_checksum_v500_c",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/coo_to_csr_offsets_checksum_v500_c/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\n/**\n * The mix function provided in the baseline.\n * It is a variant of the FNV-1a hash step.\n */\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n/**\n * Computes the CSR offset checksum for a single iteration.\n * Since row_ids is sorted, offsets[r+1] is the index of the first element \n * in row_ids that is >= r+1.\n */\nuint64_t compute_hash(const std::vector<uint32_t>& row_ids, uint32_t rows) {\n  const uint32_t n = static_cast<uint32_t>(row_ids.size());\n  uint64_t hash = 1469598103934665603ULL;\n\n  // offsets[0] is always 0\n  hash = mix(hash, 0);\n\n  uint32_t last_r = 0;\n  const uint32_t* __restrict__ data = row_ids.data();\n\n  // Iterate through sorted row_ids to find transitions\n  for (uint32_t i = 0; i < n; ++i) {\n    uint32_t r = data[i];\n    if (r > last_r) {\n      // All rows from last_r to r-1 have the same offset (the current index i)\n      // This corresponds to offsets[last_r + 1] ... offsets[r]\n      uint32_t count = r - last_r;\n      uint64_t val = static_cast<uint64_t>(i);\n      for (uint32_t j = 0; j < count; ++j) {\n        hash = mix(hash, val);\n      }\n      last_r = r;\n    }\n  }\n\n  // All remaining rows from last_r to rows-1 have the same offset (n)\n  // This corresponds to offsets[last_r + 1] ... offsets[rows]\n  if (rows > last_r) {\n    uint32_t count = rows - last_r;\n    uint64_t val = static_cast<uint64_t>(n);\n    for (uint32_t j = 0; j < count; ++j) {\n      hash = mix(hash, val);\n    }\n  }\n\n  return hash;\n}\n\n}  // namespace\n\nuint64_t csr_offsets_hash(const std::vector<uint32_t>& row_ids, uint32_t rows, int iters) {\n  if (iters <= 0) return 0;\n\n  uint64_t hash = 0;\n  // The problem asks for the checksum of the offset array returned in the last iteration.\n  // Since the input row_ids and rows do not change, the hash is identical for every iteration.\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = compute_hash(row_ids, rows);\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "coo_to_csr_offsets_checksum_v500_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 136227679,
+    "min_elapsed_ns": 126614357,
+    "max_elapsed_ns": 144638082,
+    "all_elapsed_ns": [
+      126614357,
+      136227679,
+      144638082
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 126614357,
+      "expected_checksum": 10481953510414940057,
+      "actual_checksum": 10481953510414940057
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "coo_to_csr_offsets_checksum_v500_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 22023418,
+    "min_elapsed_ns": 19414275,
+    "max_elapsed_ns": 28160924,
+    "all_elapsed_ns": [
+      28160924,
+      19414275,
+      22023418
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 28160924,
+      "expected_checksum": 10481953510414940057,
+      "actual_checksum": 10481953510414940057
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "coo_to_csr_offsets_checksum_v500_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 15541937,
+    "min_elapsed_ns": 15050549,
+    "max_elapsed_ns": 16720911,
+    "all_elapsed_ns": [
+      15541937,
+      16720911,
+      15050549
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15541937,
+      "expected_checksum": 10481953510414940057,
+      "actual_checksum": 10481953510414940057
+    },
+    "status": "ok"
+  }
+}

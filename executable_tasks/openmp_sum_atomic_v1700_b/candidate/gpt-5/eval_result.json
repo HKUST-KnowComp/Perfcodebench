@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_sum_atomic_v1700_b",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_sum_atomic_v1700_b/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <omp.h>\n\nnamespace {\n\nint num_threads() {\n  // Cap threads to avoid overhead on very high core counts\n  int mt = omp_get_max_threads();\n  if (mt < 1) mt = 1;\n  if (mt > 8) mt = 8;\n  return mt;\n}\n\n}  // namespace\n\nuint64_t sum_repeated(const std::vector<uint32_t>& input, int iters) {\n  const std::size_t n = input.size();\n  const uint32_t* d = n ? input.data() : nullptr;\n\n  omp_set_dynamic(0);\n  omp_set_num_threads(num_threads());\n\n  uint64_t result = 0;\n  // Handle empty input quickly\n  if (n == 0) {\n    return 0ull;\n  }\n\n  // Compute the sum iters times as required\n  for (int iter = 0; iter < iters; ++iter) {\n    unsigned long long total = 0ull;\n\n    // Main body: process in chunks of 8 for better ILP\n    const std::size_t main_end = n & ~static_cast<std::size_t>(7);\n#pragma omp parallel for schedule(static) reduction(+:total)\n    for (std::size_t i = 0; i < main_end; i += 8) {\n      total += static_cast<unsigned long long>(d[i])\n             + static_cast<unsigned long long>(d[i + 1])\n             + static_cast<unsigned long long>(d[i + 2])\n             + static_cast<unsigned long long>(d[i + 3])\n             + static_cast<unsigned long long>(d[i + 4])\n             + static_cast<unsigned long long>(d[i + 5])\n             + static_cast<unsigned long long>(d[i + 6])\n             + static_cast<unsigned long long>(d[i + 7]);\n    }\n\n    // Remainder\n    for (std::size_t i = main_end; i < n; ++i) {\n      total += static_cast<unsigned long long>(d[i]);\n    }\n\n    result = static_cast<uint64_t>(total);\n  }\n\n  return result;\n}\n",
+  "baseline": {
+    "task_id": "openmp_sum_atomic_v1700_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 350505757,
+    "min_elapsed_ns": 323179037,
+    "max_elapsed_ns": 372851348,
+    "all_elapsed_ns": [
+      350505757,
+      323179037,
+      372851348
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 350505757,
+      "expected_sum": 1072693248,
+      "actual_sum": 1072693248
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_sum_atomic_v1700_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 687008,
+    "min_elapsed_ns": 621475,
+    "max_elapsed_ns": 718834,
+    "all_elapsed_ns": [
+      687008,
+      718834,
+      621475
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 687008,
+      "expected_sum": 1072693248,
+      "actual_sum": 1072693248
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_sum_atomic_v1700_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 4126521,
+    "min_elapsed_ns": 1910917,
+    "max_elapsed_ns": 12189276,
+    "all_elapsed_ns": [
+      12189276,
+      4126521,
+      1910917
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 12189276,
+      "expected_sum": 1072693248,
+      "actual_sum": 1072693248
+    },
+    "status": "ok"
+  }
+}

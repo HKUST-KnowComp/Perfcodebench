@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_id_remap_checksum_v500_a",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_id_remap_checksum_v500_a/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 7,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <algorithm>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t remap_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& probes,\n    int iters) {\n  \n  if (keys.empty() || probes.empty() || iters <= 0) {\n    return 1469598103934665603ULL;\n  }\n\n  // Find min and max keys to build a compact direct lookup table\n  uint32_t min_key = keys[0];\n  uint32_t max_key = keys[0];\n  for (size_t i = 1; i < keys.size(); ++i) {\n    if (keys[i] < min_key) min_key = keys[i];\n    if (keys[i] > max_key) max_key = keys[i];\n  }\n\n  const uint64_t range = static_cast<uint64_t>(max_key) - min_key + 1;\n  \n  // If range is reasonable, use direct lookup table\n  // Otherwise fall back to binary search\n  constexpr uint64_t MAX_TABLE_SIZE = 100000000ULL; // 100M entries max (~400MB)\n  \n  if (range <= MAX_TABLE_SIZE) {\n    // Build direct lookup table\n    std::vector<uint32_t> lookup(static_cast<size_t>(range));\n    for (size_t i = 0; i < keys.size(); ++i) {\n      lookup[keys[i] - min_key] = values[i];\n    }\n\n    // Pre-remap all probes to values\n    const size_t n = probes.size();\n    std::vector<uint32_t> remapped(n);\n    for (size_t i = 0; i < n; ++i) {\n      remapped[i] = lookup[probes[i] - min_key];\n    }\n\n    // Compute hash over remapped values\n    uint64_t hash = 0;\n    const uint32_t* __restrict rptr = remapped.data();\n    \n    for (int iter = 0; iter < iters; ++iter) {\n      hash = 1469598103934665603ULL;\n      size_t i = 0;\n      \n      // Unroll by 4 for better ILP\n      const size_t n4 = n & ~size_t(3);\n      for (; i < n4; i += 4) {\n        hash = mix(hash, rptr[i]);\n        hash = mix(hash, rptr[i + 1]);\n        hash = mix(hash, rptr[i + 2]);\n        hash = mix(hash, rptr[i + 3]);\n      }\n      \n      // Handle remainder\n      for (; i < n; ++i) {\n        hash = mix(hash, rptr[i]);\n      }\n    }\n    return hash;\n  }\n  \n  // Fallback: use binary search but pre-compute indices\n  const size_t n = probes.size();\n  std::vector<uint32_t> remapped(n);\n  for (size_t i = 0; i < n; ++i) {\n    auto it = std::lower_bound(keys.begin(), keys.end(), probes[i]);\n    size_t idx = static_cast<size_t>(it - keys.begin());\n    remapped[i] = values[idx];\n  }\n\n  uint64_t hash = 0;\n  const uint32_t* __restrict rptr = remapped.data();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    for (size_t i = 0; i < n; ++i) {\n      hash = mix(hash, rptr[i]);\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "dense_id_remap_checksum_v500_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3232904716,
+    "min_elapsed_ns": 3231903248,
+    "max_elapsed_ns": 3277474957,
+    "all_elapsed_ns": [
+      3277474957,
+      3232904716,
+      3231903248
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3277474957,
+      "expected_checksum": 2667850489686459267,
+      "actual_checksum": 2667850489686459267
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_id_remap_checksum_v500_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 46572142,
+    "min_elapsed_ns": 46423609,
+    "max_elapsed_ns": 46648730,
+    "all_elapsed_ns": [
+      46648730,
+      46423609,
+      46572142
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 46648730,
+      "expected_checksum": 2667850489686459267,
+      "actual_checksum": 2667850489686459267
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_id_remap_checksum_v500_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 53242382,
+    "min_elapsed_ns": 53079404,
+    "max_elapsed_ns": 59765542,
+    "all_elapsed_ns": [
+      53242382,
+      59765542,
+      53079404
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 53242382,
+      "expected_checksum": 2667850489686459267,
+      "actual_checksum": 2667850489686459267
+    },
+    "status": "ok"
+  }
+}

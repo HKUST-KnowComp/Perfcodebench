@@ -1,0 +1,72 @@
+{
+  "task_id": "columnar_filter_sum_v1100_e",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/columnar_filter_sum_v1100_e/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nuint64_t filter_sum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint8_t>& flags,\n    uint32_t key_threshold,\n    int iters) {\n  const std::size_t n = keys.size();\n  const uint32_t* __restrict__ k_ptr = keys.data();\n  const uint32_t* __restrict__ v_ptr = values.data();\n  const uint8_t* __restrict__ f_ptr = flags.data();\n  \n  uint64_t sum = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t local_sum = 0;\n    \n    std::size_t i = 0;\n    const std::size_t n_unroll = n - (n % 4);\n    \n    // Unrolled loop for better ILP and vectorization\n    for (; i < n_unroll; i += 4) {\n      uint32_t k0 = k_ptr[i];\n      uint32_t k1 = k_ptr[i + 1];\n      uint32_t k2 = k_ptr[i + 2];\n      uint32_t k3 = k_ptr[i + 3];\n      \n      uint8_t f0 = f_ptr[i];\n      uint8_t f1 = f_ptr[i + 1];\n      uint8_t f2 = f_ptr[i + 2];\n      uint8_t f3 = f_ptr[i + 3];\n      \n      // Branchless predicate evaluation\n      uint32_t pred0 = (f0 != 0) & (k0 < key_threshold) & ((k0 & 3u) == 0u);\n      uint32_t pred1 = (f1 != 0) & (k1 < key_threshold) & ((k1 & 3u) == 0u);\n      uint32_t pred2 = (f2 != 0) & (k2 < key_threshold) & ((k2 & 3u) == 0u);\n      uint32_t pred3 = (f3 != 0) & (k3 < key_threshold) & ((k3 & 3u) == 0u);\n      \n      // Conditional accumulation using multiplication by predicate\n      local_sum += static_cast<uint64_t>(v_ptr[i]) * pred0;\n      local_sum += static_cast<uint64_t>(v_ptr[i + 1]) * pred1;\n      local_sum += static_cast<uint64_t>(v_ptr[i + 2]) * pred2;\n      local_sum += static_cast<uint64_t>(v_ptr[i + 3]) * pred3;\n    }\n    \n    // Handle remaining elements\n    for (; i < n; ++i) {\n      uint32_t k = k_ptr[i];\n      uint8_t f = f_ptr[i];\n      uint32_t pred = (f != 0) & (k < key_threshold) & ((k & 3u) == 0u);\n      local_sum += static_cast<uint64_t>(v_ptr[i]) * pred;\n    }\n    \n    sum = local_sum;\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "columnar_filter_sum_v1100_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2035693503,
+    "min_elapsed_ns": 2032900645,
+    "max_elapsed_ns": 2100177826,
+    "all_elapsed_ns": [
+      2035693503,
+      2032900645,
+      2100177826
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2035693503,
+      "expected_sum": 805699102,
+      "actual_sum": 805699102
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "columnar_filter_sum_v1100_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1896966378,
+    "min_elapsed_ns": 1896341836,
+    "max_elapsed_ns": 1916438797,
+    "all_elapsed_ns": [
+      1916438797,
+      1896966378,
+      1896341836
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1916438797,
+      "expected_sum": 805699102,
+      "actual_sum": 805699102
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "columnar_filter_sum_v1100_e",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 297873298,
+    "min_elapsed_ns": 273596458,
+    "max_elapsed_ns": 317071066,
+    "all_elapsed_ns": [
+      317071066,
+      297873298,
+      273596458
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 317071066,
+      "expected_sum": 805699102,
+      "actual_sum": 805699102
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_exclusive_scan_cub_i32_v02",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_exclusive_scan_cub_i32_v02/candidate/gpt-5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n#include <cub/cub.cuh>\n\nnamespace {\n// Cached temporary storage for CUB to avoid alloc/free overhead across calls\nstruct CubTempStorage {\n  void* ptr = nullptr;\n  size_t bytes = 0;\n} g_temp;\n}\n\nvoid exclusive_scan_i32(const int* input, int* output, int n, int iters) {\n  if (n <= 0 || iters <= 0) {\n    return;\n  }\n\n  // Query required temporary storage size for this problem size\n  size_t required_bytes = 0;\n  cub::DeviceScan::ExclusiveSum(nullptr, required_bytes, input, output, n);\n\n  // Ensure we have enough temporary storage allocated\n  if (required_bytes > g_temp.bytes) {\n    if (g_temp.ptr) {\n      // Free previous allocation; since we don't synchronize here, only reallocate\n      // when strictly necessary to minimize risk of freeing memory still in use.\n      cudaFree(g_temp.ptr);\n      g_temp.ptr = nullptr;\n      g_temp.bytes = 0;\n    }\n    cudaMalloc(&g_temp.ptr, required_bytes);\n    g_temp.bytes = required_bytes;\n  }\n\n  // Perform the scan iters times\n  for (int iter = 0; iter < iters; ++iter) {\n    cub::DeviceScan::ExclusiveSum(g_temp.ptr, g_temp.bytes, input, output, n);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v02",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2082044189,
+    "min_elapsed_ns": 2075465576,
+    "max_elapsed_ns": 2099646484,
+    "all_elapsed_ns": [
+      2099646484,
+      2082044189,
+      2075465576
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2099646484,
+      "checksum": 28862128849801
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v02",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1108319,
+    "min_elapsed_ns": 451743,
+    "max_elapsed_ns": 2617952,
+    "all_elapsed_ns": [
+      451743,
+      2617952,
+      1108319
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 451743,
+      "checksum": 28862128849801
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v02",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_exclusive_scan_cub_i32_v02/candidate/bench']' timed out after 5 seconds"
+  }
+}

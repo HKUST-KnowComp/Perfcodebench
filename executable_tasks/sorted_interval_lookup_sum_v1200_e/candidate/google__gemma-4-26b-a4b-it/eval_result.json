@@ -1,0 +1,59 @@
+{
+  "task_id": "sorted_interval_lookup_sum_v1200_e",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sorted_interval_lookup_sum_v1200_e/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n\nuint64_t interval_lookup_sum(\n    const std::vector<uint32_t>& starts,\n    const std::vector<uint32_t>& ends,\n    const std::vector<uint32_t>& payloads,\n    const std::vector<uint32_t>& probes,\n    const std::vector<uint32_t>& weights,\n    int iters) {\n  if (probes.empty() || starts.empty()) {\n    return 0;\n  }\n\n  uint64_t total_sum = 0;\n  const size_t num_probes = probes.size();\n  const size_t num_intervals = starts.size();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t current_iter_sum = 0;\n    size_t interval_idx = 0;\n\n    for (size_t i = 0; i < num_probes; ++i) {\n      uint32_t probe_val = probes[i];\n\n      // Advance interval_idx to the largest index such that starts[interval_idx] <= probe_val\n      // Since probes are sorted, we don't need to reset interval_idx\n      while (interval_idx + 1 < num_intervals && starts[interval_idx + 1] <= probe_val) {\n        interval_idx++;\n      }\n\n      // Check if the current probe falls within the interval [starts[idx], ends[idx])\n      // Note: The baseline logic used upper_bound(starts) - 1, which implies \n      // the interval is defined by the start point and we assume the probe is valid \n      // if it's >= starts[idx]. However, the baseline code didn't check 'ends'.\n      // To preserve exact correctness with the baseline: \n      // the baseline logic was: idx = upper_bound(starts, probe) - 1.\n      // This means it finds the largest idx where starts[idx] <= probe.\n      \n      if (starts[interval_idx] <= probe_val) {\n        // The baseline code did not actually check if probe < ends[idx].\n        // It simply took the payload of the interval that 'starts' before or at the probe.\n        // To preserve the exact behavior of the baseline (as requested by 'preserving correctness'),\n        // we follow the baseline's logic: find idx where starts[idx] is the largest value <= probe.\n        current_iter_sum += static_cast<uint64_t>(payloads[interval_idx]) * static_cast<uint64_t>(weights[i]);\n      }\n    }\n    total_sum += current_iter_sum;\n  }\n\n  // The baseline returns the sum of the LAST iteration if it were to overwrite, \n  // but the loop structure 'sum = 0; ... sum += ...' inside 'iters' actually \n  // accumulates the sum of the last iteration only if we look at the return value.\n  // Wait, looking at baseline: \n  // for (int iter = 0; iter < iters; ++iter) { sum = 0; for (...) { sum += ... } }\n  // This means the function returns the sum of the LAST iteration only.\n  \n  // Let's re-read baseline carefully:\n  // uint64_t sum = 0;\n  // for (int iter = 0; iter < iters; ++iter) {\n  //   sum = 0;\n  //   for (size_t i = 0; i < probes.size(); ++i) {\n  //     ... sum += ...\n  //   }\n  // }\n  // return sum;\n  // Yes, it returns the sum of the final iteration. \n  // My optimized version should return the sum of the final iteration to be 'correct' relative to baseline.\n\n  // Re-implementing to match baseline's exact return behavior:\n  uint64_t final_sum = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    final_sum = 0;\n    size_t interval_idx = 0;\n    for (size_t i = 0; i < num_probes; ++i) {\n      uint32_t probe_val = probes[i];\n      while (interval_idx + 1 < num_intervals && starts[interval_idx + 1] <= probe_val) {\n        interval_idx++;\n      }\n      if (starts[interval_idx] <= probe_val) {\n        final_sum += static_cast<uint64_t>(payloads[interval_idx]) * static_cast<uint64_t>(weights[i]);\n      }\n    }\n  }\n  return final_sum;\n}",
+  "baseline": {
+    "task_id": "sorted_interval_lookup_sum_v1200_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1234858507,
+    "min_elapsed_ns": 1231368920,
+    "max_elapsed_ns": 1236406704,
+    "all_elapsed_ns": [
+      1234858507,
+      1236406704,
+      1231368920
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1234858507,
+      "expected_sum": 257516951240,
+      "actual_sum": 257516951240
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sorted_interval_lookup_sum_v1200_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 138799437,
+    "min_elapsed_ns": 138724542,
+    "max_elapsed_ns": 139119668,
+    "all_elapsed_ns": [
+      138799437,
+      138724542,
+      139119668
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 138799437,
+      "expected_sum": 257516951240,
+      "actual_sum": 257516951240
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sorted_interval_lookup_sum_v1200_e",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/sorted_interval_lookup_sum_v1200_e/harness', 'executable_tasks/sorted_interval_lookup_sum_v1200_e/harness/benchmark_main.cpp', 'executable_tasks/sorted_interval_lookup_sum_v1200_e/candidate/google__gemma-4-26b-a4b-it/solution.cpp', '-o', 'build/sorted_interval_lookup_sum_v1200_e/candidate/bench']' returned non-zero exit status 1."
+  }
+}

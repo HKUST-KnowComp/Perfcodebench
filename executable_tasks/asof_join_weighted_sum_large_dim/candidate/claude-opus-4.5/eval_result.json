@@ -1,0 +1,72 @@
+{
+  "task_id": "asof_join_weighted_sum_large_dim",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/asof_join_weighted_sum_large_dim/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstddef>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#endif\n\nuint64_t asof_join_sum(\n    const std::vector<uint32_t>& dim_ts,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_ts,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n\n    const std::size_t probe_size = probe_ts.size();\n    const std::size_t dim_size = dim_ts.size();\n\n    if (probe_size == 0 || dim_size == 0) {\n        return 0;\n    }\n\n    const uint32_t* __restrict__ p_ts = probe_ts.data();\n    const uint32_t* __restrict__ p_wt = probe_weights.data();\n    const uint32_t* __restrict__ d_ts = dim_ts.data();\n    const uint32_t* __restrict__ d_val = dim_values.data();\n\n    // Precompute matched dimension values for each probe using linear merge\n    std::vector<uint32_t> matched_values(probe_size);\n    uint32_t* __restrict__ mv = matched_values.data();\n\n    {\n        std::size_t d_idx = 0;\n        uint32_t cur_val = d_val[0];\n        for (std::size_t i = 0; i < probe_size; ++i) {\n            uint32_t ts = p_ts[i];\n            // Advance d_idx while next dimension timestamp <= probe timestamp\n            while (d_idx + 1 < dim_size && d_ts[d_idx + 1] <= ts) {\n                ++d_idx;\n            }\n            cur_val = d_val[d_idx];\n            mv[i] = cur_val;\n        }\n    }\n\n    uint64_t sum = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t local_sum = 0;\n\n#if defined(__AVX2__)\n        // Process 4 elements at a time using AVX2\n        __m256i acc = _mm256_setzero_si256();\n        std::size_t i = 0;\n        const std::size_t vec_end = probe_size & ~std::size_t(3);\n\n        for (; i < vec_end; i += 4) {\n            // Load 4 x uint32 values and weights\n            __m128i vals = _mm_loadu_si128(reinterpret_cast<const __m128i*>(mv + i));\n            __m128i wts = _mm_loadu_si128(reinterpret_cast<const __m128i*>(p_wt + i));\n\n            // Zero-extend to 64-bit\n            __m256i vals64 = _mm256_cvtepu32_epi64(vals);\n            __m256i wts64 = _mm256_cvtepu32_epi64(wts);\n\n            // Multiply and accumulate\n            __m256i prod = _mm256_mul_epu32(vals64, wts64);\n            acc = _mm256_add_epi64(acc, prod);\n        }\n\n        // Horizontal sum of acc\n        alignas(32) uint64_t tmp[4];\n        _mm256_store_si256(reinterpret_cast<__m256i*>(tmp), acc);\n        local_sum = tmp[0] + tmp[1] + tmp[2] + tmp[3];\n\n        // Scalar tail\n        for (; i < probe_size; ++i) {\n            local_sum += static_cast<uint64_t>(mv[i]) * static_cast<uint64_t>(p_wt[i]);\n        }\n#else\n        // Scalar fallback\n        for (std::size_t i = 0; i < probe_size; ++i) {\n            local_sum += static_cast<uint64_t>(mv[i]) * static_cast<uint64_t>(p_wt[i]);\n        }\n#endif\n\n        sum = local_sum;\n    }\n\n    return sum;\n}\n",
+  "baseline": {
+    "task_id": "asof_join_weighted_sum_large_dim",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 758090521,
+    "min_elapsed_ns": 744766809,
+    "max_elapsed_ns": 768526897,
+    "all_elapsed_ns": [
+      758090521,
+      744766809,
+      768526897
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 758090521,
+      "expected_sum": 147209051048,
+      "actual_sum": 147209051048
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "asof_join_weighted_sum_large_dim",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 74321152,
+    "min_elapsed_ns": 73914120,
+    "max_elapsed_ns": 75491410,
+    "all_elapsed_ns": [
+      74321152,
+      75491410,
+      73914120
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 74321152,
+      "expected_sum": 147209051048,
+      "actual_sum": 147209051048
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "asof_join_weighted_sum_large_dim",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 35630328,
+    "min_elapsed_ns": 35132584,
+    "max_elapsed_ns": 36407543,
+    "all_elapsed_ns": [
+      36407543,
+      35132584,
+      35630328
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 36407543,
+      "expected_sum": 147209051048,
+      "actual_sum": 147209051048
+    },
+    "status": "ok"
+  }
+}

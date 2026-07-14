@@ -1,0 +1,59 @@
+{
+  "task_id": "croaring_many_union_cardinality_large",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/croaring_many_union_cardinality_large/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <roaring.h>\n\n#include <algorithm>\n#include <cstdint>\n#include <vector>\n\nuint64_t many_union_cardinality(\n    const std::vector<uint32_t>& offsets,\n    const std::vector<uint32_t>& values) {\n  const std::size_t shard_count = offsets.size() > 0 ? offsets.size() - 1 : 0;\n  if (shard_count == 0 || values.empty()) {\n    return 0;\n  }\n\n  // Fast path for a single sorted shard: cardinality is just the number of\n  // distinct adjacent values.\n  if (shard_count == 1) {\n    const uint32_t begin = offsets[0];\n    const uint32_t end = offsets[1];\n    if (begin >= end || begin >= values.size()) {\n      return 0;\n    }\n    const uint32_t clamped_end =\n        end > values.size() ? static_cast<uint32_t>(values.size()) : end;\n    if (begin >= clamped_end) {\n      return 0;\n    }\n    uint64_t count = 1;\n    uint32_t prev = values[begin];\n    for (uint32_t i = begin + 1; i < clamped_end; ++i) {\n      const uint32_t v = values[i];\n      count += static_cast<uint64_t>(v != prev);\n      prev = v;\n    }\n    return count;\n  }\n\n  std::vector<roaring_bitmap_t*> bitmaps;\n  bitmaps.reserve(shard_count);\n\n  for (std::size_t shard = 0; shard < shard_count; ++shard) {\n    uint32_t begin = offsets[shard];\n    uint32_t end = offsets[shard + 1];\n\n    if (begin > values.size()) begin = static_cast<uint32_t>(values.size());\n    if (end > values.size()) end = static_cast<uint32_t>(values.size());\n    if (begin > end) begin = end;\n\n    roaring_bitmap_t* bm = roaring_bitmap_create();\n    if (begin < end) {\n      // Input shards are sorted; use the bulk sorted loader for best build\n      // performance and compact containers.\n      roaring_bitmap_add_many_sorted(bm, end - begin, values.data() + begin);\n      roaring_bitmap_run_optimize(bm);\n    }\n    bitmaps.push_back(bm);\n  }\n\n  uint64_t result = 0;\n  if (!bitmaps.empty()) {\n    roaring_bitmap_t* uni = roaring_bitmap_or_many(\n        static_cast<uint32_t>(bitmaps.size()), bitmaps.data());\n    result = uni ? roaring_bitmap_get_cardinality(uni) : 0;\n    if (uni) {\n      roaring_bitmap_free(uni);\n    }\n  }\n\n  for (roaring_bitmap_t* bm : bitmaps) {\n    roaring_bitmap_free(bm);\n  }\n\n  return result;\n}\n",
+  "baseline": {
+    "task_id": "croaring_many_union_cardinality_large",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 393687595,
+    "min_elapsed_ns": 354728568,
+    "max_elapsed_ns": 427571293,
+    "all_elapsed_ns": [
+      393687595,
+      354728568,
+      427571293
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 393687595,
+      "expected_cardinality": 1005487,
+      "actual_cardinality": 1005487
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "croaring_many_union_cardinality_large",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 32493299,
+    "min_elapsed_ns": 29479762,
+    "max_elapsed_ns": 40851077,
+    "all_elapsed_ns": [
+      40851077,
+      32493299,
+      29479762
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 40851077,
+      "expected_cardinality": 1005487,
+      "actual_cardinality": 1005487
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "croaring_many_union_cardinality_large",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/croaring_many_union_cardinality_large/harness', '-Iexternal/croaring_amalg', 'executable_tasks/croaring_many_union_cardinality_large/harness/benchmark_main.cpp', 'executable_tasks/croaring_many_union_cardinality_large/candidate/gpt-5.4/solution.cpp', 'external/croaring_amalg/roaring.c', '-o', 'build/croaring_many_union_cardinality_large/candidate/bench']' returned non-zero exit status 1."
+  }
+}

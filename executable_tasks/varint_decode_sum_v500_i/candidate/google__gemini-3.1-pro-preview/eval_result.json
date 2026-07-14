@@ -1,0 +1,72 @@
+{
+  "task_id": "varint_decode_sum_v500_i",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/varint_decode_sum_v500_i/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n\n/**\n * Optimized varint decoding and summation.\n * \n * Key optimizations:\n * 1. Fused decoding and summation: Avoids allocating and writing to a temporary vector.\n * 2. Raw pointer access: Uses const uint8_t* to traverse the buffer, avoiding bounds checks in the hot loop.\n * 3. Loop unrolling: Manually unrolls the varint decoding logic for up to 5 bytes (max for uint32_t).\n * 4. Branch optimization: Uses the fact that most varints are small to prioritize the 1-byte case.\n */\nuint64_t varint_sum(const std::vector<uint8_t>& encoded, int iters) {\n  if (encoded.empty()) return 0;\n\n  const uint8_t* const start_ptr = encoded.data();\n  const uint8_t* const end_ptr = start_ptr + encoded.size();\n  uint64_t last_sum = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t current_sum = 0;\n    const uint8_t* ptr = start_ptr;\n\n    while (ptr < end_ptr) {\n      uint32_t byte = *ptr++;\n      if (!(byte & 0x80)) {\n        current_sum += byte;\n        continue;\n      }\n\n      uint32_t value = byte & 0x7F;\n      byte = *ptr++;\n      value |= (byte & 0x7F) << 7;\n      if (!(byte & 0x80)) {\n        current_sum += value;\n        continue;\n      }\n\n      byte = *ptr++;\n      value |= (byte & 0x7F) << 14;\n      if (!(byte & 0x80)) {\n        current_sum += value;\n        continue;\n      }\n\n      byte = *ptr++;\n      value |= (byte & 0x7F) << 21;\n      if (!(byte & 0x80)) {\n        current_sum += value;\n        continue;\n      }\n\n      byte = *ptr++;\n      value |= (static_cast<uint32_t>(byte & 0x7F) << 28);\n      current_sum += value;\n      // Note: Standard uint32 varints are max 5 bytes. \n      // If the 5th byte has a continuation bit, it's technically an overflow or 64-bit varint.\n      // Given the baseline uses uint32_t, we assume 32-bit range.\n    }\n    last_sum = current_sum;\n  }\n\n  return last_sum;\n}",
+  "baseline": {
+    "task_id": "varint_decode_sum_v500_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 235456467,
+    "min_elapsed_ns": 233149307,
+    "max_elapsed_ns": 643648385,
+    "all_elapsed_ns": [
+      235456467,
+      233149307,
+      643648385
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 235456467,
+      "expected_sum": 2198720271136,
+      "actual_sum": 2198720271136
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "varint_decode_sum_v500_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 174198482,
+    "min_elapsed_ns": 159122050,
+    "max_elapsed_ns": 184500836,
+    "all_elapsed_ns": [
+      184500836,
+      159122050,
+      174198482
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 184500836,
+      "expected_sum": 2198720271136,
+      "actual_sum": 2198720271136
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "varint_decode_sum_v500_i",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 100702780,
+    "min_elapsed_ns": 98383002,
+    "max_elapsed_ns": 126569110,
+    "all_elapsed_ns": [
+      100702780,
+      126569110,
+      98383002
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 100702780,
+      "expected_sum": 2198720271136,
+      "actual_sum": 2198720271136
+    },
+    "status": "ok"
+  }
+}

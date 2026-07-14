@@ -1,0 +1,72 @@
+{
+  "task_id": "moe_router_top2_v2200_b",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/moe_router_top2_v2200_b/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n// Returns true if (val_a, idx_a) is strictly better than (val_b, idx_b)\n// Higher value wins; on tie, lower index wins\ninline bool is_better(int32_t val_a, int idx_a, int32_t val_b, int idx_b) {\n  return val_a > val_b || (val_a == val_b && idx_a < idx_b);\n}\n\n}  // namespace\n\nuint64_t moe_router_checksum(const std::vector<int32_t>& logits, int tokens, int experts, int iters) {\n  uint64_t hash = 0;\n  const int32_t* data = logits.data();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    \n    for (int t = 0; t < tokens; ++t) {\n      const int32_t* row = data + static_cast<std::size_t>(t) * static_cast<std::size_t>(experts);\n      \n      // Find top-2 with deterministic tie-breaking\n      int32_t top1_val, top2_val;\n      int top1_idx, top2_idx;\n      \n      // Initialize with first two elements in correct order\n      if (experts >= 2) {\n        if (is_better(row[0], 0, row[1], 1)) {\n          top1_val = row[0]; top1_idx = 0;\n          top2_val = row[1]; top2_idx = 1;\n        } else {\n          top1_val = row[1]; top1_idx = 1;\n          top2_val = row[0]; top2_idx = 0;\n        }\n      } else {\n        // Edge case: only 1 expert (shouldn't happen for top-2, but handle it)\n        top1_val = row[0]; top1_idx = 0;\n        top2_val = row[0]; top2_idx = 0;\n      }\n      \n      // Scan remaining experts\n      for (int e = 2; e < experts; ++e) {\n        int32_t val = row[e];\n        if (is_better(val, e, top1_val, top1_idx)) {\n          // New top1, old top1 becomes top2\n          top2_val = top1_val;\n          top2_idx = top1_idx;\n          top1_val = val;\n          top1_idx = e;\n        } else if (is_better(val, e, top2_val, top2_idx)) {\n          // New top2\n          top2_val = val;\n          top2_idx = e;\n        }\n      }\n      \n      hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(top1_val)));\n      hash = mix(hash, static_cast<uint64_t>(top1_idx));\n      hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(top2_val)));\n      hash = mix(hash, static_cast<uint64_t>(top2_idx));\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "moe_router_top2_v2200_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2542899,
+    "min_elapsed_ns": 2421867,
+    "max_elapsed_ns": 3112701,
+    "all_elapsed_ns": [
+      2421867,
+      3112701,
+      2542899
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2421867,
+      "expected_checksum": 14980123479877533988,
+      "actual_checksum": 14980123479877533988
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "moe_router_top2_v2200_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1896274,
+    "min_elapsed_ns": 1688904,
+    "max_elapsed_ns": 2010590,
+    "all_elapsed_ns": [
+      1688904,
+      2010590,
+      1896274
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1688904,
+      "expected_checksum": 14980123479877533988,
+      "actual_checksum": 14980123479877533988
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "moe_router_top2_v2200_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1280485,
+    "min_elapsed_ns": 1267757,
+    "max_elapsed_ns": 1281169,
+    "all_elapsed_ns": [
+      1280485,
+      1281169,
+      1267757
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1280485,
+      "expected_checksum": 14980123479877533988,
+      "actual_checksum": 14980123479877533988
+    },
+    "status": "ok"
+  }
+}

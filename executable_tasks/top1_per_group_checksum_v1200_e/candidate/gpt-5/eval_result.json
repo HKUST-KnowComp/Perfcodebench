@@ -1,0 +1,72 @@
+{
+  "task_id": "top1_per_group_checksum_v1200_e",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/top1_per_group_checksum_v1200_e/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\nnamespace {\n\nstatic inline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t top1_group_hash(\n    const std::vector<uint32_t>& groups,\n    const std::vector<uint32_t>& values,\n    uint32_t group_count,\n    int iters) {\n  // Dense storage for maxima per group and a version tag to avoid clearing each iteration.\n  std::vector<uint32_t> maxima(group_count);\n  std::vector<uint32_t> tags(group_count, 0);\n\n  const uint32_t* gptr = groups.data();\n  const uint32_t* vptr = values.data();\n  const std::size_t N = groups.size();\n\n  uint64_t hash = 0;\n  uint32_t currentVersion = 0;  // will increment before use\n\n  for (int iter = 0; iter < iters; ++iter) {\n    // Advance version; on wrap, reset tags to 0 and set version to 1.\n    currentVersion += 1u;\n    if (currentVersion == 0u) {\n      // Rare overflow path: clear tags and restart versioning.\n      for (uint32_t i = 0; i < group_count; ++i) tags[i] = 0u;\n      currentVersion = 1u;\n    }\n\n    // Accumulate per-group maxima.\n    for (std::size_t i = 0; i < N; ++i) {\n      const uint32_t g = gptr[i];\n      if (g >= group_count) continue;  // ignore out-of-range groups (consistent with baseline hash loop)\n      const uint32_t val = vptr[i];\n      uint32_t& tag = tags[g];\n      uint32_t& maxv = maxima[g];\n      if (tag == currentVersion) {\n        if (val > maxv) maxv = val;\n      } else {\n        tag = currentVersion;\n        maxv = val;\n      }\n    }\n\n    // Compute hash over all groups in order, using 0 for groups not seen this iteration.\n    uint64_t h = 1469598103934665603ULL;\n    for (uint32_t g = 0; g < group_count; ++g) {\n      const uint32_t val = (tags[g] == currentVersion) ? maxima[g] : 0u;\n      h = mix(h, val);\n    }\n    hash = h;  // match baseline: return the hash from the last iteration\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "top1_per_group_checksum_v1200_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 672444390,
+    "min_elapsed_ns": 541426381,
+    "max_elapsed_ns": 683341232,
+    "all_elapsed_ns": [
+      683341232,
+      672444390,
+      541426381
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 683341232,
+      "expected_checksum": 17533071331515026486,
+      "actual_checksum": 17533071331515026486
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "top1_per_group_checksum_v1200_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 208268363,
+    "min_elapsed_ns": 159377717,
+    "max_elapsed_ns": 212485753,
+    "all_elapsed_ns": [
+      208268363,
+      159377717,
+      212485753
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 208268363,
+      "expected_checksum": 17533071331515026486,
+      "actual_checksum": 17533071331515026486
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "top1_per_group_checksum_v1200_e",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 259880490,
+    "min_elapsed_ns": 259661418,
+    "max_elapsed_ns": 283895080,
+    "all_elapsed_ns": [
+      283895080,
+      259880490,
+      259661418
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 283895080,
+      "expected_checksum": 17533071331515026486,
+      "actual_checksum": 17533071331515026486
+    },
+    "status": "ok"
+  }
+}

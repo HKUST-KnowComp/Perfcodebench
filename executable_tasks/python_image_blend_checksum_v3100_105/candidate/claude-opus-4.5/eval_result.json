@@ -1,0 +1,59 @@
+{
+  "task_id": "python_image_blend_checksum_v3100_105",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/python_image_blend_checksum_v3100_105/candidate/claude-opus-4.5/solution.py",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "import numpy as np\n\ndef run(src: bytearray, dst: bytearray, width: int, height: int, iters: int) -> int:\n    pixels = width * height\n    \n    # Convert to numpy arrays and reshape to (pixels, 4)\n    src_arr = np.frombuffer(src, dtype=np.uint8).reshape(pixels, 4)\n    dst_arr = np.frombuffer(dst, dtype=np.uint8).reshape(pixels, 4)\n    \n    # Extract alpha channel and compute inverse alpha\n    alpha = src_arr[:, 3].astype(np.uint32)\n    inv_alpha = 255 - alpha\n    \n    # Prepare output array\n    out = np.empty((pixels, 4), dtype=np.uint8)\n    out[:, 3] = 255  # Alpha channel is always 255\n    \n    # Precompute FNV multiply table for checksum\n    FNV_PRIME = 1099511628211\n    MASK = (1 << 64) - 1\n    fnv_table = np.array([(i * FNV_PRIME) & MASK for i in range(256)], dtype=np.uint64)\n    \n    h = 0\n    for _ in range(iters):\n        # Vectorized blend for RGB channels\n        # blend = (src * alpha + dst * inv_alpha + 127) // 255\n        for c in range(3):\n            src_c = src_arr[:, c].astype(np.uint32)\n            dst_c = dst_arr[:, c].astype(np.uint32)\n            blended = (src_c * alpha + dst_c * inv_alpha + 127) // 255\n            out[:, c] = blended.astype(np.uint8)\n        \n        # FNV-1a checksum over output bytes\n        h = 1469598103934665603\n        for b in out.tobytes():\n            h = fnv_table[h & 0xFF ^ b] ^ (h >> 8)\n            h ^= b\n            h = (h * FNV_PRIME) & MASK\n    \n    return int(h)\n",
+  "baseline": {
+    "task_id": "python_image_blend_checksum_v3100_105",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1068039284,
+    "min_elapsed_ns": 1028863563,
+    "max_elapsed_ns": 1275892128,
+    "all_elapsed_ns": [
+      1028863563,
+      1068039284,
+      1275892128
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1028863563,
+      "expected_checksum": 3253540113003649985,
+      "actual_checksum": 3253540113003649985
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "python_image_blend_checksum_v3100_105",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 930071734,
+    "min_elapsed_ns": 916241692,
+    "max_elapsed_ns": 937546120,
+    "all_elapsed_ns": [
+      930071734,
+      937546120,
+      916241692
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 930071734,
+      "expected_checksum": 3253540113003649985,
+      "actual_checksum": 3253540113003649985
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "python_image_blend_checksum_v3100_105",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['env', 'PERFCODEBENCH_SOLUTION=executable_tasks/python_image_blend_checksum_v3100_105/candidate/claude-opus-4.5/solution.py', 'python3', 'executable_tasks/python_image_blend_checksum_v3100_105/harness/benchmark_main.py']' timed out after 5 seconds"
+  }
+}

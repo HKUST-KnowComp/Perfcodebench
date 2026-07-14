@@ -1,0 +1,52 @@
+#include "interface.h"
+
+#include <vector>
+
+uint64_t filter_sum(
+    const std::vector<uint32_t>& keys,
+    const std::vector<uint32_t>& values,
+    const std::vector<uint8_t>& flags,
+    uint32_t key_threshold,
+    int iters) {
+  const std::size_t n = keys.size();
+  const uint32_t* k = keys.data();
+  const uint32_t* v = values.data();
+  const uint8_t* f = flags.data();
+  uint64_t sum = 0;
+
+  for (int iter = 0; iter < iters; ++iter) {
+    uint64_t s = 0;
+    const uint32_t t = key_threshold;
+
+    std::size_t i = 0;
+    const std::size_t n8 = n & ~std::size_t(7);
+    for (; i < n8; i += 8) {
+      uint32_t k0 = k[i + 0];
+      if (f[i + 0] && k0 < t && ((k0 & 3u) == 0u)) s += (uint64_t)v[i + 0];
+      uint32_t k1 = k[i + 1];
+      if (f[i + 1] && k1 < t && ((k1 & 3u) == 0u)) s += (uint64_t)v[i + 1];
+      uint32_t k2 = k[i + 2];
+      if (f[i + 2] && k2 < t && ((k2 & 3u) == 0u)) s += (uint64_t)v[i + 2];
+      uint32_t k3 = k[i + 3];
+      if (f[i + 3] && k3 < t && ((k3 & 3u) == 0u)) s += (uint64_t)v[i + 3];
+      uint32_t k4 = k[i + 4];
+      if (f[i + 4] && k4 < t && ((k4 & 3u) == 0u)) s += (uint64_t)v[i + 4];
+      uint32_t k5 = k[i + 5];
+      if (f[i + 5] && k5 < t && ((k5 & 3u) == 0u)) s += (uint64_t)v[i + 5];
+      uint32_t k6 = k[i + 6];
+      if (f[i + 6] && k6 < t && ((k6 & 3u) == 0u)) s += (uint64_t)v[i + 6];
+      uint32_t k7 = k[i + 7];
+      if (f[i + 7] && k7 < t && ((k7 & 3u) == 0u)) s += (uint64_t)v[i + 7];
+    }
+    for (; i < n; ++i) {
+      uint32_t ki = k[i];
+      if (f[i] && ki < t && ((ki & 3u) == 0u)) {
+        s += (uint64_t)v[i];
+      }
+    }
+
+    sum = s;
+  }
+
+  return sum;
+}

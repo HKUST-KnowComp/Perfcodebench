@@ -1,0 +1,59 @@
+{
+  "task_id": "row_group_minmax_prune",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/row_group_minmax_prune/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstring>\n\n#if defined(__x86_64__) || defined(_M_X64)\n#include <immintrin.h>\n#define HAS_AVX2\n#endif\n\nuint64_t row_group_range_sum(\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& mins,\n    const std::vector<uint32_t>& maxs,\n    uint32_t low,\n    uint32_t high,\n    uint32_t block_size,\n    int iters) {\n  uint64_t sum = 0;\n  const uint32_t* data = values.data();\n  const uint32_t* min_data = mins.data();\n  const uint32_t* max_data = maxs.data();\n  const size_t n = values.size();\n  const size_t num_blocks = (n + block_size - 1) / block_size;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n\n    for (size_t block_idx = 0; block_idx < num_blocks; ++block_idx) {\n      const uint32_t block_min = min_data[block_idx];\n      const uint32_t block_max = max_data[block_idx];\n\n      // Skip blocks completely outside range\n      if (block_max < low || block_min > high) {\n        continue;\n      }\n\n      const size_t block_start = block_idx * block_size;\n      const size_t block_end = (block_start + block_size < n) ? (block_start + block_size) : n;\n      const size_t block_len = block_end - block_start;\n      const uint32_t* block_data = data + block_start;\n\n      // Fast path: entire block is within range\n      if (block_min >= low && block_max <= high) {\n#ifdef HAS_AVX2\n        size_t i = 0;\n        __m256i sum_vec = _mm256_setzero_si256();\n        \n        // Process 8 uint32_t at a time\n        for (; i + 8 <= block_len; i += 8) {\n          __m256i vals = _mm256_loadu_si256((__m256i*)(block_data + i));\n          sum_vec = _mm256_add_epi64(sum_vec, _mm256_cvtepu32_epi64(_mm256_castsi256_si128(vals)));\n          sum_vec = _mm256_add_epi64(sum_vec, _mm256_cvtepu32_epi64(_mm256_extracti128_si256(vals, 1)));\n        }\n        \n        // Horizontal sum\n        __m128i sum128 = _mm_add_epi64(_mm256_castsi256_si128(sum_vec), _mm256_extracti128_si256(sum_vec, 1));\n        uint64_t tmp[2];\n        _mm_storeu_si128((__m128i*)tmp, sum128);\n        sum += tmp[0] + tmp[1];\n        \n        // Scalar tail\n        for (; i < block_len; ++i) {\n          sum += static_cast<uint64_t>(block_data[i]);\n        }\n#else\n        // Unrolled scalar sum\n        size_t i = 0;\n        uint64_t s0 = 0, s1 = 0, s2 = 0, s3 = 0;\n        for (; i + 4 <= block_len; i += 4) {\n          s0 += static_cast<uint64_t>(block_data[i]);\n          s1 += static_cast<uint64_t>(block_data[i + 1]);\n          s2 += static_cast<uint64_t>(block_data[i + 2]);\n          s3 += static_cast<uint64_t>(block_data[i + 3]);\n        }\n        sum += s0 + s1 + s2 + s3;\n        for (; i < block_len; ++i) {\n          sum += static_cast<uint64_t>(block_data[i]);\n        }\n#endif\n      } else {\n        // Slow path: need to check each value\n#ifdef HAS_AVX2\n        size_t i = 0;\n        __m256i low_vec = _mm256_set1_epi32(low);\n        __m256i high_vec = _mm256_set1_epi32(high);\n        __m256i sum_vec = _mm256_setzero_si256();\n        \n        for (; i + 8 <= block_len; i += 8) {\n          __m256i vals = _mm256_loadu_si256((__m256i*)(block_data + i));\n          __m256i ge_low = _mm256_cmpgt_epi32(vals, _mm256_sub_epi32(low_vec, _mm256_set1_epi32(1)));\n          __m256i le_high = _mm256_cmpgt_epi32(_mm256_add_epi32(high_vec, _mm256_set1_epi32(1)), vals);\n          __m256i mask = _mm256_and_si256(ge_low, le_high);\n          __m256i masked = _mm256_and_si256(vals, mask);\n          sum_vec = _mm256_add_epi64(sum_vec, _mm256_cvtepu32_epi64(_mm256_castsi256_si128(masked)));\n          sum_vec = _mm256_add_epi64(sum_vec, _mm256_cvtepu32_epi64(_mm256_extracti128_si256(masked, 1)));\n        }\n        \n        __m128i sum128 = _mm_add_epi64(_mm256_castsi256_si128(sum_vec), _mm256_extracti128_si256(sum_vec, 1));\n        uint64_t tmp[2];\n        _mm_storeu_si128((__m128i*)tmp, sum128);\n        sum += tmp[0] + tmp[1];\n        \n        for (; i < block_len; ++i) {\n          uint32_t val = block_data[i];\n          sum += static_cast<uint64_t>(val) * (val >= low && val <= high);\n        }\n#else\n        for (size_t i = 0; i < block_len; ++i) {\n          uint32_t val = block_data[i];\n          sum += static_cast<uint64_t>(val) * (val >= low && val <= high);\n        }\n#endif\n      }\n    }\n  }\n\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "row_group_minmax_prune",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 53803169,
+    "min_elapsed_ns": 53779321,
+    "max_elapsed_ns": 54331374,
+    "all_elapsed_ns": [
+      53803169,
+      54331374,
+      53779321
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 53803169,
+      "expected_sum": 59190492,
+      "actual_sum": 59190492
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "row_group_minmax_prune",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1086177,
+    "min_elapsed_ns": 1077467,
+    "max_elapsed_ns": 1266026,
+    "all_elapsed_ns": [
+      1077467,
+      1086177,
+      1266026
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1077467,
+      "expected_sum": 59190492,
+      "actual_sum": 59190492
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "row_group_minmax_prune",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/row_group_minmax_prune/harness', 'executable_tasks/row_group_minmax_prune/harness/benchmark_main.cpp', 'executable_tasks/row_group_minmax_prune/candidate/claude-sonnet-4-5/solution.cpp', '-o', 'build/row_group_minmax_prune/candidate/bench']' returned non-zero exit status 1."
+  }
+}

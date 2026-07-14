@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v3601_003",
+  "model": "qwen/qwen3.5-35b-a3b",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v3601_003/candidate/qwen__qwen3.5-35b-a3b/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\nstatic uint64_t checksum_i16(const int16_t* data, size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (size_t i = 0; i < n; ++i) {\n    hash ^= (uint16_t)data[i];\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n  if (input_len <= 0 || output_len <= 0 || iters <= 0) {\n    return 0;\n  }\n  \n  int16_t* out = (int16_t*)malloc((size_t)output_len * sizeof(int16_t));\n  if (!out) return 0;\n  \n  // Fixed-point arithmetic: 16 fractional bits\n  // Precompute increment: (input_len - 1) / (output_len - 1) in fixed-point\n  int32_t increment = ((int32_t)(input_len - 1) << 16) / (output_len - 1);\n  int32_t pos = 0;\n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    for (int i = 0; i < output_len; ++i) {\n      int left = pos >> 16;\n      int right = left + 1;\n      if (right >= input_len) right = input_len - 1;\n      \n      int frac = pos & 0xFFFF;\n      int frac_q = 65536 - frac;\n      \n      // Linear interpolation using fixed-point\n      int32_t sample = (int32_t)src[left] * frac_q + (int32_t)src[right] * frac;\n      \n      // Round to nearest integer (add half before shift)\n      sample = (sample + 32768) >> 16;\n      \n      // Clamp to int16 range\n      if (sample > 32767) sample = 32767;\n      if (sample < -32768) sample = -32768;\n      \n      out[i] = (int16_t)sample;\n      \n      pos += increment;\n    }\n    hash = checksum_i16(out, (size_t)output_len);\n  }\n  \n  free(out);\n  return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v3601_003",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6482000,
+    "min_elapsed_ns": 6084000,
+    "max_elapsed_ns": 6538000,
+    "all_elapsed_ns": [
+      6482000,
+      6084000,
+      6538000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6482000,
+      "expected_checksum": 17181437075839185898,
+      "actual_checksum": 17181437075839185898
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v3601_003",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 6054000,
+    "min_elapsed_ns": 5919000,
+    "max_elapsed_ns": 6176000,
+    "all_elapsed_ns": [
+      6054000,
+      6176000,
+      5919000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6054000,
+      "expected_checksum": 17181437075839185898,
+      "actual_checksum": 17181437075839185898
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v3601_003",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 5061000,
+    "min_elapsed_ns": 4988000,
+    "max_elapsed_ns": 5154000,
+    "all_elapsed_ns": [
+      5061000,
+      5154000,
+      4988000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5061000,
+      "expected_checksum": 17181437075839185898,
+      "actual_checksum": 17181437075839185898
+    },
+    "status": "ok"
+  }
+}

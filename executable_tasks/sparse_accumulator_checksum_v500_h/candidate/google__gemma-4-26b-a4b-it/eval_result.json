@@ -1,0 +1,72 @@
+{
+  "task_id": "sparse_accumulator_checksum_v500_h",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sparse_accumulator_checksum_v500_h/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n#include <cstdint>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\nstruct Entry {\n    uint32_t idx;\n    uint32_t val;\n};\n\n} // namespace\n\nuint64_t sparse_accumulator_hash(\n    const std::vector<uint32_t>& indices,\n    const std::vector<uint32_t>& values,\n    uint32_t domain,\n    int iters) {\n    if (indices.empty()) {\n        uint64_t hash = 1469598103934665603ULL;\n        for (uint32_t i = 0; i < domain; ++i) {\n            hash = mix(hash, 0ULL);\n        }\n        return hash;\n    }\n\n    // Pre-calculate the effect of a single zero-value mix to handle gaps efficiently.\n    // However, since the mix function is not easily reversible or jumpable via simple power,\n    // and the domain can be large, we must observe that the hash is a sequence of operations.\n    // If domain is small, we can just loop. If domain is large, we must optimize.\n    \n    // Let's refine the approach: The hash is a chain: h_{i} = mix(h_{i-1}, v_i).\n    // Since we need to return the exact checksum, we must simulate the loop.\n    // The bottleneck is the loop over 'domain'.\n    \n    // Optimization: Pre-calculate the 'zero-mix' chain if possible, but the mix function \n    // depends on the previous hash. We can't skip. \n    // Wait, the baseline iterates 0 to domain-1. \n    // If domain is 10^9, O(domain) is impossible. \n    // But the task is to optimize the *provided* baseline. \n    // The baseline is O(iters * domain). \n    \n    // Let's check if we can optimize the zero-value accumulation.\n    // The hash is: h_i = (h_{i-1} ^ v_i) * 1099511628211\n    // This is a linear congruential generator style step. \n    // For v_i = 0: h_i = h_{i-1} * 1099511628211\n    // This is a geometric progression in the ring of integers mod 2^64.\n    // h_{i+k} = h_i * (1099511628211^k) mod 2^64.\n\n    uint64_t multiplier = 1099511628211ULL;\n    \n    // Precompute powers of multiplier for fast jumping\n    // We'll use a simple jump table or binary exponentiation logic.\n    auto power = [](uint64_t base, uint64_t exp) {\n        uint64_t res = 1;\n        while (exp > 0) {\n            if (exp % 2 == 1) res *= base;\n            base *= base;\n            exp /= 2;\n        }\n        return res;\n    };\n\n    // Pre-calculate powers for binary lifting to jump over zero gaps\n    const int MAX_LOG = 32;\n    std::vector<uint64_t> pows(MAX_LOG);\n    pows[0] = multiplier;\n    for (int i = 1; i < MAX_LOG; ++i) {\n        pows[i] = pows[i - 1] * pows[i - 1];\n    }\n\n    auto jump_zeros = [&](uint64_t h, uint32_t count) {\n        for (int i = 0; i < MAX_LOG; ++i) {\n            if ((count >> i) & 1) {\n                h *= pows[i];\n            }\n        }\n        return h;\n    };\n\n    // Prepare entries for sorting\n    std::vector<Entry> entries(indices.size());\n    for (size_t i = 0; i < indices.size(); ++i) {\n        entries[i] = {indices[i], values[i]};\n    }\n\n    uint64_t final_hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        // 1. Accumulate values\n        std::sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) {\n            return a.idx < b.idx;\n        });\n\n        std::vector<std::pair<uint32_t, uint64_t>> accum;\n        if (!entries.empty()) {\n            uint32_t curr_idx = entries[0].idx;\n            uint64_t curr_val = entries[0].val;\n            for (size_t i = 1; i < entries.size(); ++i) {\n                if (entries[i].idx == curr_idx) {\n                    curr_val += entries[i].val;\n                } else {\n                    accum.push_back({curr_idx, curr_val});\n                    curr_idx = entries[i].idx;\n                    curr_val = entries[i].val;\n                }\n            }\n            accum.push_back({curr_idx, curr_val});\n        }\n\n        // 2. Compute hash with jumps\n        uint64_t h = 1469598103934665603ULL;\n        uint32_t current_pos = 0;\n\n        for (const auto& p : accum) {\n            uint32_t target_idx = p.first;\n            uint64_t val = p.second;\n\n            // Gap of zeros before this index\n            if (target_idx > current_pos) {\n                h = jump_zeros(h, target_idx - current_pos);\n            }\n            \n            // The actual value at target_idx\n            h ^= val;\n            h *= multiplier;\n            \n            current_pos = target_idx + 1;\n        }\n\n        // Remaining zeros after the last entry\n        if (current_pos < domain) {\n            h = jump_zeros(h, domain - current_pos);\n        }\n        \n        final_hash = h;\n    }\n\n    return final_hash;\n}\n",
+  "baseline": {
+    "task_id": "sparse_accumulator_checksum_v500_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 509192874,
+    "min_elapsed_ns": 508605468,
+    "max_elapsed_ns": 541666690,
+    "all_elapsed_ns": [
+      541666690,
+      509192874,
+      508605468
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 541666690,
+      "expected_checksum": 3323694628885030907,
+      "actual_checksum": 3323694628885030907
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sparse_accumulator_checksum_v500_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 62161161,
+    "min_elapsed_ns": 61703091,
+    "max_elapsed_ns": 62485949,
+    "all_elapsed_ns": [
+      62485949,
+      62161161,
+      61703091
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 62485949,
+      "expected_checksum": 3323694628885030907,
+      "actual_checksum": 3323694628885030907
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sparse_accumulator_checksum_v500_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1077767039,
+    "min_elapsed_ns": 977385575,
+    "max_elapsed_ns": 1198102814,
+    "all_elapsed_ns": [
+      1077767039,
+      977385575,
+      1198102814
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1077767039,
+      "expected_checksum": 3323694628885030907,
+      "actual_checksum": 3323694628885030907
+    },
+    "status": "ok"
+  }
+}

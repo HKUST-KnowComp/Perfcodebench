@@ -1,0 +1,59 @@
+{
+  "task_id": "sorted_interval_lookup_sum_v1200_a",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sorted_interval_lookup_sum_v1200_a/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n\nuint64_t interval_lookup_sum(\n    const std::vector<uint32_t>& starts,\n    const std::vector<uint32_t>& ends,\n    const std::vector<uint32_t>& payloads,\n    const std::vector<uint32_t>& probes,\n    const std::vector<uint32_t>& weights,\n    int iters) {\n    if (probes.empty() || starts.empty()) return 0;\n\n    uint64_t total_sum = 0;\n    const size_t num_probes = probes.size();\n    const size_t num_intervals = starts.size();\n\n    // Pre-calculate the mapping of probes to interval indices using a two-pointer approach.\n    // This assumes 'probes' is sorted as per the task title 'sorted interval lookup'.\n    // If probes are not sorted, we would need to sort them or use the binary search.\n    // Given the title, we optimize for the sorted case.\n    std::vector<size_t> probe_to_idx(num_probes);\n    size_t interval_ptr = 0;\n    for (size_t i = 0; i < num_probes; ++i) {\n        while (interval_ptr + 1 < num_intervals && starts[interval_ptr + 1] <= probes[i]) {\n            interval_ptr++;\n        }\n        // Check if the current probe actually falls within the interval [starts[idx], ends[idx])\n        // The baseline used upper_bound(starts) - 1, which finds the largest start <= probe.\n        // We must verify the probe is >= starts[idx] (always true if we found it) \n        // and probe < ends[idx]. However, the baseline logic was: \n        // idx = upper_bound - 1. This implies the baseline assumes intervals are contiguous \n        // or that we only care about the 'last' interval that started.\n        // To preserve exact correctness with the baseline:\n        if (starts[interval_ptr] <= probes[i]) {\n            probe_to_idx[i] = interval_ptr;\n        } else {\n            // This case shouldn't be hit if probes[i] >= starts[0]\n            probe_to_idx[i] = static_cast<size_t>(-1);\n        }\n    }\n\n    // The baseline logic: \n    // const auto it = std::upper_bound(starts.begin(), starts.end(), probes[i]);\n    // const std::size_t idx = static_cast<std::size_t>(it - starts.begin() - 1);\n    // This logic finds the largest index such that starts[idx] <= probes[i].\n    // It does NOT check if probes[i] < ends[idx]. \n    // To preserve correctness, we must replicate this exact behavior.\n\n    // Re-implementing the two-pointer to match the baseline's exact logic:\n    std::vector<size_t> mapping(num_probes);\n    size_t curr_start_idx = 0;\n    for (size_t i = 0; i < num_probes; ++i) {\n        while (curr_start_idx + 1 < num_intervals && starts[curr_start_idx + 1] <= probes[i]) {\n            curr_start_idx++;\n        }\n        if (starts[curr_start_idx] <= probes[i]) {\n            mapping[i] = curr_start_idx;\n        } else {\n            // If probe < starts[0], upper_bound returns starts.begin(), idx becomes -1 (underflow).\n            // The baseline would access payloads[static_cast<size_t>(-1)], which is UB.\n            // However, in competitive programming/performance tasks, we assume valid inputs.\n            // We'll use a sentinel or handle it.\n            mapping[i] = static_cast<size_t>(-1);\n        }\n    }\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t iter_sum = 0;\n        for (size_t i = 0; i < num_probes; ++i) {\n            size_t idx = mapping[i];\n            if (idx != static_cast<size_t>(-1)) {\n                iter_sum += static_cast<uint64_t>(payloads[idx]) * static_cast<uint64_t>(weights[i]);\n            }\n        }\n        total_sum += iter_sum;\n    }\n\n    return total_sum;\n}",
+  "baseline": {
+    "task_id": "sorted_interval_lookup_sum_v1200_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1531635367,
+    "min_elapsed_ns": 1529252418,
+    "max_elapsed_ns": 1622168115,
+    "all_elapsed_ns": [
+      1531635367,
+      1622168115,
+      1529252418
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1531635367,
+      "expected_sum": 171651508784,
+      "actual_sum": 171651508784
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sorted_interval_lookup_sum_v1200_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 173404720,
+    "min_elapsed_ns": 172570430,
+    "max_elapsed_ns": 173687957,
+    "all_elapsed_ns": [
+      172570430,
+      173404720,
+      173687957
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 172570430,
+      "expected_sum": 171651508784,
+      "actual_sum": 171651508784
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sorted_interval_lookup_sum_v1200_a",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/sorted_interval_lookup_sum_v1200_a/candidate/bench']' returned non-zero exit status 1."
+  }
+}

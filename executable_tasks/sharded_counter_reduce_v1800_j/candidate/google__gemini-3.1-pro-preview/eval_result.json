@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce_v1800_j",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v1800_j/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 8,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <atomic>\n#include <condition_variable>\n#include <mutex>\n#include <thread>\n#include <vector>\n#include <memory>\n\nnamespace {\n\nstruct Barrier {\n  std::mutex mtx;\n  std::condition_variable cv;\n  int count;\n  int initial_count;\n  int generation;\n\n  explicit Barrier(int n) : count(n), initial_count(n), generation(0) {}\n\n  void wait() {\n    std::unique_lock<std::mutex> lock(mtx);\n    int gen = generation;\n    if (--count == 0) {\n      generation++;\n      count = initial_count;\n      cv.notify_all();\n    } else {\n      cv.wait(lock, [this, gen] { return gen != generation; });\n    }\n  }\n};\n\nuint64_t checksum_u64(const std::unique_ptr<std::atomic<uint64_t>[]>& counts, uint32_t key_space) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t i = 0; i < key_space; ++i) {\n    hash ^= counts[i].load(std::memory_order_relaxed);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  \n  if (num_threads <= 0) return 0;\n\n  auto counts = std::make_unique<std::atomic<uint64_t>[]>(key_space);\n  for (uint32_t i = 0; i < key_space; ++i) counts[i].store(0, std::memory_order_relaxed);\n\n  Barrier barrier(num_threads);\n  uint64_t final_hash = 0;\n  std::vector<std::thread> threads;\n  threads.reserve(num_threads);\n\n  const std::size_t total_size = keys.size();\n  const std::size_t chunk = total_size / static_cast<std::size_t>(num_threads);\n\n  for (int t = 0; t < num_threads; ++t) {\n    threads.emplace_back([&, t]() {\n      const std::size_t begin = static_cast<std::size_t>(t) * chunk;\n      const std::size_t end = (t + 1 == num_threads) ? total_size : begin + chunk;\n\n      for (int iter = 0; iter < iters; ++iter) {\n        // 1. Reset counts (only one thread needs to do this, but others must wait)\n        if (t == 0) {\n          for (uint32_t i = 0; i < key_space; ++i) {\n            counts[i].store(0, std::memory_order_relaxed);\n          }\n        }\n        barrier.wait();\n\n        // 2. Perform updates using atomics\n        for (std::size_t i = begin; i < end; ++i) {\n          counts[keys[i]].fetch_add(values[i], std::memory_order_relaxed);\n        }\n        barrier.wait();\n\n        // 3. Compute checksum (only one thread needs to do this)\n        if (t == 0) {\n          final_hash = checksum_u64(counts, key_space);\n        }\n        barrier.wait();\n      }\n    });\n  }\n\n  for (auto& th : threads) {\n    th.join();\n  }\n\n  return final_hash;\n}\n",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v1800_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5610642656,
+    "min_elapsed_ns": 5328191224,
+    "max_elapsed_ns": 6292814604,
+    "all_elapsed_ns": [
+      5328191224,
+      6292814604,
+      5610642656
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5328191224,
+      "expected_checksum": 11972321977310262147,
+      "actual_checksum": 11972321977310262147
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v1800_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 31906226,
+    "min_elapsed_ns": 31494708,
+    "max_elapsed_ns": 62172241,
+    "all_elapsed_ns": [
+      62172241,
+      31494708,
+      31906226
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 62172241,
+      "expected_checksum": 11972321977310262147,
+      "actual_checksum": 11972321977310262147
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v1800_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 596502812,
+    "min_elapsed_ns": 576019071,
+    "max_elapsed_ns": 614946825,
+    "all_elapsed_ns": [
+      596502812,
+      576019071,
+      614946825
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 596502812,
+      "expected_checksum": 11972321977310262147,
+      "actual_checksum": 11972321977310262147
+    },
+    "status": "ok"
+  }
+}

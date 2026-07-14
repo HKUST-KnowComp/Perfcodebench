@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_groupby_sum_v1100_c",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_groupby_sum_v1100_c/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\n// ---- fast checksum --------------------------------------------------------\ninline uint64_t checksum_vec(const uint64_t* __restrict sums,\n                             int groups) noexcept {\n  uint64_t h = 1469598103934665603ULL;\n  int g = 0;\n\n  // 4-way unroll\n  for (; g + 3 < groups; g += 4) {\n    h ^= sums[g];\n    h *= 1099511628211ULL;\n    h ^= sums[g + 1];\n    h *= 1099511628211ULL;\n    h ^= sums[g + 2];\n    h *= 1099511628211ULL;\n    h ^= sums[g + 3];\n    h *= 1099511628211ULL;\n  }\n  for (; g < groups; ++g) {\n    h ^= sums[g];\n    h *= 1099511628211ULL;\n  }\n  return h;\n}\n\n}  // namespace\n\nuint64_t groupby_checksum(const std::vector<uint32_t>& keys,\n                          const std::vector<uint32_t>& values,\n                          int groups,\n                          int iters) {\n  const std::size_t n = keys.size();\n  std::vector<uint64_t> sums(groups, 0ULL);\n\n  // Pre-compute pointers to avoid bound checks inside hot loop\n  const uint32_t* __restrict k = keys.data();\n  const uint32_t* __restrict v = values.data();\n\n  uint64_t out = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    // clear vector contents quickly\n    std::fill(sums.begin(), sums.end(), 0ULL);\n\n    // tight update loop with 4-way unroll\n    std::size_t i = 0;\n    for (; i + 3 < n; i += 4) {\n      sums[k[i]]     += v[i];\n      sums[k[i + 1]] += v[i + 1];\n      sums[k[i + 2]] += v[i + 2];\n      sums[k[i + 3]] += v[i + 3];\n    }\n    for (; i < n; ++i) {\n      sums[k[i]] += v[i];\n    }\n\n    out = checksum_vec(sums.data(), groups);\n  }\n  return out;\n}",
+  "baseline": {
+    "task_id": "dense_groupby_sum_v1100_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 486287375,
+    "min_elapsed_ns": 485660839,
+    "max_elapsed_ns": 500070834,
+    "all_elapsed_ns": [
+      485660839,
+      500070834,
+      486287375
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 485660839,
+      "expected_checksum": 13625908567322215299,
+      "actual_checksum": 13625908567322215299
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_groupby_sum_v1100_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 98412038,
+    "min_elapsed_ns": 73807533,
+    "max_elapsed_ns": 99209075,
+    "all_elapsed_ns": [
+      98412038,
+      99209075,
+      73807533
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 98412038,
+      "expected_checksum": 13625908567322215299,
+      "actual_checksum": 13625908567322215299
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_groupby_sum_v1100_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 79031367,
+    "min_elapsed_ns": 73803143,
+    "max_elapsed_ns": 101686515,
+    "all_elapsed_ns": [
+      79031367,
+      101686515,
+      73803143
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 79031367,
+      "expected_checksum": 13625908567322215299,
+      "actual_checksum": 13625908567322215299
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "row_group_minmax_prune_v500_c",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/row_group_minmax_prune_v500_c/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <immintrin.h>\n\nuint64_t row_group_range_sum(\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& mins,\n    const std::vector<uint32_t>& maxs,\n    uint32_t low,\n    uint32_t high,\n    uint32_t block_size,\n    int iters) {\n  uint64_t sum = 0;\n  const size_t n = values.size();\n  const size_t num_blocks = mins.size();\n  const uint32_t* vptr = values.data();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    \n    for (size_t b = 0; b < num_blocks; ++b) {\n      uint32_t block_min = mins[b];\n      uint32_t block_max = maxs[b];\n      \n      // Skip block entirely if outside range\n      if (block_max < low || block_min > high) {\n        continue;\n      }\n      \n      size_t start = b * block_size;\n      size_t end = start + block_size;\n      if (end > n) end = n;\n      \n      // Include entire block if fully within range\n      if (block_min >= low && block_max <= high) {\n        for (size_t i = start; i < end; ++i) {\n          sum += vptr[i];\n        }\n      } else {\n        // Partial overlap - need to check each element\n        size_t i = start;\n        size_t len = end - start;\n        \n        // AVX2 vectorized path\n        if (len >= 8) {\n          __m256i vlow = _mm256_set1_epi32(static_cast<int32_t>(low));\n          __m256i vhigh = _mm256_set1_epi32(static_cast<int32_t>(high));\n          __m256i acc_lo = _mm256_setzero_si256();\n          __m256i acc_hi = _mm256_setzero_si256();\n          \n          size_t simd_end = start + (len & ~7ULL);\n          \n          for (; i < simd_end; i += 8) {\n            __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(vptr + i));\n            \n            // Unsigned comparison: v >= low && v <= high\n            // For unsigned: a >= b is equivalent to max(a,b) == a\n            // For unsigned: a <= b is equivalent to min(a,b) == a\n            __m256i ge_low = _mm256_cmpeq_epi32(_mm256_max_epu32(v, vlow), v);\n            __m256i le_high = _mm256_cmpeq_epi32(_mm256_min_epu32(v, vhigh), v);\n            __m256i mask = _mm256_and_si256(ge_low, le_high);\n            \n            __m256i masked = _mm256_and_si256(v, mask);\n            \n            // Extend to 64-bit and accumulate\n            __m256i lo = _mm256_cvtepu32_epi64(_mm256_castsi256_si128(masked));\n            __m256i hi = _mm256_cvtepu32_epi64(_mm256_extracti128_si256(masked, 1));\n            acc_lo = _mm256_add_epi64(acc_lo, lo);\n            acc_hi = _mm256_add_epi64(acc_hi, hi);\n          }\n          \n          // Horizontal sum\n          __m256i acc = _mm256_add_epi64(acc_lo, acc_hi);\n          __m128i lo128 = _mm256_castsi256_si128(acc);\n          __m128i hi128 = _mm256_extracti128_si256(acc, 1);\n          __m128i sum128 = _mm_add_epi64(lo128, hi128);\n          sum += static_cast<uint64_t>(_mm_extract_epi64(sum128, 0)) + \n                 static_cast<uint64_t>(_mm_extract_epi64(sum128, 1));\n        }\n        \n        // Scalar tail\n        for (; i < end; ++i) {\n          uint32_t v = vptr[i];\n          if (v >= low && v <= high) {\n            sum += v;\n          }\n        }\n      }\n    }\n  }\n  return sum;\n}",
+  "baseline": {
+    "task_id": "row_group_minmax_prune_v500_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 26450898,
+    "min_elapsed_ns": 26315161,
+    "max_elapsed_ns": 27335114,
+    "all_elapsed_ns": [
+      26450898,
+      26315161,
+      27335114
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 26450898,
+      "expected_sum": 21732156,
+      "actual_sum": 21732156
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "row_group_minmax_prune_v500_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 989151,
+    "min_elapsed_ns": 965297,
+    "max_elapsed_ns": 994557,
+    "all_elapsed_ns": [
+      989151,
+      994557,
+      965297
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 989151,
+      "expected_sum": 21732156,
+      "actual_sum": 21732156
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "row_group_minmax_prune_v500_c",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/row_group_minmax_prune_v500_c/harness', 'executable_tasks/row_group_minmax_prune_v500_c/harness/benchmark_main.cpp', 'executable_tasks/row_group_minmax_prune_v500_c/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/row_group_minmax_prune_v500_c/candidate/bench']' returned non-zero exit status 1."
+  }
+}

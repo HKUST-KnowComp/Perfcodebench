@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v10",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v10/candidate/claude-opus-4.5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int BLOCK_SIZE = 256;\nconstexpr int NUM_PARTS = 4;\n\n__global__ void histogram_shared_kernel(const unsigned char* __restrict__ input,\n                                        unsigned int* __restrict__ output,\n                                        int n) {\n    __shared__ unsigned int shist[NUM_PARTS * 256];\n\n    int tid = threadIdx.x;\n    \n    #pragma unroll\n    for (int i = 0; i < NUM_PARTS; ++i) {\n        shist[i * 256 + tid] = 0;\n    }\n    __syncthreads();\n\n    int part = tid % NUM_PARTS;\n    unsigned int* my_hist = shist + part * 256;\n\n    int base = blockIdx.x * blockDim.x * 16 + tid * 16;\n    int stride = gridDim.x * blockDim.x * 16;\n\n    for (int idx = base; idx + 15 < n; idx += stride) {\n        uint4 v = *reinterpret_cast<const uint4*>(input + idx);\n        \n        unsigned int w0 = v.x;\n        unsigned int w1 = v.y;\n        unsigned int w2 = v.z;\n        unsigned int w3 = v.w;\n\n        atomicAdd(my_hist + (w0 & 0xFF), 1U);\n        atomicAdd(my_hist + ((w0 >> 8) & 0xFF), 1U);\n        atomicAdd(my_hist + ((w0 >> 16) & 0xFF), 1U);\n        atomicAdd(my_hist + ((w0 >> 24) & 0xFF), 1U);\n\n        atomicAdd(my_hist + (w1 & 0xFF), 1U);\n        atomicAdd(my_hist + ((w1 >> 8) & 0xFF), 1U);\n        atomicAdd(my_hist + ((w1 >> 16) & 0xFF), 1U);\n        atomicAdd(my_hist + ((w1 >> 24) & 0xFF), 1U);\n\n        atomicAdd(my_hist + (w2 & 0xFF), 1U);\n        atomicAdd(my_hist + ((w2 >> 8) & 0xFF), 1U);\n        atomicAdd(my_hist + ((w2 >> 16) & 0xFF), 1U);\n        atomicAdd(my_hist + ((w2 >> 24) & 0xFF), 1U);\n\n        atomicAdd(my_hist + (w3 & 0xFF), 1U);\n        atomicAdd(my_hist + ((w3 >> 8) & 0xFF), 1U);\n        atomicAdd(my_hist + ((w3 >> 16) & 0xFF), 1U);\n        atomicAdd(my_hist + ((w3 >> 24) & 0xFF), 1U);\n    }\n\n    int tail_base = (n / (gridDim.x * blockDim.x * 16)) * (gridDim.x * blockDim.x * 16);\n    int tail_start = tail_base + blockIdx.x * blockDim.x + tid;\n    for (int idx = tail_start; idx < n; idx += gridDim.x * blockDim.x) {\n        atomicAdd(my_hist + input[idx], 1U);\n    }\n\n    __syncthreads();\n\n    #pragma unroll\n    for (int bin = tid; bin < 256; bin += BLOCK_SIZE) {\n        unsigned int sum = 0;\n        #pragma unroll\n        for (int p = 0; p < NUM_PARTS; ++p) {\n            sum += shist[p * 256 + bin];\n        }\n        if (sum > 0) {\n            atomicAdd(output + bin, sum);\n        }\n    }\n}\n\n}  // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters) {\n    int grid = 256;\n    if (n > 1 << 24) grid = 512;\n    if (n > 1 << 26) grid = 1024;\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemsetAsync(output, 0, 256 * sizeof(unsigned int));\n        histogram_shared_kernel<<<grid, BLOCK_SIZE>>>(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v10",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 620291992,
+    "min_elapsed_ns": 620197082,
+    "max_elapsed_ns": 620407287,
+    "all_elapsed_ns": [
+      620407287,
+      620291992,
+      620197082
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 620407287,
+      "checksum": 4311744512
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v10",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3142784,
+    "min_elapsed_ns": 3130496,
+    "max_elapsed_ns": 3144063,
+    "all_elapsed_ns": [
+      3144063,
+      3142784,
+      3130496
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3144063,
+      "checksum": 4311744512
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v10",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_histogram256_shared_u8_v10/candidate/bench']' timed out after 5 seconds"
+  }
+}

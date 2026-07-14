@@ -1,0 +1,59 @@
+{
+  "task_id": "simdutf_base64_encode_v2400_b",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdutf_base64_encode_v2400_b/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstddef>\n\nnamespace {\n\n// Standard Base64 encoding table\nstatic constexpr char kTable[64] =\n    \"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/\";\n\n// FNV-1a 64-bit hash update per byte\nstatic inline void fnv1a_update(uint64_t &h, unsigned char byte) {\n  h ^= static_cast<uint64_t>(byte);\n  h *= 1099511628211ULL;\n}\n\n// Emit 4 base64 chars from a 24-bit triple and update hash (no padding)\nstatic inline void emit4_no_pad(uint32_t triple, const char *table, uint64_t &h) {\n  unsigned char c0 = static_cast<unsigned char>(table[(triple >> 18) & 0x3F]);\n  unsigned char c1 = static_cast<unsigned char>(table[(triple >> 12) & 0x3F]);\n  unsigned char c2 = static_cast<unsigned char>(table[(triple >> 6) & 0x3F]);\n  unsigned char c3 = static_cast<unsigned char>(table[triple & 0x3F]);\n  fnv1a_update(h, c0);\n  fnv1a_update(h, c1);\n  fnv1a_update(h, c2);\n  fnv1a_update(h, c3);\n}\n\n}  // namespace\n\nuint64_t encode_checksum(const std::string &input) {\n  const unsigned char *p = reinterpret_cast<const unsigned char *>(input.data());\n  const size_t n = input.size();\n  const char *table = kTable;\n\n  uint64_t hash = 1469598103934665603ULL; // FNV-1a 64-bit offset basis\n\n  // Process full 3-byte chunks\n  const size_t full_bytes = (n / 3) * 3;\n\n  size_t i = 0;\n\n  // Unroll by 4 triples (12 bytes) for throughput when possible\n  for (; i + 12 <= full_bytes; i += 12) {\n    uint32_t t0 = (static_cast<uint32_t>(p[i]) << 16) |\n                  (static_cast<uint32_t>(p[i + 1]) << 8) |\n                  (static_cast<uint32_t>(p[i + 2]));\n    emit4_no_pad(t0, table, hash);\n\n    uint32_t t1 = (static_cast<uint32_t>(p[i + 3]) << 16) |\n                  (static_cast<uint32_t>(p[i + 4]) << 8) |\n                  (static_cast<uint32_t>(p[i + 5]));\n    emit4_no_pad(t1, table, hash);\n\n    uint32_t t2 = (static_cast<uint32_t>(p[i + 6]) << 16) |\n                  (static_cast<uint32_t>(p[i + 7]) << 8) |\n                  (static_cast<uint32_t>(p[i + 8]));\n    emit4_no_pad(t2, table, hash);\n\n    uint32_t t3 = (static_cast<uint32_t>(p[i + 9]) << 16) |\n                  (static_cast<uint32_t>(p[i + 10]) << 8) |\n                  (static_cast<uint32_t>(p[i + 11]));\n    emit4_no_pad(t3, table, hash);\n  }\n\n  // Process remaining full triples\n  for (; i + 3 <= full_bytes; i += 3) {\n    uint32_t triple = (static_cast<uint32_t>(p[i]) << 16) |\n                      (static_cast<uint32_t>(p[i + 1]) << 8) |\n                      (static_cast<uint32_t>(p[i + 2]));\n    emit4_no_pad(triple, table, hash);\n  }\n\n  // Handle tail (1 or 2 remaining bytes)\n  const size_t rem = n - full_bytes;\n  if (rem == 1) {\n    // b0 present, b1=b2=0\n    const uint32_t b0 = p[full_bytes];\n    const uint32_t triple = (b0 << 16);\n\n    unsigned char c0 = static_cast<unsigned char>(table[(triple >> 18) & 0x3F]);\n    unsigned char c1 = static_cast<unsigned char>(table[(triple >> 12) & 0x3F]);\n    // Two padding characters '='\n    fnv1a_update(hash, c0);\n    fnv1a_update(hash, c1);\n    fnv1a_update(hash, static_cast<unsigned char>('='));\n    fnv1a_update(hash, static_cast<unsigned char>('='));\n  } else if (rem == 2) {\n    // b0,b1 present, b2=0\n    const uint32_t b0 = p[full_bytes];\n    const uint32_t b1 = p[full_bytes + 1];\n    const uint32_t triple = (b0 << 16) | (b1 << 8);\n\n    unsigned char c0 = static_cast<unsigned char>(table[(triple >> 18) & 0x3F]);\n    unsigned char c1 = static_cast<unsigned char>(table[(triple >> 12) & 0x3F]);\n    unsigned char c2 = static_cast<unsigned char>(table[(triple >> 6) & 0x3F]);\n    fnv1a_update(hash, c0);\n    fnv1a_update(hash, c1);\n    fnv1a_update(hash, c2);\n    fnv1a_update(hash, static_cast<unsigned char>('='));\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "simdutf_base64_encode_v2400_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 157560,
+    "min_elapsed_ns": 149671,
+    "max_elapsed_ns": 181623,
+    "all_elapsed_ns": [
+      181623,
+      157560,
+      149671
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 181623,
+      "expected_checksum": 11401956226334066577,
+      "actual_checksum": 11401956226334066577
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdutf_base64_encode_v2400_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 77857,
+    "min_elapsed_ns": 76702,
+    "max_elapsed_ns": 103791,
+    "all_elapsed_ns": [
+      103791,
+      76702,
+      77857
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 103791,
+      "expected_checksum": 11401956226334066577,
+      "actual_checksum": 11401956226334066577
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdutf_base64_encode_v2400_b",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/simdutf_base64_encode_v2400_b/harness', '-Iexternal/simdutf/singleheader', 'executable_tasks/simdutf_base64_encode_v2400_b/harness/benchmark_main.cpp', 'executable_tasks/simdutf_base64_encode_v2400_b/candidate/gpt-5/solution.cpp', 'external/simdutf/singleheader/simdutf.cpp', '-o', 'build/simdutf_base64_encode_v2400_b/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_matmul_tiled_f32_v21",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_matmul_tiled_f32_v21/candidate/google__gemma-4-31b-it/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n#define TILE_SIZE 32\n#define BLOCK_SIZE 16\n\n__global__ void matmul_optimized_kernel(const float* __restrict__ a, const float* __restrict__ b, float* __restrict__ c, int n) {\n    // Each thread computes a 2x2 block of C to increase register reuse\n    const int row_start = (blockIdx.y * BLOCK_SIZE) + threadIdx.y;\n    const int col_start = (blockIdx.x * BLOCK_SIZE) + threadIdx.x;\n\n    __shared__ float s_a[BLOCK_SIZE][TILE_SIZE];\n    __shared__ float s_b[TILE_SIZE][BLOCK_SIZE];\n\n    float sum00 = 0.0f, sum01 = 0.0f, sum10 = 0.0f, sum11 = 0.0f;\n\n    for (int tile = 0; tile < (n + TILE_SIZE - 1) / TILE_SIZE; ++tile) {\n        // Load tiles into shared memory\n        // Each thread loads 2 elements for A and 2 for B to fill the TILE_SIZE x BLOCK_SIZE buffers\n        for (int i = 0; i < 2; ++i) {\n            int load_row = row_start + i;\n            int load_col = tile * TILE_SIZE + threadIdx.x;\n            if (load_row < n && load_col < n) {\n                s_a[threadIdx.y + (i * BLOCK_SIZE)][load_col] = a[load_row * n + load_col];\n            } else {\n                s_a[threadIdx.y + (i * BLOCK_SIZE)][tile * TILE_SIZE + threadIdx.x] = 0.0f;\n            }\n\n            int load_row_b = tile * TILE_SIZE + threadIdx.y + (i * BLOCK_SIZE);\n            int load_col_b = col_start + i;\n            if (load_row_b < n && load_col_b < n) {\n                s_b[load_row_b][threadIdx.x + (i * BLOCK_SIZE)] = b[load_row_b * n + load_col_b];\n            } else {\n                s_b[tile * TILE_SIZE + threadIdx.y + (i * BLOCK_SIZE)][threadIdx.x + (i * BLOCK_SIZE)] = 0.0f;\n            }\n        }\n\n        __syncthreads();\n\n        // Compute partial products\n        #pragma unroll\n        for (int k = 0; k < TILE_SIZE; ++k) {\n            float a0 = s_a[threadIdx.y][k];\n            float a1 = s_a[threadIdx.y + BLOCK_SIZE][k];\n            float b0 = s_b[k][threadIdx.x];\n            float b1 = s_b[k][threadIdx.x + BLOCK_SIZE];\n\n            sum00 += a0 * b0;\n            sum01 += a0 * b1;\n            sum10 += a1 * b0;\n            sum11 += a1 * b1;\n        }\n\n        __syncthreads();\n    }\n\n    // Write results back to global memory\n    if (row_start < n && col_start < n) \n        c[row_start * n + col_start] = sum00;\n    if (row_start < n && col_start + 1 < n) \n        c[row_start * n + col_start + 1] = sum01;\n    if (row_start + 1 < n && col_start < n) \n        c[(row_start + 1) * n + col_start] = sum10;\n    if (row_start + 1 < n && col_start + 1 < n) \n        c[(row_start + 1) * n + col_start + 1] = sum11;\n}\n\n}  // namespace\n\nvoid matmul_f32(const float* a, const float* b, float* c, int n, int iters) {\n    // Grid and block dimensions based on the 2x2 output per thread strategy\n    // Each block handles 32x32 output elements\n    const dim3 block(BLOCK_SIZE, BLOCK_SIZE);\n    const dim3 grid((n + 31) / 32, (n + 31) / 32);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        matmul_optimized_kernel<<<grid, block>>>(a, b, c, n);\n    }\n    cudaDeviceSynchronize();\n}",
+  "baseline": {
+    "task_id": "cuda_matmul_tiled_f32_v21",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 250559,
+    "min_elapsed_ns": 249696,
+    "max_elapsed_ns": 252896,
+    "all_elapsed_ns": [
+      250559,
+      252896,
+      249696
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 250559,
+      "max_abs_error": 0,
+      "checksum": 1226200000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_matmul_tiled_f32_v21",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 212991,
+    "min_elapsed_ns": 210528,
+    "max_elapsed_ns": 252063,
+    "all_elapsed_ns": [
+      252063,
+      210528,
+      212991
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 252063,
+      "max_abs_error": 0,
+      "checksum": 1226200000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_matmul_tiled_f32_v21",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_matmul_tiled_f32_v21/candidate/bench']' timed out after 5 seconds"
+  }
+}

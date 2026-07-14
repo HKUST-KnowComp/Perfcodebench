@@ -1,0 +1,72 @@
+{
+  "task_id": "row_group_minmax_prune_v500_g",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/row_group_minmax_prune_v500_g/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstddef>\n#include <cstdint>\n#include <vector>\n\nuint64_t row_group_range_sum(\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& mins,\n    const std::vector<uint32_t>& maxs,\n    uint32_t low,\n    uint32_t high,\n    uint32_t block_size,\n    int iters) {\n  const size_t n = values.size();\n  if (iters <= 0 || n == 0) return 0;\n\n  // Invalid range: no value can match.\n  if (low > high) return 0;\n\n  // Degenerate block size fallback.\n  if (block_size == 0) {\n    uint64_t sum = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n      uint64_t s = 0;\n      const uint32_t* p = values.data();\n      const uint32_t* end = p + n;\n      while (p != end) {\n        const uint32_t v = *p++;\n        if (v >= low && v <= high) s += static_cast<uint64_t>(v);\n      }\n      sum = s;\n    }\n    return sum;\n  }\n\n  const uint32_t* vals = values.data();\n  const size_t num_blocks = (n + static_cast<size_t>(block_size) - 1) / static_cast<size_t>(block_size);\n\n  uint64_t sum = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t s = 0;\n\n    size_t base = 0;\n    for (size_t b = 0; b < num_blocks; ++b, base += block_size) {\n      const size_t remaining = n - base;\n      const size_t len = remaining < static_cast<size_t>(block_size)\n                             ? remaining\n                             : static_cast<size_t>(block_size);\n\n      // If metadata is unavailable for this block, conservatively scan.\n      if (b >= mins.size() || b >= maxs.size()) {\n        const uint32_t* p = vals + base;\n        const uint32_t* end = p + len;\n        while (p != end) {\n          const uint32_t v = *p++;\n          if (v >= low && v <= high) s += static_cast<uint64_t>(v);\n        }\n        continue;\n      }\n\n      const uint32_t bmin = mins[b];\n      const uint32_t bmax = maxs[b];\n\n      // Entire block excluded.\n      if (bmax < low || bmin > high) {\n        continue;\n      }\n\n      const uint32_t* p = vals + base;\n      const uint32_t* end = p + len;\n\n      // Entire block included.\n      if (bmin >= low && bmax <= high) {\n        uint64_t block_sum = 0;\n        while (p != end) {\n          block_sum += static_cast<uint64_t>(*p++);\n        }\n        s += block_sum;\n        continue;\n      }\n\n      // Partial overlap: filter within block.\n      while (p != end) {\n        const uint32_t v = *p++;\n        if (v >= low && v <= high) s += static_cast<uint64_t>(v);\n      }\n    }\n\n    sum = s;\n  }\n\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "row_group_minmax_prune_v500_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 18174884,
+    "min_elapsed_ns": 16351570,
+    "max_elapsed_ns": 22776904,
+    "all_elapsed_ns": [
+      18174884,
+      22776904,
+      16351570
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 18174884,
+      "expected_sum": 1380536,
+      "actual_sum": 1380536
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "row_group_minmax_prune_v500_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 499317,
+    "min_elapsed_ns": 490073,
+    "max_elapsed_ns": 577530,
+    "all_elapsed_ns": [
+      577530,
+      490073,
+      499317
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 577530,
+      "expected_sum": 1380536,
+      "actual_sum": 1380536
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "row_group_minmax_prune_v500_g",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 695897,
+    "min_elapsed_ns": 671797,
+    "max_elapsed_ns": 710066,
+    "all_elapsed_ns": [
+      710066,
+      695897,
+      671797
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 710066,
+      "expected_sum": 1380536,
+      "actual_sum": 1380536
+    },
+    "status": "ok"
+  }
+}

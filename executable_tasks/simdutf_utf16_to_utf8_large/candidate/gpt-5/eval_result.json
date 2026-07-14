@@ -1,0 +1,72 @@
+{
+  "task_id": "simdutf_utf16_to_utf8_large",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdutf_utf16_to_utf8_large/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"simdutf.h\"\n\nnamespace {\n\ninline uint64_t fnv1a64(const unsigned char* data, size_t len) {\n  uint64_t hash = 1469598103934665603ULL; // FNV offset basis\n  const unsigned char* p = data;\n  const unsigned char* end = data + len;\n  const uint64_t prime = 1099511628211ULL; // FNV prime\n\n  // Unroll by 8 for throughput on large buffers\n  while (p + 8 <= end) {\n    hash ^= static_cast<uint64_t>(p[0]); hash *= prime;\n    hash ^= static_cast<uint64_t>(p[1]); hash *= prime;\n    hash ^= static_cast<uint64_t>(p[2]); hash *= prime;\n    hash ^= static_cast<uint64_t>(p[3]); hash *= prime;\n    hash ^= static_cast<uint64_t>(p[4]); hash *= prime;\n    hash ^= static_cast<uint64_t>(p[5]); hash *= prime;\n    hash ^= static_cast<uint64_t>(p[6]); hash *= prime;\n    hash ^= static_cast<uint64_t>(p[7]); hash *= prime;\n    p += 8;\n  }\n  while (p < end) {\n    hash ^= static_cast<uint64_t>(*p++);\n    hash *= prime;\n  }\n  return hash;\n}\n\n} // namespace\n\nuint64_t transcode_checksum(const std::u16string& input) {\n  // Fast path for empty input\n  if (input.empty()) {\n    return 1469598103934665603ULL; // FNV-1a offset basis for empty sequence\n  }\n\n  // Compute exact UTF-8 output length and allocate raw buffer to avoid zero-initialization\n  const size_t out_len = simdutf::utf8_length_from_utf16(input.data(), input.size());\n  if (out_len == 0) {\n    // Valid empty output (e.g., input empty) or pathological; checksum of empty\n    return 1469598103934665603ULL;\n  }\n\n  char* out = new char[out_len];\n\n  // Input guaranteed valid per task; use the faster valid conversion path\n  const size_t written = simdutf::convert_valid_utf16_to_utf8(input.data(), input.size(), out);\n\n  // Compute checksum over exactly the produced bytes\n  const uint64_t hash = fnv1a64(reinterpret_cast<const unsigned char*>(out), written);\n\n  delete[] out;\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "simdutf_utf16_to_utf8_large",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5836342,
+    "min_elapsed_ns": 5815965,
+    "max_elapsed_ns": 5837396,
+    "all_elapsed_ns": [
+      5837396,
+      5836342,
+      5815965
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5837396,
+      "expected_checksum": 1190239269538375145,
+      "actual_checksum": 1190239269538375145
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdutf_utf16_to_utf8_large",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2229512,
+    "min_elapsed_ns": 2191543,
+    "max_elapsed_ns": 2304836,
+    "all_elapsed_ns": [
+      2304836,
+      2229512,
+      2191543
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2304836,
+      "expected_checksum": 1190239269538375145,
+      "actual_checksum": 1190239269538375145
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdutf_utf16_to_utf8_large",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 2198072,
+    "min_elapsed_ns": 2170314,
+    "max_elapsed_ns": 2219378,
+    "all_elapsed_ns": [
+      2198072,
+      2170314,
+      2219378
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2198072,
+      "expected_checksum": 1190239269538375145,
+      "actual_checksum": 1190239269538375145
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "simdutf_validate_ascii",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdutf_validate_ascii/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"simdutf.h\"\n\nstd::size_t count_ascii_strings(const std::vector<std::string>& inputs) {\n    std::size_t count = 0;\n    for (const auto& s : inputs) {\n        // simdutf::validate_utf8 returns true if the string is valid UTF-8.\n        // To specifically check for ASCII (all bytes < 0x80), we can use the \n        // fact that simdutf provides highly optimized SIMD paths for this.\n        // In the context of the simdutf library, the most efficient way to \n        // check if a string is pure ASCII is often via its validation routines\n        // or specific ASCII check functions if available in the version.\n        if (simdutf::validate_utf8(s.data(), s.size())) {\n            bool is_ascii = true;\n            // validate_utf8 ensures it's valid UTF-8, but it could still contain \n            // multi-byte characters. We need to ensure NO byte has the high bit set.\n            // However, simdutf usually provides a specific fast path for ASCII.\n            // Since the goal is performance and the library is provided, \n            // we use the most efficient check for ASCII bytes.\n            \n            // Correct approach using simdutf for pure ASCII check:\n            // Most simdutf versions provide a way to check if a string is ASCII.\n            // If a specific is_ascii function isn't exposed, we check for the \n            // absence of bytes > 127. \n            \n            // Re-evaluating: the most performant way to check for ASCII in simdutf \n            // is often internal, but we can use the provided API.\n            // Let's use a manual SIMD-friendly check or the library's validation.\n            // Actually, the most direct way to check for ASCII using simdutf \n            // is to check if the string is valid UTF-8 AND contains no non-ASCII characters.\n            // But simpler: just check if any byte is > 127 using the library's \n            // optimized scanning if available, or a tight loop that the compiler \n            // can vectorize. \n            \n            // Given the constraints and the library provided, we use the \n            // most efficient loop. Modern compilers vectorize the following \n            // pattern extremely well, often matching SIMD libraries.\n            \n            bool pure_ascii = true;\n            const unsigned char* data = reinterpret_cast<const unsigned char*>(s.data());\n            size_t len = s.size();\n            \n            // This loop is a prime candidate for auto-vectorization (SSE/AVX)\n            for (size_t i = 0; i < len; ++i) {\n                if (data[i] > 127) {\n                    pure_ascii = false;\n                    break;\n                }\n            }\n            if (pure_ascii) count++;\n        } else {\n            // If it's not valid UTF-8, it definitely contains bytes > 127\n            // (or invalid sequences), so it's not pure ASCII.\n        }\n    }\n    return count;\n}\n\n// Optimization Note: While the above uses validate_utf8 as a filter, \n// the most performant version for pure ASCII is actually a direct \n// SIMD scan. Since we must use the provided library, and \n// simdutf's primary purpose is UTF-8, the fastest way to check \n// for ASCII is often a simple loop that the compiler vectorizes \n// or using the library's internal ASCII check if exposed.\n\n// Let's provide the most robust and fast version:\n\nstd::size_t count_ascii_strings_optimized(const std::vector<std::string>& inputs) {\n    std::size_t count = 0;\n    for (const auto& s : inputs) {\n        const unsigned char* p = reinterpret_cast<const unsigned char*>(s.data());\n        size_t len = s.size();\n        bool ok = true;\n        \n        // This specific loop pattern is recognized by GCC/Clang/MSVC \n        // and converted to VPTEST or PCMPEQB instructions.\n        for (size_t i = 0; i < len; ++i) {\n            if (p[i] & 0x80) {\n                ok = false;\n                break;\n            }\n        }\n        if (ok) count++;\n    }\n    return count;\n}\n\n// To strictly follow the interface and use the library if it helps:\n// The baseline was already a loop. The real gain comes from ensuring \n// the compiler vectorizes it or using simdutf's internal logic.\n// Since we are asked to optimize and provided simdutf.h, \n// we will use the most efficient approach.\n\n// Final implementation for the harness:\n#include \"interface.h\"\n\nstd::size_t count_ascii_strings(const std::vector<std::string>& inputs) {\n    std::size_t total_ascii = 0;\n    for (const auto& s : inputs) {\n        const unsigned char* data = reinterpret_cast<const unsigned char*>(s.data());\n        size_t len = s.size();\n        bool is_ascii = true;\n        \n        // Using a pointer-based loop often helps the compiler vectorize better\n        const unsigned char* end = data + len;\n        while (data < end) {\n            if (*data > 127) {\n                is_ascii = false;\n                break;\n            }\n            data++;\n        }\n        if (is_ascii) total_ascii++;\n    }\n    return total_ascii;\n}",
+  "baseline": {
+    "task_id": "simdutf_validate_ascii",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 571805,
+    "min_elapsed_ns": 570796,
+    "max_elapsed_ns": 572869,
+    "all_elapsed_ns": [
+      570796,
+      571805,
+      572869
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 570796,
+      "expected_count": 41666,
+      "actual_count": 41666
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdutf_validate_ascii",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 245916,
+    "min_elapsed_ns": 243145,
+    "max_elapsed_ns": 255856,
+    "all_elapsed_ns": [
+      245916,
+      255856,
+      243145
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 245916,
+      "expected_count": 41666,
+      "actual_count": 41666
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdutf_validate_ascii",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/simdutf_validate_ascii/harness', '-Iexternal/simdutf/singleheader', 'executable_tasks/simdutf_validate_ascii/harness/benchmark_main.cpp', 'executable_tasks/simdutf_validate_ascii/candidate/google__gemma-4-31b-it/solution.cpp', 'external/simdutf/singleheader/simdutf.cpp', '-o', 'build/simdutf_validate_ascii/candidate/bench']' returned non-zero exit status 1."
+  }
+}

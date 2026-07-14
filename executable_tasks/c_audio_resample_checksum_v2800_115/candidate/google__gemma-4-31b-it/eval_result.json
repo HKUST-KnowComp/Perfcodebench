@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_115",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_115/candidate/google__gemma-4-31b-it/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\nstatic uint64_t checksum_i16(const int16_t* data, size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (size_t i = 0; i < n; ++i) {\n    hash ^= (uint16_t)data[i];\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n  if (output_len <= 0) return 0;\n  \n  int16_t* out = (int16_t*)malloc((size_t)output_len * sizeof(int16_t));\n  if (!out) return 0;\n\n  uint64_t hash = 0;\n  \n  // Precompute fixed-point step\n  // pos = i * (input_len - 1) / (output_len - 1)\n  // We use a 64-bit fixed point representation to avoid precision loss.\n  // Let scale = 2^32\n  if (output_len == 1) {\n    for (int iter = 0; iter < iters; ++iter) {\n      out[0] = src[0];\n      hash = checksum_i16(out, (size_t)output_len);\n    }\n  } else {\n    uint64_t step_fixed = ((uint64_t)(input_len - 1) << 32) / (output_len - 1);\n    \n    for (int iter = 0; iter < iters; ++iter) {\n      uint64_t current_pos_fixed = 0;\n      for (int i = 0; i < output_len; ++i) {\n        uint32_t left = (uint32_t)(current_pos_fixed >> 32);\n        uint32_t frac_fixed = (uint32_t)(current_pos_fixed & 0xFFFFFFFF);\n        \n        uint32_t right = left + 1;\n        if (right >= (uint32_t)input_len) right = (uint32_t)input_len - 1;\n        \n        // Linear interpolation: src[left] + frac * (src[right] - src[left])\n        // frac = frac_fixed / 2^32\n        int32_t diff = src[right] - src[left];\n        int64_t interp = (int64_t)src[left] * 4294967296LL + (int64_t)diff * frac_fixed;\n        \n        // Rounding: (interp + 0.5 * 2^32) / 2^32\n        // For positive: (interp + 2147483648) >> 32\n        // For negative: (interp - 2147483648) >> 32\n        // This matches the (sample + 0.5) or (sample - 0.5) logic\n        if (interp >= 0) {\n          out[i] = (int16_t)((interp + 2147483648LL) >> 32);\n        } else {\n          out[i] = (int16_t)((interp - 2147483648LL) >> 32);\n        }\n        \n        current_pos_fixed += step_fixed;\n      }\n      hash = checksum_i16(out, (size_t)output_len);\n    }\n  }\n\n  free(out);\n  return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_115",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2521000,
+    "min_elapsed_ns": 2477000,
+    "max_elapsed_ns": 2589000,
+    "all_elapsed_ns": [
+      2521000,
+      2589000,
+      2477000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2521000,
+      "expected_checksum": 6177233866916399586,
+      "actual_checksum": 6177233866916399586
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_115",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2809000,
+    "min_elapsed_ns": 2554000,
+    "max_elapsed_ns": 2887000,
+    "all_elapsed_ns": [
+      2554000,
+      2809000,
+      2887000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2554000,
+      "expected_checksum": 6177233866916399586,
+      "actual_checksum": 6177233866916399586
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_115",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1981000,
+    "min_elapsed_ns": 1950000,
+    "max_elapsed_ns": 1983000,
+    "all_elapsed_ns": [
+      1983000,
+      1981000,
+      1950000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1983000,
+      "expected_checksum": 6177233866916399586,
+      "actual_checksum": 6177233866916399586
+    },
+    "status": "ok"
+  }
+}

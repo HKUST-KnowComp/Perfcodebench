@@ -1,0 +1,59 @@
+{
+  "task_id": "ragged_batch_pack",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/ragged_batch_pack/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <cstdint>\n#include <cstring>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n} // namespace\n\nuint64_t ragged_pack_checksum(const std::vector<uint32_t>& padded_tokens,\n                              const std::vector<int>& lengths,\n                              int batch,\n                              int max_len,\n                              int iters) {\n  // one-time capacity reservation\n  static thread_local std::vector<uint32_t> packed_buf;\n  int total = 0;\n  for (int b = 0; b < batch; ++b) total += lengths[static_cast<size_t>(b)];\n  if (static_cast<int>(packed_buf.size()) < total) packed_buf.resize(static_cast<size_t>(total));\n\n  uint64_t hash = 1469598103934665603ULL; // hoisted out of iter loop\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint32_t* out = packed_buf.data();\n    uint32_t pos  = 0;\n\n    for (int b = 0; b < batch; ++b) {\n      int len = lengths[static_cast<size_t>(b)];\n      const uint32_t* row = &padded_tokens[static_cast<size_t>(b) * static_cast<size_t>(max_len)];\n      std::memcpy(out, row, static_cast<size_t>(len) * sizeof(uint32_t));\n      out += len;\n      pos += static_cast<uint32_t>(len);\n    }\n\n    // checksum: 4-way unrolled\n    const uint32_t* tok = packed_buf.data();\n    size_t N = static_cast<size_t>(total);\n    size_t i = 0;\n    uint32_t p = 0;\n\n    for (; i + 3 < N; i += 4) {\n      uint32_t p0 = p;\n      uint32_t p1 = p + 1;\n      uint32_t p2 = p + 2;\n      uint32_t p3 = p + 3;\n      p += 4;\n\n      hash = mix(hash, tok[i+0]);\n      hash = mix(hash, p0);\n      hash = mix(hash, tok[i+1]);\n      hash = mix(hash, p1);\n      hash = mix(hash, tok[i+2]);\n      hash = mix(hash, p2);\n      hash = mix(hash, tok[i+3]);\n      hash = mix(hash, p3);\n    }\n    for (; i < N; ++i) {\n      hash = mix(hash, tok[i]);\n      hash = mix(hash, p++);\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "ragged_batch_pack",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 56688763,
+    "min_elapsed_ns": 56629552,
+    "max_elapsed_ns": 57014242,
+    "all_elapsed_ns": [
+      56688763,
+      56629552,
+      57014242
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 56688763,
+      "expected_checksum": 2550300936428056374,
+      "actual_checksum": 2550300936428056374
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "ragged_batch_pack",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 33000087,
+    "min_elapsed_ns": 32451837,
+    "max_elapsed_ns": 33372350,
+    "all_elapsed_ns": [
+      32451837,
+      33372350,
+      33000087
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 32451837,
+      "expected_checksum": 2550300936428056374,
+      "actual_checksum": 2550300936428056374
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "ragged_batch_pack",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/ragged_batch_pack/candidate/bench']' returned non-zero exit status 1."
+  }
+}

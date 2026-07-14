@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v04",
+  "model": "qwen/qwen3.6-plus",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v04/candidate/qwen__qwen3.6-plus/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void histogram_shared_kernel(const unsigned char* __restrict__ input, unsigned int* __restrict__ output, int n) {\n    __shared__ unsigned int s_hist[256];\n    \n    // Initialize shared memory histogram to zero\n    for (int i = threadIdx.x; i < 256; i += blockDim.x) {\n        s_hist[i] = 0;\n    }\n    __syncthreads();\n    \n    // Grid-stride loop to process input\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    int stride = blockDim.x * gridDim.x;\n    for (; idx < n; idx += stride) {\n        atomicAdd(&s_hist[input[idx]], 1U);\n    }\n    __syncthreads();\n    \n    // Merge shared histogram into global histogram\n    for (int i = threadIdx.x; i < 256; i += blockDim.x) {\n        unsigned int val = s_hist[i];\n        if (val > 0) {\n            atomicAdd(&output[i], val);\n        }\n    }\n}\n\n}  // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters) {\n    constexpr int kBlock = 256;\n    int grid = (n + kBlock - 1) / kBlock;\n    if (grid < 1) grid = 1;\n    if (grid > 1024) grid = 1024;\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, 256 * sizeof(unsigned int));\n        histogram_shared_kernel<<<grid, kBlock>>>(input, output, n);\n    }\n}\n",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v04",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 258457366,
+    "min_elapsed_ns": 258444213,
+    "max_elapsed_ns": 258475921,
+    "all_elapsed_ns": [
+      258444213,
+      258457366,
+      258475921
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 258444213,
+      "checksum": 4311744512
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v04",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1322271,
+    "min_elapsed_ns": 1318591,
+    "max_elapsed_ns": 1327008,
+    "all_elapsed_ns": [
+      1318591,
+      1327008,
+      1322271
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1318591,
+      "checksum": 4311744512
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v04",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_histogram256_shared_u8_v04/candidate/bench']' timed out after 5 seconds"
+  }
+}

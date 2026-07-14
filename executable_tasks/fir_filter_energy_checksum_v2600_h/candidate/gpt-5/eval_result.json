@@ -1,0 +1,72 @@
+{
+  "task_id": "fir_filter_energy_checksum_v2600_h",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/fir_filter_energy_checksum_v2600_h/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nuint64_t fir_energy_checksum(\n    const std::vector<int16_t>& signal,\n    const std::vector<int16_t>& taps,\n    int iters) {\n  // Preserve baseline semantics: if iters <= 0, return 0; otherwise, the result\n  // equals the checksum of a single full pass (baseline overwrote total each iter).\n  if (iters <= 0) {\n    return 0ULL;\n  }\n\n  const std::size_t N = signal.size();\n  const std::size_t M = taps.size();\n\n  // FNV-1a 64-bit parameters as used in baseline\n  uint64_t total = 1469598103934665603ULL; // offset basis\n\n  // If signal is empty, baseline sets total to offset basis and returns it.\n  if (N == 0) {\n    return total;\n  }\n\n  const int16_t* s = signal.data();\n  const int16_t* t = taps.data();\n\n  for (std::size_t i = 0; i < N; ++i) {\n    // j ranges from 0 to min(i, M-1)\n    std::size_t jmax = M;\n    const std::size_t lim = i + 1;\n    if (jmax > lim) jmax = lim;\n\n    int64_t acc = 0;\n    const int16_t* sp = s + i; // points to signal[i]\n\n    // Unroll inner loop by 4\n    std::size_t j = 0;\n    std::size_t blocks = jmax / 4;\n    for (std::size_t b = 0; b < blocks; ++b) {\n      // Accumulate 4 products\n      acc += static_cast<int64_t>(sp[0])  * static_cast<int64_t>(t[j + 0]);\n      acc += static_cast<int64_t>(sp[-1]) * static_cast<int64_t>(t[j + 1]);\n      acc += static_cast<int64_t>(sp[-2]) * static_cast<int64_t>(t[j + 2]);\n      acc += static_cast<int64_t>(sp[-3]) * static_cast<int64_t>(t[j + 3]);\n      sp -= 4;\n      j += 4;\n    }\n    for (; j < jmax; ++j) {\n      acc += static_cast<int64_t>(*sp) * static_cast<int64_t>(t[j]);\n      --sp;\n    }\n\n    // Hash exactly as in baseline: static_cast<uint64_t>(acc * acc + 3 * acc)\n    int64_t expr = acc * acc + 3 * acc;\n    total ^= static_cast<uint64_t>(expr);\n    total *= 1099511628211ULL; // FNV prime\n  }\n\n  return total;\n}\n",
+  "baseline": {
+    "task_id": "fir_filter_energy_checksum_v2600_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 19248334,
+    "min_elapsed_ns": 18951633,
+    "max_elapsed_ns": 19643421,
+    "all_elapsed_ns": [
+      19643421,
+      18951633,
+      19248334
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 19643421,
+      "expected_checksum": 18227025995888194209,
+      "actual_checksum": 18227025995888194209
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "fir_filter_energy_checksum_v2600_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 15520892,
+    "min_elapsed_ns": 15517076,
+    "max_elapsed_ns": 15798973,
+    "all_elapsed_ns": [
+      15798973,
+      15517076,
+      15520892
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15798973,
+      "expected_checksum": 18227025995888194209,
+      "actual_checksum": 18227025995888194209
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "fir_filter_energy_checksum_v2600_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 5644817,
+    "min_elapsed_ns": 5607275,
+    "max_elapsed_ns": 5884257,
+    "all_elapsed_ns": [
+      5884257,
+      5644817,
+      5607275
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5884257,
+      "expected_checksum": 18227025995888194209,
+      "actual_checksum": 18227025995888194209
+    },
+    "status": "ok"
+  }
+}

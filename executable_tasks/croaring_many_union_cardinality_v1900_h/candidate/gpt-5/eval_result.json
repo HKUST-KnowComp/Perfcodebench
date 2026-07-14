@@ -1,0 +1,59 @@
+{
+  "task_id": "croaring_many_union_cardinality_v1900_h",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/croaring_many_union_cardinality_v1900_h/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <queue>\n\nstruct HeapNode {\n  uint32_t value;\n  uint32_t shard;\n};\n\nstruct MinCmp {\n  bool operator()(const HeapNode& a, const HeapNode& b) const {\n    // Min-heap by value\n    return a.value > b.value;\n  }\n};\n\nuint64_t many_union_cardinality(\n    const std::vector<uint32_t>& offsets,\n    const std::vector<uint32_t>& values) {\n  const size_t nshards = offsets.size() > 0 ? offsets.size() - 1 : 0;\n  if (nshards == 0) {\n    return 0;\n  }\n\n  // Fast path for a single shard: count unique values in a sorted array.\n  if (nshards == 1) {\n    uint32_t begin = offsets[0];\n    uint32_t end = offsets[1];\n    if (begin >= end) return 0;\n    uint64_t count = 1;\n    uint32_t last = values[begin];\n    for (uint32_t i = begin + 1; i < end; ++i) {\n      uint32_t v = values[i];\n      if (v != last) {\n        ++count;\n        last = v;\n      }\n    }\n    return count;\n  }\n\n  // Initialize per-shard cursors and heap with the first element of each non-empty shard.\n  std::vector<uint32_t> idx(nshards);\n  std::vector<uint32_t> end(nshards);\n  std::priority_queue<HeapNode, std::vector<HeapNode>, MinCmp> heap;\n\n  for (uint32_t s = 0; s < nshards; ++s) {\n    uint32_t b = offsets[s];\n    uint32_t e = offsets[s + 1];\n    idx[s] = b;\n    end[s] = e;\n    if (b < e) {\n      heap.push(HeapNode{values[b], s});\n    }\n  }\n\n  if (heap.empty()) return 0;\n\n  uint64_t count = 0;\n  uint32_t last = 0;\n  bool have_last = false;\n\n  while (!heap.empty()) {\n    HeapNode n = heap.top();\n    heap.pop();\n    uint32_t v = n.value;\n    if (!have_last || v != last) {\n      ++count;\n      last = v;\n      have_last = true;\n    }\n    uint32_t s = n.shard;\n    uint32_t i = ++idx[s];\n    if (i < end[s]) {\n      heap.push(HeapNode{values[i], s});\n    }\n  }\n\n  return count;\n}\n",
+  "baseline": {
+    "task_id": "croaring_many_union_cardinality_v1900_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 110683619,
+    "min_elapsed_ns": 103199457,
+    "max_elapsed_ns": 154522503,
+    "all_elapsed_ns": [
+      103199457,
+      110683619,
+      154522503
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 103199457,
+      "expected_cardinality": 404763,
+      "actual_cardinality": 404763
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "croaring_many_union_cardinality_v1900_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5157017,
+    "min_elapsed_ns": 4956973,
+    "max_elapsed_ns": 5857015,
+    "all_elapsed_ns": [
+      5857015,
+      4956973,
+      5157017
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5857015,
+      "expected_cardinality": 404763,
+      "actual_cardinality": 404763
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "croaring_many_union_cardinality_v1900_h",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/croaring_many_union_cardinality_v1900_h/harness', '-Iexternal/croaring_amalg', 'executable_tasks/croaring_many_union_cardinality_v1900_h/harness/benchmark_main.cpp', 'executable_tasks/croaring_many_union_cardinality_v1900_h/candidate/gpt-5/solution.cpp', 'external/croaring_amalg/roaring.c', '-o', 'build/croaring_many_union_cardinality_v1900_h/candidate/bench']' returned non-zero exit status 1."
+  }
+}

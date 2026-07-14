@@ -1,0 +1,72 @@
+{
+  "task_id": "highway_clamp_sum_f32_xxlarge",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_clamp_sum_f32_xxlarge/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"hwy/highway.h\"\n\nnamespace hn = hwy::HWY_NAMESPACE;\n\nfloat clamp_sum(const float* data, std::size_t n) {\n  const hn::ScalableTag<float> d;\n  const auto zero = hn::Zero(d);\n  \n  // Kahan summation for numerical stability\n  auto vec_sum = hn::Zero(d);\n  auto vec_c = hn::Zero(d);\n  \n  const std::size_t lanes = hn::Lanes(d);\n  std::size_t i = 0;\n  \n  // Process full vectors\n  for (; i + lanes <= n; i += lanes) {\n    auto v = hn::LoadU(d, data + i);\n    auto clamped = hn::Max(v, zero);\n    \n    // Kahan summation\n    auto y = hn::Sub(clamped, vec_c);\n    auto t = hn::Add(vec_sum, y);\n    vec_c = hn::Sub(hn::Sub(t, vec_sum), y);\n    vec_sum = t;\n  }\n  \n  // Horizontal reduction with Kahan summation\n  float sum = 0.0f;\n  float c = 0.0f;\n  \n  alignas(64) float sum_buf[hn::MaxLanes(d)];\n  alignas(64) float c_buf[hn::MaxLanes(d)];\n  hn::StoreU(vec_sum, d, sum_buf);\n  hn::StoreU(vec_c, d, c_buf);\n  \n  for (std::size_t j = 0; j < lanes; ++j) {\n    float y = sum_buf[j] - c;\n    float t = sum + y;\n    c = (t - sum) - y;\n    sum = t;\n  }\n  \n  // Handle tail with Kahan summation\n  for (; i < n; ++i) {\n    float val = data[i] > 0.0f ? data[i] : 0.0f;\n    float y = val - c;\n    float t = sum + y;\n    c = (t - sum) - y;\n    sum = t;\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "highway_clamp_sum_f32_xxlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6041656,
+    "min_elapsed_ns": 6010725,
+    "max_elapsed_ns": 6043926,
+    "all_elapsed_ns": [
+      6041656,
+      6043926,
+      6010725
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6041656,
+      "expected_sum": 419515000.0,
+      "actual_sum": 419059000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_clamp_sum_f32_xxlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3285209,
+    "min_elapsed_ns": 3209552,
+    "max_elapsed_ns": 3326310,
+    "all_elapsed_ns": [
+      3209552,
+      3326310,
+      3285209
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3209552,
+      "expected_sum": 419515000.0,
+      "actual_sum": 419520000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_clamp_sum_f32_xxlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 6606257,
+    "min_elapsed_ns": 6091293,
+    "max_elapsed_ns": 6692590,
+    "all_elapsed_ns": [
+      6091293,
+      6606257,
+      6692590
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6091293,
+      "expected_sum": 419515000.0,
+      "actual_sum": 419515000.0
+    },
+    "status": "ok"
+  }
+}

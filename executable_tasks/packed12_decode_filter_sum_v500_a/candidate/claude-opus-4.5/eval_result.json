@@ -1,0 +1,72 @@
+{
+  "task_id": "packed12_decode_filter_sum_v500_a",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/packed12_decode_filter_sum_v500_a/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstddef>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#endif\n\nuint64_t packed12_filter_sum(const std::vector<uint8_t>& packed, uint16_t threshold, int iters) {\n    const uint8_t* __restrict data = packed.data();\n    const std::size_t size = packed.size();\n    uint64_t sum = 0;\n\n#if defined(__AVX2__)\n    // Process 24 bytes at a time -> 16 x 12-bit values\n    // We'll use a 32-byte load but only consume 24 bytes per iteration\n    const std::size_t chunk24 = 24;\n    const std::size_t num_chunks = size / chunk24;\n    const std::size_t simd_end = num_chunks * chunk24;\n\n    // Shuffle masks to unpack 24 bytes into 16 x 16-bit values\n    // Input bytes: b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15 b16 b17 b18 b19 b20 b21 b22 b23\n    // Values: v0 = b0 | (b1 & 0x0F) << 8\n    //         v1 = (b1 >> 4) | b2 << 4\n    //         v2 = b3 | (b4 & 0x0F) << 8\n    //         ...\n    // For even indices (0,2,4,...): low byte at 3*i, high nibble at 3*i+1 (masked)\n    // For odd indices (1,3,5,...): low nibble at 3*i-2 (shifted), high byte at 3*i-1 (shifted)\n\n    // Shuffle for low 8 values (bytes 0-11)\n    const __m256i shuf_lo = _mm256_setr_epi8(\n        0, 1, 1, 2, 3, 4, 4, 5, 6, 7, 7, 8, 9, 10, 10, 11,\n        0, 1, 1, 2, 3, 4, 4, 5, 6, 7, 7, 8, 9, 10, 10, 11\n    );\n\n    const __m256i mask_even = _mm256_set1_epi16(0x0FFF);\n    const __m256i thresh_vec = _mm256_set1_epi16(static_cast<int16_t>(threshold));\n\n    for (int iter = 0; iter < iters; ++iter) {\n        __m256i acc_lo = _mm256_setzero_si256();\n        __m256i acc_hi = _mm256_setzero_si256();\n\n        std::size_t i = 0;\n        for (; i < simd_end; i += chunk24) {\n            // Load 24 bytes (we load 32 but only use 24)\n            // Process first 12 bytes -> 8 values\n            __m128i raw0 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + i));\n            // Process second 12 bytes -> 8 values  \n            __m128i raw1 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + i + 12));\n\n            // Combine into 256-bit register\n            __m256i raw = _mm256_set_m128i(raw1, raw0);\n\n            // Shuffle to get pairs of bytes for each 12-bit value\n            __m256i shuffled = _mm256_shuffle_epi8(raw, shuf_lo);\n\n            // For even positions: value = (hi << 8 | lo) & 0x0FFF\n            // For odd positions: value = (hi << 8 | lo) >> 4\n            // After shuffle, even positions have correct bytes, odd positions need shift\n\n            // Extract even and odd 16-bit values\n            __m256i even_vals = _mm256_and_si256(shuffled, mask_even);\n            __m256i odd_vals = _mm256_srli_epi16(shuffled, 4);\n            odd_vals = _mm256_and_si256(odd_vals, mask_even);\n\n            // Blend even and odd: even at positions 0,2,4,6; odd at 1,3,5,7\n            // blend16 uses immediate mask where bit i selects from b if 1, a if 0\n            __m256i vals = _mm256_blend_epi16(even_vals, odd_vals, 0xAA); // 0xAA = 10101010b\n\n            // Compare vals > threshold (unsigned comparison via saturating subtract)\n            // If val > threshold, then val - threshold - 1 won't saturate to 0\n            // Use signed comparison after biasing\n            __m256i cmp = _mm256_cmpgt_epi16(vals, thresh_vec);\n\n            // Zero out values <= threshold\n            __m256i filtered = _mm256_and_si256(vals, cmp);\n\n            // Accumulate: extend 16-bit to 32-bit and add\n            __m256i lo_32 = _mm256_unpacklo_epi16(filtered, _mm256_setzero_si256());\n            __m256i hi_32 = _mm256_unpackhi_epi16(filtered, _mm256_setzero_si256());\n\n            acc_lo = _mm256_add_epi32(acc_lo, lo_32);\n            acc_hi = _mm256_add_epi32(acc_hi, hi_32);\n        }\n\n        // Horizontal sum of accumulators\n        __m256i acc_sum = _mm256_add_epi32(acc_lo, acc_hi);\n        // Extend to 64-bit and sum\n        __m256i lo_64 = _mm256_unpacklo_epi32(acc_sum, _mm256_setzero_si256());\n        __m256i hi_64 = _mm256_unpackhi_epi32(acc_sum, _mm256_setzero_si256());\n        __m256i sum_64 = _mm256_add_epi64(lo_64, hi_64);\n\n        // Extract and sum lanes\n        __m128i sum_128_lo = _mm256_castsi256_si128(sum_64);\n        __m128i sum_128_hi = _mm256_extracti128_si256(sum_64, 1);\n        __m128i sum_128 = _mm_add_epi64(sum_128_lo, sum_128_hi);\n        sum = static_cast<uint64_t>(_mm_extract_epi64(sum_128, 0)) +\n              static_cast<uint64_t>(_mm_extract_epi64(sum_128, 1));\n\n        // Handle remaining bytes with scalar code\n        for (; i + 2 < size; i += 3) {\n            uint32_t a = static_cast<uint32_t>(data[i]) |\n                        (static_cast<uint32_t>(data[i + 1] & 0x0F) << 8);\n            uint32_t b = (static_cast<uint32_t>(data[i + 1] >> 4)) |\n                        (static_cast<uint32_t>(data[i + 2]) << 4);\n            if (a > threshold) sum += a;\n            if (b > threshold) sum += b;\n        }\n    }\n#else\n    // Scalar fallback: fused decode + filter + sum (no intermediate storage)\n    for (int iter = 0; iter < iters; ++iter) {\n        sum = 0;\n        for (std::size_t i = 0; i + 2 < size; i += 3) {\n            uint32_t a = static_cast<uint32_t>(data[i]) |\n                        (static_cast<uint32_t>(data[i + 1] & 0x0F) << 8);\n            uint32_t b = (static_cast<uint32_t>(data[i + 1] >> 4)) |\n                        (static_cast<uint32_t>(data[i + 2]) << 4);\n            if (a > threshold) sum += a;\n            if (b > threshold) sum += b;\n        }\n    }\n#endif\n\n    return sum;\n}",
+  "baseline": {
+    "task_id": "packed12_decode_filter_sum_v500_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 59031437,
+    "min_elapsed_ns": 57654351,
+    "max_elapsed_ns": 64213758,
+    "all_elapsed_ns": [
+      57654351,
+      59031437,
+      64213758
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 57654351,
+      "expected_sum": 3219883849,
+      "actual_sum": 3219883849
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "packed12_decode_filter_sum_v500_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 32504588,
+    "min_elapsed_ns": 27651829,
+    "max_elapsed_ns": 42373269,
+    "all_elapsed_ns": [
+      32504588,
+      42373269,
+      27651829
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 32504588,
+      "expected_sum": 3219883849,
+      "actual_sum": 3219883849
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "packed12_decode_filter_sum_v500_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 33175983,
+    "min_elapsed_ns": 29721412,
+    "max_elapsed_ns": 40621476,
+    "all_elapsed_ns": [
+      40621476,
+      33175983,
+      29721412
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 40621476,
+      "expected_sum": 3219883849,
+      "actual_sum": 3219883849
+    },
+    "status": "ok"
+  }
+}

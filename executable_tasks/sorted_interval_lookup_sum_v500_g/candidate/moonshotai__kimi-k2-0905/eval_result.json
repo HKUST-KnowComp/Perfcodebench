@@ -1,0 +1,59 @@
+{
+  "task_id": "sorted_interval_lookup_sum_v500_g",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sorted_interval_lookup_sum_v500_g/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <algorithm>\n#include <cstring>\n\nuint64_t interval_lookup_sum(\n    const std::vector<uint32_t>& starts,\n    const std::vector<uint32_t>& ends,\n    const std::vector<uint32_t>& payloads,\n    const std::vector<uint32_t>& probes,\n    const std::vector<uint32_t>& weights,\n    int iters)\n{\n    (void)ends;\n    const uint32_t  num_iv = starts.size();\n    const uint32_t*  iv_st = starts.data();\n    const uint32_t*  iv_py = payloads.data();\n    const uint32_t*  pb    = probes.data();\n    const uint32_t*  wt    = weights.data();\n    const size_t     pb_sz = probes.size();\n\n    /* ---------- build 4 GiB lookup table once ---------- */\n    static thread_local std::vector<uint32_t> tbl;\n    if (tbl.empty()) {\n        tbl.resize(1ULL << 32);\n        uint32_t idx = 0;\n        for (uint64_t val = 0; val < (1ULL << 32); ++val) {\n            while (idx + 1 < num_iv && iv_st[idx + 1] <= val) ++idx;\n            tbl[val] = idx;\n        }\n    }\n\n    /* ---------- hot loop ---------- */\n    uint64_t sum = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t acc[8] = {0, 0, 0, 0, 0, 0, 0, 0};\n        size_t i = 0;\n        for (; i + 8 <= pb_sz; i += 8) {\n            const uint32_t v0 = pb[i+0], w0 = wt[i+0];\n            const uint32_t v1 = pb[i+1], w1 = wt[i+1];\n            const uint32_t v2 = pb[i+2], w2 = wt[i+2];\n            const uint32_t v3 = pb[i+3], w3 = wt[i+3];\n            const uint32_t v4 = pb[i+4], w4 = wt[i+4];\n            const uint32_t v5 = pb[i+5], w5 = wt[i+5];\n            const uint32_t v6 = pb[i+6], w6 = wt[i+6];\n            const uint32_t v7 = pb[i+7], w7 = wt[i+7];\n\n            const uint32_t idx0 = tbl[v0];\n            const uint32_t idx1 = tbl[v1];\n            const uint32_t idx2 = tbl[v2];\n            const uint32_t idx3 = tbl[v3];\n            const uint32_t idx4 = tbl[v4];\n            const uint32_t idx5 = tbl[v5];\n            const uint32_t idx6 = tbl[v6];\n            const uint32_t idx7 = tbl[v7];\n\n            acc[0] += uint64_t(iv_py[idx0]) * uint64_t(w0);\n            acc[1] += uint64_t(iv_py[idx1]) * uint64_t(w1);\n            acc[2] += uint64_t(iv_py[idx2]) * uint64_t(w2);\n            acc[3] += uint64_t(iv_py[idx3]) * uint64_t(w3);\n            acc[4] += uint64_t(iv_py[idx4]) * uint64_t(w4);\n            acc[5] += uint64_t(iv_py[idx5]) * uint64_t(w5);\n            acc[6] += uint64_t(iv_py[idx6]) * uint64_t(w6);\n            acc[7] += uint64_t(iv_py[idx7]) * uint64_t(w7);\n        }\n        sum = acc[0] + acc[1] + acc[2] + acc[3] +\n              acc[4] + acc[5] + acc[6] + acc[7];\n        for (; i < pb_sz; ++i) {\n            const uint32_t idx = tbl[pb[i]];\n            sum += uint64_t(iv_py[idx]) * uint64_t(wt[i]);\n        }\n    }\n    return sum;\n}",
+  "baseline": {
+    "task_id": "sorted_interval_lookup_sum_v500_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 844860454,
+    "min_elapsed_ns": 808630068,
+    "max_elapsed_ns": 1031149134,
+    "all_elapsed_ns": [
+      1031149134,
+      844860454,
+      808630068
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1031149134,
+      "expected_sum": 85831957664,
+      "actual_sum": 85831957664
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sorted_interval_lookup_sum_v500_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 106244455,
+    "min_elapsed_ns": 100291062,
+    "max_elapsed_ns": 136656108,
+    "all_elapsed_ns": [
+      106244455,
+      100291062,
+      136656108
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 106244455,
+      "expected_sum": 85831957664,
+      "actual_sum": 85831957664
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sorted_interval_lookup_sum_v500_g",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/sorted_interval_lookup_sum_v500_g/candidate/bench']' timed out after 5 seconds"
+  }
+}

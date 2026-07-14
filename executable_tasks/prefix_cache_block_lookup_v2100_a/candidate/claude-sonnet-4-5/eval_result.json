@@ -1,0 +1,72 @@
+{
+  "task_id": "prefix_cache_block_lookup_v2100_a",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup_v2100_a/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n\nnamespace {\n\nuint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n// Galloping search: start from hint position and exponentially search forward\ninline const uint32_t* galloping_search(\n    const uint32_t* begin,\n    const uint32_t* end,\n    uint32_t value,\n    const uint32_t* hint) {\n  \n  // Start from hint position\n  const uint32_t* pos = hint;\n  \n  if (pos >= end || *pos > value) {\n    // Need to search backwards or value not found\n    pos = std::lower_bound(begin, end, value);\n    return (pos != end && *pos == value) ? pos : end;\n  }\n  \n  if (*pos == value) {\n    return pos;\n  }\n  \n  // Gallop forward with exponentially increasing steps\n  const uint32_t* base = pos;\n  std::size_t step = 1;\n  \n  while (pos + step < end && *(pos + step) < value) {\n    pos += step;\n    step <<= 1;\n  }\n  \n  // Binary search in the identified range\n  const uint32_t* search_end = (pos + step < end) ? pos + step + 1 : end;\n  pos = std::lower_bound(pos, search_end, value);\n  \n  return (pos != end && *pos == value) ? pos : end;\n}\n\n}  // namespace\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t hash_space,\n    int iters) {\n  (void)hash_space;\n  \n  const uint32_t* cache_begin = sorted_cache_keys.data();\n  const uint32_t* cache_end = cache_begin + sorted_cache_keys.size();\n  const uint32_t* blocks_data = request_blocks.data();\n  const int* offsets_data = request_offsets.data();\n  const std::size_t num_requests = request_offsets.size() - 1;\n  \n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    \n    for (std::size_t r = 0; r < num_requests; ++r) {\n      const int start = offsets_data[r];\n      const int end = offsets_data[r + 1];\n      \n      uint64_t prefix = 0;\n      const uint32_t* hint = cache_begin;\n      \n      for (int i = start; i < end; ++i) {\n        const uint32_t block = blocks_data[i];\n        hint = galloping_search(cache_begin, cache_end, block, hint);\n        \n        if (__builtin_expect(hint == cache_end, 0)) {\n          break;\n        }\n        \n        ++prefix;\n        ++hint; // Next search likely to be nearby\n      }\n      \n      hash = mix(hash, prefix);\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup_v2100_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 35259716,
+    "min_elapsed_ns": 34808873,
+    "max_elapsed_ns": 35412898,
+    "all_elapsed_ns": [
+      34808873,
+      35259716,
+      35412898
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 34808873,
+      "expected_checksum": 11230702571878552977,
+      "actual_checksum": 11230702571878552977
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup_v2100_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1118342,
+    "min_elapsed_ns": 1107268,
+    "max_elapsed_ns": 1127592,
+    "all_elapsed_ns": [
+      1118342,
+      1107268,
+      1127592
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1118342,
+      "expected_checksum": 11230702571878552977,
+      "actual_checksum": 11230702571878552977
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup_v2100_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 41607953,
+    "min_elapsed_ns": 35781763,
+    "max_elapsed_ns": 43209082,
+    "all_elapsed_ns": [
+      43209082,
+      35781763,
+      41607953
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 43209082,
+      "expected_checksum": 11230702571878552977,
+      "actual_checksum": 11230702571878552977
+    },
+    "status": "ok"
+  }
+}

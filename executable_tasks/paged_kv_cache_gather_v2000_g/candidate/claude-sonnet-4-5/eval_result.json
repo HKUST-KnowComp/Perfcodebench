@@ -1,0 +1,72 @@
+{
+  "task_id": "paged_kv_cache_gather_v2000_g",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/paged_kv_cache_gather_v2000_g/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t paged_kv_checksum(\n    const std::vector<uint32_t>& cache,\n    const std::vector<uint32_t>& page_ids,\n    const std::vector<uint32_t>& slot_offsets,\n    int num_pages,\n    int page_size,\n    int iters) {\n  const uint32_t* __restrict__ cache_ptr = cache.data();\n  const uint32_t* __restrict__ page_ids_ptr = page_ids.data();\n  const uint32_t* __restrict__ slot_offsets_ptr = slot_offsets.data();\n  const std::size_t num_queries = page_ids.size();\n  const std::size_t page_size_sz = static_cast<std::size_t>(page_size);\n  \n  uint64_t hash = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    \n    std::size_t i = 0;\n    const std::size_t unroll_limit = num_queries - (num_queries % 4);\n    \n    // Unrolled loop for better ILP\n    for (; i < unroll_limit; i += 4) {\n      // Prefetch next iteration\n      if (i + 8 < num_queries) {\n        __builtin_prefetch(&cache_ptr[page_ids_ptr[i + 4] * page_size_sz + slot_offsets_ptr[i + 4]], 0, 0);\n        __builtin_prefetch(&cache_ptr[page_ids_ptr[i + 5] * page_size_sz + slot_offsets_ptr[i + 5]], 0, 0);\n      }\n      \n      const std::size_t idx0 = page_ids_ptr[i] * page_size_sz + slot_offsets_ptr[i];\n      const std::size_t idx1 = page_ids_ptr[i + 1] * page_size_sz + slot_offsets_ptr[i + 1];\n      const std::size_t idx2 = page_ids_ptr[i + 2] * page_size_sz + slot_offsets_ptr[i + 2];\n      const std::size_t idx3 = page_ids_ptr[i + 3] * page_size_sz + slot_offsets_ptr[i + 3];\n      \n      const uint32_t val0 = cache_ptr[idx0];\n      const uint32_t val1 = cache_ptr[idx1];\n      const uint32_t val2 = cache_ptr[idx2];\n      const uint32_t val3 = cache_ptr[idx3];\n      \n      hash = mix(hash, val0);\n      hash = mix(hash, val1);\n      hash = mix(hash, val2);\n      hash = mix(hash, val3);\n    }\n    \n    // Handle remaining elements\n    for (; i < num_queries; ++i) {\n      const std::size_t idx = page_ids_ptr[i] * page_size_sz + slot_offsets_ptr[i];\n      hash = mix(hash, cache_ptr[idx]);\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "paged_kv_cache_gather_v2000_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5633876,
+    "min_elapsed_ns": 4890504,
+    "max_elapsed_ns": 5895765,
+    "all_elapsed_ns": [
+      5895765,
+      4890504,
+      5633876
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5895765,
+      "expected_checksum": 128054673880712067,
+      "actual_checksum": 128054673880712067
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "paged_kv_cache_gather_v2000_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1706378,
+    "min_elapsed_ns": 1210687,
+    "max_elapsed_ns": 4717698,
+    "all_elapsed_ns": [
+      1210687,
+      1706378,
+      4717698
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1210687,
+      "expected_checksum": 128054673880712067,
+      "actual_checksum": 128054673880712067
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "paged_kv_cache_gather_v2000_g",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1828630,
+    "min_elapsed_ns": 1436497,
+    "max_elapsed_ns": 1884091,
+    "all_elapsed_ns": [
+      1436497,
+      1884091,
+      1828630
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1436497,
+      "expected_checksum": 128054673880712067,
+      "actual_checksum": 128054673880712067
+    },
+    "status": "ok"
+  }
+}

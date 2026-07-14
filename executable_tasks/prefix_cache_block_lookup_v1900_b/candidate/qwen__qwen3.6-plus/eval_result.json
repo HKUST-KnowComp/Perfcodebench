@@ -1,0 +1,59 @@
+{
+  "task_id": "prefix_cache_block_lookup_v1900_b",
+  "model": "qwen/qwen3.6-plus",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup_v1900_b/candidate/qwen__qwen3.6-plus/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <cstdint>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\nstruct FastCache {\n    std::vector<uint32_t> keys;\n    std::vector<uint8_t> occ;\n    uint32_t mask;\n\n    explicit FastCache(const std::vector<uint32_t>& sorted_keys) {\n        uint32_t n = static_cast<uint32_t>(sorted_keys.size());\n        if (n == 0) {\n            mask = 0;\n            return;\n        }\n        uint32_t size = 1;\n        while (size < n * 2) size <<= 1;\n        mask = size - 1;\n        keys.resize(size, 0);\n        occ.resize(size, 0);\n        for (uint32_t k : sorted_keys) {\n            uint32_t h = k * 0x9e3779b9;\n            uint32_t idx = h & mask;\n            while (occ[idx]) {\n                idx = (idx + 1) & mask;\n            }\n            keys[idx] = k;\n            occ[idx] = 1;\n        }\n    }\n\n    inline bool contains(uint32_t k) const {\n        if (mask == 0) return false;\n        uint32_t h = k * 0x9e3779b9;\n        uint32_t idx = h & mask;\n        while (occ[idx]) {\n            if (keys[idx] == k) return true;\n            idx = (idx + 1) & mask;\n        }\n        return false;\n    }\n};\n\n}  // namespace\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t hash_space,\n    int iters) {\n  (void)hash_space;\n\n  FastCache cache(sorted_cache_keys);\n  const uint32_t* blocks = request_blocks.data();\n  const int* offsets = request_offsets.data();\n  size_t num_requests = request_offsets.size() - 1;\n\n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    for (size_t r = 0; r < num_requests; ++r) {\n      uint64_t prefix = 0;\n      int start = offsets[r];\n      int end = offsets[r + 1];\n      for (int i = start; i < end; ++i) {\n        if (!cache.contains(blocks[i])) break;\n        ++prefix;\n      }\n      hash = mix(hash, prefix);\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup_v1900_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 22888424,
+    "min_elapsed_ns": 22797687,
+    "max_elapsed_ns": 27888435,
+    "all_elapsed_ns": [
+      22888424,
+      22797687,
+      27888435
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 22888424,
+      "expected_checksum": 17899151501107882660,
+      "actual_checksum": 17899151501107882660
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup_v1900_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1122940,
+    "min_elapsed_ns": 928041,
+    "max_elapsed_ns": 1227850,
+    "all_elapsed_ns": [
+      1227850,
+      928041,
+      1122940
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1227850,
+      "expected_checksum": 17899151501107882660,
+      "actual_checksum": 17899151501107882660
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup_v1900_b",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/prefix_cache_block_lookup_v1900_b/harness', 'executable_tasks/prefix_cache_block_lookup_v1900_b/harness/benchmark_main.cpp', 'executable_tasks/prefix_cache_block_lookup_v1900_b/candidate/qwen__qwen3.6-plus/solution.cpp', '-o', 'build/prefix_cache_block_lookup_v1900_b/candidate/bench']' returned non-zero exit status 1."
+  }
+}

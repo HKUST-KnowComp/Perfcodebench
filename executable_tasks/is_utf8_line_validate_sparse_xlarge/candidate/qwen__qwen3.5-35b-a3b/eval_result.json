@@ -1,0 +1,59 @@
+{
+  "task_id": "is_utf8_line_validate_sparse_xlarge",
+  "model": "qwen/qwen3.5-35b-a3b",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/is_utf8_line_validate_sparse_xlarge/candidate/qwen__qwen3.5-35b-a3b/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"is_utf8.h\"\n#include <immintrin.h>\n\nstatic inline bool validate_utf8_chunk(const unsigned char* data, std::size_t len) {\n  if (len == 0) return true;\n  \n  const unsigned char* p = data;\n  const unsigned char* end = p + len;\n  \n  // Process 16 bytes at a time using SIMD\n  while (p + 16 <= end) {\n    __m128i v = _mm_loadu_si128(reinterpret_cast<const __m128i*>(p));\n    \n    // Check for ASCII (0x00-0x7F) - all bytes should be < 0x80\n    __m128i ascii_mask = _mm_cmplt_epi8(v, _mm_set1_epi8(0x80));\n    __m128i ascii_count = _mm_popcnt_epi8(ascii_mask);\n    \n    // Check for continuation bytes (0x80-0xBF)\n    __m128i cont_mask = _mm_and_si128(\n      _mm_cmpgt_epi8(v, _mm_set1_epi8(0x7F)),\n      _mm_cmplt_epi8(v, _mm_set1_epi8(0xC0))\n    );\n    \n    // Check for invalid bytes (0xC0-0xC1, 0xF5-0xFF)\n    __m128i invalid_mask = _mm_or_si128(\n      _mm_and_si128(\n        _mm_cmpgt_epi8(v, _mm_set1_epi8(0xBF)),\n        _mm_cmplt_epi8(v, _mm_set1_epi8(0xC2))\n      ),\n      _mm_and_si128(\n        _mm_cmpgt_epi8(v, _mm_set1_epi8(0xF4)),\n        _mm_cmplt_epi8(v, _mm_set1_epi8(0x00))\n      )\n    );\n    \n    // If any invalid bytes found, return false\n    if (_mm_movemask_epi8(invalid_mask) != 0) {\n      return false;\n    }\n    \n    p += 16;\n  }\n  \n  // Handle remaining bytes\n  while (p < end) {\n    unsigned char c = *p++;\n    if (c <= 0x7F) continue;\n    if (c >= 0xC2 && c <= 0xDF) {\n      if (p >= end || (*p & 0xC0U) != 0x80U) return false;\n      ++p;\n      continue;\n    }\n    if (c == 0xE0) {\n      if (end - p < 2 || *p < 0xA0 || *p > 0xBF || (*p & 0xC0U) != 0x80U) return false;\n      p += 2;\n      continue;\n    }\n    if (c >= 0xE1 && c <= 0xEC) {\n      if (end - p < 2 || (*p & 0xC0U) != 0x80U || (*(p+1) & 0xC0U) != 0x80U) return false;\n      p += 2;\n      continue;\n    }\n    if (c == 0xED) {\n      if (end - p < 2 || *p < 0x80 || *p > 0x9F || (*(p+1) & 0xC0U) != 0x80U) return false;\n      p += 2;\n      continue;\n    }\n    if (c >= 0xEE && c <= 0xEF) {\n      if (end - p < 2 || (*p & 0xC0U) != 0x80U || (*(p+1) & 0xC0U) != 0x80U) return false;\n      p += 2;\n      continue;\n    }\n    if (c == 0xF0) {\n      if (end - p < 3 || *p < 0x90 || *p > 0xBF || (*(p+1) & 0xC0U) != 0x80U || (*(p+2) & 0xC0U) != 0x80U) return false;\n      p += 3;\n      continue;\n    }\n    if (c >= 0xF1 && c <= 0xF3) {\n      if (end - p < 3 || (*p & 0xC0U) != 0x80U || (*(p+1) & 0xC0U) != 0x80U || (*(p+2) & 0xC0U) != 0x80U) return false;\n      p += 3;\n      continue;\n    }\n    if (c == 0xF4) {\n      if (end - p < 3 || *p < 0x80 || *p > 0x8F || (*(p+1) & 0xC0U) != 0x80U || (*(p+2) & 0xC0U) != 0x80U) return false;\n      p += 3;\n      continue;\n    }\n    return false;\n  }\n  \n  return true;\n}\n\nstd::size_t count_valid_lines(const std::string& input) {\n  std::size_t count = 0;\n  const char* p = input.data();\n  const char* const end = p + input.size();\n  \n  while (p < end) {\n    const char* line_start = p;\n    const char* line_end = p;\n    \n    // Find end of line\n    while (line_end < end && *line_end != '\\n') {\n      ++line_end;\n    }\n    \n    // Validate line\n    if (validate_utf8_chunk(reinterpret_cast<const unsigned char*>(line_start), \n                            static_cast<std::size_t>(line_end - line_start))) {\n      ++count;\n    }\n    \n    // Move to next line\n    p = (line_end < end) ? (line_end + 1) : line_end;\n  }\n  \n  return count;\n}",
+  "baseline": {
+    "task_id": "is_utf8_line_validate_sparse_xlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 17357903,
+    "min_elapsed_ns": 17273123,
+    "max_elapsed_ns": 17592628,
+    "all_elapsed_ns": [
+      17357903,
+      17592628,
+      17273123
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 17357903,
+      "expected_count": 89312,
+      "actual_count": 89312
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "is_utf8_line_validate_sparse_xlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 7507184,
+    "min_elapsed_ns": 7498206,
+    "max_elapsed_ns": 7555344,
+    "all_elapsed_ns": [
+      7498206,
+      7555344,
+      7507184
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7498206,
+      "expected_count": 89312,
+      "actual_count": 89312
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "is_utf8_line_validate_sparse_xlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/is_utf8_line_validate_sparse_xlarge/harness', '-Iexternal/is_utf8/include', 'executable_tasks/is_utf8_line_validate_sparse_xlarge/harness/benchmark_main.cpp', 'executable_tasks/is_utf8_line_validate_sparse_xlarge/candidate/qwen__qwen3.5-35b-a3b/solution.cpp', 'external/is_utf8/src/is_utf8.cpp', '-o', 'build/is_utf8_line_validate_sparse_xlarge/candidate/bench']' returned non-zero exit status 1."
+  }
+}

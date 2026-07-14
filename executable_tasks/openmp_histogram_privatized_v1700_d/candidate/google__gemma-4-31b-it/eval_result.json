@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_histogram_privatized_v1700_d",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_histogram_privatized_v1700_d/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <omp.h>\n#include <vector>\n#include <cstring>\n\nnamespace {\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t histogram_checksum(const std::vector<uint8_t>& input, int bins, int iters) {\n  std::vector<uint32_t> global_counts(static_cast<std::size_t>(bins), 0);\n  const size_t n = input.size();\n  const uint8_t* data = input.data();\n\n  #pragma omp parallel\n  {\n    int tid = omp_get_thread_num();\n    int num_t = omp_get_num_threads();\n    \n    // Privatize the histogram for each thread\n    std::vector<uint32_t> local_counts(bins, 0);\n\n    for (int iter = 0; iter < iters; ++iter) {\n      // Reset local counts for each iteration\n      std::fill(local_counts.begin(), local_counts.end(), 0u);\n\n      #pragma omp for schedule(static)\n      for (size_t i = 0; i < n; ++i) {\n        local_counts[data[i]]++;\n      }\n\n      // Merge local counts into global counts\n      // To avoid contention during merge, we can use a critical section or atomics\n      // Since this happens once per iteration per thread, atomics are fine here\n      for (int b = 0; b < bins; ++b) {\n        #pragma omp atomic\n        global_counts[b] += local_counts[b];\n      }\n    }\n  }\n\n  // The problem statement implies the checksum is calculated on the final counts\n  // after 'iters' iterations. However, the baseline resets counts every iteration.\n  // Re-reading baseline: it fills counts with 0 inside the iters loop.\n  // This means the checksum is only based on the LAST iteration's results.\n  \n  // Correcting logic to match baseline: the baseline resets counts every iteration.\n  // Therefore, we only care about the result of the final iteration.\n  \n  // Let's refine the loop to match the baseline's behavior exactly.\n  \n  std::vector<uint32_t> final_counts(static_cast<std::size_t>(bins), 0);\n  \n  #pragma omp parallel\n  {\n    std::vector<uint32_t> local_counts(bins, 0);\n    for (int iter = 0; iter < iters; ++iter) {\n      std::fill(local_counts.begin(), local_counts.end(), 0u);\n      #pragma omp for schedule(static)\n      for (size_t i = 0; i < n; ++i) {\n        local_counts[data[i]]++;\n      }\n      \n      if (iter == iters - 1) {\n        for (int b = 0; b < bins; ++b) {\n          #pragma omp atomic\n          final_counts[b] += local_counts[b];\n        }\n      }\n    }\n  }\n\n  return checksum_u32(final_counts);\n}",
+  "baseline": {
+    "task_id": "openmp_histogram_privatized_v1700_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3189890315,
+    "min_elapsed_ns": 2789005063,
+    "max_elapsed_ns": 3779796434,
+    "all_elapsed_ns": [
+      2789005063,
+      3779796434,
+      3189890315
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2789005063,
+      "expected_checksum": 10348961173882274353,
+      "actual_checksum": 10348961173882274353
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_histogram_privatized_v1700_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 83398146,
+    "min_elapsed_ns": 51610616,
+    "max_elapsed_ns": 103774504,
+    "all_elapsed_ns": [
+      103774504,
+      83398146,
+      51610616
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 103774504,
+      "expected_checksum": 10348961173882274353,
+      "actual_checksum": 10348961173882274353
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_histogram_privatized_v1700_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1150152886,
+    "min_elapsed_ns": 1050014938,
+    "max_elapsed_ns": 1162948450,
+    "all_elapsed_ns": [
+      1150152886,
+      1050014938,
+      1162948450
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1150152886,
+      "expected_checksum": 10348961173882274353,
+      "actual_checksum": 10348961173882274353
+    },
+    "status": "ok"
+  }
+}

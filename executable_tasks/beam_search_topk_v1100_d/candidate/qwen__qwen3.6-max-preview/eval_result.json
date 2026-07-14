@@ -1,0 +1,72 @@
+{
+  "task_id": "beam_search_topk_v1100_d",
+  "model": "qwen/qwen3.6-max-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v1100_d/candidate/qwen__qwen3.6-max-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <utility>\n#include <vector>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n} // namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits, int beams, int vocab, int topk, int iters) {\n    std::vector<std::pair<int32_t, int>> top_k(topk);\n    uint64_t hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        hash = 1469598103934665603ULL;\n        for (int b = 0; b < beams; ++b) {\n            const int32_t* beam_logits = logits.data() + static_cast<std::size_t>(b) * static_cast<std::size_t>(vocab);\n\n            for (int v = 0; v < topk; ++v) {\n                top_k[v] = {beam_logits[v], v};\n            }\n\n            std::sort(top_k.begin(), top_k.end(), [](const std::pair<int32_t, int>& a, const std::pair<int32_t, int>& b) {\n                return a.first > b.first || (a.first == b.first && a.second < b.second);\n            });\n\n            int32_t worst_val = top_k.back().first;\n            int worst_idx = top_k.back().second;\n\n            for (int v = topk; v < vocab; ++v) {\n                int32_t val = beam_logits[v];\n                if (val > worst_val || (val == worst_val && v < worst_idx)) {\n                    int pos = topk - 1;\n                    while (pos > 0) {\n                        int32_t p_val = top_k[pos-1].first;\n                        int p_idx = top_k[pos-1].second;\n                        if (val > p_val || (val == p_val && v < p_idx)) {\n                            top_k[pos] = top_k[pos-1];\n                            --pos;\n                        } else {\n                            break;\n                        }\n                    }\n                    top_k[pos] = {val, v};\n                    worst_val = top_k.back().first;\n                    worst_idx = top_k.back().second;\n                }\n            }\n\n            for (int k = 0; k < topk; ++k) {\n                hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(top_k[k].first)));\n                hash = mix(hash, static_cast<uint64_t>(top_k[k].second));\n            }\n        }\n    }\n    return hash;\n}\n",
+  "baseline": {
+    "task_id": "beam_search_topk_v1100_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 508896500,
+    "min_elapsed_ns": 494839542,
+    "max_elapsed_ns": 521876671,
+    "all_elapsed_ns": [
+      494839542,
+      508896500,
+      521876671
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 494839542,
+      "expected_checksum": 17579167458887634272,
+      "actual_checksum": 17579167458887634272
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v1100_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 6494597,
+    "min_elapsed_ns": 6415483,
+    "max_elapsed_ns": 6599420,
+    "all_elapsed_ns": [
+      6494597,
+      6415483,
+      6599420
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6494597,
+      "expected_checksum": 17579167458887634272,
+      "actual_checksum": 17579167458887634272
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v1100_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 7198642,
+    "min_elapsed_ns": 6734764,
+    "max_elapsed_ns": 7327889,
+    "all_elapsed_ns": [
+      6734764,
+      7198642,
+      7327889
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6734764,
+      "expected_checksum": 17579167458887634272,
+      "actual_checksum": 17579167458887634272
+    },
+    "status": "ok"
+  }
+}

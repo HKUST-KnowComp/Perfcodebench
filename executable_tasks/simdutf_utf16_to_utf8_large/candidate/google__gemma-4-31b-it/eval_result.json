@@ -1,0 +1,59 @@
+{
+  "task_id": "simdutf_utf16_to_utf8_large",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdutf_utf16_to_utf8_large/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"simdutf.h\"\n#include <vector>\n#include <string>\n\nnamespace {\n\nuint64_t checksum_bytes(const char* data, size_t length) {\n    uint64_t hash = 1469598103934665603ULL;\n    const unsigned char* udata = reinterpret_cast<const unsigned char*>(data);\n    for (size_t i = 0; i < length; ++i) {\n        hash ^= static_cast<uint64_t>(udata[i]);\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\n} // namespace\n\nuint64_t transcode_checksum(const std::u16string& input) {\n    if (input.empty()) {\n        return 1469598103934665603ULL;\n    }\n\n    // UTF-8 can take up to 3 bytes for a BMP character and 4 bytes for a surrogate pair (2 UTF-16 units).\n    // Max expansion is 3 bytes per UTF-16 unit (e.g., 0x0800 -> 3 bytes).\n    size_t max_utf8_size = input.size() * 3;\n    std::string buffer;\n    buffer.resize(max_utf8_size);\n\n    // simdutf::utf16_to_utf8 returns the number of bytes written to the destination.\n    // It is highly optimized using SIMD instructions.\n    auto result = simdutf::utf16_to_utf8(input.data(), input.size(), buffer.data(), max_utf8_size);\n    \n    if (result.error) {\n        // The task specifies valid UTF-16LE input, so this path is theoretically unreachable.\n        return 0;\n    }\n\n    return checksum_bytes(buffer.data(), result.bytes_written);\n}",
+  "baseline": {
+    "task_id": "simdutf_utf16_to_utf8_large",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5836342,
+    "min_elapsed_ns": 5815965,
+    "max_elapsed_ns": 5837396,
+    "all_elapsed_ns": [
+      5837396,
+      5836342,
+      5815965
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5837396,
+      "expected_checksum": 1190239269538375145,
+      "actual_checksum": 1190239269538375145
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdutf_utf16_to_utf8_large",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2229512,
+    "min_elapsed_ns": 2191543,
+    "max_elapsed_ns": 2304836,
+    "all_elapsed_ns": [
+      2304836,
+      2229512,
+      2191543
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2304836,
+      "expected_checksum": 1190239269538375145,
+      "actual_checksum": 1190239269538375145
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdutf_utf16_to_utf8_large",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/simdutf_utf16_to_utf8_large/harness', '-Iexternal/simdutf/singleheader', 'executable_tasks/simdutf_utf16_to_utf8_large/harness/benchmark_main.cpp', 'executable_tasks/simdutf_utf16_to_utf8_large/candidate/google__gemma-4-31b-it/solution.cpp', 'external/simdutf/singleheader/simdutf.cpp', '-o', 'build/simdutf_utf16_to_utf8_large/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "is_utf8_line_validate_sparse_xlarge",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/is_utf8_line_validate_sparse_xlarge/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <cstring>\n\nstd::size_t count_valid_lines(const std::string& input) {\n    const unsigned char* p = reinterpret_cast<const unsigned char*>(input.data());\n    const unsigned char* end = p + input.size();\n    std::size_t valid_count = 0;\n\n    auto validate_utf8 = [](const unsigned char* start, const unsigned char* end_ptr) -> bool {\n        const unsigned char* curr = start;\n        while (curr < end_ptr) {\n            unsigned char c = *curr++;\n            if (c <= 0x7F) continue;\n            if (c >= 0xC2 && c <= 0xDF) {\n                if (curr >= end_ptr || (curr[0] & 0xC0) != 0x80) return false;\n                curr++;\n            } else if (c >= 0xE0 && c <= 0xEF) {\n                if (curr + 1 >= end_ptr) return false;\n                unsigned char c2 = curr[0];\n                unsigned char c3 = curr[1];\n                if ((c3 & 0xC0) != 0x80) return false;\n                if (c == 0xE0) {\n                    if (c2 < 0xA0 || c2 > 0xBF) return false;\n                } else if (c == 0xED) {\n                    if (c2 < 0x80 || c2 > 0x9F) return false;\n                } else {\n                    if ((c2 & 0xC0) != 0x80) return false;\n                }\n                curr += 2;\n            } else if (c >= 0xF0 && c <= 0xF4) {\n                if (curr + 2 >= end_ptr) return false;\n                unsigned char c2 = curr[0];\n                unsigned char c3 = curr[1];\n                unsigned char c4 = curr[2];\n                if ((c3 & 0xC0) != 0x80 || (c4 & 0xC0) != 0x80) return false;\n                if (c == 0xF0) {\n                    if (c2 < 0x90 || c2 > 0xBF) return false;\n                } else if (c == 0xF4) {\n                    if (c2 < 0x80 || c2 > 0x8F) return false;\n                } else {\n                    if ((c2 & 0xC0) != 0x80) return false;\n                }\n                curr += 3;\n            } else {\n                return false;\n            }\n        }\n        return true;\n    };\n\n    while (p < end) {\n        const unsigned char* line_start = p;\n        const unsigned char* line_end = p;\n\n        // Fast scan for newline or non-ASCII\n        while (line_end < end) {\n            // Process in chunks of 8 bytes if possible\n            if (line_end + 8 <= end) {\n                uint64_t chunk;\n                std::memcpy(&chunk, line_end, 8);\n                // Check if any byte has the high bit set or is a newline (0x0A)\n                // Mask for high bits: 0x8080808080808080\n                // Mask for newline: 0x0A0A0A0A0A0A0A0A\n                // We can use a trick: (chunk & 0x80...) != 0 or (chunk & 0x0A...) != 0\n                // But simpler: check if any byte is not in [0x20, 0x7F] or is 0x0A\n                // Actually, just check for high bit or 0x0A\n                if ((chunk & 0x8080808080808080ULL) || (chunk & 0x0A0A0A0A0A0A0A0AULL) || \n                    ((chunk + 0x0101010101010101ULL) & 0x0101010101010101ULL) == 0) {\n                    // This is a bit complex, let's use a simpler fast path\n                    break;\n                }\n                line_end += 8;\n            } else {\n                if (*line_end == '\\n' || (*line_end & 0x80)) break;\n                line_end++;\n            }\n        }\n\n        // If we broke because of a chunk, find the exact position\n        if (line_end < end) {\n            // We need to find the first byte that is either '\\n' or has high bit set\n            // The chunk logic above was a sketch; let's refine the scan\n        }\n\n        // Corrected scan: find the first character that is NOT (ASCII > 0x7F) AND NOT '\\n'\n        // To keep it simple and fast, we use a basic loop but the compiler optimizes it well\n        // For xlarge sparse, the most important thing is finding the newline quickly.\n        \n        // Reset line_end to p and do a clean scan\n        line_end = p;\n        while (line_end < end && *line_end != '\\n') {\n            line_end++;\n        }\n\n        if (validate_utf8(line_start, line_end)) {\n            valid_count++;\n        }\n\n        p = (line_end < end) ? line_end + 1 : end;\n    }\n\n    return valid_count;\n}\n",
+  "baseline": {
+    "task_id": "is_utf8_line_validate_sparse_xlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 17357903,
+    "min_elapsed_ns": 17273123,
+    "max_elapsed_ns": 17592628,
+    "all_elapsed_ns": [
+      17357903,
+      17592628,
+      17273123
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 17357903,
+      "expected_count": 89312,
+      "actual_count": 89312
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "is_utf8_line_validate_sparse_xlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 7507184,
+    "min_elapsed_ns": 7498206,
+    "max_elapsed_ns": 7555344,
+    "all_elapsed_ns": [
+      7498206,
+      7555344,
+      7507184
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7498206,
+      "expected_count": 89312,
+      "actual_count": 89312
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "is_utf8_line_validate_sparse_xlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 22203229,
+    "min_elapsed_ns": 18740918,
+    "max_elapsed_ns": 25277969,
+    "all_elapsed_ns": [
+      25277969,
+      22203229,
+      18740918
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 25277969,
+      "expected_count": 89312,
+      "actual_count": 89312
+    },
+    "status": "ok"
+  }
+}

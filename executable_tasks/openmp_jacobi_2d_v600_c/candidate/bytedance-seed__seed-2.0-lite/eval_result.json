@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_jacobi_2d_v600_c",
+  "model": "bytedance-seed/seed-2.0-lite",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v600_c/candidate/bytedance-seed__seed-2.0-lite/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <omp.h>\n#include <cstdint>\n#include <vector>\n#include <cstring>\n\nnamespace {\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  // Early exit for trivial cases where no updates are possible\n  if (steps == 0 || rows < 3 || cols < 3) {\n    return checksum_u32(input);\n  }\n\n  const size_t cols_sz = static_cast<size_t>(cols);\n  std::vector<uint32_t> a = input;\n  std::vector<uint32_t> b(a.size(), 0);\n\n  // Copy immutable boundaries to both grids once (they never change)\n  // Copy top and bottom full rows\n  memcpy(b.data(), input.data(), cols_sz * sizeof(uint32_t));\n  memcpy(b.data() + static_cast<size_t>(rows - 1) * cols_sz, \n         input.data() + static_cast<size_t>(rows - 1) * cols_sz, \n         cols_sz * sizeof(uint32_t));\n  // Copy left/right boundaries for all middle rows\n  for (int row = 1; row < rows - 1; ++row) {\n    const size_t base = static_cast<size_t>(row) * cols_sz;\n    b[base] = input[base];\n    b[base + cols - 1] = input[base + cols - 1];\n  }\n\n  // Run Jacobi steps\n  for (int step = 0; step < steps; ++step) {\n    // Parallelize inner row processing across threads\n    #pragma omp parallel for schedule(static)\n    for (int row = 1; row < rows - 1; ++row) {\n      const size_t base = static_cast<size_t>(row) * cols_sz;\n      for (int col = 1; col < cols - 1; ++col) {\n        const size_t idx = base + col;\n        b[idx] = (a[idx] * 4u + a[idx - 1] + a[idx + 1] + \n                  a[idx - cols_sz] + a[idx + cols_sz]) / 8u;\n      }\n    }\n    a.swap(b);\n  }\n\n  return checksum_u32(a);\n}",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v600_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 110082856,
+    "min_elapsed_ns": 109946680,
+    "max_elapsed_ns": 234440592,
+    "all_elapsed_ns": [
+      110082856,
+      109946680,
+      234440592
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 110082856,
+      "expected_checksum": 6389366618467326091,
+      "actual_checksum": 6389366618467326091
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v600_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 133127173,
+    "min_elapsed_ns": 78671381,
+    "max_elapsed_ns": 315987133,
+    "all_elapsed_ns": [
+      315987133,
+      78671381,
+      133127173
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 315987133,
+      "expected_checksum": 6389366618467326091,
+      "actual_checksum": 6389366618467326091
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v600_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 2159300211,
+    "min_elapsed_ns": 1953730915,
+    "max_elapsed_ns": 2664226256,
+    "all_elapsed_ns": [
+      2664226256,
+      2159300211,
+      1953730915
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2664226256,
+      "expected_checksum": 6389366618467326091,
+      "actual_checksum": 6389366618467326091
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "simdutf_base64_encode_v2300_h",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdutf_base64_encode_v2300_h/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <immintrin.h>\n#include <cstdint>\n#include <cstring>\n\n#if defined(__AVX2__)\n#define SIMD_TARGET __attribute__((target(\"avx2\")))\n#else\n#define SIMD_TARGET\n#endif\n\nnamespace {\n\nalignas(64) static const char kBase64Table[64] =\n    \"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/\";\n\n// 32-byte AVX2 FNV-1a hasher --------------------------------------------------\nSIMD_TARGET inline uint64_t hash_avx2(const uint8_t* data, size_t len) {\n    const __m256i prime = _mm256_set1_epi64x(0x100000001b3ULL);\n    __m256i h = _mm256_set1_epi64x(0xcbf29ce484222325ULL);\n\n    const uint8_t* end = data + (len & ~31ULL);\n    for (; data < end; data += 32) {\n        __m256i bytes = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(data));\n        h = _mm256_xor_si256(h, bytes);\n        h = _mm256_mul_epu32(h, prime); // 32-bit mul OK, high garbage overwritten\n    }\n\n    uint64_t lanes[4];\n    _mm256_storeu_si256(reinterpret_cast<__m256i*>(lanes), h);\n    uint64_t hash = lanes[0] ^ lanes[1] ^ lanes[2] ^ lanes[3];\n\n    // scalar tail\n    for (; data < end + (len & 31); ++data) {\n        hash ^= *data;\n        hash *= 0x100000001b3ULL;\n    }\n    return hash;\n}\n\n// SSSE3 16-byte base64 encoder ------------------------------------------------\nSIMD_TARGET inline void encode16(const uint8_t* __restrict in,\n                                 char* __restrict out) {\n    const __m128i lut = _mm_loadu_si128(reinterpret_cast<const __m128i*>(kBase64Table));\n\n    __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(in));\n\n    // expand 12 bytes \u2192 16 bytes via pshufb\n    const __m128i shuffle = _mm_setr_epi8(\n        0, 0, 0, 1, 0, 0, 1, 2, 0, 1, 2, 3, 1, 2, 3, 4);\n    __m128i x = _mm_shuffle_epi8(chunk, shuffle);\n\n    // shift/mask to get six-bit fields\n    __m128i a = _mm_and_si128(_mm_srli_epi32(x, 2),  _mm_set1_epi32(0x3F));\n    __m128i b = _mm_and_si128(_mm_srli_epi32(x, 12), _mm_set1_epi32(0x3F));\n    __m128i c = _mm_and_si128(_mm_srli_epi32(x, 22), _mm_set1_epi32(0x3F));\n    __m128i d = _mm_and_si128(_mm_srli_epi32(x, 32), _mm_set1_epi32(0x3F));\n\n    __m128i indices = _mm_or_si128(_mm_or_si128(a, _mm_slli_si128(b, 4)),\n                                   _mm_or_si128(_mm_slli_si128(c, 8),\n                                                _mm_slli_si128(d, 12)));\n    indices = _mm_shuffle_epi8(lut, indices);\n    _mm_storeu_si128(reinterpret_cast<__m128i*>(out), indices);\n}\n\n// scalar fallback for tails < 16 bytes ----------------------------------------\ninline void encode_tail(const uint8_t* in, size_t len, char* out) {\n    static const char tbl[64] =\n        \"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/\";\n    for (size_t i = 0; i < len; i += 3) {\n        uint32_t b0 = in[i];\n        uint32_t b1 = (i + 1 < len) ? in[i + 1] : 0;\n        uint32_t b2 = (i + 2 < len) ? in[i + 2] : 0;\n        uint32_t triple = (b0 << 16) | (b1 << 8) | b2;\n        out[0] = tbl[(triple >> 18) & 0x3F];\n        out[1] = tbl[(triple >> 12) & 0x3F];\n        out[2] = (i + 1 < len) ? tbl[(triple >> 6) & 0x3F] : '=';\n        out[3] = (i + 2 < len) ? tbl[triple & 0x3F]          : '=';\n        out += 4;\n    }\n}\n\n} // namespace\n\nuint64_t encode_checksum(const std::string& input) {\n    const size_t len = input.size();\n    const size_t full_blocks = len / 16;\n    const size_t tail_len = len % 16;\n\n    // worst-case: 4*(ceil(len/3)) bytes\n    const size_t out_cap = ((len + 2) / 3) * 4;\n    char* out = static_cast<char*>(malloc(out_cap));\n    char* dst = out;\n\n    const uint8_t* src = reinterpret_cast<const uint8_t*>(input.data());\n\n    for (size_t b = 0; b < full_blocks; ++b) {\n        encode16(src, dst);\n        src += 16;\n        dst += 24; // 16 \u2192 24 bytes (16*4/3=21.33 rounded up)\n    }\n\n    // re-compute exact tail length & encode\n    const size_t tail_start = full_blocks * 16;\n    const size_t tail_bytes = len - tail_start;\n    if (tail_bytes) {\n        encode_tail(src, tail_bytes, dst);\n        dst += ((tail_bytes + 2) / 3) * 4;\n    }\n\n    const size_t out_len = dst - out;\n    uint64_t hash = hash_avx2(reinterpret_cast<const uint8_t*>(out), out_len);\n    free(out);\n    return hash;\n}",
+  "baseline": {
+    "task_id": "simdutf_base64_encode_v2300_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 14441,
+    "min_elapsed_ns": 13814,
+    "max_elapsed_ns": 19502,
+    "all_elapsed_ns": [
+      19502,
+      14441,
+      13814
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 19502,
+      "expected_checksum": 8275676794935069226,
+      "actual_checksum": 8275676794935069226
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdutf_base64_encode_v2300_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 21285,
+    "min_elapsed_ns": 19409,
+    "max_elapsed_ns": 52553,
+    "all_elapsed_ns": [
+      52553,
+      21285,
+      19409
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 52553,
+      "expected_checksum": 8275676794935069226,
+      "actual_checksum": 8275676794935069226
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdutf_base64_encode_v2300_h",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/simdutf_base64_encode_v2300_h/harness', '-Iexternal/simdutf/singleheader', 'executable_tasks/simdutf_base64_encode_v2300_h/harness/benchmark_main.cpp', 'executable_tasks/simdutf_base64_encode_v2300_h/candidate/moonshotai__kimi-k2-0905/solution.cpp', 'external/simdutf/singleheader/simdutf.cpp', '-o', 'build/simdutf_base64_encode_v2300_h/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "fast_float_fortran_parse_large",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/fast_float_fortran_parse_large/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <string>\n#include <cstdlib>\n#include <cstring>\n#include <fast_float/fast_float.h>\n\nstatic inline const char* find_newline(const char* p, const char* end) {\n  const void* nl = std::memchr(p, '\\n', static_cast<size_t>(end - p));\n  return nl ? static_cast<const char*>(nl) : end;\n}\n\nstatic inline void trim_spaces(const char*& s, const char*& e) {\n  // Trim trailing CR first (handle CRLF)\n  if (e > s && e[-1] == '\\r') {\n    --e;\n  }\n  while (s < e && (*s == ' ' || *s == '\\t')) ++s;\n  while (e > s && (e[-1] == ' ' || e[-1] == '\\t' || e[-1] == '\\r')) --e;\n}\n\ndouble parse_sum(const std::string& input) {\n  const char* p = input.data();\n  const char* end = p + input.size();\n  double sum = 0.0;\n\n  std::string tmp; // reusable buffer for D/d replacement when necessary\n\n  while (p < end) {\n    const char* line_end = find_newline(p, end);\n\n    const char* s = p;\n    const char* e = line_end;\n    trim_spaces(s, e);\n\n    if (s < e) {\n      // Detect presence of Fortran exponent (D/d)\n      bool hasD = false;\n      for (const char* q = s; q < e; ++q) {\n        char c = *q;\n        if (c == 'D' || c == 'd') { hasD = true; break; }\n      }\n\n      if (!hasD) {\n        double v;\n        auto r = fast_float::from_chars(s, e, v);\n        if (r.ec == std::errc()) {\n          sum += v;\n        } else {\n          // Fallback on rare parse failures\n          std::string t(s, e);\n          char* next = nullptr;\n          double v2 = std::strtod(t.c_str(), &next);\n          if (next != t.c_str()) sum += v2;\n        }\n      } else {\n        // Replace D/d with E/e in a reusable buffer\n        tmp.assign(s, e);\n        for (char& ch : tmp) {\n          if (ch == 'd') ch = 'e';\n          else if (ch == 'D') ch = 'E';\n        }\n        double v;\n        auto r = fast_float::from_chars(tmp.data(), tmp.data() + tmp.size(), v);\n        if (r.ec == std::errc()) {\n          sum += v;\n        } else {\n          // Fallback if needed\n          char* next = nullptr;\n          double v2 = std::strtod(tmp.c_str(), &next);\n          if (next != tmp.c_str()) sum += v2;\n        }\n      }\n    }\n\n    p = (line_end < end) ? line_end + 1 : line_end;\n  }\n\n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "fast_float_fortran_parse_large",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 40382372,
+    "min_elapsed_ns": 40382260,
+    "max_elapsed_ns": 40827924,
+    "all_elapsed_ns": [
+      40827924,
+      40382372,
+      40382260
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 40827924,
+      "expected_sum": -33351574464855.965,
+      "actual_sum": -33351574464855.965
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "fast_float_fortran_parse_large",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 6407465,
+    "min_elapsed_ns": 6383538,
+    "max_elapsed_ns": 6467890,
+    "all_elapsed_ns": [
+      6467890,
+      6407465,
+      6383538
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6467890,
+      "expected_sum": -33351574464855.965,
+      "actual_sum": -33351574464855.965
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "fast_float_fortran_parse_large",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 25667683,
+    "min_elapsed_ns": 25595770,
+    "max_elapsed_ns": 26554731,
+    "all_elapsed_ns": [
+      25595770,
+      26554731,
+      25667683
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 25595770,
+      "expected_sum": -33351574464855.965,
+      "actual_sum": -33351574464855.965
+    },
+    "status": "ok"
+  }
+}

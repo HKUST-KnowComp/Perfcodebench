@@ -1,0 +1,72 @@
+{
+  "task_id": "frame_pack_prealloc_v2500_d",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/frame_pack_prealloc_v2500_d/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <string>\n#include <cstdint>\n\nuint64_t frame_pack_checksum(const std::vector<std::string>& frames, int iters) {\n    if (iters <= 0) return 0;\n\n    // Pre-calculate total size to avoid reallocations\n    size_t total_size = 0;\n    for (const auto& frame : frames) {\n        total_size += 2 + frame.size();\n    }\n\n    // Pre-allocate buffer\n    std::vector<uint8_t> buffer(total_size);\n    \n    // We only need the result of the last iteration's checksum based on the baseline logic\n    // However, the baseline calculates hash = checksum_bytes(out) inside the loop,\n    // effectively overwriting the previous hash. \n    // The baseline's 'hash' variable is updated in each iteration.\n    \n    uint64_t final_hash = 0;\n    const uint64_t FNV_OFFSET_BASIS = 1469598103934665603ULL;\n    const uint64_t FNV_PRIME = 1099511628211ULL;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint8_t* ptr = buffer.data();\n        \n        // Pack frames into the buffer\n        for (const std::string& frame : frames) {\n            uint16_t len = static_cast<uint16_t>(frame.size());\n            *ptr++ = static_cast<uint8_t>(len & 0xFF);\n            *ptr++ = static_cast<uint8_t>((len >> 8) & 0xFF);\n            \n            if (!frame.empty()) {\n                // Use memcpy for fast block transfer\n                __builtin_memcpy(ptr, frame.data(), frame.size());\n                ptr += frame.size();\n            }\n        }\n\n        // Calculate checksum of the packed buffer\n        uint64_t hash = FNV_OFFSET_BASIS;\n        const uint8_t* data_ptr = buffer.data();\n        const uint8_t* end_ptr = ptr;\n        \n        while (data_ptr < end_ptr) {\n            hash ^= static_cast<uint64_t>(*data_ptr++);\n            hash *= FNV_PRIME;\n        }\n        final_hash = hash;\n    }\n\n    return final_hash;\n}",
+  "baseline": {
+    "task_id": "frame_pack_prealloc_v2500_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 201470699,
+    "min_elapsed_ns": 199398620,
+    "max_elapsed_ns": 213531320,
+    "all_elapsed_ns": [
+      213531320,
+      201470699,
+      199398620
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 213531320,
+      "expected_checksum": 11460155756491365524,
+      "actual_checksum": 11460155756491365524
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "frame_pack_prealloc_v2500_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 156234862,
+    "min_elapsed_ns": 148086864,
+    "max_elapsed_ns": 165427324,
+    "all_elapsed_ns": [
+      156234862,
+      148086864,
+      165427324
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 156234862,
+      "expected_checksum": 11460155756491365524,
+      "actual_checksum": 11460155756491365524
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "frame_pack_prealloc_v2500_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 171629504,
+    "min_elapsed_ns": 157942390,
+    "max_elapsed_ns": 171810837,
+    "all_elapsed_ns": [
+      157942390,
+      171810837,
+      171629504
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 157942390,
+      "expected_checksum": 11460155756491365524,
+      "actual_checksum": 11460155756491365524
+    },
+    "status": "ok"
+  }
+}

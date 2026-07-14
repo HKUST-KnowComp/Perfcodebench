@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_id_remap_checksum_v500_j",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_id_remap_checksum_v500_j/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 6,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n#include <cstdint>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n} // namespace\n\nuint64_t remap_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& probes,\n    int iters) {\n    \n    if (keys.empty()) return 0;\n\n    // Find the range of keys to build a direct lookup table\n    uint32_t max_key = keys.back();\n    \n    // We use a direct mapping array for O(1) lookup.\n    // This is highly effective for 'dense' ID remapping tasks.\n    // We use a vector to handle memory safely.\n    std::vector<uint32_t> lookup(max_key + 1, 0);\n    \n    // Pre-populate the lookup table\n    // Since keys are sorted, we can map keys[i] -> values[i]\n    for (std::size_t i = 0; i < keys.size(); ++i) {\n        lookup[keys[i]] = values[i];\n    }\n\n    uint64_t hash = 0;\n    // Pre-calculate the remapped probes to avoid repeated lookups in the 'iters' loop\n    std::vector<uint32_t> remapped_probes;\n    remapped_probes.reserve(probes.size());\n    for (uint32_t p : probes) {\n        // The original code used lower_bound, which behaves like a 'find or next' \n        // if the exact key isn't found. However, in dense remapping, \n        // we assume probes are valid keys or we must mimic lower_bound behavior.\n        // To strictly preserve correctness of the baseline's lower_bound:\n        auto it = std::lower_bound(keys.begin(), keys.end(), p);\n        remapped_probes.push_back(values[std::distance(keys.begin(), it)]);\n    }\n\n    // Optimization: If we pre-calculate the remapped values, the inner loop becomes extremely tight.\n    for (int iter = 0; iter < iters; ++iter) {\n        hash = 1469598103934665603ULL;\n        for (uint32_t val : remapped_probes) {\n            hash = mix(hash, val);\n        }\n    }\n\n    return hash;\n}",
+  "baseline": {
+    "task_id": "dense_id_remap_checksum_v500_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3129348586,
+    "min_elapsed_ns": 3102040723,
+    "max_elapsed_ns": 3163040494,
+    "all_elapsed_ns": [
+      3163040494,
+      3129348586,
+      3102040723
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3163040494,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_id_remap_checksum_v500_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 36902917,
+    "min_elapsed_ns": 35950256,
+    "max_elapsed_ns": 38766015,
+    "all_elapsed_ns": [
+      35950256,
+      38766015,
+      36902917
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 35950256,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_id_remap_checksum_v500_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 595894448,
+    "min_elapsed_ns": 591017327,
+    "max_elapsed_ns": 635964161,
+    "all_elapsed_ns": [
+      635964161,
+      595894448,
+      591017327
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 635964161,
+      "expected_checksum": 8613994765464961923,
+      "actual_checksum": 8613994765464961923
+    },
+    "status": "ok"
+  }
+}

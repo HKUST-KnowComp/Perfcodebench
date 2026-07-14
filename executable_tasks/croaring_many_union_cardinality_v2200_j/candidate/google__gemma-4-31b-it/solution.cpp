@@ -1,0 +1,26 @@
+#include "interface.h"
+#include "roaring.h"
+
+uint64_t many_union_cardinality(
+    const std::vector<uint32_t>& offsets,
+    const std::vector<uint32_t>& values) {
+  if (offsets.empty()) return 0;
+
+  roaring_bitmap_t* bitmap = roaring_bitmap_create();
+  if (!bitmap) return 0;
+
+  for (std::size_t shard = 0; shard + 1 < offsets.size(); ++shard) {
+    const uint32_t begin = offsets[shard];
+    const uint32_t end = offsets[shard + 1];
+    
+    // Use roaring_bitmap_add_many for batch insertion of sorted/unsorted data
+    // since the input shards are sorted, this is highly efficient.
+    if (begin < end) {
+      roaring_bitmap_add_many(bitmap, values.data() + begin, end - begin);
+    }
+  }
+
+  uint64_t cardinality = roaring_bitmap_get_cardinality(bitmap);
+  roaring_bitmap_destroy(bitmap);
+  return cardinality;
+}

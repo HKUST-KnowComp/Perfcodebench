@@ -1,0 +1,59 @@
+{
+  "task_id": "prefix_cache_block_lookup_v1900_g",
+  "model": "qwen/qwen3.5-35b-a3b",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup_v1900_g/candidate/qwen__qwen3.5-35b-a3b/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <vector>\n\nnamespace {\n\n__attribute__((always_inline))\nuint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t hash_space,\n    int iters) {\n  (void)hash_space;\n  uint64_t hash = 0;\n  \n  // Reserve search position to avoid reallocations\n  std::vector<std::size_t> search_positions;\n  search_positions.reserve(request_offsets.size());\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    \n    for (std::size_t r = 0; r + 1 < request_offsets.size(); ++r) {\n      uint64_t prefix = 0;\n      std::size_t search_pos = 0;\n      \n      for (int i = request_offsets[r]; i < request_offsets[r + 1]; ++i) {\n        uint32_t block = request_blocks[static_cast<std::size_t>(i)];\n        \n        // Use lower_bound with hint for faster search\n        auto it = std::lower_bound(\n          sorted_cache_keys.begin() + search_pos,\n          sorted_cache_keys.end(),\n          block);\n        \n        if (it != sorted_cache_keys.end() && *it == block) {\n          ++prefix;\n          // Advance search position for next block\n          search_pos = static_cast<std::size_t>(std::distance(sorted_cache_keys.begin(), it)) + 1;\n        } else {\n          break;\n        }\n      }\n      hash = mix(hash, prefix);\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup_v1900_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 288795426,
+    "min_elapsed_ns": 282251915,
+    "max_elapsed_ns": 365259913,
+    "all_elapsed_ns": [
+      288795426,
+      282251915,
+      365259913
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 288795426,
+      "expected_checksum": 7101476347665877140,
+      "actual_checksum": 7101476347665877140
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup_v1900_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2320672,
+    "min_elapsed_ns": 2304232,
+    "max_elapsed_ns": 2836287,
+    "all_elapsed_ns": [
+      2836287,
+      2304232,
+      2320672
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2836287,
+      "expected_checksum": 7101476347665877140,
+      "actual_checksum": 7101476347665877140
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup_v1900_g",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/prefix_cache_block_lookup_v1900_g/candidate/bench']' returned non-zero exit status 1."
+  }
+}

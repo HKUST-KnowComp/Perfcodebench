@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_histogram_privatized_v1400_d",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_histogram_privatized_v1400_d/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 8,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstring>\n#include <omp.h>\n#include <vector>\n\nnamespace {\n\nstatic constexpr int kCacheLineSize = 64;\nstatic constexpr int kBins = 256;\n// Pad each thread's histogram to avoid false sharing\nstatic constexpr int kPaddedBins = (kBins * sizeof(uint32_t) + kCacheLineSize - 1) / kCacheLineSize * kCacheLineSize / sizeof(uint32_t);\n\nint num_threads() {\n  return std::max(1, std::min(8, omp_get_max_threads()));\n}\n\nuint64_t checksum_u32(const uint32_t* data, int n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (int i = 0; i < n; ++i) {\n    hash ^= static_cast<uint64_t>(data[i]);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t histogram_checksum(const std::vector<uint8_t>& input, int bins, int iters) {\n  const int nthreads = num_threads();\n  omp_set_num_threads(nthreads);\n  \n  const std::size_t n = input.size();\n  const uint8_t* __restrict data = input.data();\n  \n  // Allocate thread-private histograms with padding\n  std::vector<uint32_t> all_counts(static_cast<std::size_t>(nthreads) * kPaddedBins, 0);\n  \n  // Final histogram\n  alignas(64) uint32_t counts[kBins];\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    // Clear all thread-private histograms\n    std::memset(all_counts.data(), 0, all_counts.size() * sizeof(uint32_t));\n    \n#pragma omp parallel\n    {\n      const int tid = omp_get_thread_num();\n      uint32_t* __restrict local_counts = all_counts.data() + static_cast<std::size_t>(tid) * kPaddedBins;\n      \n      // Each thread processes its chunk\n#pragma omp for schedule(static) nowait\n      for (std::size_t i = 0; i < n; ++i) {\n        local_counts[data[i]]++;\n      }\n    }\n    \n    // Reduce all thread histograms into final counts\n    std::memset(counts, 0, sizeof(counts));\n    for (int t = 0; t < nthreads; ++t) {\n      const uint32_t* __restrict tc = all_counts.data() + static_cast<std::size_t>(t) * kPaddedBins;\n      for (int b = 0; b < bins; ++b) {\n        counts[b] += tc[b];\n      }\n    }\n  }\n  \n  return checksum_u32(counts, bins);\n}",
+  "baseline": {
+    "task_id": "openmp_histogram_privatized_v1400_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5721037680,
+    "min_elapsed_ns": 5276064267,
+    "max_elapsed_ns": 7072410483,
+    "all_elapsed_ns": [
+      5721037680,
+      7072410483,
+      5276064267
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5721037680,
+      "expected_checksum": 10348961173882274353,
+      "actual_checksum": 10348961173882274353
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_histogram_privatized_v1400_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 98499725,
+    "min_elapsed_ns": 17082456,
+    "max_elapsed_ns": 113104091,
+    "all_elapsed_ns": [
+      98499725,
+      17082456,
+      113104091
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 98499725,
+      "expected_checksum": 10348961173882274353,
+      "actual_checksum": 10348961173882274353
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_histogram_privatized_v1400_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 25725363,
+    "min_elapsed_ns": 21742559,
+    "max_elapsed_ns": 57518177,
+    "all_elapsed_ns": [
+      25725363,
+      21742559,
+      57518177
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 25725363,
+      "expected_checksum": 10348961173882274353,
+      "actual_checksum": 10348961173882274353
+    },
+    "status": "ok"
+  }
+}

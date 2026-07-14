@@ -1,0 +1,67 @@
+#include "interface.h"
+
+#include <chrono>
+#include <cmath>
+#include <cstdint>
+#include <cstdlib>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+#include <string>
+
+namespace {
+
+std::string make_input(std::size_t count) {
+  std::ostringstream out;
+  uint64_t state = 0x1010101010101010ULL;
+  for (std::size_t i = 0; i < count; ++i) {
+    state = state * 6364136223846793005ULL + 1442695040888963407ULL;
+    const long long value = static_cast<long long>((state % 2000001ULL)) - 1000000LL;
+    if (i != 0) {
+      out << '\n';
+    }
+    out << value;
+  }
+  return out.str();
+}
+
+double expected_sum(const std::string& input) {
+  const char* p = input.c_str();
+  const char* end = p + input.size();
+  double sum = 0.0;
+  while (p < end) {
+    char* next = nullptr;
+    const double value = std::strtod(p, &next);
+    if (next == p) {
+      break;
+    }
+    sum += value;
+    p = (*next == '\n') ? next + 1 : next;
+  }
+  return sum;
+}
+
+}  // namespace
+
+int main() {
+  const std::string input = make_input(500000);
+  const double expected = expected_sum(input);
+
+  const auto start = std::chrono::steady_clock::now();
+  const double actual = parse_sum(input);
+  const auto end = std::chrono::steady_clock::now();
+
+  const double diff = std::abs(actual - expected);
+  const double scale = std::max(1.0, std::abs(expected));
+  const bool ok = diff / scale <= 1e-12;
+  const long long elapsed_ns =
+      std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+  std::cout << std::boolalpha;
+  std::cout << "{"
+            << "\"ok\":" << ok << ","
+            << "\"elapsed_ns\":" << elapsed_ns << ","
+            << "\"expected_sum\":" << std::setprecision(17) << expected << ","
+            << "\"actual_sum\":" << std::setprecision(17) << actual << "}\n";
+  return ok ? 0 : 1;
+}

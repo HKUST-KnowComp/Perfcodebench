@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_allpairs_l1_v600_g",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_allpairs_l1_v600_g/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nstatic inline void merge_sort_int32(int32_t* data, int32_t* buf, std::size_t n) {\n  if (n <= 1) return;\n\n  int32_t* src = data;\n  int32_t* dst = buf;\n\n  for (std::size_t width = 1; width < n; width <<= 1) {\n    for (std::size_t left = 0; left < n; left += (width << 1)) {\n      std::size_t mid = left + width;\n      if (mid > n) mid = n;\n      std::size_t right = left + (width << 1);\n      if (right > n) right = n;\n\n      std::size_t i = left;\n      std::size_t j = mid;\n      std::size_t k = left;\n\n      while (i < mid && j < right) {\n        if (src[i] <= src[j]) {\n          dst[k++] = src[i++];\n        } else {\n          dst[k++] = src[j++];\n        }\n      }\n      while (i < mid) dst[k++] = src[i++];\n      while (j < right) dst[k++] = src[j++];\n    }\n    int32_t* tmp = src;\n    src = dst;\n    dst = tmp;\n  }\n\n  if (src != data) {\n    for (std::size_t i = 0; i < n; ++i) data[i] = src[i];\n  }\n}\n\nstatic inline int64_t sorted_pairwise_l1_1d(const std::vector<int32_t>& v) {\n  const std::size_t n = v.size();\n  if (n < 2) return 0;\n\n  std::vector<int32_t> work(v.begin(), v.end());\n  std::vector<int32_t> buf(n);\n  merge_sort_int32(work.data(), buf.data(), n);\n\n  int64_t prefix = 0;\n  int64_t total = 0;\n  for (std::size_t i = 0; i < n; ++i) {\n    const int64_t x = static_cast<int64_t>(work[i]);\n    total += x * static_cast<int64_t>(i) - prefix;\n    prefix += x;\n  }\n  return total;\n}\n\n}  // namespace\n\nint64_t allpairs_l1_sum(const std::vector<int32_t>& xs, const std::vector<int32_t>& ys, int iters) {\n  if (iters <= 0) return 0;\n  const std::size_t n = xs.size();\n  if (n < 2) return 0;\n\n  int64_t xsum = 0;\n  int64_t ysum = 0;\n\n#pragma omp parallel sections\n  {\n#pragma omp section\n    { xsum = sorted_pairwise_l1_1d(xs); }\n#pragma omp section\n    { ysum = sorted_pairwise_l1_1d(ys); }\n  }\n\n  const int64_t total = xsum + ysum;\n  return total;\n}\n",
+  "baseline": {
+    "task_id": "openmp_allpairs_l1_v600_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 16691507,
+    "min_elapsed_ns": 16139030,
+    "max_elapsed_ns": 17704414,
+    "all_elapsed_ns": [
+      16139030,
+      16691507,
+      17704414
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 16139030,
+      "expected_sum": 8776814988,
+      "actual_sum": 8776814988
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_allpairs_l1_v600_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5260235,
+    "min_elapsed_ns": 4167725,
+    "max_elapsed_ns": 20645013,
+    "all_elapsed_ns": [
+      4167725,
+      20645013,
+      5260235
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4167725,
+      "expected_sum": 8776814988,
+      "actual_sum": 8776814988
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_allpairs_l1_v600_g",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 51948258,
+    "min_elapsed_ns": 43924838,
+    "max_elapsed_ns": 78971499,
+    "all_elapsed_ns": [
+      51948258,
+      78971499,
+      43924838
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 51948258,
+      "expected_sum": 8776814988,
+      "actual_sum": 8776814988
+    },
+    "status": "ok"
+  }
+}

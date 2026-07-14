@@ -1,0 +1,33 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v31",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v31/candidate/gpt-5.4/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__inline__ __device__ int warp_reduce_sum(int v) {\n  unsigned mask = 0xffffffffu;\n  v += __shfl_down_sync(mask, v, 16);\n  v += __shfl_down_sync(mask, v, 8);\n  v += __shfl_down_sync(mask, v, 4);\n  v += __shfl_down_sync(mask, v, 2);\n  v += __shfl_down_sync(mask, v, 1);\n  return v;\n}\n\n__global__ void reduce_blocks_kernel(const int* __restrict__ input,\n                                     int* __restrict__ partials,\n                                     int n) {\n  int sum = 0;\n  int idx = blockIdx.x * blockDim.x + threadIdx.x;\n  int stride = blockDim.x * gridDim.x;\n\n  for (int i = idx; i < n; i += stride) {\n    sum += input[i];\n  }\n\n  sum = warp_reduce_sum(sum);\n\n  __shared__ int warp_sums[32];\n  int lane = threadIdx.x & 31;\n  int warp = threadIdx.x >> 5;\n  int num_warps = blockDim.x >> 5;\n\n  if (lane == 0) warp_sums[warp] = sum;\n  __syncthreads();\n\n  if (warp == 0) {\n    sum = (lane < num_warps) ? warp_sums[lane] : 0;\n    sum = warp_reduce_sum(sum);\n    if (lane == 0) partials[blockIdx.x] = sum;\n  }\n}\n\n__global__ void finalize_kernel(const int* __restrict__ partials,\n                                int* __restrict__ output,\n                                int n) {\n  int sum = 0;\n  for (int i = threadIdx.x; i < n; i += blockDim.x) {\n    sum += partials[i];\n  }\n\n  sum = warp_reduce_sum(sum);\n\n  __shared__ int warp_sums[32];\n  int lane = threadIdx.x & 31;\n  int warp = threadIdx.x >> 5;\n  int num_warps = blockDim.x >> 5;\n\n  if (lane == 0) warp_sums[warp] = sum;\n  __syncthreads();\n\n  if (warp == 0) {\n    sum = (lane < num_warps) ? warp_sums[lane] : 0;\n    sum = warp_reduce_sum(sum);\n    if (lane == 0) *output = sum;\n  }\n}\n\n}  // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n  if (iters <= 0) return;\n\n  if (n <= 0) {\n    for (int iter = 0; iter < iters; ++iter) {\n      cudaMemset(output, 0, sizeof(int));\n    }\n    return;\n  }\n\n  int device = 0;\n  cudaGetDevice(&device);\n  cudaDeviceProp prop;\n  cudaGetDeviceProperties(&prop, device);\n\n  const int block_size = 256;\n  int sm_count = prop.multiProcessorCount > 0 ? prop.multiProcessorCount : 1;\n  int grid_size = sm_count * 8;\n  int max_blocks = (n + block_size - 1) / block_size;\n  if (grid_size > max_blocks) grid_size = max_blocks;\n  if (grid_size < 1) grid_size = 1;\n\n  int* partials = nullptr;\n  cudaMalloc(&partials, static_cast<size_t>(grid_size) * sizeof(int));\n\n  for (int iter = 0; iter < iters; ++iter) {\n    reduce_blocks_kernel<<<grid_size, block_size>>>(input, partials, n);\n    finalize_kernel<<<1, 256>>>(partials, output, grid_size);\n  }\n\n  cudaFree(partials);\n}\n",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v31",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v31/baseline/bench']' timed out after 5 seconds"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v31",
+    "variant": "reference",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v31/reference/bench']' timed out after 5 seconds"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v31",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v31/candidate/bench']' timed out after 5 seconds"
+  }
+}

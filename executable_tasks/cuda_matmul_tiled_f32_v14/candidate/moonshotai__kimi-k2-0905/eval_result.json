@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_matmul_tiled_f32_v14",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_matmul_tiled_f32_v14/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n// K_TILE must evenly divide TILE\nconstexpr int TILE      = 64;          // width of the square tile loaded into shared memory\nconstexpr int K_TILE    = 16;          // unroll factor along K\nconstexpr int THREADS   = TILE;       // 1-D thread block of 64 threads\nconstexpr int HM        = 4;            // height of the 4\u00d74 sub-matrix each thread computes\nconstexpr int WM        = 4;            // width  of the 4\u00d74 sub-matrix each thread computes\n\n__global__ void matmul_tiled(const float * __restrict__ A,\n                               const float * __restrict__ B,\n                               float * __restrict__ C,\n                               int n)\n{\n    __shared__ float smemA[TILE * K_TILE]; // TILE rows \u00d7 K_TILE columns (transposed)\n    __shared__ float smemB[TILE * K_TILE]; // K_TILE rows \u00d7 TILE columns (transposed)\n\n    const int tx = threadIdx.x;              // 0 \u2026 63\n    const int tile_row = blockIdx.y * TILE;\n    const int tile_col = blockIdx.x * TILE;\n\n    // Each thread will compute HM\u00d7WM elements of C\n    // Thread (tx) owns the rectangle\n    //   rows: tile_row + (tx%16)*4 \u2026 tile_row + (tx%16)*4 + 3\n    //   cols: tile_col + (tx/16)*4 \u2026 tile_col + (tx/16)*4 + 3\n    int out_row0 = tile_row + (tx & 15) * HM; // 4 consecutive rows\n    int out_col0 = tile_col + (tx >> 4) * WM; // 4 consecutive columns\n\n    float accum[HM][WM] = {0.0f};\n\n    const float4 *A4 = reinterpret_cast<const float4*>(A);\n    const float4 *B4 = reinterpret_cast<const float4*>(B);\n\n    for (int k = 0; k < n; k += K_TILE)\n    {\n        // ---------- load A tile (TILE\u00d7K_TILE) transposed via vectorized float4 ----------\n        #pragma unroll\n        for (int i = 0; i < TILE; i += 16)\n        {\n            int rowA = tile_row + i + (tx >> 2);\n            int colA = k + (tx & 3);\n            float4 vec = (rowA < n && colA < n) ? A4[(rowA * n + colA) >> 2] : make_float4(0,0,0,0);\n            // store transposed into smemA\n            #pragma unroll\n            for (int v = 0; v < 4; ++v)\n                if (i + v < TILE)\n                    smemA[(i + v) * K_TILE + (tx & 3) * 4 + v] = (&vec.x)[v];\n        }\n\n        // ---------- load B tile (K_TILE\u00d7TILE) transposed via vectorized float4 ----------\n        #pragma unroll\n        for (int i = 0; i < TILE; i += 16)\n        {\n            int rowB = k + (tx >> 2);\n            int colB = tile_col + i + (tx & 3);\n            float4 vec = (rowB < n && colB < n) ? B4[(rowB * n + colB) >> 2] : make_float4(0,0,0,0);\n            #pragma unroll\n            for (int v = 0; v < 4; ++v)\n                if (i + v < TILE)\n                    smemB[(i + v) * K_TILE + (tx & 3) * 4 + v] = (&vec.x)[v];\n        }\n        __syncthreads();\n\n        // ---------- compute HM\u00d7WM micro-tile by looping over K_TILE ----------\n        #pragma unroll\n        for (int kk = 0; kk < K_TILE; ++kk)\n        {\n            float avals[HM];\n            float bvals[WM];\n            #pragma unroll\n            for (int r = 0; r < HM; ++r)\n                avals[r] = smemA[((tx & 15) * HM + r) * K_TILE + kk];\n            #pragma unroll\n            for (int c = 0; c < WM; ++c)\n                bvals[c] = smemB[((tx >> 4) * WM + c) * K_TILE + kk];\n            #pragma unroll\n            for (int r = 0; r < HM; ++r)\n                #pragma unroll\n                for (int c = 0; c < WM; ++c)\n                    accum[r][c] += avals[r] * bvals[c];\n        }\n        __syncthreads();\n    }\n\n    // ---------- store results back into global memory via vectorized float4 ----------\n    float4 *C4 = reinterpret_cast<float4*>(C);\n    #pragma unroll\n    for (int r = 0; r < HM; ++r)\n    {\n        int row = out_row0 + r;\n        if (row >= n) continue;\n        float4 out;\n        #pragma unroll\n        for (int c = 0; c < WM; ++c)\n            (&out.x)[c] = accum[r][c];\n        int col = out_col0;\n        if (col + 3 < n)\n            C4[(row * n + col) >> 2] = out;\n        else\n        {\n            // slow-path for right-boundary\n            for (int c = 0; c < WM; ++c)\n                if (col + c < n)\n                    C[row * n + col + c] = (&out.x)[c];\n        }\n    }\n}\n\n} // anonymous namespace\n\nvoid matmul_f32(const float* a, const float* b, float* c, int n, int iters)\n{\n    const dim3 blockDim(THREADS, 1, 1);\n    const dim3 gridDim((n + TILE - 1) / TILE, (n + TILE - 1) / TILE, 1);\n    for (int iter = 0; iter < iters; ++iter)\n        matmul_tiled<<<gridDim, blockDim>>>(a, b, c, n);\n}",
+  "baseline": {
+    "task_id": "cuda_matmul_tiled_f32_v14",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 372736,
+    "min_elapsed_ns": 372671,
+    "max_elapsed_ns": 376287,
+    "all_elapsed_ns": [
+      376287,
+      372671,
+      372736
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 376287,
+      "max_abs_error": 0,
+      "checksum": 1226200000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_matmul_tiled_f32_v14",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 311392,
+    "min_elapsed_ns": 310719,
+    "max_elapsed_ns": 311679,
+    "all_elapsed_ns": [
+      311679,
+      311392,
+      310719
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 311679,
+      "max_abs_error": 0,
+      "checksum": 1226200000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_matmul_tiled_f32_v14",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_matmul_tiled_f32_v14/candidate/bench']' returned non-zero exit status 2."
+  }
+}

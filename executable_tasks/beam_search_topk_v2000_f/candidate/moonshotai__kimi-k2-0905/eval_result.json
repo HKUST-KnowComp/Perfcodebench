@@ -1,0 +1,59 @@
+{
+  "task_id": "beam_search_topk_v2000_f",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v2000_f/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <algorithm>\n#include <utility>\n#include <vector>\n\nnamespace {\n\nconstexpr uint64_t kOffset = 1469598103934665603ULL;\nconstexpr uint64_t kPrime  = 1099511628211ULL;\n\ninline uint64_t mix(uint64_t h, uint64_t v) {\n    h ^= v;\n    h *= kPrime;\n    return h;\n}\n\nstruct Entry {\n    int32_t score;\n    int     idx;\n};\n\n// deterministic partial sort: keeps exactly the top-k elements\n// (quick-select style, but stable tie-break via index)\ninline void topk(Entry* __restrict buffer, int vocab, int k) {\n    int left  = 0;\n    int right = vocab - 1;\n    while (true) {\n        if (left + k - 1 >= right) break;\n\n        // pivot = middle element\n        int p = (left + right) >> 1;\n        int32_t pivot = buffer[p].score;\n\n        int i = left;\n        int j = right;\n        while (i <= j) {\n            while (buffer[i].score > pivot || \n                   (buffer[i].score == pivot && buffer[i].idx < buffer[p].idx)) ++i;\n            while (buffer[j].score < pivot || \n                   (buffer[j].score == pivot && buffer[j].idx > buffer[p].idx)) --j;\n            if (i <= j) {\n                std::swap(buffer[i], buffer[j]);\n                ++i; --j;\n            }\n        }\n\n        if (k <= i - left) {\n            right = i - 1;\n        } else {\n            k -= (i - left);\n            left = i;\n        }\n    }\n    // final small sort for exact order among the k best\n    std::sort(buffer, buffer + k,\n              [](const Entry& a, const Entry& b) {\n                  return a.score > b.score || (a.score == b.score && a.idx < b.idx);\n              });\n}\n\n} // namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits,\n                            int beams, int vocab, int topk, int iters) {\n    uint64_t hash = kOffset;\n    std::vector<Entry> scratch(static_cast<size_t>(vocab));\n\n    for (int iter = 0; iter < iters; ++iter) {\n        for (int b = 0; b < beams; ++b) {\n            const int32_t* row = &logits[b * vocab];\n            for (int v = 0; v < vocab; ++v) {\n                scratch[v].score = row[v];\n                scratch[v].idx   = v;\n            }\n            topk(scratch.data(), vocab, topk);\n            for (int k = 0; k < topk; ++k) {\n                hash = mix(hash, static_cast<uint64_t>(scratch[k].score));\n                hash = mix(hash, static_cast<uint64_t>(scratch[k].idx));\n            }\n        }\n    }\n    return hash;\n}\n",
+  "baseline": {
+    "task_id": "beam_search_topk_v2000_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1085363147,
+    "min_elapsed_ns": 1071580248,
+    "max_elapsed_ns": 1145377973,
+    "all_elapsed_ns": [
+      1085363147,
+      1145377973,
+      1071580248
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1085363147,
+      "expected_checksum": 12349717975618103081,
+      "actual_checksum": 12349717975618103081
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v2000_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 17794527,
+    "min_elapsed_ns": 16603806,
+    "max_elapsed_ns": 19114838,
+    "all_elapsed_ns": [
+      16603806,
+      19114838,
+      17794527
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 16603806,
+      "expected_checksum": 12349717975618103081,
+      "actual_checksum": 12349717975618103081
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v2000_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/beam_search_topk_v2000_f/harness', 'executable_tasks/beam_search_topk_v2000_f/harness/benchmark_main.cpp', 'executable_tasks/beam_search_topk_v2000_f/candidate/moonshotai__kimi-k2-0905/solution.cpp', '-o', 'build/beam_search_topk_v2000_f/candidate/bench']' returned non-zero exit status 1."
+  }
+}

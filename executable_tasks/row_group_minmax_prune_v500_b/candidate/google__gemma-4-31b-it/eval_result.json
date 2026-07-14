@@ -1,0 +1,59 @@
+{
+  "task_id": "row_group_minmax_prune_v500_b",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/row_group_minmax_prune_v500_b/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\nuint64_t row_group_range_sum(\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& mins,\n    const std::vector<uint32_t>& maxs,\n    uint32_t low,\n    uint32_t high,\n    uint32_t block_size,\n    int iters) {\n    \n    const uint32_t* val_ptr = values.data();\n    const uint32_t* min_ptr = mins.data();\n    const uint32_t* max_ptr = maxs.data();\n    const size_t num_values = values.size();\n    const size_t num_blocks = mins.size();\n\n    uint64_t final_sum = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t current_sum = 0;\n        for (size_t b = 0; b < num_blocks; ++b) {\n            uint32_t b_min = min_ptr[b];\n            uint32_t b_max = max_ptr[b];\n\n            // Pruning: if the block's range is entirely outside [low, high], skip it\n            if (b_min > high || b_max < low) {\n                continue;\n            }\n\n            // If the block is entirely within [low, high], we can sum everything without checks\n            // However, for simplicity and to avoid complex logic, we check if it's partially overlapping\n            const uint32_t* block_start = val_ptr + (b * block_size);\n            const uint32_t* block_end = block_start + block_size;\n\n            if (b_min >= low && b_max <= high) {\n                // Fast path: all elements in block are within range\n                uint64_t block_sum = 0;\n                size_t i = 0;\n                // Unroll loop for performance\n                for (; i + 3 < block_size; i += 4) {\n                    block_sum += block_start[i];\n                    block_sum += block_start[i+1];\n                    block_sum += block_start[i+2];\n                    block_sum += block_start[i+3];\n                }\n                for (; i < block_size; ++i) {\n                    block_sum += block_start[i];\n                }\n                current_sum += block_sum;\n            } else {\n                // Slow path: check individual elements\n                for (size_t i = 0; i < block_size; ++i) {\n                    uint32_t v = block_start[i];\n                    if (v >= low && v <= high) {\n                        current_sum += v;\n                    }\n                }\n            }\n        }\n        final_sum = current_sum;\n    }\n\n    return final_sum;\n}",
+  "baseline": {
+    "task_id": "row_group_minmax_prune_v500_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 62655620,
+    "min_elapsed_ns": 61480326,
+    "max_elapsed_ns": 62735889,
+    "all_elapsed_ns": [
+      62735889,
+      61480326,
+      62655620
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 62735889,
+      "expected_sum": 129907508,
+      "actual_sum": 129907508
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "row_group_minmax_prune_v500_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1673350,
+    "min_elapsed_ns": 1616908,
+    "max_elapsed_ns": 1732750,
+    "all_elapsed_ns": [
+      1616908,
+      1673350,
+      1732750
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1616908,
+      "expected_sum": 129907508,
+      "actual_sum": 129907508
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "row_group_minmax_prune_v500_b",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/row_group_minmax_prune_v500_b/harness', 'executable_tasks/row_group_minmax_prune_v500_b/harness/benchmark_main.cpp', 'executable_tasks/row_group_minmax_prune_v500_b/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/row_group_minmax_prune_v500_b/candidate/bench']' returned non-zero exit status 1."
+  }
+}

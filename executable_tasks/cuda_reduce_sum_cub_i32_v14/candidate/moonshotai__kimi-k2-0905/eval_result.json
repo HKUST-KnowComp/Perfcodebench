@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_reduce_sum_cub_i32_v14",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_reduce_sum_cub_i32_v14/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.cuh\"\n#include <cuda_runtime.h>\n#include <cstdio>\n\nnamespace {\n\n// --------------- Two-stage reduction ----------------------------------\nconstexpr int BLOCK = 256;                 // threads per block\nconstexpr int ELEMS_PER_THREAD = 16;       // work per thread\n\ntemplate<int blockSize>\n__global__ void reduceTile(const int* __restrict__ in,\n                             int* __restrict__ tileOut, int N) {\n    // Shared array for one block\u2019s partial sum\n    __shared__ int smem[blockSize];\n    int tid = threadIdx.x;\n    int idx = blockIdx.x * blockDim.x * ELEMS_PER_THREAD + tid;\n\n    // Each thread sums ELEMS_PER_THREAD elements\n    int local = 0;\n    #pragma unroll\n    for (int i = 0; i < ELEMS_PER_THREAD; ++i) {\n        if (idx < N) {\n            local += in[idx];\n            idx += blockDim.x;\n        }\n    }\n    smem[tid] = local;\n    __syncthreads();\n\n    // Classic tree reduction in shared memory\n    #pragma unroll 5\n    for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {\n        if (tid < stride) smem[tid] += smem[tid + stride];\n        __syncthreads();\n    }\n    if (tid == 0) tileOut[blockIdx.x] = smem[0];\n}\n\n// Final kernel: one block finishes the global sum of all tile results\n__global__ void finishSum(const int* tileSums, int* out, int numTiles) {\n    __shared__ int smem[BLOCK];\n    int tid = threadIdx.x;\n    // load\n    smem[tid] = 0;\n    for (int i = tid; i < numTiles; i += blockDim.x) {\n        smem[tid] += tileSums[i];\n    }\n    __syncthreads();\n    // reduce inside one block\n    for (int stride = blockDim.x >> 1; stride > 0; stride >>= 1) {\n        if (tid < stride) smem[tid] += smem[tid + stride];\n        __syncthreads();\n    }\n    if (tid == 0) *out = smem[0];\n}\n\n// host wrapper\nvoid computeTotal(const int* d_in, int* d_out, int n) {\n    const int elemsPerTile = BLOCK * ELEMS_PER_THREAD;\n    const int numTiles     = (n + elemsPerTile - 1) / elemsPerTile;\n\n    int* d_tileSums = NULL;\n    cudaMalloc(&d_tileSums, sizeof(int) * numTiles);\n\n    // clear the final result first\n    cudaMemset(d_out, 0, sizeof(int));\n\n    // 1. first pass\n    reduceTile<BLOCK><<<numTiles, BLOCK>>>(d_in, d_tileSums, n);\n    // 2. finish pass\n    finishSum<<<1, BLOCK>>>(d_tileSums, d_out, numTiles);\n\n    cudaFree(d_tileSums);\n}\n\n} // anonymous namespace\n\nvoid reduce_sum_i32(const int* input, int* output, int n, int iters) {\n    if (n == 0 || iters == 0) return;\n\n    for (int i = 0; i < iters; ++i) {\n        computeTotal(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_reduce_sum_cub_i32_v14",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6588672,
+    "min_elapsed_ns": 6559423,
+    "max_elapsed_ns": 6599775,
+    "all_elapsed_ns": [
+      6588672,
+      6599775,
+      6559423
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6588672,
+      "expected_sum": 31457280,
+      "actual_sum": 31457280
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_reduce_sum_cub_i32_v14",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 879263,
+    "min_elapsed_ns": 570111,
+    "max_elapsed_ns": 1232064,
+    "all_elapsed_ns": [
+      879263,
+      570111,
+      1232064
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 879263,
+      "expected_sum": 31457280,
+      "actual_sum": 31457280
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_reduce_sum_cub_i32_v14",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['nvcc', '-O3', '-std=c++17', '-Iexecutable_tasks/cuda_reduce_sum_cub_i32_v14/harness', '-gencode=arch=compute_80,code=sm_80', '-gencode=arch=compute_80,code=compute_80', 'executable_tasks/cuda_reduce_sum_cub_i32_v14/harness/benchmark_main.cu', 'executable_tasks/cuda_reduce_sum_cub_i32_v14/candidate/moonshotai__kimi-k2-0905/solution.cu', '-o', 'build/cuda_reduce_sum_cub_i32_v14/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,37 @@
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+
+uint64_t run(const uint32_t* ids, size_t n, const uint32_t* dict_vals, uint32_t dict_size, int iters)
+{
+    (void)dict_size;
+    const uint64_t prime = 1099511628211ULL;
+    uint64_t h = 1469598103934665603ULL;
+
+    while (iters--) {
+        h = 1469598103934665603ULL;
+        size_t i = 0;
+
+        /* unroll 4× */
+        size_t limit = (n >> 2) << 2;
+        for (; i < limit; i += 4) {
+            uint64_t v0 = dict_vals[ids[i + 0]] + 1ULL;
+            uint64_t v1 = dict_vals[ids[i + 1]] + 1ULL;
+            uint64_t v2 = dict_vals[ids[i + 2]] + 1ULL;
+            uint64_t v3 = dict_vals[ids[i + 3]] + 1ULL;
+
+            h ^= v0; h *= prime;
+            h ^= v1; h *= prime;
+            h ^= v2; h *= prime;
+            h ^= v3; h *= prime;
+        }
+
+        /* tail */
+        for (; i < n; ++i) {
+            h ^= (uint64_t)dict_vals[ids[i]] + 1ULL;
+            h *= prime;
+        }
+    }
+
+    return h;
+}

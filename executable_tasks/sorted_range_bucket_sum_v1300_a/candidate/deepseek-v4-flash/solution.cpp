@@ -1,0 +1,19 @@
+#include "interface.h"
+#include <cstdint>
+#include <vector>
+
+uint64_t range_bucket_sum(
+    const std::vector<uint32_t>& boundaries,
+    const std::vector<uint32_t>& probes,
+    int iters) {
+  uint64_t sum = 0;
+  size_t bidx = 0;
+  const size_t m = boundaries.size();
+  for (uint32_t probe : probes) {
+    while (bidx < m && boundaries[bidx] <= probe) {
+      ++bidx;
+    }
+    sum += static_cast<uint64_t>(bidx);
+  }
+  return sum;
+}

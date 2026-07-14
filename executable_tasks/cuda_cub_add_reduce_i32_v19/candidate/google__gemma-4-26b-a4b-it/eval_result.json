@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v19",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v19/candidate/google__gemma-4-26b-a4b-it/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void reduce_kernel(const int* __restrict__ input, int* __restrict__ output, int n) {\n    // Shared memory for block-level reduction\n    extern __shared__ int sdata[];\n\n    int tid = threadIdx.x;\n    int i = blockIdx.x * blockDim.x + threadIdx.x;\n    int stride = blockDim.x * gridDim.x;\n\n    int sum = 0;\n    // Grid-stride loop to handle arbitrary n\n    while (i < n) {\n        sum += input[i];\n        i += stride;\n    }\n\n    sdata[tid] = sum;\n    __syncthreads();\n\n    // Warp-level reduction using shuffle\n    for (int offset = blockDim.x / 2; offset > 0; offset >>= 1) {\n        if (tid < offset) {\n            sdata[tid] += sdata[tid + offset];\n        }\n        __syncthreads();\n    }\n\n    // Single atomic add per block to global memory\n    if (tid == 0) {\n        atomicAdd(output, sdata[0]);\n    }\n}\n\n// Optimized kernel using warp shuffles for even faster reduction\n__global__ void reduce_kernel_warp(const int* __restrict__ input, int* __restrict__ output, int n) {\n    int sum = 0;\n    int i = blockIdx.x * blockDim.x + threadIdx.x;\n    int stride = blockDim.x * gridDim.x;\n\n    while (i < n) {\n        sum += input[i];\n        i += stride;\n    }\n\n    // Warp reduction\n    for (int offset = 16; offset > 0; offset >>= 1) {\n        sum += __shfl_down_sync(0xFFFFFFFF, sum, offset);\n    }\n\n    // Shared memory to aggregate warp results within the block\n    __shared__ int shared_sum[32]; // Max 32 warps in a 1024 thread block\n    int lane = threadIdx.x % 32;\n    int wid = threadIdx.x / 32;\n\n    if (lane == 0) {\n        shared_sum[wid] = sum;\n    }\n    __syncthreads();\n\n    // Final reduction of warp sums within the block\n    if (wid == 0) {\n        int final_sum = (threadIdx.x < (blockDim.x / 32)) ? shared_sum[lane] : 0;\n        for (int offset = 16; offset > 0; offset >>= 1) {\n            final_sum += __shfl_down_sync(0xFFFFFFFF, final_sum, offset);\n        }\n        if (lane == 0) {\n            atomicAdd(output, final_sum);\n        }\n    }\n}\n\n} // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0) return;\n\n    // Determine optimal block/grid size\n    // Using 256 threads per block is a good balance for most architectures\n    const int threads = 256;\n    const int blocks = (n + threads - 1) / threads;\n    // Cap blocks to prevent excessive overhead if n is small, \n    // but ensure enough to saturate GPU if n is large.\n    const int grid = (blocks > 1024) ? 1024 : blocks;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, sizeof(int));\n        // Using the warp-optimized kernel\n        reduce_kernel_warp<<<grid, threads>>>(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v19",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 10048192,
+    "min_elapsed_ns": 10046815,
+    "max_elapsed_ns": 10076064,
+    "all_elapsed_ns": [
+      10048192,
+      10046815,
+      10076064
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10048192,
+      "expected_sum": 31457280,
+      "actual_sum": 31457280
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v19",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 797855,
+    "min_elapsed_ns": 750240,
+    "max_elapsed_ns": 4887775,
+    "all_elapsed_ns": [
+      4887775,
+      750240,
+      797855
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4887775,
+      "expected_sum": 31457280,
+      "actual_sum": 31457280
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v19",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v19/candidate/bench']' timed out after 5 seconds"
+  }
+}

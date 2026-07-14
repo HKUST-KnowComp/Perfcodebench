@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_csr_spmv_v600_j",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_csr_spmv_v600_j/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nstatic inline uint64_t fnv1a_update(uint64_t hash, uint64_t v) {\n  hash ^= v;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t csr_spmv_checksum(\n    const std::vector<int>& row_ptr,\n    const std::vector<int>& col_idx,\n    const std::vector<int32_t>& values,\n    const std::vector<int32_t>& dense,\n    int rows,\n    int iters) {\n  std::vector<int64_t> out(static_cast<std::size_t>(rows));\n\n  const int* const rp = row_ptr.data();\n  const int* const ci = col_idx.data();\n  const int32_t* const val = values.data();\n  const int32_t* const x = dense.data();\n  int64_t* const y = out.data();\n\n  for (int iter = 0; iter < iters; ++iter) {\n#pragma omp parallel for schedule(static)\n    for (int row = 0; row < rows; ++row) {\n      const int start = rp[row];\n      const int end = rp[row + 1];\n      int64_t sum = 0;\n      for (int idx = start; idx < end; ++idx) {\n        sum += static_cast<int64_t>(val[idx]) * static_cast<int64_t>(x[ci[idx]]);\n      }\n      y[row] = sum;\n    }\n  }\n\n  uint64_t result = 1469598103934665603ULL;\n\n#pragma omp parallel\n  {\n    const int tid = omp_get_thread_num();\n    const int nth = omp_get_num_threads();\n    const int chunk = (rows + nth - 1) / nth;\n    const int begin = tid * chunk;\n    const int end = begin + chunk < rows ? begin + chunk : rows;\n\n    uint64_t local_hash = 1469598103934665603ULL;\n    for (int i = begin; i < end; ++i) {\n      local_hash = fnv1a_update(local_hash, static_cast<uint64_t>(y[i]));\n    }\n\n#pragma omp critical\n    {\n      static std::vector<uint64_t> partials;\n      static int partials_size = 0;\n      if (tid == 0) {\n        partials.assign(static_cast<std::size_t>(nth), 1469598103934665603ULL);\n        partials_size = nth;\n      }\n    }\n\n#pragma omp barrier\n\n    {\n      static std::vector<uint64_t> partials;\n      (void)partials;\n    }\n  }\n\n  const int nth = omp_get_max_threads();\n  std::vector<uint64_t> partials(static_cast<std::size_t>(nth), 1469598103934665603ULL);\n\n#pragma omp parallel\n  {\n    const int tid = omp_get_thread_num();\n    const int tn = omp_get_num_threads();\n    const int chunk = (rows + tn - 1) / tn;\n    const int begin = tid * chunk;\n    const int end = begin + chunk < rows ? begin + chunk : rows;\n\n    uint64_t local_hash = 1469598103934665603ULL;\n    for (int i = begin; i < end; ++i) {\n      local_hash = fnv1a_update(local_hash, static_cast<uint64_t>(y[i]));\n    }\n    partials[static_cast<std::size_t>(tid)] = local_hash;\n  }\n\n  const int used_threads = rows > 0 ? ((rows < nth) ? rows : nth) : 1;\n  for (int t = 0; t < used_threads; ++t) {\n    const int chunk = (rows + used_threads - 1) / used_threads;\n    const int begin = t * chunk;\n    const int end = begin + chunk < rows ? begin + chunk : rows;\n    for (int i = begin; i < end; ++i) {\n      result = fnv1a_update(result, static_cast<uint64_t>(y[i]));\n    }\n  }\n\n  return result;\n}\n",
+  "baseline": {
+    "task_id": "openmp_csr_spmv_v600_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 101448022,
+    "min_elapsed_ns": 39176307,
+    "max_elapsed_ns": 118265620,
+    "all_elapsed_ns": [
+      101448022,
+      118265620,
+      39176307
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 101448022,
+      "expected_checksum": 464087572882528064,
+      "actual_checksum": 464087572882528064
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_csr_spmv_v600_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 106445129,
+    "min_elapsed_ns": 33054595,
+    "max_elapsed_ns": 711894032,
+    "all_elapsed_ns": [
+      106445129,
+      711894032,
+      33054595
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 106445129,
+      "expected_checksum": 464087572882528064,
+      "actual_checksum": 464087572882528064
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_csr_spmv_v600_j",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/openmp_csr_spmv_v600_j/candidate/bench']' timed out after 5 seconds"
+  }
+}

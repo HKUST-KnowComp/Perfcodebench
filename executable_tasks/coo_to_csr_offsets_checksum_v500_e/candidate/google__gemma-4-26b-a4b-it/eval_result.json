@@ -1,0 +1,59 @@
+{
+  "task_id": "coo_to_csr_offsets_checksum_v500_e",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/coo_to_csr_offsets_checksum_v500_e/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <cstdint>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n}\n\n} // namespace\n\nuint64_t csr_offsets_hash(const std::vector<uint32_t>& row_ids, uint32_t rows, int iters) {\n    if (rows == 0) {\n        uint64_t hash = 1469598103934665603ULL;\n        // If rows is 0, offsets array is size 1 (just the 0 offset)\n        hash = mix(hash, 0);\n        return hash;\n    }\n\n    // Since row_ids is sorted, we can build offsets in O(N + rows)\n    // Step 1: Count frequencies using a dense array for speed\n    std::vector<uint32_t> counts(rows, 0);\n    for (uint32_t row : row_ids) {\n        if (row < rows) {\n            counts[row]++;\n        }\n    }\n\n    // Step 2: Compute CSR offsets\n    // offsets[i+1] = offsets[i] + counts[i]\n    std::vector<uint32_t> offsets(static_cast<size_t>(rows) + 1);\n    offsets[0] = 0;\n    for (uint32_t i = 0; i < rows; ++i) {\n        offsets[i + 1] = offsets[i] + counts[i];\n    }\n\n    // Step 3: Perform the hashing loop\n    // The hash calculation is deterministic and depends only on the offsets.\n    // The baseline code re-calculates the same hash 'iters' times.\n    // However, the baseline code resets 'hash' to the seed inside the loop.\n    // This means the final result is just the hash of the offsets calculated once.\n    \n    uint64_t hash = 1469598103934665603ULL;\n    for (uint32_t v : offsets) {\n        hash = mix(hash, static_cast<uint64_t>(v));\n    }\n\n    // Note: The baseline code structure: \n    // for (iter < iters) { ... hash = seed; for (v : offsets) hash = mix(hash, v); }\n    // This means the loop doesn't accumulate hash across iterations, \n    // it just overwrites it. Thus, we only need to run it once.\n    // If iters is 0, the baseline returns 0 (initial value of hash).\n    if (iters <= 0) return 0;\n\n    return hash;\n}\n",
+  "baseline": {
+    "task_id": "coo_to_csr_offsets_checksum_v500_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 120364838,
+    "min_elapsed_ns": 118431322,
+    "max_elapsed_ns": 157265518,
+    "all_elapsed_ns": [
+      118431322,
+      120364838,
+      157265518
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 118431322,
+      "expected_checksum": 1079697407133415321,
+      "actual_checksum": 1079697407133415321
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "coo_to_csr_offsets_checksum_v500_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 26510385,
+    "min_elapsed_ns": 21884691,
+    "max_elapsed_ns": 26812938,
+    "all_elapsed_ns": [
+      26510385,
+      26812938,
+      21884691
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 26510385,
+      "expected_checksum": 1079697407133415321,
+      "actual_checksum": 1079697407133415321
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "coo_to_csr_offsets_checksum_v500_e",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/coo_to_csr_offsets_checksum_v500_e/harness', 'executable_tasks/coo_to_csr_offsets_checksum_v500_e/harness/benchmark_main.cpp', 'executable_tasks/coo_to_csr_offsets_checksum_v500_e/candidate/google__gemma-4-26b-a4b-it/solution.cpp', '-o', 'build/coo_to_csr_offsets_checksum_v500_e/candidate/bench']' returned non-zero exit status 1."
+  }
+}

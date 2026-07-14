@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_matmul_tiled_f32_v25",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_matmul_tiled_f32_v25/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n// 32x32 tile, 256 threads (16x16), each thread computes 8 C elements\nconstexpr int TILE = 32;\nconstexpr int THREADS = 16;\n\n__global__ void matmul_tile_kernel(const float* __restrict__ A,\n                                   const float* __restrict__ B,\n                                   float* __restrict__ C,\n                                   int n) {\n    // Shared memory for 32x32 tiles of A and B\n    __shared__ float tileA[TILE][TILE + 1]; // +1 to avoid bank conflicts\n    __shared__ float tileB[TILE][TILE + 1];\n\n    int by = blockIdx.y, bx = blockIdx.x;\n    int ty = threadIdx.y, tx = threadIdx.x;\n\n    int row = by * TILE + ty;\n    int col = bx * TILE + tx;\n\n    // Each thread accumulates 8 elements in its register file\n    float sum[8] = {0.0f};\n\n    int numTiles = (n + TILE - 1) / TILE;\n    for (int t = 0; t < numTiles; ++t) {\n        // Load tile of A into shared memory (coalesced)\n        #pragma unroll\n        for (int i = 0; i < 2; ++i) {\n            int globalRow = by * TILE + ty + i * 16;\n            int globalCol = t * TILE + tx;\n            if (globalRow < n && globalCol < n) {\n                tileA[ty + i * 16][tx] = A[globalRow * n + globalCol];\n            } else {\n                tileA[ty + i * 16][tx] = 0.0f;\n            }\n        }\n\n        // Load tile of B into shared memory (coalesced)\n        #pragma unroll\n        for (int i = 0; i < 2; ++i) {\n            int globalRow = t * TILE + ty + i * 16;\n            int globalCol = bx * TILE + tx;\n            if (globalRow < n && globalCol < n) {\n                tileB[ty + i * 16][tx] = B[globalRow * n + globalCol];\n            } else {\n                tileB[ty + i * 16][tx] = 0.0f;\n            }\n        }\n        __syncthreads();\n\n        // Compute partial dot products\n        #pragma unroll 4\n        for (int k = 0; k < TILE; ++k) {\n            float aVec[2] = { tileA[ty][k], tileA[ty + 16][k] };\n            float bVec[2] = { tileB[k][tx], tileB[k][tx + 16] };\n            sum[0] += aVec[0] * bVec[0];\n            sum[1] += aVec[0] * bVec[1];\n            sum[2] += aVec[1] * bVec[0];\n            sum[3] += aVec[1] * bVec[1];\n        }\n        __syncthreads();\n    }\n\n    // Write back 8 elements\n    #pragma unroll\n    for (int i = 0; i < 2; ++i) {\n        int globalRow = row + i * 16;\n        int globalCol = col;\n        if (globalRow < n && globalCol < n) {\n            C[globalRow * n + globalCol] = sum[i * 4 + 0];\n        }\n        if (globalRow < n && (globalCol + 16) < n) {\n            C[globalRow * n + (globalCol + 16)] = sum[i * 4 + 1];\n        }\n    }\n    #pragma unroll\n    for (int i = 0; i < 2; ++i) {\n        int globalRow = row + i * 16;\n        int globalCol = col;\n        if ((globalRow + 16) < n && globalCol < n) {\n            C[(globalRow + 16) * n + globalCol] = sum[i * 4 + 2];\n        }\n        if ((globalRow + 16) < n && (globalCol + 16) < n) {\n            C[(globalRow + 16) * n + (globalCol + 16)] = sum[i * 4 + 3];\n        }\n    }\n}\n\n} // namespace\n\nvoid matmul_f32(const float* a, const float* b, float* c, int n, int iters) {\n    dim3 block(THREADS, THREADS);\n    dim3 grid((n + TILE - 1) / TILE, (n + TILE - 1) / TILE);\n    for (int i = 0; i < iters; ++i) {\n        matmul_tile_kernel<<<grid, block>>>(a, b, c, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_matmul_tiled_f32_v25",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 435456,
+    "min_elapsed_ns": 432799,
+    "max_elapsed_ns": 436352,
+    "all_elapsed_ns": [
+      435456,
+      432799,
+      436352
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 435456,
+      "max_abs_error": 0,
+      "checksum": 1226200000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_matmul_tiled_f32_v25",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 362336,
+    "min_elapsed_ns": 362304,
+    "max_elapsed_ns": 385343,
+    "all_elapsed_ns": [
+      362336,
+      385343,
+      362304
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 362336,
+      "max_abs_error": 0,
+      "checksum": 1226200000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_matmul_tiled_f32_v25",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_matmul_tiled_f32_v25/candidate/bench']' timed out after 5 seconds"
+  }
+}

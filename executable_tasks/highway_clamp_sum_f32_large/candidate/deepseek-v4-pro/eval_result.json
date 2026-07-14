@@ -1,0 +1,59 @@
+{
+  "task_id": "highway_clamp_sum_f32_large",
+  "model": "deepseek-v4-pro",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_clamp_sum_f32_large/candidate/deepseek-v4-pro/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <hwy/highway.h>\n\nHWY_BEFORE_NAMESPACE();\nnamespace project {\nnamespace HWY_NAMESPACE {\n\nfloat clamp_sum_impl(const float* HWY_RESTRICT data, const std::size_t n) {\n  const hn::ScalableTag<float> d;\n  const std::size_t N = hn::Lanes(d);\n  const auto zero = hn::Zero(d);\n  auto sum = zero;\n\n  std::size_t i = 0;\n  for (; i + N <= n; i += N) {\n    const auto v = hn::LoadU(d, data + i);\n    const auto clamped = hn::Max(v, zero);\n    sum = hn::Add(sum, clamped);\n  }\n\n  if (i < n) {\n    const auto mask = hn::FirstN(d, n - i);\n    const auto v = hn::MaskedLoad(mask, d, data + i);\n    const auto clamped = hn::Max(v, zero);\n    // Accumulate only active lanes without affecting other lanes\n    sum = hn::MaskedAdd(sum, mask, sum, clamped);\n  }\n\n  return hn::ReduceSum(d, sum);\n}\n\n}  // namespace HWY_NAMESPACE\n}  // namespace project\nHWY_AFTER_NAMESPACE();\n\nfloat clamp_sum(const float* data, std::size_t n) {\n  return HWY_STATIC_DISPATCH(project::clamp_sum_impl)(data, n);\n}",
+  "baseline": {
+    "task_id": "highway_clamp_sum_f32_large",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1470825,
+    "min_elapsed_ns": 1454547,
+    "max_elapsed_ns": 1608668,
+    "all_elapsed_ns": [
+      1608668,
+      1470825,
+      1454547
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1608668,
+      "expected_sum": 105014000.0,
+      "actual_sum": 105013000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_clamp_sum_f32_large",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 611687,
+    "min_elapsed_ns": 499403,
+    "max_elapsed_ns": 628165,
+    "all_elapsed_ns": [
+      499403,
+      628165,
+      611687
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 499403,
+      "expected_sum": 105014000.0,
+      "actual_sum": 105014000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_clamp_sum_f32_large",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/highway_clamp_sum_f32_large/harness', '-Iexternal/highway', 'executable_tasks/highway_clamp_sum_f32_large/harness/benchmark_main.cpp', 'executable_tasks/highway_clamp_sum_f32_large/candidate/deepseek-v4-pro/solution.cpp', 'external/highway/hwy/abort.cc', 'external/highway/hwy/targets.cc', 'external/highway/hwy/aligned_allocator.cc', 'external/highway/hwy/per_target.cc', '-o', 'build/highway_clamp_sum_f32_large/candidate/bench']' returned non-zero exit status 1."
+  }
+}

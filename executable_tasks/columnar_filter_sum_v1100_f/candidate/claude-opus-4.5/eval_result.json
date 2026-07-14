@@ -1,0 +1,72 @@
+{
+  "task_id": "columnar_filter_sum_v1100_f",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/columnar_filter_sum_v1100_f/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstddef>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#endif\n\nuint64_t filter_sum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint8_t>& flags,\n    uint32_t key_threshold,\n    int iters) {\n    \n    const size_t n = keys.size();\n    const uint32_t* __restrict k_ptr = keys.data();\n    const uint32_t* __restrict v_ptr = values.data();\n    const uint8_t* __restrict f_ptr = flags.data();\n    \n    uint64_t sum = 0;\n    \n#if defined(__AVX2__)\n    const __m256i thresh_vec = _mm256_set1_epi32(static_cast<int32_t>(key_threshold));\n    const __m256i mask3_vec = _mm256_set1_epi32(3);\n    const __m256i zero_vec = _mm256_setzero_si256();\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        __m256i sum_lo = _mm256_setzero_si256();\n        __m256i sum_hi = _mm256_setzero_si256();\n        \n        size_t i = 0;\n        \n        // Process 8 elements at a time\n        for (; i + 8 <= n; i += 8) {\n            // Load 8 keys\n            __m256i k = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(k_ptr + i));\n            \n            // Load 8 values\n            __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(v_ptr + i));\n            \n            // Load 8 flags (as bytes), then expand to 32-bit\n            __m128i f8 = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(f_ptr + i));\n            __m256i f32 = _mm256_cvtepu8_epi32(f8);\n            \n            // flags != 0\n            __m256i flag_mask = _mm256_cmpgt_epi32(f32, zero_vec);\n            \n            // keys < key_threshold (unsigned comparison via bias trick)\n            // For unsigned compare a < b: (a ^ 0x80000000) < (b ^ 0x80000000) as signed\n            const __m256i bias = _mm256_set1_epi32(static_cast<int32_t>(0x80000000u));\n            __m256i k_biased = _mm256_xor_si256(k, bias);\n            __m256i thresh_biased = _mm256_xor_si256(thresh_vec, bias);\n            __m256i lt_mask = _mm256_cmpgt_epi32(thresh_biased, k_biased);\n            \n            // (keys & 3) == 0\n            __m256i k_and_3 = _mm256_and_si256(k, mask3_vec);\n            __m256i mod_mask = _mm256_cmpeq_epi32(k_and_3, zero_vec);\n            \n            // Combine all conditions\n            __m256i final_mask = _mm256_and_si256(flag_mask, _mm256_and_si256(lt_mask, mod_mask));\n            \n            // Zero out values that don't pass the filter\n            __m256i masked_v = _mm256_and_si256(v, final_mask);\n            \n            // Accumulate: extend 32-bit to 64-bit and add\n            // Split into low and high 4 elements\n            __m128i v_lo = _mm256_castsi256_si128(masked_v);\n            __m128i v_hi = _mm256_extracti128_si256(masked_v, 1);\n            \n            // Zero-extend to 64-bit\n            __m256i v64_lo = _mm256_cvtepu32_epi64(v_lo);\n            __m256i v64_hi = _mm256_cvtepu32_epi64(v_hi);\n            \n            sum_lo = _mm256_add_epi64(sum_lo, v64_lo);\n            sum_hi = _mm256_add_epi64(sum_hi, v64_hi);\n        }\n        \n        // Horizontal sum of accumulators\n        __m256i total = _mm256_add_epi64(sum_lo, sum_hi);\n        __m128i total_lo = _mm256_castsi256_si128(total);\n        __m128i total_hi = _mm256_extracti128_si256(total, 1);\n        __m128i sum128 = _mm_add_epi64(total_lo, total_hi);\n        sum128 = _mm_add_epi64(sum128, _mm_srli_si128(sum128, 8));\n        sum = static_cast<uint64_t>(_mm_cvtsi128_si64(sum128));\n        \n        // Handle remaining elements\n        for (; i < n; ++i) {\n            if (f_ptr[i] && k_ptr[i] < key_threshold && ((k_ptr[i] & 3u) == 0u)) {\n                sum += static_cast<uint64_t>(v_ptr[i]);\n            }\n        }\n    }\n#else\n    // Scalar fallback - fused filter and sum (no intermediate vector)\n    for (int iter = 0; iter < iters; ++iter) {\n        sum = 0;\n        for (size_t i = 0; i < n; ++i) {\n            if (f_ptr[i] && k_ptr[i] < key_threshold && ((k_ptr[i] & 3u) == 0u)) {\n                sum += static_cast<uint64_t>(v_ptr[i]);\n            }\n        }\n    }\n#endif\n    \n    return sum;\n}\n",
+  "baseline": {
+    "task_id": "columnar_filter_sum_v1100_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1470917293,
+    "min_elapsed_ns": 1458997581,
+    "max_elapsed_ns": 1530792836,
+    "all_elapsed_ns": [
+      1470917293,
+      1458997581,
+      1530792836
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1470917293,
+      "expected_sum": 67277528,
+      "actual_sum": 67277528
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "columnar_filter_sum_v1100_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1257750703,
+    "min_elapsed_ns": 1246868338,
+    "max_elapsed_ns": 1602612807,
+    "all_elapsed_ns": [
+      1246868338,
+      1257750703,
+      1602612807
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1246868338,
+      "expected_sum": 67277528,
+      "actual_sum": 67277528
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "columnar_filter_sum_v1100_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1220411734,
+    "min_elapsed_ns": 1166316395,
+    "max_elapsed_ns": 1236821622,
+    "all_elapsed_ns": [
+      1220411734,
+      1236821622,
+      1166316395
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1220411734,
+      "expected_sum": 67277528,
+      "actual_sum": 67277528
+    },
+    "status": "ok"
+  }
+}

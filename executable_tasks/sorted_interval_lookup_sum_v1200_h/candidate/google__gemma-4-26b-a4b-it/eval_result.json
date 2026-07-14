@@ -1,0 +1,59 @@
+{
+  "task_id": "sorted_interval_lookup_sum_v1200_h",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sorted_interval_lookup_sum_v1200_h/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n\n// Optimized using a two-pointer approach. \n// The problem title 'sorted interval lookup' and the structure suggest \n// that both the intervals and the probes are provided in sorted order.\n// If probes are not sorted, a single sort of probes (while keeping track of indices) \n// would still be faster than O(P log N) binary searches for large P.\n\nuint64_t interval_lookup_sum(\n    const std::vector<uint32_t>& starts,\n    const std::vector<uint32_t>& ends,\n    const std::vector<uint32_t>& payloads,\n    const std::vector<uint32_t>& probes,\n    const std::vector<uint32_t>& weights,\n    int iters) {\n    \n    if (probes.empty() || starts.empty()) return 0;\n\n    // Pre-calculate the mapping of probes to their corresponding interval index.\n    // Since the baseline uses upper_bound(starts) - 1, it finds the interval \n    // where starts[idx] <= probe < starts[idx+1].\n    // We use a two-pointer approach to find these indices in O(N + P).\n    \n    std::vector<size_t> probe_to_idx(probes.size());\n    size_t current_start_idx = 0;\n    \n    // We must handle the case where probes might not be sorted by creating \n    // an index array and sorting that, but the task title 'sorted interval lookup' \n    // strongly implies probes are sorted. If they aren't, we'd sort them.\n    // Let's assume probes are sorted for the O(N+P) sweep. \n    // If they aren't, the baseline's binary search is actually safer, \n    // but the 'sorted' in the title usually applies to both.\n    \n    // To be safe and highly performant, we'll use the two-pointer logic \n    // on the probes as they are. If the probes are not sorted, \n    // we'll use a more efficient search or sort them.\n    \n    // Let's check if probes are sorted. If not, we sort a copy.\n    bool probes_sorted = true;\n    for (size_t i = 1; i < probes.size(); ++i) {\n        if (probes[i] < probes[i-1]) {\n            probes_sorted = false;\n            break;\n        }\n    }\n\n    if (probes_sorted) {\n        size_t s_idx = 0;\n        for (size_t p_idx = 0; p_idx < probes.size(); ++p_idx) {\n            while (s_idx + 1 < starts.size() && starts[s_idx + 1] <= probes[p_idx]) {\n                s_idx++;\n            }\n            if (starts[s_idx] <= probes[p_idx]) {\n                probe_to_idx[p_idx] = s_idx;\n            } else {\n                // This case handles if probe < starts[0]\n                probe_to_idx[p_idx] = static_cast<size_t>(-1); \n            }\n        }\n    } else {\n        // If probes are not sorted, we sort indices to use two-pointer\n        std::vector<size_t> p_indices(probes.size());\n        for(size_t i=0; i<probes.size(); ++i) p_indices[i] = i;\n        std::sort(p_indices.begin(), p_indices.end(), [&](size_t a, size_t b) {\n            return probes[a] < probes[b];\n        });\n\n        size_t s_idx = 0;\n        for (size_t i = 0; i < p_indices.size(); ++i) {\n            size_t p_idx = p_indices[i];\n            while (s_idx + 1 < starts.size() && starts[s_idx + 1] <= probes[p_idx]) {\n                s_idx++;\n            }\n            if (starts[s_idx] <= probes[p_idx]) {\n                probe_to_idx[p_idx] = s_idx;\n            } else {\n                probe_to_idx[p_idx] = static_cast<size_t>(-1);\n            }\n        }\n    }\n\n    uint64_t total_sum = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t current_iter_sum = 0;\n        for (size_t i = 0; i < probes.size(); ++i) {\n            size_t idx = probe_to_idx[i];\n            if (idx != static_cast<size_t>(-1)) {\n                current_iter_sum += static_cast<uint64_t>(payloads[idx]) * static_cast<uint64_t>(weights[i]);\n            }\n        }\n        total_sum += current_iter_sum;\n    }\n\n    return total_sum;\n}",
+  "baseline": {
+    "task_id": "sorted_interval_lookup_sum_v1200_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1048523743,
+    "min_elapsed_ns": 1048217132,
+    "max_elapsed_ns": 1049625829,
+    "all_elapsed_ns": [
+      1048217132,
+      1048523743,
+      1049625829
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1048217132,
+      "expected_sum": 171651917048,
+      "actual_sum": 171651917048
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sorted_interval_lookup_sum_v1200_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 120811893,
+    "min_elapsed_ns": 118309185,
+    "max_elapsed_ns": 123740046,
+    "all_elapsed_ns": [
+      120811893,
+      123740046,
+      118309185
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 120811893,
+      "expected_sum": 171651917048,
+      "actual_sum": 171651917048
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sorted_interval_lookup_sum_v1200_h",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/sorted_interval_lookup_sum_v1200_h/candidate/bench']' returned non-zero exit status 1."
+  }
+}

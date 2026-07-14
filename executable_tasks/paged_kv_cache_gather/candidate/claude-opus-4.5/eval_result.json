@@ -1,0 +1,72 @@
+{
+  "task_id": "paged_kv_cache_gather",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/paged_kv_cache_gather/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstdint>\n\nuint64_t paged_kv_checksum(\n    const std::vector<uint32_t>& cache,\n    const std::vector<uint32_t>& page_ids,\n    const std::vector<uint32_t>& slot_offsets,\n    int num_pages,\n    int page_size,\n    int iters) {\n  (void)num_pages;\n  \n  const std::size_t n = page_ids.size();\n  if (n == 0 || iters <= 0) {\n    return 1469598103934665603ULL;\n  }\n  \n  // Precompute flat indices once\n  std::vector<std::size_t> indices(n);\n  const std::size_t ps = static_cast<std::size_t>(page_size);\n  for (std::size_t i = 0; i < n; ++i) {\n    indices[i] = static_cast<std::size_t>(page_ids[i]) * ps + static_cast<std::size_t>(slot_offsets[i]);\n  }\n  \n  const uint32_t* __restrict__ cache_ptr = cache.data();\n  const std::size_t* __restrict__ idx_ptr = indices.data();\n  \n  constexpr uint64_t FNV_PRIME = 1099511628211ULL;\n  constexpr uint64_t FNV_OFFSET = 1469598103934665603ULL;\n  \n  uint64_t hash = FNV_OFFSET;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = FNV_OFFSET;\n    \n    std::size_t i = 0;\n    \n    // Process 4 elements at a time for better ILP\n    const std::size_t n4 = n & ~std::size_t(3);\n    for (; i < n4; i += 4) {\n      uint64_t v0 = cache_ptr[idx_ptr[i]];\n      uint64_t v1 = cache_ptr[idx_ptr[i + 1]];\n      uint64_t v2 = cache_ptr[idx_ptr[i + 2]];\n      uint64_t v3 = cache_ptr[idx_ptr[i + 3]];\n      \n      hash ^= v0;\n      hash *= FNV_PRIME;\n      hash ^= v1;\n      hash *= FNV_PRIME;\n      hash ^= v2;\n      hash *= FNV_PRIME;\n      hash ^= v3;\n      hash *= FNV_PRIME;\n    }\n    \n    // Handle remaining elements\n    for (; i < n; ++i) {\n      hash ^= cache_ptr[idx_ptr[i]];\n      hash *= FNV_PRIME;\n    }\n  }\n  \n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "paged_kv_cache_gather",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 336790768,
+    "min_elapsed_ns": 326475066,
+    "max_elapsed_ns": 430346590,
+    "all_elapsed_ns": [
+      430346590,
+      336790768,
+      326475066
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 430346590,
+      "expected_checksum": 5374401203677234051,
+      "actual_checksum": 5374401203677234051
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "paged_kv_cache_gather",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 243090068,
+    "min_elapsed_ns": 149413700,
+    "max_elapsed_ns": 295561144,
+    "all_elapsed_ns": [
+      243090068,
+      149413700,
+      295561144
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 243090068,
+      "expected_checksum": 5374401203677234051,
+      "actual_checksum": 5374401203677234051
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "paged_kv_cache_gather",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 189653618,
+    "min_elapsed_ns": 167213370,
+    "max_elapsed_ns": 326945793,
+    "all_elapsed_ns": [
+      189653618,
+      167213370,
+      326945793
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 189653618,
+      "expected_checksum": 5374401203677234051,
+      "actual_checksum": 5374401203677234051
+    },
+    "status": "ok"
+  }
+}

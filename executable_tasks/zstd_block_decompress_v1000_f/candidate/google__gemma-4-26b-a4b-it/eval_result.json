@@ -1,0 +1,72 @@
+{
+  "task_id": "zstd_block_decompress_v1000_f",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/zstd_block_decompress_v1000_f/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"zstd.h\"\n#include <string>\n#include <cstring>\n\nnamespace {\n\n// Optimized FNV-1a implementation\n// Processes data in 8-byte chunks to reduce loop overhead\ninline uint64_t checksum_bytes_optimized(const char* data, std::size_t size) {\n    uint64_t hash = 1469598103934665603ULL;\n    const uint64_t prime = 1099511628211ULL;\n\n    const size_t eight_byte_chunks = size / 8;\n    const size_t remainder = size % 8;\n\n    const uint64_t* ptr64 = reinterpret_cast<const uint64_t*>(data);\n    for (size_t i = 0; i < eight_byte_chunks; ++i) {\n        // Note: FNV-1a is byte-oriented. To maintain exact correctness with the \n        // original byte-by-byte loop, we must process bytes. \n        // However, we can unroll the loop to help the compiler vectorize or pipeline.\n        // For strict correctness with the original byte-order-dependent FNV-1a:\n        const uint8_t* byte_ptr = reinterpret_cast<const uint8_t*>(&ptr64[i]);\n        for(int j = 0; j < 8; ++j) {\n            hash ^= static_cast<uint64_t>(byte_ptr[j]);\n            hash *= prime;\n        }\n    }\n\n    const uint8_t* final_ptr = reinterpret_cast<const uint8_t*>(data + (eight_byte_chunks * 8));\n    for (size_t i = 0; i < remainder; ++i) {\n        hash ^= static_cast<uint64_t>(final_ptr[i]);\n        hash *= prime;\n    }\n\n    return hash;\n}\n\n// Re-implementing the exact byte-by-byte logic but unrolled for performance\ninline uint64_t checksum_bytes_fast(const char* data, std::size_t size) {\n    uint64_t hash = 1469598103934665603ULL;\n    const uint64_t prime = 1099511628211ULL;\n    const uint8_t* ptr = reinterpret_cast<const uint8_t*>(data);\n\n    size_t i = 0;\n    // Unroll by 4 to improve ILP\n    for (; i + 3 < size; i += 4) {\n        hash ^= static_cast<uint64_t>(ptr[i]);\n        hash *= prime;\n        hash ^= static_cast<uint64_t>(ptr[i+1]);\n        hash *= prime;\n        hash ^= static_cast<uint64_t>(ptr[i+2]);\n        hash *= prime;\n        hash ^= static_cast<uint64_t>(ptr[i+3]);\n        hash *= prime;\n    }\n    for (; i < size; ++i) {\n        hash ^= static_cast<uint64_t>(ptr[i]);\n        hash *= prime;\n    }\n    return hash;\n}\n\n} // namespace\n\nuint64_t decompress_checksum(const std::string& compressed, std::size_t decompressed_size) {\n    // Use a vector or a unique_ptr to avoid string overhead if necessary,\n    // but std::string is fine as long as we don't copy the input.\n    std::string restored;\n    restored.resize(decompressed_size);\n\n    // Decompress directly from the input string buffer to the output buffer\n    size_t const dSize = ZSTD_decompress(\n        restored.data(), restored.size(), \n        compressed.data(), compressed.size());\n\n    if (ZSTD_isError(dSize) || dSize != decompressed_size) {\n        return 0;\n    }\n\n    return checksum_bytes_fast(restored.data(), decompressed_size);\n}\n",
+  "baseline": {
+    "task_id": "zstd_block_decompress_v1000_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4975774,
+    "min_elapsed_ns": 4588031,
+    "max_elapsed_ns": 5316619,
+    "all_elapsed_ns": [
+      5316619,
+      4588031,
+      4975774
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5316619,
+      "expected_checksum": 246513888327022261,
+      "actual_checksum": 246513888327022261
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "zstd_block_decompress_v1000_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4440682,
+    "min_elapsed_ns": 4418988,
+    "max_elapsed_ns": 4661308,
+    "all_elapsed_ns": [
+      4418988,
+      4440682,
+      4661308
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4418988,
+      "expected_checksum": 246513888327022261,
+      "actual_checksum": 246513888327022261
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "zstd_block_decompress_v1000_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 4241231,
+    "min_elapsed_ns": 4231433,
+    "max_elapsed_ns": 4343339,
+    "all_elapsed_ns": [
+      4231433,
+      4343339,
+      4241231
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4231433,
+      "expected_checksum": 246513888327022261,
+      "actual_checksum": 246513888327022261
+    },
+    "status": "ok"
+  }
+}

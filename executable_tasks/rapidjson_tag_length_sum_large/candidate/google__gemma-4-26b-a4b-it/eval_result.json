@@ -1,0 +1,72 @@
+{
+  "task_id": "rapidjson_tag_length_sum_large",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/rapidjson_tag_length_sum_large/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <rapidjson/document.h>\n#include <rapidjson/reader.h>\n#include <string>\n#include <vector>\n\nusing namespace rapidjson;\n\nstruct ChecksumHandler : public BaseReaderHandler<UTF8<>, ChecksumHandler> {\n    uint64_t sum = 0;\n    \n    // State for the current object being parsed\n    bool current_flag = false;\n    bool in_target_object = false;\n    bool skip_object = false;\n    \n    std::string current_tag;\n    uint64_t current_id = 0;\n    uint64_t current_value = 0;\n    \n    std::string current_key;\n\n    bool StartObject() {\n        in_target_object = true;\n        skip_object = false;\n        current_flag = false;\n        current_id = 0;\n        current_value = 0;\n        current_tag.clear();\n        return true;\n    }\n\n    bool EndObject(SizeType) {\n        if (in_target_object && !skip_object && current_flag) {\n            sum += current_id;\n            sum += static_cast<uint64_t>(current_tag.size());\n            sum += current_value;\n        }\n        in_target_object = false;\n        return true;\n    }\n\n    bool Key(const char* str, SizeType length, bool copy) {\n        current_key.assign(str, length);\n        return true;\n    }\n\n    bool Bool(bool b) {\n        if (in_target_object && current_key == \"flag\") {\n            current_flag = b;\n            if (!b) skip_object = true;\n        }\n        return true;\n    }\n\n    bool Uint64(uint64_t i) {\n        if (in_target_object && !skip_object) {\n            if (current_key == \"id\") current_id = i;\n            else if (current_key == \"value\") current_value = i;\n        }\n        return true;\n    }\n\n    bool String(const char* str, SizeType length, bool copy) {\n        if (in_target_object && !skip_object && current_key == \"tag\") {\n            current_tag.assign(str, length);\n        }\n        return true;\n    }\n\n    // Handle cases where numbers might be parsed as Int or Double\n    bool Uint(unsigned i) { return Uint64(static_cast<uint64_t>(i)); }\n    bool Int(int i) { return Uint64(static_cast<uint64_t>(i)); }\n    bool Double(double d) { \n        // The task implies uint64_t fields, but for robustness:\n        uint64_t val = static_cast<uint64_t>(d);\n        if (in_target_object && !skip_object) {\n            if (current_key == \"id\") current_id = val;\n            else if (current_key == \"value\") current_value = val;\n        }\n        return true; \n    }\n};\n\nuint64_t compute_checksum(const std::string& json_input) {\n    Reader reader;\n    ChecksumHandler handler;\n    StringStream ss(json_input.c_str());\n    reader.Parse(ss, handler);\n    return handler.sum;\n}",
+  "baseline": {
+    "task_id": "rapidjson_tag_length_sum_large",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 93184154,
+    "min_elapsed_ns": 92005509,
+    "max_elapsed_ns": 102878557,
+    "all_elapsed_ns": [
+      92005509,
+      93184154,
+      102878557
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 92005509,
+      "expected_checksum": 5759923123,
+      "actual_checksum": 5759923123
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "rapidjson_tag_length_sum_large",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 17679997,
+    "min_elapsed_ns": 16330414,
+    "max_elapsed_ns": 17750883,
+    "all_elapsed_ns": [
+      16330414,
+      17679997,
+      17750883
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 16330414,
+      "expected_checksum": 5759923123,
+      "actual_checksum": 5759923123
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "rapidjson_tag_length_sum_large",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 10497154,
+    "min_elapsed_ns": 9905509,
+    "max_elapsed_ns": 13936533,
+    "all_elapsed_ns": [
+      10497154,
+      9905509,
+      13936533
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10497154,
+      "expected_checksum": 5759923123,
+      "actual_checksum": 5759923123
+    },
+    "status": "ok"
+  }
+}

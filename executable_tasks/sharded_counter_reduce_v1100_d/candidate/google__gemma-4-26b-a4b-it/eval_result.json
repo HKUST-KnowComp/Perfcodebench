@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce_v1100_d",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v1100_d/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 7,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <thread>\n#include <vector>\n#include <algorithm>\n\nnamespace {\n\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  const std::size_t k_space = static_cast<std::size_t>(key_space);\n  const std::size_t n = keys.size();\n  uint64_t final_hash = 0;\n\n  // Pre-allocate thread-local buffers to avoid repeated allocation in the loop\n  std::vector<std::vector<uint64_t>> thread_local_counts(num_threads, std::vector<uint64_t>(k_space, 0));\n  std::vector<std::thread> threads(num_threads);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    // Reset thread-local buffers\n    for (int t = 0; t < num_threads; ++t) {\n      std::fill(thread_local_counts[t].begin(), thread_local_counts[t].end(), 0);\n    }\n\n    const std::size_t chunk = n / static_cast<std::size_t>(num_threads);\n\n    for (int t = 0; t < num_threads; ++t) {\n      const std::size_t begin = static_cast<std::size_t>(t) * chunk;\n      const std::size_t end = (t + 1 == num_threads) ? n : begin + chunk;\n\n      threads[t] = std::thread([&, t, begin, end]() {\n        auto& my_counts = thread_local_counts[t];\n        for (std::size_t i = begin; i < end; ++i) {\n          my_counts[static_cast<std::size_t>(keys[i])] += static_cast<uint64_t>(values[i]);\n        }\n      });\n    }\n\n    for (int t = 0; t < num_threads; ++t) {\n      threads[t].join();\n    }\n\n    // Reduce thread-local counts into a single global count vector for checksumming\n    std::vector<uint64_t> global_counts(k_space, 0);\n    for (int t = 0; t < num_threads; ++t) {\n      for (std::size_t k = 0; k < k_space; ++k) {\n        global_counts[k] += thread_local_counts[t][k];\n      }\n    }\n\n    final_hash = checksum_u64(global_counts);\n  }\n\n  return final_hash;\n}",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v1100_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5237618164,
+    "min_elapsed_ns": 4270260399,
+    "max_elapsed_ns": 6281336586,
+    "all_elapsed_ns": [
+      4270260399,
+      5237618164,
+      6281336586
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4270260399,
+      "expected_checksum": 4927837675318346627,
+      "actual_checksum": 4927837675318346627
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v1100_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 17197181,
+    "min_elapsed_ns": 16411378,
+    "max_elapsed_ns": 18869272,
+    "all_elapsed_ns": [
+      18869272,
+      17197181,
+      16411378
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 18869272,
+      "expected_checksum": 4927837675318346627,
+      "actual_checksum": 4927837675318346627
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v1100_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 24129557,
+    "min_elapsed_ns": 15451457,
+    "max_elapsed_ns": 37461299,
+    "all_elapsed_ns": [
+      37461299,
+      15451457,
+      24129557
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 37461299,
+      "expected_checksum": 4927837675318346627,
+      "actual_checksum": 4927837675318346627
+    },
+    "status": "ok"
+  }
+}

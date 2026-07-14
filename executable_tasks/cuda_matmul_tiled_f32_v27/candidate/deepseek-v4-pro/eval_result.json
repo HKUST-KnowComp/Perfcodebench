@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_matmul_tiled_f32_v27",
+  "model": "deepseek-v4-pro",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_matmul_tiled_f32_v27/candidate/deepseek-v4-pro/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\n#define TILE_DIM 32\n\n__global__ void matmul_tiled_kernel(const float* __restrict__ A, const float* __restrict__ B, float* __restrict__ C, int N) {\n    __shared__ float As[TILE_DIM][TILE_DIM];\n    __shared__ float Bs[TILE_DIM][TILE_DIM];\n    int bx = blockIdx.x, by = blockIdx.y;\n    int tx = threadIdx.x, ty = threadIdx.y;\n    int row = by * TILE_DIM + ty;\n    int col = bx * TILE_DIM + tx;\n    float sum = 0.0f;\n    for (int k = 0; k < N; k += TILE_DIM) {\n        // Load A tile into shared memory (coalesced)\n        if (row < N && (k + tx) < N) {\n            As[ty][tx] = A[row * N + k + tx];\n        } else {\n            As[ty][tx] = 0.0f;\n        }\n        // Load B tile into shared memory (coalesced)\n        if (col < N && (k + ty) < N) {\n            Bs[ty][tx] = B[(k + ty) * N + col];\n        } else {\n            Bs[ty][tx] = 0.0f;\n        }\n        __syncthreads();\n        // Unrolled dot product\n        #pragma unroll\n        for (int i = 0; i < TILE_DIM; ++i) {\n            sum += As[ty][i] * Bs[i][tx];\n        }\n        __syncthreads();\n    }\n    if (row < N && col < N) {\n        C[row * N + col] = sum;\n    }\n}\n\n}  // namespace\n\nvoid matmul_f32(const float* a, const float* b, float* c, int n, int iters) {\n    dim3 block(TILE_DIM, TILE_DIM);\n    dim3 grid((n + TILE_DIM - 1) / TILE_DIM, (n + TILE_DIM - 1) / TILE_DIM);\n    for (int iter = 0; iter < iters; ++iter) {\n        matmul_tiled_kernel<<<grid, block>>>(a, b, c, n);\n    }\n}\n",
+  "baseline": {
+    "task_id": "cuda_matmul_tiled_f32_v27",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 248927,
+    "min_elapsed_ns": 245343,
+    "max_elapsed_ns": 273856,
+    "all_elapsed_ns": [
+      273856,
+      248927,
+      245343
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 273856,
+      "max_abs_error": 0,
+      "checksum": 1947170000.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_matmul_tiled_f32_v27",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 184863,
+    "min_elapsed_ns": 183359,
+    "max_elapsed_ns": 194815,
+    "all_elapsed_ns": [
+      184863,
+      183359,
+      194815
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 184863,
+      "max_abs_error": 0,
+      "checksum": 1947170000.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_matmul_tiled_f32_v27",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_matmul_tiled_f32_v27/candidate/bench']' timed out after 5 seconds"
+  }
+}

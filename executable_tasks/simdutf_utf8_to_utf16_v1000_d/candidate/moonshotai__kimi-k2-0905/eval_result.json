@@ -1,0 +1,59 @@
+{
+  "task_id": "simdutf_utf8_to_utf16_v1000_d",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdutf_utf8_to_utf16_v1000_d/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstddef>\n#include <cstdint>\n#include <string>\n\nuint64_t transcode_checksum(const std::string &input) {\n  /* FNV-1a constants */\n  const uint64_t offset_basis = 14695981039346656037ULL;\n  const uint64_t prime = 1099511628211ULL;\n\n  /* Streaming state */\n  const unsigned char *p = reinterpret_cast<const unsigned char *>(input.data());\n  const unsigned char *end = p + input.size();\n  uint64_t hash = offset_basis;\n\n  /* one-byte encoding: 0xxxxxxx\n   * two-byte encoding: 110xxxxx 10xxxxxx\n   * three-byte encoding: 1110xxxx 10xxxxxx 10xxxxxx\n   * four-byte encoding: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx\n   */\n  while (p < end) {\n    unsigned char c = *p++;\n    uint32_t cp;\n\n    if (c <= 0x7F) { /* 00..7F */\n      cp = static_cast<uint32_t>(c);\n    } else if ((c & 0xE0) == 0xC0) { /* 110xxxxx */\n      if (p == end) break; /* malformed -> truncate; assume well-formed */\n      cp = ((static_cast<uint32_t>(c & 0x1F)) << 6) |\n           (static_cast<uint32_t>(*p & 0x3F));\n      ++p;\n    } else if ((c & 0xF0) == 0xE0) { /* 1110xxxx */\n      if (p + 1 > end) break; /* malformed -> truncate; assume well-formed */\n      cp = ((static_cast<uint32_t>(c & 0x0F)) << 12) |\n           ((static_cast<uint32_t>(p[0] & 0x3F)) << 6) |\n           (static_cast<uint32_t>(p[1] & 0x3F));\n      p += 2;\n    } else { /* assume (c & 0xF8) == 0xF0 \u2192 11110xxx */\n      if (p + 2 > end) break; /* malformed -> truncate; assume well-formed */\n      cp = ((static_cast<uint32_t>(c & 0x07)) << 18) |\n           ((static_cast<uint32_t>(p[0] & 0x3F)) << 12) |\n           ((static_cast<uint32_t>(p[1] & 0x3F)) << 6) |\n           (static_cast<uint32_t>(p[2] & 0x3F));\n      p += 3;\n    }\n\n    /* Encode cp to UTF-16LE code unit(s) and update hash */\n    if (cp <= 0xFFFF) {\n      /* BMP character \u2013 one 16-bit unit */\n      hash ^= static_cast<uint64_t>(static_cast<char16_t>(cp));\n      hash *= prime;\n    } else {\n      /* Supplementary character \u2013 surrogate pair */\n      cp -= 0x10000;\n      char16_t lo = static_cast<char16_t>(0xDC00U + (cp & 0x3FFU));\n      char16_t hi = static_cast<char16_t>(0xD800U + (cp >> 10));\n\n      hash ^= static_cast<uint64_t>(hi);\n      hash *= prime;\n      hash ^= static_cast<uint64_t>(lo);\n      hash *= prime;\n    }\n  }\n\n  return hash;\n}",
+  "baseline": {
+    "task_id": "simdutf_utf8_to_utf16_v1000_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6518647,
+    "min_elapsed_ns": 6387941,
+    "max_elapsed_ns": 6587795,
+    "all_elapsed_ns": [
+      6387941,
+      6587795,
+      6518647
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6387941,
+      "expected_checksum": 14400103823775880186,
+      "actual_checksum": 14400103823775880186
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdutf_utf8_to_utf16_v1000_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2459683,
+    "min_elapsed_ns": 2379738,
+    "max_elapsed_ns": 2529108,
+    "all_elapsed_ns": [
+      2529108,
+      2459683,
+      2379738
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2529108,
+      "expected_checksum": 14400103823775880186,
+      "actual_checksum": 14400103823775880186
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdutf_utf8_to_utf16_v1000_d",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/simdutf_utf8_to_utf16_v1000_d/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "sorted_interval_lookup_sum_v500_f",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sorted_interval_lookup_sum_v500_f/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#endif\n\nuint64_t interval_lookup_sum(\n    const std::vector<uint32_t>& starts,\n    const std::vector<uint32_t>& ends,\n    const std::vector<uint32_t>& payloads,\n    const std::vector<uint32_t>& probes,\n    const std::vector<uint32_t>& weights,\n    int iters) {\n  (void)ends;\n  \n  const std::size_t n = probes.size();\n  const uint32_t* starts_ptr = starts.data();\n  const uint32_t* payloads_ptr = payloads.data();\n  const uint32_t* probes_ptr = probes.data();\n  const uint32_t* weights_ptr = weights.data();\n  const std::size_t starts_size = starts.size();\n  \n  uint64_t sum = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    \n#if defined(__AVX2__)\n    __m256i vsum = _mm256_setzero_si256();\n    \n    std::size_t i = 0;\n    for (; i + 4 <= n; i += 4) {\n      // Prefetch ahead\n      if (i + 32 < n) {\n        __builtin_prefetch(probes_ptr + i + 32, 0, 1);\n        __builtin_prefetch(weights_ptr + i + 32, 0, 1);\n      }\n      \n      // Process 4 probes at a time\n      uint32_t probe0 = probes_ptr[i];\n      uint32_t probe1 = probes_ptr[i + 1];\n      uint32_t probe2 = probes_ptr[i + 2];\n      uint32_t probe3 = probes_ptr[i + 3];\n      \n      // Binary searches\n      const uint32_t* it0 = std::upper_bound(starts_ptr, starts_ptr + starts_size, probe0);\n      const uint32_t* it1 = std::upper_bound(starts_ptr, starts_ptr + starts_size, probe1);\n      const uint32_t* it2 = std::upper_bound(starts_ptr, starts_ptr + starts_size, probe2);\n      const uint32_t* it3 = std::upper_bound(starts_ptr, starts_ptr + starts_size, probe3);\n      \n      std::size_t idx0 = static_cast<std::size_t>(it0 - starts_ptr - 1);\n      std::size_t idx1 = static_cast<std::size_t>(it1 - starts_ptr - 1);\n      std::size_t idx2 = static_cast<std::size_t>(it2 - starts_ptr - 1);\n      std::size_t idx3 = static_cast<std::size_t>(it3 - starts_ptr - 1);\n      \n      // Load payloads and weights\n      __m128i pay = _mm_set_epi32(\n        static_cast<int>(payloads_ptr[idx3]),\n        static_cast<int>(payloads_ptr[idx2]),\n        static_cast<int>(payloads_ptr[idx1]),\n        static_cast<int>(payloads_ptr[idx0])\n      );\n      \n      __m128i wgt = _mm_loadu_si128(reinterpret_cast<const __m128i*>(weights_ptr + i));\n      \n      // Extend to 64-bit and multiply\n      __m256i pay64 = _mm256_cvtepu32_epi64(pay);\n      __m256i wgt64 = _mm256_cvtepu32_epi64(wgt);\n      \n      // Multiply (using mullo for 64-bit)\n      __m256i prod = _mm256_mul_epu32(pay64, wgt64);\n      \n      vsum = _mm256_add_epi64(vsum, prod);\n    }\n    \n    // Horizontal sum of vsum\n    __m128i vsum_lo = _mm256_castsi256_si128(vsum);\n    __m128i vsum_hi = _mm256_extracti128_si256(vsum, 1);\n    __m128i vsum128 = _mm_add_epi64(vsum_lo, vsum_hi);\n    vsum128 = _mm_add_epi64(vsum128, _mm_srli_si128(vsum128, 8));\n    sum = static_cast<uint64_t>(_mm_cvtsi128_si64(vsum128));\n    \n    // Handle remaining elements\n    for (; i < n; ++i) {\n      const uint32_t* it = std::upper_bound(starts_ptr, starts_ptr + starts_size, probes_ptr[i]);\n      const std::size_t idx = static_cast<std::size_t>(it - starts_ptr - 1);\n      sum += static_cast<uint64_t>(payloads_ptr[idx]) * static_cast<uint64_t>(weights_ptr[i]);\n    }\n#else\n    // Scalar fallback with unrolling\n    std::size_t i = 0;\n    for (; i + 4 <= n; i += 4) {\n      const uint32_t* it0 = std::upper_bound(starts_ptr, starts_ptr + starts_size, probes_ptr[i]);\n      const uint32_t* it1 = std::upper_bound(starts_ptr, starts_ptr + starts_size, probes_ptr[i + 1]);\n      const uint32_t* it2 = std::upper_bound(starts_ptr, starts_ptr + starts_size, probes_ptr[i + 2]);\n      const uint32_t* it3 = std::upper_bound(starts_ptr, starts_ptr + starts_size, probes_ptr[i + 3]);\n      \n      std::size_t idx0 = static_cast<std::size_t>(it0 - starts_ptr - 1);\n      std::size_t idx1 = static_cast<std::size_t>(it1 - starts_ptr - 1);\n      std::size_t idx2 = static_cast<std::size_t>(it2 - starts_ptr - 1);\n      std::size_t idx3 = static_cast<std::size_t>(it3 - starts_ptr - 1);\n      \n      sum += static_cast<uint64_t>(payloads_ptr[idx0]) * static_cast<uint64_t>(weights_ptr[i]);\n      sum += static_cast<uint64_t>(payloads_ptr[idx1]) * static_cast<uint64_t>(weights_ptr[i + 1]);\n      sum += static_cast<uint64_t>(payloads_ptr[idx2]) * static_cast<uint64_t>(weights_ptr[i + 2]);\n      sum += static_cast<uint64_t>(payloads_ptr[idx3]) * static_cast<uint64_t>(weights_ptr[i + 3]);\n    }\n    \n    for (; i < n; ++i) {\n      const uint32_t* it = std::upper_bound(starts_ptr, starts_ptr + starts_size, probes_ptr[i]);\n      const std::size_t idx = static_cast<std::size_t>(it - starts_ptr - 1);\n      sum += static_cast<uint64_t>(payloads_ptr[idx]) * static_cast<uint64_t>(weights_ptr[i]);\n    }\n#endif\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "sorted_interval_lookup_sum_v500_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 467126199,
+    "min_elapsed_ns": 466903199,
+    "max_elapsed_ns": 467678408,
+    "all_elapsed_ns": [
+      467678408,
+      466903199,
+      467126199
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 467678408,
+      "expected_sum": 85831039488,
+      "actual_sum": 85831039488
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sorted_interval_lookup_sum_v500_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 55703406,
+    "min_elapsed_ns": 55402488,
+    "max_elapsed_ns": 55761405,
+    "all_elapsed_ns": [
+      55703406,
+      55761405,
+      55402488
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 55703406,
+      "expected_sum": 85831039488,
+      "actual_sum": 85831039488
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sorted_interval_lookup_sum_v500_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 667230256,
+    "min_elapsed_ns": 649399654,
+    "max_elapsed_ns": 673045323,
+    "all_elapsed_ns": [
+      673045323,
+      667230256,
+      649399654
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 673045323,
+      "expected_sum": 85831039488,
+      "actual_sum": 85831039488
+    },
+    "status": "ok"
+  }
+}

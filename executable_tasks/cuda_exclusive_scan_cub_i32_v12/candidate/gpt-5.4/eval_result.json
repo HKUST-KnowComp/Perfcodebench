@@ -1,0 +1,33 @@
+{
+  "task_id": "cuda_exclusive_scan_cub_i32_v12",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_exclusive_scan_cub_i32_v12/candidate/gpt-5.4/solution.cu",
+  "benchmark_timeout_sec": 17,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\n// Warp-synchronous exclusive scan for int using shuffle intrinsics.\n__device__ __forceinline__ int warp_exclusive_scan(int v, unsigned mask = 0xffffffffu) {\n  int x = v;\n  #pragma unroll\n  for (int offset = 1; offset < 32; offset <<= 1) {\n    int y = __shfl_up_sync(mask, x, offset);\n    if ((threadIdx.x & 31) >= offset) x += y;\n  }\n  return x - v;\n}\n\n// Single-kernel decoupled-lookback-style scan across blocks using a lightweight\n// global block-state protocol. This avoids multiple kernel launches per scan.\n__global__ void exclusive_scan_singlepass_kernel(\n    const int* __restrict__ input,\n    int* __restrict__ output,\n    int n,\n    int* __restrict__ block_sums,\n    int* __restrict__ block_prefix,\n    int* __restrict__ block_flags) {\n  constexpr int BLOCK_THREADS = 256;\n  constexpr int ITEMS_PER_THREAD = 8;\n  constexpr int TILE_ITEMS = BLOCK_THREADS * ITEMS_PER_THREAD;\n  constexpr int WARPS = BLOCK_THREADS / 32;\n\n  __shared__ int warp_totals[WARPS];\n  __shared__ int block_exclusive_prefix;\n\n  const int tid = threadIdx.x;\n  const int lane = tid & 31;\n  const int warp = tid >> 5;\n  const int block = blockIdx.x;\n  const int tile_start = block * TILE_ITEMS;\n\n  int vals[ITEMS_PER_THREAD];\n  int excl[ITEMS_PER_THREAD];\n  int thread_sum = 0;\n\n  #pragma unroll\n  for (int i = 0; i < ITEMS_PER_THREAD; ++i) {\n    int idx = tile_start + tid + i * BLOCK_THREADS;\n    int v = 0;\n    if (idx < n) v = input[idx];\n    vals[i] = v;\n    excl[i] = thread_sum;\n    thread_sum += v;\n  }\n\n  int warp_excl = warp_exclusive_scan(thread_sum);\n  int warp_total = warp_excl + thread_sum;\n  if (lane == 31) warp_totals[warp] = warp_total;\n  __syncthreads();\n\n  if (warp == 0) {\n    int wv = (lane < WARPS) ? warp_totals[lane] : 0;\n    int wex = warp_exclusive_scan(wv);\n    if (lane < WARPS) warp_totals[lane] = wex;\n  }\n  __syncthreads();\n\n  int thread_prefix = warp_totals[warp] + warp_excl;\n  int tile_sum = warp_totals[WARPS - 1] + warp_total;\n\n  if (tid == 0) {\n    block_sums[block] = tile_sum;\n    __threadfence();\n    block_flags[block] = 1;  // local sum ready\n\n    if (block == 0) {\n      block_prefix[0] = 0;\n      __threadfence();\n      block_flags[0] = 2;  // prefix ready\n    } else {\n      int prefix = 0;\n      int prev = block - 1;\n      while (true) {\n        int flag = atomicAdd(&block_flags[prev], 0);\n        if (flag >= 2) {\n          prefix = block_prefix[prev] + block_sums[prev];\n          break;\n        }\n      }\n      block_prefix[block] = prefix;\n      __threadfence();\n      block_flags[block] = 2;  // prefix ready\n    }\n    block_exclusive_prefix = block_prefix[block];\n  }\n  __syncthreads();\n\n  int base = block_exclusive_prefix + thread_prefix;\n  #pragma unroll\n  for (int i = 0; i < ITEMS_PER_THREAD; ++i) {\n    int idx = tile_start + tid + i * BLOCK_THREADS;\n    if (idx < n) output[idx] = base + excl[i];\n  }\n}\n\n}  // namespace\n\nvoid exclusive_scan_i32(const int* input, int* output, int n, int iters) {\n  if (iters <= 0) return;\n  if (n <= 0) return;\n\n  constexpr int BLOCK_THREADS = 256;\n  constexpr int ITEMS_PER_THREAD = 8;\n  constexpr int TILE_ITEMS = BLOCK_THREADS * ITEMS_PER_THREAD;\n\n  const int num_blocks = (n + TILE_ITEMS - 1) / TILE_ITEMS;\n\n  int* block_sums = nullptr;\n  int* block_prefix = nullptr;\n  int* block_flags = nullptr;\n\n  cudaMalloc(&block_sums, static_cast<size_t>(num_blocks) * sizeof(int));\n  cudaMalloc(&block_prefix, static_cast<size_t>(num_blocks) * sizeof(int));\n  cudaMalloc(&block_flags, static_cast<size_t>(num_blocks) * sizeof(int));\n\n  for (int iter = 0; iter < iters; ++iter) {\n    cudaMemset(block_flags, 0, static_cast<size_t>(num_blocks) * sizeof(int));\n    exclusive_scan_singlepass_kernel<<<num_blocks, BLOCK_THREADS>>>(\n        input, output, n, block_sums, block_prefix, block_flags);\n  }\n\n  cudaFree(block_flags);\n  cudaFree(block_prefix);\n  cudaFree(block_sums);\n}\n",
+  "baseline": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v12",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_exclusive_scan_cub_i32_v12/baseline/bench']' returned non-zero exit status 1."
+  },
+  "reference": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v12",
+    "variant": "reference",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_exclusive_scan_cub_i32_v12/reference/bench']' returned non-zero exit status 1."
+  },
+  "candidate": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v12",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_exclusive_scan_cub_i32_v12/candidate/bench']' returned non-zero exit status 2."
+  }
+}

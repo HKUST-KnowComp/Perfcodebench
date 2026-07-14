@@ -1,0 +1,72 @@
+{
+  "task_id": "moe_router_top2_v2100_h",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/moe_router_top2_v2100_h/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#endif\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n// Scalar top-2 selection with deterministic tie-breaking (lower index wins)\ninline void top2_scalar(const int32_t* row, int experts,\n                        int32_t& v1, int& i1, int32_t& v2, int& i2) {\n  v1 = row[0];\n  i1 = 0;\n  v2 = row[1];\n  i2 = 1;\n  // Ensure v1 >= v2 with tie-break\n  if (v2 > v1 || (v2 == v1 && i2 < i1)) {\n    int32_t tv = v1; int ti = i1;\n    v1 = v2; i1 = i2;\n    v2 = tv; i2 = ti;\n  }\n  for (int e = 2; e < experts; ++e) {\n    int32_t val = row[e];\n    if (val > v1 || (val == v1 && e < i1)) {\n      v2 = v1; i2 = i1;\n      v1 = val; i1 = e;\n    } else if (val > v2 || (val == v2 && e < i2)) {\n      v2 = val; i2 = e;\n    }\n  }\n}\n\n#if defined(__AVX2__)\n// AVX2 top-2 selection\ninline void top2_avx2(const int32_t* row, int experts,\n                      int32_t& v1, int& i1, int32_t& v2, int& i2) {\n  // Process 8 elements at a time\n  __m256i max1_val = _mm256_set1_epi32(INT32_MIN);\n  __m256i max1_idx = _mm256_setzero_si256();\n  __m256i max2_val = _mm256_set1_epi32(INT32_MIN);\n  __m256i max2_idx = _mm256_setzero_si256();\n  __m256i idx_base = _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);\n  __m256i eight = _mm256_set1_epi32(8);\n\n  int e = 0;\n  for (; e + 8 <= experts; e += 8) {\n    __m256i vals = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(row + e));\n    __m256i idxs = idx_base;\n\n    // Check if vals > max1_val, or (vals == max1_val && idxs < max1_idx)\n    __m256i gt1 = _mm256_cmpgt_epi32(vals, max1_val);\n    __m256i eq1 = _mm256_cmpeq_epi32(vals, max1_val);\n    __m256i lt_idx1 = _mm256_cmpgt_epi32(max1_idx, idxs);\n    __m256i better1 = _mm256_or_si256(gt1, _mm256_and_si256(eq1, lt_idx1));\n\n    // For elements that beat max1: old max1 becomes candidate for max2\n    // Update max2 first with old max1 values where better1 is true\n    __m256i gt2_from_old = _mm256_cmpgt_epi32(max1_val, max2_val);\n    __m256i eq2_from_old = _mm256_cmpeq_epi32(max1_val, max2_val);\n    __m256i lt_idx2_from_old = _mm256_cmpgt_epi32(max2_idx, max1_idx);\n    __m256i better2_from_old = _mm256_or_si256(gt2_from_old, _mm256_and_si256(eq2_from_old, lt_idx2_from_old));\n    __m256i update2_from_old = _mm256_and_si256(better1, better2_from_old);\n    max2_val = _mm256_blendv_epi8(max2_val, max1_val, update2_from_old);\n    max2_idx = _mm256_blendv_epi8(max2_idx, max1_idx, update2_from_old);\n\n    // Update max1\n    max1_val = _mm256_blendv_epi8(max1_val, vals, better1);\n    max1_idx = _mm256_blendv_epi8(max1_idx, idxs, better1);\n\n    // For elements that don't beat max1, check if they beat max2\n    __m256i not_better1 = _mm256_xor_si256(better1, _mm256_set1_epi32(-1));\n    __m256i gt2 = _mm256_cmpgt_epi32(vals, max2_val);\n    __m256i eq2 = _mm256_cmpeq_epi32(vals, max2_val);\n    __m256i lt_idx2 = _mm256_cmpgt_epi32(max2_idx, idxs);\n    __m256i better2 = _mm256_and_si256(not_better1, _mm256_or_si256(gt2, _mm256_and_si256(eq2, lt_idx2)));\n    max2_val = _mm256_blendv_epi8(max2_val, vals, better2);\n    max2_idx = _mm256_blendv_epi8(max2_idx, idxs, better2);\n\n    idx_base = _mm256_add_epi32(idx_base, eight);\n  }\n\n  // Horizontal reduction\n  alignas(32) int32_t vals1[8], idxs1[8], vals2[8], idxs2[8];\n  _mm256_store_si256(reinterpret_cast<__m256i*>(vals1), max1_val);\n  _mm256_store_si256(reinterpret_cast<__m256i*>(idxs1), max1_idx);\n  _mm256_store_si256(reinterpret_cast<__m256i*>(vals2), max2_val);\n  _mm256_store_si256(reinterpret_cast<__m256i*>(idxs2), max2_idx);\n\n  v1 = vals1[0]; i1 = idxs1[0];\n  v2 = vals2[0]; i2 = idxs2[0];\n  if (v2 > v1 || (v2 == v1 && i2 < i1)) {\n    int32_t tv = v1; int ti = i1;\n    v1 = v2; i1 = i2;\n    v2 = tv; i2 = ti;\n  }\n\n  for (int j = 1; j < 8; ++j) {\n    int32_t cv1 = vals1[j], cv2 = vals2[j];\n    int ci1 = idxs1[j], ci2 = idxs2[j];\n    if (cv2 > cv1 || (cv2 == cv1 && ci2 < ci1)) {\n      int32_t tv = cv1; int ti = ci1;\n      cv1 = cv2; ci1 = ci2;\n      cv2 = tv; ci2 = ti;\n    }\n    // Merge (cv1, ci1), (cv2, ci2) into (v1, i1), (v2, i2)\n    if (cv1 > v1 || (cv1 == v1 && ci1 < i1)) {\n      // cv1 is new top1\n      // new top2 is max of old v1 and cv2\n      if (v1 > cv2 || (v1 == cv2 && i1 < ci2)) {\n        v2 = v1; i2 = i1;\n      } else {\n        v2 = cv2; i2 = ci2;\n      }\n      v1 = cv1; i1 = ci1;\n    } else {\n      // v1 stays top1, check cv1 against v2\n      if (cv1 > v2 || (cv1 == v2 && ci1 < i2)) {\n        v2 = cv1; i2 = ci1;\n      }\n    }\n  }\n\n  // Handle tail\n  for (; e < experts; ++e) {\n    int32_t val = row[e];\n    if (val > v1 || (val == v1 && e < i1)) {\n      v2 = v1; i2 = i1;\n      v1 = val; i1 = e;\n    } else if (val > v2 || (val == v2 && e < i2)) {\n      v2 = val; i2 = e;\n    }\n  }\n}\n#endif\n\n}  // namespace\n\nuint64_t moe_router_checksum(const std::vector<int32_t>& logits, int tokens, int experts, int iters) {\n  const int32_t* data = logits.data();\n  uint64_t hash = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    for (int t = 0; t < tokens; ++t) {\n      const int32_t* row = data + static_cast<std::size_t>(t) * static_cast<std::size_t>(experts);\n      int32_t v1, v2;\n      int i1, i2;\n\n#if defined(__AVX2__)\n      if (experts >= 16) {\n        top2_avx2(row, experts, v1, i1, v2, i2);\n      } else {\n        top2_scalar(row, experts, v1, i1, v2, i2);\n      }\n#else\n      top2_scalar(row, experts, v1, i1, v2, i2);\n#endif\n\n      hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(v1)));\n      hash = mix(hash, static_cast<uint64_t>(i1));\n      hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(v2)));\n      hash = mix(hash, static_cast<uint64_t>(i2));\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "moe_router_top2_v2100_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 176489612,
+    "min_elapsed_ns": 170986682,
+    "max_elapsed_ns": 179111439,
+    "all_elapsed_ns": [
+      179111439,
+      170986682,
+      176489612
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 179111439,
+      "expected_checksum": 12919154643857970313,
+      "actual_checksum": 12919154643857970313
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "moe_router_top2_v2100_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 9558193,
+    "min_elapsed_ns": 8884188,
+    "max_elapsed_ns": 9662790,
+    "all_elapsed_ns": [
+      9662790,
+      8884188,
+      9558193
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9662790,
+      "expected_checksum": 12919154643857970313,
+      "actual_checksum": 12919154643857970313
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "moe_router_top2_v2100_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 8419632,
+    "min_elapsed_ns": 7624866,
+    "max_elapsed_ns": 8490084,
+    "all_elapsed_ns": [
+      8419632,
+      7624866,
+      8490084
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8419632,
+      "expected_checksum": 12919154643857970313,
+      "actual_checksum": 12919154643857970313
+    },
+    "status": "ok"
+  }
+}

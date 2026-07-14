@@ -1,0 +1,59 @@
+{
+  "task_id": "segment_id_expand_checksum_v1200_i",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/segment_id_expand_checksum_v1200_i/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstdint>\n\nnamespace {\n\nconstexpr uint64_t FNV_PRIME = 1099511628211ULL;\nconstexpr uint64_t FNV_OFFSET = 1469598103934665603ULL;\n\n// Compute base^exp mod 2^64 using exponentiation by squaring\ninline uint64_t power_mod(uint64_t base, uint64_t exp) {\n    uint64_t result = 1;\n    while (exp > 0) {\n        if (exp & 1) {\n            result *= base;\n        }\n        base *= base;\n        exp >>= 1;\n    }\n    return result;\n}\n\n// Compute (1 + p + p^2 + ... + p^(n-1)) mod 2^64\n// This equals (p^n - 1) / (p - 1), but we need modular arithmetic\n// We use the recurrence: S(n) = 1 + p * S(n-1)\n// Or binary splitting: S(2k) = S(k) * (1 + p^k), S(2k+1) = 1 + p * S(2k)\ninline uint64_t geometric_sum(uint64_t p, uint64_t n) {\n    if (n == 0) return 0;\n    if (n == 1) return 1;\n    \n    uint64_t half = n >> 1;\n    uint64_t s_half = geometric_sum(p, half);\n    uint64_t p_half = power_mod(p, half);\n    \n    if (n & 1) {\n        // S(2k+1) = 1 + p * (S(k) * (1 + p^k))\n        return 1 + p * s_half * (1 + p_half);\n    } else {\n        // S(2k) = S(k) * (1 + p^k)\n        return s_half * (1 + p_half);\n    }\n}\n\n}  // namespace\n\nuint64_t segment_expand_hash(const std::vector<uint32_t>& offsets, int iters) {\n    if (offsets.size() < 2) {\n        return FNV_OFFSET;\n    }\n    \n    const size_t num_segments = offsets.size() - 1;\n    \n    // Precompute segment lengths\n    std::vector<uint32_t> lengths(num_segments);\n    for (size_t s = 0; s < num_segments; ++s) {\n        lengths[s] = offsets[s + 1] - offsets[s];\n    }\n    \n    uint64_t hash = 0;\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        hash = FNV_OFFSET;\n        \n        // For each segment s with length len:\n        // We apply: hash = (hash ^ s) * p, len times\n        // After len iterations:\n        // hash_new = hash * p^len + s * (p + p^2 + ... + p^len)\n        //          = hash * p^len + s * p * (1 + p + ... + p^(len-1))\n        //          = hash * p^len + s * p * geometric_sum(p, len)\n        \n        for (size_t s = 0; s < num_segments; ++s) {\n            uint32_t len = lengths[s];\n            if (len == 0) continue;\n            \n            uint64_t seg_id = static_cast<uint64_t>(s);\n            uint64_t p_len = power_mod(FNV_PRIME, len);\n            uint64_t geo = geometric_sum(FNV_PRIME, len);\n            \n            hash = hash * p_len + seg_id * FNV_PRIME * geo;\n        }\n    }\n    \n    return hash;\n}",
+  "baseline": {
+    "task_id": "segment_id_expand_checksum_v1200_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 74670880,
+    "min_elapsed_ns": 71486077,
+    "max_elapsed_ns": 82414709,
+    "all_elapsed_ns": [
+      71486077,
+      82414709,
+      74670880
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 71486077,
+      "expected_checksum": 3828806601361720195,
+      "actual_checksum": 3828806601361720195
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "segment_id_expand_checksum_v1200_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 47931904,
+    "min_elapsed_ns": 47841452,
+    "max_elapsed_ns": 48047269,
+    "all_elapsed_ns": [
+      47931904,
+      47841452,
+      48047269
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 47931904,
+      "expected_checksum": 3828806601361720195,
+      "actual_checksum": 3828806601361720195
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "segment_id_expand_checksum_v1200_i",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/segment_id_expand_checksum_v1200_i/harness', 'executable_tasks/segment_id_expand_checksum_v1200_i/harness/benchmark_main.cpp', 'executable_tasks/segment_id_expand_checksum_v1200_i/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/segment_id_expand_checksum_v1200_i/candidate/bench']' returned non-zero exit status 1."
+  }
+}

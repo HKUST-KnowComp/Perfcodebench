@@ -1,0 +1,72 @@
+{
+  "task_id": "java_topk_selection_checksum_v3604_003",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/java_topk_selection_checksum_v3604_003/candidate/gpt-5.4/Solution.java",
+  "benchmark_timeout_sec": 11,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "import java.util.*;\n\npublic class Solution {\n  private static final long FNV_OFFSET_BASIS = 1469598103934665603L;\n  private static final long FNV_PRIME = 1099511628211L;\n\n  // Max-heap over the \"worst\" element among current top-k at root.\n  // Ordering of winners is: score desc, index asc.\n  // Therefore \"worse\" means smaller score, or same score with larger index.\n  private static final class TopKHeap {\n    final int[] scores;\n    final int[] indices;\n    int size;\n\n    TopKHeap(int k) {\n      this.scores = new int[k];\n      this.indices = new int[k];\n      this.size = 0;\n    }\n\n    void clear() {\n      size = 0;\n    }\n\n    // Returns true if (s1,i1) is worse than (s2,i2)\n    static boolean worse(int s1, int i1, int s2, int i2) {\n      return s1 < s2 || (s1 == s2 && i1 > i2);\n    }\n\n    // Returns true if (s1,i1) is better than (s2,i2)\n    static boolean better(int s1, int i1, int s2, int i2) {\n      return s1 > s2 || (s1 == s2 && i1 < i2);\n    }\n\n    void offer(int score, int index) {\n      int pos = size;\n      scores[pos] = score;\n      indices[pos] = index;\n      size = pos + 1;\n      siftUp(pos);\n    }\n\n    void replaceRoot(int score, int index) {\n      scores[0] = score;\n      indices[0] = index;\n      siftDown(0);\n    }\n\n    private void siftUp(int pos) {\n      int s = scores[pos];\n      int idx = indices[pos];\n      while (pos > 0) {\n        int parent = (pos - 1) >>> 1;\n        int ps = scores[parent];\n        int pi = indices[parent];\n        if (!worse(s, idx, ps, pi)) break;\n        scores[pos] = ps;\n        indices[pos] = pi;\n        pos = parent;\n      }\n      scores[pos] = s;\n      indices[pos] = idx;\n    }\n\n    private void siftDown(int pos) {\n      int half = size >>> 1;\n      int s = scores[pos];\n      int idx = indices[pos];\n      while (pos < half) {\n        int left = (pos << 1) + 1;\n        int right = left + 1;\n        int child = left;\n        int cs = scores[left];\n        int ci = indices[left];\n        if (right < size) {\n          int rs = scores[right];\n          int ri = indices[right];\n          if (worse(rs, ri, cs, ci)) {\n            child = right;\n            cs = rs;\n            ci = ri;\n          }\n        }\n        if (!worse(cs, ci, s, idx)) break;\n        scores[pos] = cs;\n        indices[pos] = ci;\n        pos = child;\n      }\n      scores[pos] = s;\n      indices[pos] = idx;\n    }\n  }\n\n  // Sort winners by required final order: score desc, index asc.\n  private static void sortWinners(int[] scores, int[] indices, int n) {\n    quickSort(scores, indices, 0, n - 1);\n  }\n\n  private static void quickSort(int[] scores, int[] indices, int left, int right) {\n    while (left < right) {\n      if (right - left <= 24) {\n        insertionSort(scores, indices, left, right);\n        return;\n      }\n\n      int mid = (left + right) >>> 1;\n      int a = left, b = mid, c = right;\n      if (comesBefore(scores[b], indices[b], scores[a], indices[a])) { int ts = scores[a]; scores[a] = scores[b]; scores[b] = ts; int ti = indices[a]; indices[a] = indices[b]; indices[b] = ti; }\n      if (comesBefore(scores[c], indices[c], scores[b], indices[b])) { int ts = scores[b]; scores[b] = scores[c]; scores[c] = ts; int ti = indices[b]; indices[b] = indices[c]; indices[c] = ti; }\n      if (comesBefore(scores[b], indices[b], scores[a], indices[a])) { int ts = scores[a]; scores[a] = scores[b]; scores[b] = ts; int ti = indices[a]; indices[a] = indices[b]; indices[b] = ti; }\n\n      int pivotScore = scores[b];\n      int pivotIndex = indices[b];\n\n      int i = left, j = right;\n      while (i <= j) {\n        while (comesBefore(scores[i], indices[i], pivotScore, pivotIndex)) i++;\n        while (comesBefore(pivotScore, pivotIndex, scores[j], indices[j])) j--;\n        if (i <= j) {\n          int ts = scores[i]; scores[i] = scores[j]; scores[j] = ts;\n          int ti = indices[i]; indices[i] = indices[j]; indices[j] = ti;\n          i++;\n          j--;\n        }\n      }\n\n      if (j - left < right - i) {\n        if (left < j) quickSort(scores, indices, left, j);\n        left = i;\n      } else {\n        if (i < right) quickSort(scores, indices, i, right);\n        right = j;\n      }\n    }\n  }\n\n  private static void insertionSort(int[] scores, int[] indices, int left, int right) {\n    for (int i = left + 1; i <= right; i++) {\n      int s = scores[i];\n      int idx = indices[i];\n      int j = i - 1;\n      while (j >= left && comesBefore(s, idx, scores[j], indices[j])) {\n        scores[j + 1] = scores[j];\n        indices[j + 1] = indices[j];\n        j--;\n      }\n      scores[j + 1] = s;\n      indices[j + 1] = idx;\n    }\n  }\n\n  // Required order: score desc, index asc.\n  private static boolean comesBefore(int s1, int i1, int s2, int i2) {\n    return s1 > s2 || (s1 == s2 && i1 < i2);\n  }\n\n  public static long run(int[] scores, int k, int iters) {\n    final int n = scores.length;\n    if (k <= 0) {\n      long h = 0;\n      for (int iter = 0; iter < iters; iter++) {\n        h = FNV_OFFSET_BASIS;\n      }\n      return h;\n    }\n    if (k > n) k = n;\n\n    TopKHeap heap = new TopKHeap(k);\n    long h = 0L;\n\n    for (int iter = 0; iter < iters; iter++) {\n      heap.clear();\n\n      int i = 0;\n      for (; i < k; i++) {\n        heap.offer(scores[i], i);\n      }\n\n      for (; i < n; i++) {\n        int s = scores[i];\n        int rootS = heap.scores[0];\n        int rootI = heap.indices[0];\n        if (TopKHeap.better(s, i, rootS, rootI)) {\n          heap.replaceRoot(s, i);\n        }\n      }\n\n      sortWinners(heap.scores, heap.indices, k);\n\n      h = FNV_OFFSET_BASIS;\n      for (i = 0; i < k; i++) {\n        h ^= (((long) heap.scores[i]) << 32) ^ (heap.indices[i] & 0xffffffffL);\n        h *= FNV_PRIME;\n      }\n    }\n    return h;\n  }\n}\n",
+  "baseline": {
+    "task_id": "java_topk_selection_checksum_v3604_003",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4507849248,
+    "min_elapsed_ns": 4385916898,
+    "max_elapsed_ns": 5944548135,
+    "all_elapsed_ns": [
+      4507849248,
+      4385916898,
+      5944548135
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4507849248,
+      "expected_checksum": 6629670110032054759,
+      "actual_checksum": 6629670110032054759
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "java_topk_selection_checksum_v3604_003",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 304296310,
+    "min_elapsed_ns": 270697468,
+    "max_elapsed_ns": 401817909,
+    "all_elapsed_ns": [
+      401817909,
+      270697468,
+      304296310
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 401817909,
+      "expected_checksum": 6629670110032054759,
+      "actual_checksum": 6629670110032054759
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "java_topk_selection_checksum_v3604_003",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 38072834,
+    "min_elapsed_ns": 33257461,
+    "max_elapsed_ns": 41152463,
+    "all_elapsed_ns": [
+      41152463,
+      33257461,
+      38072834
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 41152463,
+      "expected_checksum": 6629670110032054759,
+      "actual_checksum": 6629670110032054759
+    },
+    "status": "ok"
+  }
+}

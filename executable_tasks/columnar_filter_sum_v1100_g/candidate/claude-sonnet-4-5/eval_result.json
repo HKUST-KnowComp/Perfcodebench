@@ -1,0 +1,72 @@
+{
+  "task_id": "columnar_filter_sum_v1100_g",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/columnar_filter_sum_v1100_g/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nuint64_t filter_sum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint8_t>& flags,\n    uint32_t key_threshold,\n    int iters) {\n  const std::size_t n = keys.size();\n  const uint32_t* __restrict__ k_ptr = keys.data();\n  const uint32_t* __restrict__ v_ptr = values.data();\n  const uint8_t* __restrict__ f_ptr = flags.data();\n  \n  uint64_t sum = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    \n    std::size_t i = 0;\n    const std::size_t n_unroll = (n / 4) * 4;\n    \n    // Unrolled loop for better ILP and reduced branch overhead\n    for (; i < n_unroll; i += 4) {\n      uint32_t k0 = k_ptr[i];\n      uint32_t k1 = k_ptr[i + 1];\n      uint32_t k2 = k_ptr[i + 2];\n      uint32_t k3 = k_ptr[i + 3];\n      \n      uint8_t f0 = f_ptr[i];\n      uint8_t f1 = f_ptr[i + 1];\n      uint8_t f2 = f_ptr[i + 2];\n      uint8_t f3 = f_ptr[i + 3];\n      \n      // Branchless selection using conditional moves\n      bool cond0 = f0 && (k0 < key_threshold) && ((k0 & 3u) == 0u);\n      bool cond1 = f1 && (k1 < key_threshold) && ((k1 & 3u) == 0u);\n      bool cond2 = f2 && (k2 < key_threshold) && ((k2 & 3u) == 0u);\n      bool cond3 = f3 && (k3 < key_threshold) && ((k3 & 3u) == 0u);\n      \n      sum += cond0 ? static_cast<uint64_t>(v_ptr[i]) : 0ULL;\n      sum += cond1 ? static_cast<uint64_t>(v_ptr[i + 1]) : 0ULL;\n      sum += cond2 ? static_cast<uint64_t>(v_ptr[i + 2]) : 0ULL;\n      sum += cond3 ? static_cast<uint64_t>(v_ptr[i + 3]) : 0ULL;\n    }\n    \n    // Handle remainder\n    for (; i < n; ++i) {\n      if (f_ptr[i] && k_ptr[i] < key_threshold && ((k_ptr[i] & 3u) == 0u)) {\n        sum += static_cast<uint64_t>(v_ptr[i]);\n      }\n    }\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "columnar_filter_sum_v1100_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2506389947,
+    "min_elapsed_ns": 2505693347,
+    "max_elapsed_ns": 2566038540,
+    "all_elapsed_ns": [
+      2566038540,
+      2506389947,
+      2505693347
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2566038540,
+      "expected_sum": 301799366,
+      "actual_sum": 301799366
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "columnar_filter_sum_v1100_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2244376096,
+    "min_elapsed_ns": 2235161834,
+    "max_elapsed_ns": 2458125908,
+    "all_elapsed_ns": [
+      2235161834,
+      2244376096,
+      2458125908
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2235161834,
+      "expected_sum": 301799366,
+      "actual_sum": 301799366
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "columnar_filter_sum_v1100_g",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1183319796,
+    "min_elapsed_ns": 1179507064,
+    "max_elapsed_ns": 1246073291,
+    "all_elapsed_ns": [
+      1183319796,
+      1179507064,
+      1246073291
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1183319796,
+      "expected_sum": 301799366,
+      "actual_sum": 301799366
+    },
+    "status": "ok"
+  }
+}

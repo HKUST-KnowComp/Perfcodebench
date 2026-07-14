@@ -1,0 +1,59 @@
+{
+  "task_id": "prefix_cache_block_lookup_v2000_f",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup_v2000_f/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstdint>\n\nnamespace {\n\nuint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n// Simple fast hash table for uint32_t keys\nstruct FastSet {\n    uint32_t* table;\n    uint32_t size;\n    uint32_t mask;\n    static constexpr uint32_t EMPTY = 0xFFFFFFFF;\n\n    FastSet(const std::vector<uint32_t>& keys) {\n        // Size to power of 2 for fast masking, load factor ~0.5\n        size = 1;\n        while (size < keys.size() * 2) size <<= 1;\n        mask = size - 1;\n        table = new uint32_t[size];\n        for (uint32_t i = 0; i < size; ++i) table[i] = EMPTY;\n\n        for (uint32_t k : keys) {\n            uint32_t h = hash_u32(k) & mask;\n            while (table[h] != EMPTY) {\n                h = (h + 1) & mask;\n            }\n            table[h] = k;\n        }\n    }\n\n    ~FastSet() {\n        delete[] table;\n    }\n\n    inline bool contains(uint32_t k) const {\n        uint32_t h = hash_u32(k) & mask;\n        while (table[h] != EMPTY) {\n            if (table[h] == k) return true;\n            h = (h + 1) & mask;\n        }\n        return false;\n    }\n\n    static inline uint32_t hash_u32(uint32_t x) {\n        x = ((x >> 16) ^ x) * 0x45d9f3b;\n        x = ((x >> 16) ^ x) * 0x45d9f3b;\n        x = (x >> 16) ^ x;\n        return x;\n    }\n};\n\n}  // namespace\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t hash_space,\n    int iters) {\n  (void)hash_space;\n  \n  // Build a fast lookup set for the cache keys\n  FastSet cache_set(sorted_cache_keys);\n  \n  uint64_t final_hash = 0;\n  const size_t num_requests = request_offsets.size() - 1;\n  const uint32_t* blocks_ptr = request_blocks.data();\n  const int* offsets_ptr = request_offsets.data();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t current_hash = 1469598103934665603ULL;\n    for (size_t r = 0; r < num_requests; ++r) {\n      int start = offsets_ptr[r];\n      int end = offsets_ptr[r + 1];\n      uint64_t prefix = 0;\n      for (int i = start; i < end; ++i) {\n        if (!cache_set.contains(blocks_ptr[i])) {\n          break;\n        }\n        ++prefix;\n      }\n      current_hash = mix(current_hash, prefix);\n    }\n    // The original code resets hash = 1469... inside the loop and returns the last iter's result\n    // but the logic implies we are calculating the checksum for the last iteration or accumulating.\n    // Looking at the baseline: hash is reset every iter, so only the last iter's result is returned.\n    final_hash = current_hash;\n  }\n  \n  return final_hash;\n}\n",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup_v2000_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 157110397,
+    "min_elapsed_ns": 156032549,
+    "max_elapsed_ns": 166683324,
+    "all_elapsed_ns": [
+      157110397,
+      156032549,
+      166683324
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 157110397,
+      "expected_checksum": 11548637948046092892,
+      "actual_checksum": 11548637948046092892
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup_v2000_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5136391,
+    "min_elapsed_ns": 5079776,
+    "max_elapsed_ns": 7723725,
+    "all_elapsed_ns": [
+      7723725,
+      5136391,
+      5079776
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7723725,
+      "expected_checksum": 11548637948046092892,
+      "actual_checksum": 11548637948046092892
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup_v2000_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/prefix_cache_block_lookup_v2000_f/harness', 'executable_tasks/prefix_cache_block_lookup_v2000_f/harness/benchmark_main.cpp', 'executable_tasks/prefix_cache_block_lookup_v2000_f/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/prefix_cache_block_lookup_v2000_f/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "genomic_kmer_histogram_checksum_v2600_a",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/genomic_kmer_histogram_checksum_v2600_a/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <string>\n#include <vector>\n#include <cstring>\n\nnamespace {\n\n// Fast lookup table for DNA to 2-bit encoding\n// A=0, C=1, G=2, T=3\nstatic const uint8_t dna_map[256] = [] {\n    uint8_t m[256] = {0};\n    m['A'] = 0;\n    m['C'] = 1;\n    m['G'] = 2;\n    m['T'] = 3;\n    return m;\n}();\n\ninline uint64_t compute_checksum(const uint32_t* counts, size_t size) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (size_t i = 0; i < size; ++i) {\n        hash ^= static_cast<uint64_t>(counts[i]);\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\n} // namespace\n\nuint64_t kmer_histogram_checksum(const std::string& dna, int k, int iters) {\n    if (dna.size() < static_cast<size_t>(k)) {\n        // Handle case where dna is shorter than k\n        size_t bins = 1ULL << (2 * k);\n        std::vector<uint32_t> dense(bins, 0);\n        uint64_t final_hash = 0;\n        for (int iter = 0; iter < iters; ++iter) {\n            final_hash = compute_checksum(dense.data(), bins);\n        }\n        return final_hash;\n    }\n\n    const size_t bins = 1ULL << (2 * k);\n    std::vector<uint32_t> dense(bins);\n    const uint32_t mask = (1U << (2 * k)) - 1;\n    \n    uint64_t last_hash = 0;\n    const char* data = dna.data();\n    const size_t n = dna.size();\n\n    for (int iter = 0; iter < iters; ++iter) {\n        std::memset(dense.data(), 0, bins * sizeof(uint32_t));\n        \n        uint32_t current_kmer = 0;\n        // Initialize first k-mer\n        for (int i = 0; i < k; ++i) {\n            current_kmer = (current_kmer << 2) | dna_map[static_cast<unsigned char>(data[i])];\n        }\n        dense[current_kmer]++;\n\n        // Slide window\n        for (size_t i = k; i < n; ++i) {\n            current_kmer = ((current_kmer << 2) | dna_map[static_cast<unsigned char>(data[i])]) & mask;\n            dense[current_kmer]++;\n        }\n        \n        last_hash = compute_checksum(dense.data(), bins);\n    }\n\n    return last_hash;\n}",
+  "baseline": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 102332180,
+    "min_elapsed_ns": 101967119,
+    "max_elapsed_ns": 102393997,
+    "all_elapsed_ns": [
+      102332180,
+      101967119,
+      102393997
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 102332180,
+      "expected_checksum": 6094570413863507431,
+      "actual_checksum": 6094570413863507431
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 10940190,
+    "min_elapsed_ns": 10842770,
+    "max_elapsed_ns": 11326653,
+    "all_elapsed_ns": [
+      10842770,
+      10940190,
+      11326653
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10842770,
+      "expected_checksum": 6094570413863507431,
+      "actual_checksum": 6094570413863507431
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "genomic_kmer_histogram_checksum_v2600_a",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/genomic_kmer_histogram_checksum_v2600_a/harness', 'executable_tasks/genomic_kmer_histogram_checksum_v2600_a/harness/benchmark_main.cpp', 'executable_tasks/genomic_kmer_histogram_checksum_v2600_a/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/genomic_kmer_histogram_checksum_v2600_a/candidate/bench']' returned non-zero exit status 1."
+  }
+}

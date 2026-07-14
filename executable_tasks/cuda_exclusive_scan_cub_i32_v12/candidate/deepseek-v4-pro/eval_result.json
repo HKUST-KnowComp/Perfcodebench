@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_exclusive_scan_cub_i32_v12",
+  "model": "deepseek-v4-pro",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_exclusive_scan_cub_i32_v12/candidate/deepseek-v4-pro/solution.cu",
+  "benchmark_timeout_sec": 17,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n#include <cub/device/device_scan.cuh>\n\nvoid exclusive_scan_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0) return;\n\n    // Cache temporary storage across calls to avoid repeated allocations.\n    static size_t temp_bytes = 0;\n    static void* d_temp_storage = nullptr;\n\n    // Determine required temporary storage for the current n.\n    size_t required_temp_bytes = 0;\n    cub::DeviceScan::ExclusiveSum(nullptr, required_temp_bytes, input, output, n);\n    cudaError_t err = cudaGetLastError();\n    if (err != cudaSuccess) return;   // propagate error silently\n\n    // Reallocate if cached storage is too small.\n    if (temp_bytes < required_temp_bytes) {\n        if (d_temp_storage) {\n            cudaFree(d_temp_storage);\n        }\n        cudaMalloc(&d_temp_storage, required_temp_bytes);\n        temp_bytes = required_temp_bytes;\n    }\n\n    // Run the exclusive scan `iters` times.\n    for (int i = 0; i < iters; ++i) {\n        cub::DeviceScan::ExclusiveSum(d_temp_storage, temp_bytes, input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v12",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_exclusive_scan_cub_i32_v12/baseline/bench']' timed out after 17 seconds"
+  },
+  "reference": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v12",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 76653633,
+    "min_elapsed_ns": 69946273,
+    "max_elapsed_ns": 491954650,
+    "all_elapsed_ns": [
+      491954650,
+      76653633,
+      69946273
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 491954650,
+      "checksum": 115448375935531
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v12",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 467231,
+    "min_elapsed_ns": 460799,
+    "max_elapsed_ns": 474911,
+    "all_elapsed_ns": [
+      460799,
+      467231,
+      474911
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 460799,
+      "checksum": 115448375935531
+    },
+    "status": "ok"
+  }
+}

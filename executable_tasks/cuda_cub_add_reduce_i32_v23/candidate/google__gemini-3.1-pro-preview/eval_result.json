@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v23",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v23/candidate/google__gemini-3.1-pro-preview/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void fast_reduce_kernel(const int* __restrict__ input, int* __restrict__ output, int n) {\n    // Use 64-bit accumulator to prevent overflow during intermediate steps, \n    // though the final result is cast to int32 as per requirements.\n    int sum = 0;\n    \n    // Vectorized loads: process 4 integers at a time per thread\n    const int4* input_v4 = reinterpret_cast<const int4*>(input);\n    int n_v4 = n / 4;\n    \n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    int stride = blockDim.x * gridDim.x;\n\n    // Grid-stride loop for vectorized part\n    for (int i = idx; i < n_v4; i += stride) {\n        int4 val = input_v4[i];\n        sum += val.x + val.y + val.z + val.w;\n    }\n\n    // Handle remaining elements if n is not a multiple of 4\n    for (int i = n_v4 * 4 + idx; i < n; i += stride) {\n        sum += input[i];\n    }\n\n    // Warp-level reduction using shuffle primitives\n    for (int offset = 16; offset > 0; offset /= 2) {\n        sum += __shfl_down_sync(0xFFFFFFFF, sum, offset);\n    }\n\n    // Block-level reduction using shared memory\n    __shared__ int shared_sums[32]; // Max 32 warps per block (1024 threads)\n    int lane = threadIdx.x % 32;\n    int warp_id = threadIdx.x / 32;\n\n    if (lane == 0) {\n        shared_sums[warp_id] = sum;\n    }\n\n    __syncthreads();\n\n    // Final reduction in the first warp\n    if (warp_id == 0) {\n        sum = (threadIdx.x < (blockDim.x + 31) / 32) ? shared_sums[lane] : 0;\n        for (int offset = 16; offset > 0; offset /= 2) {\n            sum += __shfl_down_sync(0xFFFFFFFF, sum, offset);\n        }\n        // Atomic add the block result to global memory\n        if (lane == 0) {\n            atomicAdd(output, sum);\n        }\n    }\n}\n\n} // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    // Heuristic for grid size: aim for high occupancy but avoid excessive blocks\n    int block_size = 256;\n    int grid_size = (n + (block_size * 4) - 1) / (block_size * 4);\n    if (grid_size > 1024) grid_size = 1024;\n    if (grid_size < 1) grid_size = 1;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, sizeof(int));\n        if (n > 0) {\n            fast_reduce_kernel<<<grid_size, block_size>>>(input, output, n);\n        }\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v23",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 315008,
+    "min_elapsed_ns": 314815,
+    "max_elapsed_ns": 315647,
+    "all_elapsed_ns": [
+      314815,
+      315647,
+      315008
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 314815,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v23",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2504352,
+    "min_elapsed_ns": 2469536,
+    "max_elapsed_ns": 2531968,
+    "all_elapsed_ns": [
+      2504352,
+      2469536,
+      2531968
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2504352,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v23",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v23/candidate/bench']' timed out after 0.11623901699931594 seconds"
+  }
+}

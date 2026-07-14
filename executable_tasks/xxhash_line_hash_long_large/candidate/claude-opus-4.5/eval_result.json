@@ -1,0 +1,72 @@
+{
+  "task_id": "xxhash_line_hash_long_large",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/xxhash_line_hash_long_large/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"xxhash.h\"\n#include <cstring>\n\n#if defined(__AVX512F__) && defined(__AVX512BW__)\n#include <immintrin.h>\n#define USE_AVX512 1\n#elif defined(__AVX2__)\n#include <immintrin.h>\n#define USE_AVX2 1\n#elif defined(__SSE2__)\n#include <emmintrin.h>\n#define USE_SSE2 1\n#endif\n\nuint64_t hash_lines(const std::string& input) {\n    uint64_t acc = 1469598103934665603ULL;\n    const char* p = input.data();\n    const char* const end = p + input.size();\n    \n#if defined(USE_AVX512)\n    const __m512i newline_vec = _mm512_set1_epi8('\\n');\n    \n    while (p < end) {\n        const char* line_end = p;\n        \n        // Use AVX-512 to scan for newlines in 64-byte chunks\n        while (line_end + 64 <= end) {\n            __m512i chunk = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(line_end));\n            __mmask64 mask = _mm512_cmpeq_epi8_mask(chunk, newline_vec);\n            if (mask != 0) {\n                line_end += __builtin_ctzll(mask);\n                goto found_newline;\n            }\n            line_end += 64;\n        }\n        \n        // Handle remaining bytes\n        while (line_end < end && *line_end != '\\n') {\n            ++line_end;\n        }\n        \n    found_newline:\n        acc ^= XXH64(p, static_cast<size_t>(line_end - p), 0);\n        acc *= 1099511628211ULL;\n        p = (line_end < end) ? (line_end + 1) : line_end;\n    }\n    \n#elif defined(USE_AVX2)\n    const __m256i newline_vec = _mm256_set1_epi8('\\n');\n    \n    while (p < end) {\n        const char* line_end = p;\n        \n        // Use AVX2 to scan for newlines in 32-byte chunks\n        while (line_end + 32 <= end) {\n            __m256i chunk = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(line_end));\n            __m256i cmp = _mm256_cmpeq_epi8(chunk, newline_vec);\n            int mask = _mm256_movemask_epi8(cmp);\n            if (mask != 0) {\n                line_end += __builtin_ctz(mask);\n                goto found_newline_avx2;\n            }\n            line_end += 32;\n        }\n        \n        // Handle remaining bytes\n        while (line_end < end && *line_end != '\\n') {\n            ++line_end;\n        }\n        \n    found_newline_avx2:\n        acc ^= XXH64(p, static_cast<size_t>(line_end - p), 0);\n        acc *= 1099511628211ULL;\n        p = (line_end < end) ? (line_end + 1) : line_end;\n    }\n    \n#elif defined(USE_SSE2)\n    const __m128i newline_vec = _mm_set1_epi8('\\n');\n    \n    while (p < end) {\n        const char* line_end = p;\n        \n        // Use SSE2 to scan for newlines in 16-byte chunks\n        while (line_end + 16 <= end) {\n            __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(line_end));\n            __m128i cmp = _mm_cmpeq_epi8(chunk, newline_vec);\n            int mask = _mm_movemask_epi8(cmp);\n            if (mask != 0) {\n                line_end += __builtin_ctz(mask);\n                goto found_newline_sse2;\n            }\n            line_end += 16;\n        }\n        \n        // Handle remaining bytes\n        while (line_end < end && *line_end != '\\n') {\n            ++line_end;\n        }\n        \n    found_newline_sse2:\n        acc ^= XXH64(p, static_cast<size_t>(line_end - p), 0);\n        acc *= 1099511628211ULL;\n        p = (line_end < end) ? (line_end + 1) : line_end;\n    }\n    \n#else\n    // Fallback using memchr which is typically well-optimized\n    while (p < end) {\n        const char* line_end = static_cast<const char*>(memchr(p, '\\n', static_cast<size_t>(end - p)));\n        if (line_end == nullptr) {\n            line_end = end;\n        }\n        \n        acc ^= XXH64(p, static_cast<size_t>(line_end - p), 0);\n        acc *= 1099511628211ULL;\n        p = (line_end < end) ? (line_end + 1) : line_end;\n    }\n#endif\n    \n    return acc;\n}",
+  "baseline": {
+    "task_id": "xxhash_line_hash_long_large",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 18551198,
+    "min_elapsed_ns": 17507310,
+    "max_elapsed_ns": 19170859,
+    "all_elapsed_ns": [
+      17507310,
+      18551198,
+      19170859
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 17507310,
+      "expected_hash": 17028762315200619732,
+      "actual_hash": 17028762315200619732
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "xxhash_line_hash_long_large",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 17215512,
+    "min_elapsed_ns": 17008583,
+    "max_elapsed_ns": 20785593,
+    "all_elapsed_ns": [
+      17215512,
+      20785593,
+      17008583
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 17215512,
+      "expected_hash": 17028762315200619732,
+      "actual_hash": 17028762315200619732
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "xxhash_line_hash_long_large",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 10471364,
+    "min_elapsed_ns": 8396314,
+    "max_elapsed_ns": 12067762,
+    "all_elapsed_ns": [
+      8396314,
+      12067762,
+      10471364
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8396314,
+      "expected_hash": 17028762315200619732,
+      "actual_hash": 17028762315200619732
+    },
+    "status": "ok"
+  }
+}

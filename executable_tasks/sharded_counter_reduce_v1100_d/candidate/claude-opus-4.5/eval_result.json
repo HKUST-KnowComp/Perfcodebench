@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce_v1100_d",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v1100_d/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 7,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <atomic>\n#include <thread>\n#include <vector>\n#include <cstring>\n\nnamespace {\n\nconstexpr size_t CACHE_LINE = 64;\n\nuint64_t checksum_u64(const uint64_t* counts, size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (size_t i = 0; i < n; ++i) {\n    hash ^= counts[i];\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  \n  const size_t ks = static_cast<size_t>(key_space);\n  const size_t n = keys.size();\n  const int nt = num_threads;\n  \n  // Allocate thread-local counters with padding to avoid false sharing\n  // Each thread gets its own counter array\n  std::vector<std::vector<uint64_t>> local_counts(nt);\n  for (int t = 0; t < nt; ++t) {\n    local_counts[t].resize(ks, 0);\n  }\n  \n  // Final merged counts\n  std::vector<uint64_t> counts(ks, 0);\n  \n  uint64_t hash = 0;\n  \n  const uint32_t* keys_ptr = keys.data();\n  const uint32_t* vals_ptr = values.data();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    // Clear local counts\n    for (int t = 0; t < nt; ++t) {\n      std::memset(local_counts[t].data(), 0, ks * sizeof(uint64_t));\n    }\n    \n    std::vector<std::thread> threads;\n    threads.reserve(nt);\n    \n    const size_t chunk = n / static_cast<size_t>(nt);\n    \n    for (int t = 0; t < nt; ++t) {\n      const size_t begin = static_cast<size_t>(t) * chunk;\n      const size_t end = (t + 1 == nt) ? n : begin + chunk;\n      uint64_t* my_counts = local_counts[t].data();\n      \n      threads.emplace_back([keys_ptr, vals_ptr, my_counts, begin, end]() {\n        // No synchronization needed - each thread writes to its own array\n        for (size_t i = begin; i < end; ++i) {\n          my_counts[keys_ptr[i]] += static_cast<uint64_t>(vals_ptr[i]);\n        }\n      });\n    }\n    \n    for (std::thread& th : threads) {\n      th.join();\n    }\n    \n    // Merge local counts into final counts\n    // Parallelize the merge as well\n    std::memset(counts.data(), 0, ks * sizeof(uint64_t));\n    \n    if (ks >= 1024 && nt > 1) {\n      // Parallel merge for large key spaces\n      std::vector<std::thread> merge_threads;\n      merge_threads.reserve(nt);\n      \n      const size_t merge_chunk = ks / static_cast<size_t>(nt);\n      uint64_t* counts_ptr = counts.data();\n      \n      for (int t = 0; t < nt; ++t) {\n        const size_t kb = static_cast<size_t>(t) * merge_chunk;\n        const size_t ke = (t + 1 == nt) ? ks : kb + merge_chunk;\n        \n        merge_threads.emplace_back([&local_counts, counts_ptr, kb, ke, nt]() {\n          for (size_t k = kb; k < ke; ++k) {\n            uint64_t sum = 0;\n            for (int tt = 0; tt < nt; ++tt) {\n              sum += local_counts[tt][k];\n            }\n            counts_ptr[k] = sum;\n          }\n        });\n      }\n      \n      for (std::thread& th : merge_threads) {\n        th.join();\n      }\n    } else {\n      // Sequential merge for small key spaces\n      for (int t = 0; t < nt; ++t) {\n        const uint64_t* lc = local_counts[t].data();\n        for (size_t k = 0; k < ks; ++k) {\n          counts[k] += lc[k];\n        }\n      }\n    }\n    \n    hash = checksum_u64(counts.data(), ks);\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v1100_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5237618164,
+    "min_elapsed_ns": 4270260399,
+    "max_elapsed_ns": 6281336586,
+    "all_elapsed_ns": [
+      4270260399,
+      5237618164,
+      6281336586
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4270260399,
+      "expected_checksum": 4927837675318346627,
+      "actual_checksum": 4927837675318346627
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v1100_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 17197181,
+    "min_elapsed_ns": 16411378,
+    "max_elapsed_ns": 18869272,
+    "all_elapsed_ns": [
+      18869272,
+      17197181,
+      16411378
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 18869272,
+      "expected_checksum": 4927837675318346627,
+      "actual_checksum": 4927837675318346627
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v1100_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 42758923,
+    "min_elapsed_ns": 41053719,
+    "max_elapsed_ns": 61376360,
+    "all_elapsed_ns": [
+      41053719,
+      42758923,
+      61376360
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 41053719,
+      "expected_checksum": 4927837675318346627,
+      "actual_checksum": 4927837675318346627
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "row_group_minmax_prune_v500_f",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/row_group_minmax_prune_v500_f/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\nuint64_t row_group_range_sum(\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& mins,\n    const std::vector<uint32_t>& maxs,\n    uint32_t low,\n    uint32_t high,\n    uint32_t block_size,\n    int iters) {\n  uint64_t sum = 0;\n  const size_t n = values.size();\n  const size_t num_blocks = (n + block_size - 1) / block_size;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    \n    for (size_t block_idx = 0; block_idx < num_blocks; ++block_idx) {\n      // Check if entire block can be pruned\n      if (maxs[block_idx] < low || mins[block_idx] > high) {\n        continue;\n      }\n      \n      const size_t block_start = block_idx * block_size;\n      const size_t block_end = (block_start + block_size < n) ? (block_start + block_size) : n;\n      \n      // Check if entire block is within range\n      if (mins[block_idx] >= low && maxs[block_idx] <= high) {\n        // All values in block are in range, sum directly\n        uint64_t block_sum = 0;\n        size_t i = block_start;\n        \n        // Unroll by 4 for better ILP\n        for (; i + 3 < block_end; i += 4) {\n          block_sum += static_cast<uint64_t>(values[i]);\n          block_sum += static_cast<uint64_t>(values[i + 1]);\n          block_sum += static_cast<uint64_t>(values[i + 2]);\n          block_sum += static_cast<uint64_t>(values[i + 3]);\n        }\n        \n        // Handle remainder\n        for (; i < block_end; ++i) {\n          block_sum += static_cast<uint64_t>(values[i]);\n        }\n        \n        sum += block_sum;\n      } else {\n        // Block partially overlaps, need to check each value\n        uint64_t s0 = 0, s1 = 0, s2 = 0, s3 = 0;\n        size_t i = block_start;\n        \n        // Unroll by 4 with independent accumulators\n        for (; i + 3 < block_end; i += 4) {\n          uint32_t v0 = values[i];\n          uint32_t v1 = values[i + 1];\n          uint32_t v2 = values[i + 2];\n          uint32_t v3 = values[i + 3];\n          \n          if (v0 >= low && v0 <= high) s0 += v0;\n          if (v1 >= low && v1 <= high) s1 += v1;\n          if (v2 >= low && v2 <= high) s2 += v2;\n          if (v3 >= low && v3 <= high) s3 += v3;\n        }\n        \n        sum += s0 + s1 + s2 + s3;\n        \n        // Handle remainder\n        for (; i < block_end; ++i) {\n          uint32_t v = values[i];\n          if (v >= low && v <= high) {\n            sum += static_cast<uint64_t>(v);\n          }\n        }\n      }\n    }\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "row_group_minmax_prune_v500_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 36311851,
+    "min_elapsed_ns": 36262543,
+    "max_elapsed_ns": 36629462,
+    "all_elapsed_ns": [
+      36629462,
+      36311851,
+      36262543
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 36629462,
+      "expected_sum": 121858148,
+      "actual_sum": 121858148
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "row_group_minmax_prune_v500_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1016127,
+    "min_elapsed_ns": 953070,
+    "max_elapsed_ns": 1119609,
+    "all_elapsed_ns": [
+      953070,
+      1016127,
+      1119609
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 953070,
+      "expected_sum": 121858148,
+      "actual_sum": 121858148
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "row_group_minmax_prune_v500_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/row_group_minmax_prune_v500_f/harness', 'executable_tasks/row_group_minmax_prune_v500_f/harness/benchmark_main.cpp', 'executable_tasks/row_group_minmax_prune_v500_f/candidate/claude-sonnet-4-5/solution.cpp', '-o', 'build/row_group_minmax_prune_v500_f/candidate/bench']' returned non-zero exit status 1."
+  }
+}

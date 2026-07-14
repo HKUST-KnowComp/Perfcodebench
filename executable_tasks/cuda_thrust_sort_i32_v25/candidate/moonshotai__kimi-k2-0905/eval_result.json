@@ -1,0 +1,44 @@
+{
+  "task_id": "cuda_thrust_sort_i32_v25",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_thrust_sort_i32_v25/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 120,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <thrust/device_vector.h>\n#include <thrust/sort.h>\n#include <thrust/copy.h>\n\nextern \"C\" void sort_vec_i32(const int* input,\n                              int*       output,\n                              int        n,\n                              int        iters)\n{\n    const size_t nbytes = n * sizeof(int);\n\n    // Allocate device buffers once; reuse across sweeps\n    static int* d_in  = nullptr;\n    static int* d_out = nullptr;\n    static int  cap = 0;\n\n    if (n > cap) {\n        cudaFree(d_in);\n        cudaFree(d_out);\n        cudaMalloc(&d_in,  nbytes);\n        cudaMalloc(&d_out, nbytes);\n        cap = n;\n    }\n    cudaMemcpy(d_in, input, nbytes, cudaMemcpyHostToDevice);\n\n    // Multiple warm-up/timed launches w/out host syncs\n    for (int i = 0; i < iters; ++i) {\n        cudaMemcpyAsync(d_in, input, nbytes, cudaMemcpyHostToDevice);\n        thrust::device_ptr<int> dv(d_in);\n        thrust::sort(dv, dv + n);          // radix sort on the GPU\n        cudaMemcpyAsync(output, d_in, nbytes, cudaMemcpyDeviceToHost);\n    }\n    cudaDeviceSynchronize();\n}",
+  "baseline": {
+    "task_id": "cuda_thrust_sort_i32_v25",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_thrust_sort_i32_v25/baseline/bench']' timed out after 120 seconds"
+  },
+  "reference": {
+    "task_id": "cuda_thrust_sort_i32_v25",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 189662887,
+    "min_elapsed_ns": 186691970,
+    "max_elapsed_ns": 206330520,
+    "all_elapsed_ns": [
+      186691970,
+      206330520,
+      189662887
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 186691970
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_thrust_sort_i32_v25",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['nvcc', '-O3', '-std=c++17', '-Iexecutable_tasks/cuda_thrust_sort_i32_v25/harness', '-gencode=arch=compute_80,code=sm_80', '-gencode=arch=compute_80,code=compute_80', 'executable_tasks/cuda_thrust_sort_i32_v25/harness/benchmark_main.cu', 'executable_tasks/cuda_thrust_sort_i32_v25/candidate/moonshotai__kimi-k2-0905/solution.cu', '-o', 'build/cuda_thrust_sort_i32_v25/candidate/bench']' returned non-zero exit status 2."
+  }
+}

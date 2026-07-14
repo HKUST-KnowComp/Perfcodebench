@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_histogram_privatized_v1600_c",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_histogram_privatized_v1600_c/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstring>\n#include <omp.h>\n#include <vector>\n\nnamespace {\n\nint num_threads() {\n  return std::max(1, std::min(8, omp_get_max_threads()));\n}\n\nuint64_t checksum_u32(const uint32_t* data, int bins) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (int i = 0; i < bins; ++i) {\n    hash ^= static_cast<uint64_t>(data[i]);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t histogram_checksum(const std::vector<uint8_t>& input, int bins, int iters) {\n  const int nthreads = num_threads();\n  omp_set_num_threads(nthreads);\n  \n  // Pad each thread's histogram to avoid false sharing (64-byte cache lines)\n  // 256 bins * 4 bytes = 1024 bytes, pad to 1024 + 64 = 1088 bytes = 272 uint32_t\n  constexpr int PADDED_BINS = 272;\n  \n  // Allocate thread-local histograms\n  std::vector<uint32_t> local_hists(static_cast<std::size_t>(nthreads) * PADDED_BINS, 0);\n  \n  // Final histogram\n  std::vector<uint32_t> counts(static_cast<std::size_t>(bins), 0);\n  \n  const std::size_t n = input.size();\n  const uint8_t* __restrict data = input.data();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    // Clear all local histograms\n    std::memset(local_hists.data(), 0, local_hists.size() * sizeof(uint32_t));\n    \n#pragma omp parallel\n    {\n      const int tid = omp_get_thread_num();\n      uint32_t* __restrict my_hist = local_hists.data() + static_cast<std::size_t>(tid) * PADDED_BINS;\n      \n      // Each thread processes a contiguous chunk\n#pragma omp for schedule(static) nowait\n      for (std::size_t i = 0; i < n; ++i) {\n        my_hist[data[i]]++;\n      }\n    }\n    \n    // Reduce all thread-local histograms into counts\n    std::memset(counts.data(), 0, static_cast<std::size_t>(bins) * sizeof(uint32_t));\n    \n#pragma omp parallel for schedule(static)\n    for (int b = 0; b < bins; ++b) {\n      uint32_t sum = 0;\n      for (int t = 0; t < nthreads; ++t) {\n        sum += local_hists[static_cast<std::size_t>(t) * PADDED_BINS + static_cast<std::size_t>(b)];\n      }\n      counts[static_cast<std::size_t>(b)] = sum;\n    }\n  }\n  \n  return checksum_u32(counts.data(), bins);\n}",
+  "baseline": {
+    "task_id": "openmp_histogram_privatized_v1600_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2901816251,
+    "min_elapsed_ns": 2428064843,
+    "max_elapsed_ns": 3624548169,
+    "all_elapsed_ns": [
+      3624548169,
+      2901816251,
+      2428064843
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3624548169,
+      "expected_checksum": 13315975462258961381,
+      "actual_checksum": 13315975462258961381
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_histogram_privatized_v1600_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 40182428,
+    "min_elapsed_ns": 37292985,
+    "max_elapsed_ns": 51142873,
+    "all_elapsed_ns": [
+      51142873,
+      37292985,
+      40182428
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 51142873,
+      "expected_checksum": 13315975462258961381,
+      "actual_checksum": 13315975462258961381
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_histogram_privatized_v1600_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 46426984,
+    "min_elapsed_ns": 42272351,
+    "max_elapsed_ns": 97080536,
+    "all_elapsed_ns": [
+      46426984,
+      97080536,
+      42272351
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 46426984,
+      "expected_checksum": 13315975462258961381,
+      "actual_checksum": 13315975462258961381
+    },
+    "status": "ok"
+  }
+}

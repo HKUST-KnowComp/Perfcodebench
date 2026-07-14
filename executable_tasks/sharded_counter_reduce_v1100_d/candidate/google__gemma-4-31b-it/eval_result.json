@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce_v1100_d",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v1100_d/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 7,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <thread>\n#include <atomic>\n#include <algorithm>\n\nnamespace {\n\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  \n  const size_t n_keys = keys.size();\n  const size_t k_space = static_cast<size_t>(key_space);\n  \n  // To avoid repeated thread creation overhead, we use a pattern where threads\n  // process the iterations. However, the problem requires the checksum to be\n  // calculated *after each iteration* of the full dataset update.\n  // Therefore, we must synchronize after each iteration.\n  \n  uint64_t final_hash = 0;\n  std::vector<uint64_t> global_counts(k_space);\n  \n  // Pre-calculate chunks\n  std::vector<std::pair<size_t, size_t>> chunks(num_threads);\n  size_t chunk_size = n_keys / num_threads;\n  for (int t = 0; t < num_threads; ++t) {\n    chunks[t].first = t * chunk_size;\n    chunks[t].second = (t == num_threads - 1) ? n_keys : (t + 1) * chunk_size;\n  }\n\n  for (int iter = 0; iter < iters; ++iter) {\n    std::fill(global_counts.begin(), global_counts.end(), 0);\n    \n    // Use thread-local storage to avoid contention\n    std::vector<std::vector<uint64_t>> local_counts(num_threads, std::vector<uint64_t>(k_space, 0));\n    std::vector<std::thread> workers;\n    \n    for (int t = 0; t < num_threads; ++t) {\n      workers.emplace_back([&, t]() {\n        const size_t start = chunks[t].first;\n        const size_t end = chunks[t].second;\n        uint64_t* my_counts = local_counts[t].data();\n        const uint32_t* k_ptr = keys.data();\n        const uint32_t* v_ptr = values.data();\n        \n        for (size_t i = start; i < end; ++i) {\n          my_counts[k_ptr[i]] += v_ptr[i];\n        }\n      });\n    }\n    \n    for (auto& w : workers) w.join();\n\n    // Reduction phase: Sum local counts into global counts\n    // Parallelize reduction for large key_space\n    std::vector<std::thread> reducers;\n    size_t red_chunk = (k_space + num_threads - 1) / num_threads;\n    for (int t = 0; t < num_threads; ++t) {\n      reducers.emplace_back([&, t]() {\n        size_t start = t * red_chunk;\n        size_t end = std::min(start + red_chunk, k_space);\n        for (size_t k = start; k < end; ++k) {\n          uint64_t sum = 0;\n          for (int th = 0; th < num_threads; ++th) {\n            sum += local_counts[th][k];\n          }\n          global_counts[k] = sum;\n        }\n      });\n    }\n    for (auto& r : reducers) r.join();\n\n    final_hash = checksum_u64(global_counts);\n  }\n\n  return final_hash;\n}",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v1100_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5237618164,
+    "min_elapsed_ns": 4270260399,
+    "max_elapsed_ns": 6281336586,
+    "all_elapsed_ns": [
+      4270260399,
+      5237618164,
+      6281336586
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4270260399,
+      "expected_checksum": 4927837675318346627,
+      "actual_checksum": 4927837675318346627
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v1100_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 17197181,
+    "min_elapsed_ns": 16411378,
+    "max_elapsed_ns": 18869272,
+    "all_elapsed_ns": [
+      18869272,
+      17197181,
+      16411378
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 18869272,
+      "expected_checksum": 4927837675318346627,
+      "actual_checksum": 4927837675318346627
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v1100_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 21208063,
+    "min_elapsed_ns": 16349730,
+    "max_elapsed_ns": 31361535,
+    "all_elapsed_ns": [
+      21208063,
+      31361535,
+      16349730
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 21208063,
+      "expected_checksum": 4927837675318346627,
+      "actual_checksum": 4927837675318346627
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce_v1100_h",
+  "model": "deepseek-v4-flash",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v1100_h/candidate/deepseek-v4-flash/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <mutex>\n#include <thread>\n#include <vector>\n\nnamespace {\n\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\nconstexpr size_t kShards = 256;\nconstexpr size_t kShardMask = kShards - 1;\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  std::vector<uint64_t> counts(static_cast<size_t>(key_space), 0);\n  std::vector<std::mutex> shard_mutexes(kShards);\n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    std::fill(counts.begin(), counts.end(), 0);\n    std::vector<std::thread> threads;\n    const size_t chunk = keys.size() / static_cast<size_t>(num_threads);\n    for (int t = 0; t < num_threads; ++t) {\n      const size_t begin = static_cast<size_t>(t) * chunk;\n      const size_t end = (t + 1 == num_threads) ? keys.size() : begin + chunk;\n      threads.emplace_back([&, begin, end]() {\n        for (size_t i = begin; i < end; ++i) {\n          const size_t key = static_cast<size_t>(keys[i]);\n          const size_t shard = key & kShardMask;\n          std::lock_guard<std::mutex> lock(shard_mutexes[shard]);\n          counts[key] += static_cast<uint64_t>(values[i]);\n        }\n      });\n    }\n    for (std::thread& th : threads) {\n      th.join();\n    }\n    hash = checksum_u64(counts);\n  }\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v1100_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1339207969,
+    "min_elapsed_ns": 1318268618,
+    "max_elapsed_ns": 1432668256,
+    "all_elapsed_ns": [
+      1432668256,
+      1318268618,
+      1339207969
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1432668256,
+      "expected_checksum": 13873522559520932739,
+      "actual_checksum": 13873522559520932739
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v1100_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 126241605,
+    "min_elapsed_ns": 125031023,
+    "max_elapsed_ns": 132767637,
+    "all_elapsed_ns": [
+      132767637,
+      126241605,
+      125031023
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 132767637,
+      "expected_checksum": 13873522559520932739,
+      "actual_checksum": 13873522559520932739
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v1100_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1232229095,
+    "min_elapsed_ns": 1177040577,
+    "max_elapsed_ns": 1252613068,
+    "all_elapsed_ns": [
+      1252613068,
+      1232229095,
+      1177040577
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1252613068,
+      "expected_checksum": 13873522559520932739,
+      "actual_checksum": 13873522559520932739
+    },
+    "status": "ok"
+  }
+}

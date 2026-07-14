@@ -1,0 +1,59 @@
+{
+  "task_id": "coo_to_csr_offsets_checksum_v500_e",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/coo_to_csr_offsets_checksum_v500_e/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <immintrin.h>\n#include <vector>\n#include <cstdint>\n#include <cstring>\n\nstatic uint64_t mix2(uint64_t h, uint64_t v) {\n    h ^= v;\n    h *= 1099511628211ULL;\n    return h;\n}\n\nuint64_t csr_offsets_hash(const std::vector<uint32_t>& row_ids, uint32_t rows, int iters) {\n    const size_t nnz = row_ids.size();\n    const size_t R = rows;\n    const size_t R1 = R + 1;\n    \n    // reusable working memory\n    static thread_local std::vector<uint32_t> tls_offsets;\n    tls_offsets.clear();\n    tls_offsets.resize((R + 1 + 8) & ~size_t(7), 0); // pad to multiple of 8\n\n    uint32_t* off = tls_offsets.data();\n    \n    uint64_t hash = 1469598103934665603ULL;\n    for (int it = 0; it < iters; ++it) {\n        // zero the offset vector (fast memset)\n        std::memset(off, 0, R1 * sizeof(uint32_t));\n\n        // histogram: O(nnz)\n        for (uint32_t id : row_ids) off[id]++;\n\n        // prefix-sum in place for offsets[0..R] -> off[r+1] is row start/rptr\n        uint32_t sum = 0;\n        for (size_t r = 0; r < R; ++r) {\n            uint32_t c = off[r];\n            off[r] = sum;\n            sum += c;\n        }\n        off[R] = sum; // final row ends\n\n        // row start becomes size; compute sizes off[r] = off[r+1]-off[r]\n        uint32_t prev = off[0];\n        for (size_t r = 1; r <= R; ++r) {\n            uint32_t nxt = off[r];\n            off[r-1] = nxt - prev;\n            prev = nxt;\n        }\n        off[R] = 0; // sentinel\n\n        // SIMD hashing \u2013 256 bit chunks (4\u00d7uint64)\n        static constexpr uint64_t init = 1469598103934665603ULL;\n        const uint64_t* p = reinterpret_cast<const uint64_t*>(off);\n        size_t N8 = (R1*sizeof(uint32_t))/sizeof(uint64_t);\n        __m256i h = _mm256_set1_epi64x(init);\n        __m256i mult = _mm256_set1_epi64x(1099511628211ULL);\n        size_t i = 0;\n        for (; i + 3 <= N8; i += 4) {\n            __m256i v = _mm256_loadu_si256((__m256i const*)(p + i));\n            h = _mm256_xor_si256(h, v);\n            h = _mm256_mul_epu32(h, mult); // low 32\u00d732 part; OK as we mix full hash below\n        }\n        // reduce SIMD lanes\n        uint64_t hbuf[4];\n        _mm256_storeu_si256((__m256i*)hbuf, h);\n        hash = init;\n        for (int k = 0; k < 4; ++k) hash = mix2(hash, hbuf[k]);\n        // scalar tail\n        for (; i < N8; ++i) hash = mix2(hash, p[i]);\n\n        // clear off[r] for next iter\n        std::memset(off, 0, R1 * sizeof(uint32_t));\n    }\n    return hash;\n}",
+  "baseline": {
+    "task_id": "coo_to_csr_offsets_checksum_v500_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 120364838,
+    "min_elapsed_ns": 118431322,
+    "max_elapsed_ns": 157265518,
+    "all_elapsed_ns": [
+      118431322,
+      120364838,
+      157265518
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 118431322,
+      "expected_checksum": 1079697407133415321,
+      "actual_checksum": 1079697407133415321
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "coo_to_csr_offsets_checksum_v500_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 26510385,
+    "min_elapsed_ns": 21884691,
+    "max_elapsed_ns": 26812938,
+    "all_elapsed_ns": [
+      26510385,
+      26812938,
+      21884691
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 26510385,
+      "expected_checksum": 1079697407133415321,
+      "actual_checksum": 1079697407133415321
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "coo_to_csr_offsets_checksum_v500_e",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/coo_to_csr_offsets_checksum_v500_e/harness', 'executable_tasks/coo_to_csr_offsets_checksum_v500_e/harness/benchmark_main.cpp', 'executable_tasks/coo_to_csr_offsets_checksum_v500_e/candidate/moonshotai__kimi-k2-0905/solution.cpp', '-o', 'build/coo_to_csr_offsets_checksum_v500_e/candidate/bench']' returned non-zero exit status 1."
+  }
+}

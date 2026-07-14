@@ -1,0 +1,72 @@
+{
+  "task_id": "frame_of_reference_filter_sum",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/frame_of_reference_filter_sum/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#endif\n\nuint64_t frame_filter_sum(\n    const std::vector<uint16_t>& deltas,\n    uint32_t base,\n    uint32_t low,\n    uint32_t high,\n    int iters) {\n  uint64_t sum = 0;\n  const std::size_t n = deltas.size();\n  const uint16_t* __restrict data = deltas.data();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    std::size_t i = 0;\n\n#if defined(__AVX2__)\n    if (n >= 16) {\n      __m256i vbase = _mm256_set1_epi32(static_cast<int32_t>(base));\n      __m256i vlow = _mm256_set1_epi32(static_cast<int32_t>(low));\n      __m256i vhigh = _mm256_set1_epi32(static_cast<int32_t>(high));\n      __m256i vsum0 = _mm256_setzero_si256();\n      __m256i vsum1 = _mm256_setzero_si256();\n\n      const std::size_t limit = n - 15;\n      for (; i < limit; i += 16) {\n        // Load 16 uint16_t values\n        __m256i d16 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(data + i));\n        \n        // Zero-extend to 32-bit: lower 8 and upper 8\n        __m256i d32_lo = _mm256_cvtepu16_epi32(_mm256_castsi256_si128(d16));\n        __m256i d32_hi = _mm256_cvtepu16_epi32(_mm256_extracti128_si256(d16, 1));\n        \n        // Add base\n        __m256i val_lo = _mm256_add_epi32(d32_lo, vbase);\n        __m256i val_hi = _mm256_add_epi32(d32_hi, vbase);\n        \n        // Range check: value >= low && value <= high\n        // For unsigned comparison, use signed comparison with bias trick\n        // Or use: (value - low) <= (high - low) as unsigned\n        // But simpler: use _mm256_cmpgt_epi32 with adjusted values\n        // value >= low: !(value < low) = !(low > value)\n        // value <= high: !(value > high)\n        \n        // Using signed comparison (works if values fit in signed range)\n        __m256i ge_low_lo = _mm256_or_si256(\n            _mm256_cmpgt_epi32(val_lo, vlow),\n            _mm256_cmpeq_epi32(val_lo, vlow));\n        __m256i le_high_lo = _mm256_or_si256(\n            _mm256_cmpgt_epi32(vhigh, val_lo),\n            _mm256_cmpeq_epi32(val_lo, vhigh));\n        __m256i mask_lo = _mm256_and_si256(ge_low_lo, le_high_lo);\n        \n        __m256i ge_low_hi = _mm256_or_si256(\n            _mm256_cmpgt_epi32(val_hi, vlow),\n            _mm256_cmpeq_epi32(val_hi, vlow));\n        __m256i le_high_hi = _mm256_or_si256(\n            _mm256_cmpgt_epi32(vhigh, val_hi),\n            _mm256_cmpeq_epi32(val_hi, vhigh));\n        __m256i mask_hi = _mm256_and_si256(ge_low_hi, le_high_hi);\n        \n        // Mask values\n        __m256i masked_lo = _mm256_and_si256(val_lo, mask_lo);\n        __m256i masked_hi = _mm256_and_si256(val_hi, mask_hi);\n        \n        // Accumulate as 64-bit to avoid overflow\n        // Unpack to 64-bit and add\n        __m256i lo_lo = _mm256_cvtepu32_epi64(_mm256_castsi256_si128(masked_lo));\n        __m256i lo_hi = _mm256_cvtepu32_epi64(_mm256_extracti128_si256(masked_lo, 1));\n        __m256i hi_lo = _mm256_cvtepu32_epi64(_mm256_castsi256_si128(masked_hi));\n        __m256i hi_hi = _mm256_cvtepu32_epi64(_mm256_extracti128_si256(masked_hi, 1));\n        \n        vsum0 = _mm256_add_epi64(vsum0, lo_lo);\n        vsum0 = _mm256_add_epi64(vsum0, lo_hi);\n        vsum1 = _mm256_add_epi64(vsum1, hi_lo);\n        vsum1 = _mm256_add_epi64(vsum1, hi_hi);\n      }\n      \n      // Horizontal sum\n      __m256i vsum = _mm256_add_epi64(vsum0, vsum1);\n      __m128i sum128 = _mm_add_epi64(\n          _mm256_castsi256_si128(vsum),\n          _mm256_extracti128_si256(vsum, 1));\n      sum128 = _mm_add_epi64(sum128, _mm_srli_si128(sum128, 8));\n      sum = static_cast<uint64_t>(_mm_cvtsi128_si64(sum128));\n    }\n#endif\n\n    // Scalar tail\n    for (; i < n; ++i) {\n      uint32_t value = base + static_cast<uint32_t>(data[i]);\n      if (value >= low && value <= high) {\n        sum += value;\n      }\n    }\n  }\n  return sum;\n}",
+  "baseline": {
+    "task_id": "frame_of_reference_filter_sum",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 285013975,
+    "min_elapsed_ns": 242836396,
+    "max_elapsed_ns": 313144614,
+    "all_elapsed_ns": [
+      313144614,
+      285013975,
+      242836396
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 313144614,
+      "expected_sum": 80014950400,
+      "actual_sum": 80014950400
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "frame_of_reference_filter_sum",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 144197843,
+    "min_elapsed_ns": 138876410,
+    "max_elapsed_ns": 160169639,
+    "all_elapsed_ns": [
+      144197843,
+      160169639,
+      138876410
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 144197843,
+      "expected_sum": 80014950400,
+      "actual_sum": 80014950400
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "frame_of_reference_filter_sum",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 120314228,
+    "min_elapsed_ns": 119596606,
+    "max_elapsed_ns": 138779584,
+    "all_elapsed_ns": [
+      120314228,
+      119596606,
+      138779584
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 120314228,
+      "expected_sum": 80014950400,
+      "actual_sum": 80014950400
+    },
+    "status": "ok"
+  }
+}

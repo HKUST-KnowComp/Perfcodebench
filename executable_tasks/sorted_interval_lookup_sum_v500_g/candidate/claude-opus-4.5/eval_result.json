@@ -1,0 +1,72 @@
+{
+  "task_id": "sorted_interval_lookup_sum_v500_g",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sorted_interval_lookup_sum_v500_g/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <immintrin.h>\n\nuint64_t interval_lookup_sum(\n    const std::vector<uint32_t>& starts,\n    const std::vector<uint32_t>& ends,\n    const std::vector<uint32_t>& payloads,\n    const std::vector<uint32_t>& probes,\n    const std::vector<uint32_t>& weights,\n    int iters) {\n  (void)ends;\n  \n  const uint32_t* __restrict starts_ptr = starts.data();\n  const uint32_t* __restrict payloads_ptr = payloads.data();\n  const uint32_t* __restrict probes_ptr = probes.data();\n  const uint32_t* __restrict weights_ptr = weights.data();\n  \n  const std::size_t n_intervals = starts.size();\n  const std::size_t n_probes = probes.size();\n  \n  uint64_t sum = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    std::size_t i = 0;\n    \n#if defined(__AVX2__)\n    // Process 8 probes at a time using AVX2\n    const std::size_t simd_end = (n_probes / 8) * 8;\n    \n    for (; i < simd_end; i += 8) {\n      // Load 8 probes and weights\n      __m256i probe_vec = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(probes_ptr + i));\n      __m256i weight_vec = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(weights_ptr + i));\n      \n      // Parallel binary search for 8 probes\n      __m256i lo = _mm256_setzero_si256();\n      __m256i hi = _mm256_set1_epi32(static_cast<int>(n_intervals));\n      \n      // Binary search iterations (log2(n_intervals) iterations needed)\n      while (true) {\n        __m256i diff = _mm256_sub_epi32(hi, lo);\n        __m256i ones = _mm256_set1_epi32(1);\n        __m256i all_one = _mm256_cmpeq_epi32(diff, ones);\n        if (_mm256_movemask_epi8(all_one) == -1) break;\n        \n        __m256i mid = _mm256_srli_epi32(_mm256_add_epi32(lo, hi), 1);\n        \n        // Gather starts[mid] for each lane\n        __m256i starts_mid = _mm256_i32gather_epi32(reinterpret_cast<const int*>(starts_ptr), mid, 4);\n        \n        // Compare: starts[mid] > probe ? hi = mid : lo = mid\n        __m256i cmp = _mm256_cmpgt_epi32(starts_mid, probe_vec);\n        hi = _mm256_blendv_epi8(hi, mid, cmp);\n        lo = _mm256_blendv_epi8(mid, lo, cmp);\n      }\n      \n      // lo now contains the indices (upper_bound - 1)\n      // Gather payloads[lo]\n      __m256i payload_vec = _mm256_i32gather_epi32(reinterpret_cast<const int*>(payloads_ptr), lo, 4);\n      \n      // Compute payload * weight for each lane and accumulate\n      // Split into low and high 4 elements for 64-bit multiplication\n      __m128i payload_lo = _mm256_castsi256_si128(payload_vec);\n      __m128i payload_hi = _mm256_extracti128_si256(payload_vec, 1);\n      __m128i weight_lo = _mm256_castsi256_si128(weight_vec);\n      __m128i weight_hi = _mm256_extracti128_si256(weight_vec, 1);\n      \n      // 32x32->64 multiplication\n      __m256i prod_lo = _mm256_mul_epu32(_mm256_cvtepu32_epi64(payload_lo), _mm256_cvtepu32_epi64(weight_lo));\n      __m256i prod_hi = _mm256_mul_epu32(_mm256_cvtepu32_epi64(payload_hi), _mm256_cvtepu32_epi64(weight_hi));\n      \n      // Shuffle to get odd elements for multiplication\n      __m128i payload_lo_odd = _mm_shuffle_epi32(payload_lo, _MM_SHUFFLE(3, 3, 1, 1));\n      __m128i payload_hi_odd = _mm_shuffle_epi32(payload_hi, _MM_SHUFFLE(3, 3, 1, 1));\n      __m128i weight_lo_odd = _mm_shuffle_epi32(weight_lo, _MM_SHUFFLE(3, 3, 1, 1));\n      __m128i weight_hi_odd = _mm_shuffle_epi32(weight_hi, _MM_SHUFFLE(3, 3, 1, 1));\n      \n      __m256i prod_lo_odd = _mm256_mul_epu32(_mm256_cvtepu32_epi64(payload_lo_odd), _mm256_cvtepu32_epi64(weight_lo_odd));\n      __m256i prod_hi_odd = _mm256_mul_epu32(_mm256_cvtepu32_epi64(payload_hi_odd), _mm256_cvtepu32_epi64(weight_hi_odd));\n      \n      // Horizontal sum of all 8 products\n      __m256i sum_vec = _mm256_add_epi64(prod_lo, prod_lo_odd);\n      sum_vec = _mm256_add_epi64(sum_vec, prod_hi);\n      sum_vec = _mm256_add_epi64(sum_vec, prod_hi_odd);\n      \n      __m128i sum_128 = _mm_add_epi64(_mm256_castsi256_si128(sum_vec), _mm256_extracti128_si256(sum_vec, 1));\n      sum_128 = _mm_add_epi64(sum_128, _mm_shuffle_epi32(sum_128, _MM_SHUFFLE(1, 0, 3, 2)));\n      \n      sum += static_cast<uint64_t>(_mm_cvtsi128_si64(sum_128));\n    }\n#endif\n    \n    // Scalar fallback for remaining elements\n    for (; i < n_probes; ++i) {\n      uint32_t probe = probes_ptr[i];\n      \n      // Binary search: find largest index where starts[idx] <= probe\n      std::size_t lo = 0, hi = n_intervals;\n      while (hi - lo > 1) {\n        std::size_t mid = (lo + hi) >> 1;\n        if (starts_ptr[mid] > probe) {\n          hi = mid;\n        } else {\n          lo = mid;\n        }\n      }\n      \n      sum += static_cast<uint64_t>(payloads_ptr[lo]) * static_cast<uint64_t>(weights_ptr[i]);\n    }\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "sorted_interval_lookup_sum_v500_g",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 844860454,
+    "min_elapsed_ns": 808630068,
+    "max_elapsed_ns": 1031149134,
+    "all_elapsed_ns": [
+      1031149134,
+      844860454,
+      808630068
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1031149134,
+      "expected_sum": 85831957664,
+      "actual_sum": 85831957664
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sorted_interval_lookup_sum_v500_g",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 106244455,
+    "min_elapsed_ns": 100291062,
+    "max_elapsed_ns": 136656108,
+    "all_elapsed_ns": [
+      106244455,
+      100291062,
+      136656108
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 106244455,
+      "expected_sum": 85831957664,
+      "actual_sum": 85831957664
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sorted_interval_lookup_sum_v500_g",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1219432873,
+    "min_elapsed_ns": 1114153722,
+    "max_elapsed_ns": 1224387617,
+    "all_elapsed_ns": [
+      1224387617,
+      1219432873,
+      1114153722
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1224387617,
+      "expected_sum": 85831957664,
+      "actual_sum": 85831957664
+    },
+    "status": "ok"
+  }
+}

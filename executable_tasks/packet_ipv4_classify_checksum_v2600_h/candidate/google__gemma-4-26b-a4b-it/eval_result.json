@@ -1,0 +1,72 @@
+{
+  "task_id": "packet_ipv4_classify_checksum_v2600_h",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/packet_ipv4_classify_checksum_v2600_h/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstddef>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nconstexpr std::size_t kPacketSize = 64;\n\n// Optimized private IP check using direct access to avoid struct overhead\ninline bool is_private_ip_fast(const uint8_t* src) {\n    uint8_t p0 = src[0];\n    uint8_t p1 = src[1];\n    return (p0 == 10u) || \n           (p0 == 172u && p1 >= 16u && p1 < 32u) || \n           (p0 == 192u && p1 == 168u);\n}\n\n} // namespace\n\nuint64_t classify_packets_checksum(\n    const std::vector<uint8_t>& packets, \n    std::size_t packet_count, \n    int iters) {\n    \n    const uint8_t* data = packets.data();\n    uint64_t hash = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        hash = 1469598103934665603ULL;\n        for (std::size_t i = 0; i < packet_count; ++i) {\n            const uint8_t* p = data + (i * kPacketSize);\n            \n            // IPv4 Header offsets:\n            // ttl: offset 8\n            // protocol: offset 9\n            // src: offset 12\n            // dst_port: offset 22 (part of payload/transport)\n            \n            const uint8_t ttl = p[8];\n            const uint8_t protocol = p[9];\n            const uint8_t* src_ptr = p + 12;\n            \n            // dst_port is at offset 22 (2 bytes)\n            // We read it as a big-endian 16-bit integer\n            const uint16_t dst_port = static_cast<uint16_t>((p[22] << 8) | p[23]);\n\n            const uint32_t ttl_bucket = static_cast<uint32_t>(ttl >> 6);\n            \n            uint32_t port_bucket;\n            if (protocol == 6u || protocol == 17u) {\n                if (dst_port < 1024u) {\n                    port_bucket = 0u;\n                } else if (dst_port < 8192u) {\n                    port_bucket = 1u;\n                } else {\n                    port_bucket = 2u;\n                }\n            } else {\n                port_bucket = 3u;\n            }\n\n            const uint32_t ip_val = is_private_ip_fast(src_ptr) ? 5u : 11u;\n            \n            const uint32_t key = static_cast<uint32_t>(protocol) * 131u + \n                                 ttl_bucket * 17u + \n                                 ip_val + \n                                 port_bucket * 23u;\n\n            hash ^= static_cast<uint64_t>(key);\n            hash *= 1099511628211ULL;\n        }\n    }\n    return hash;\n}\n",
+  "baseline": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2126626,
+    "min_elapsed_ns": 1865783,
+    "max_elapsed_ns": 2234157,
+    "all_elapsed_ns": [
+      1865783,
+      2126626,
+      2234157
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1865783,
+      "expected_checksum": 15720879676828501607,
+      "actual_checksum": 15720879676828501607
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2043440,
+    "min_elapsed_ns": 1783887,
+    "max_elapsed_ns": 2112174,
+    "all_elapsed_ns": [
+      2043440,
+      2112174,
+      1783887
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2043440,
+      "expected_checksum": 15720879676828501607,
+      "actual_checksum": 15720879676828501607
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 2452027,
+    "min_elapsed_ns": 2094495,
+    "max_elapsed_ns": 2477368,
+    "all_elapsed_ns": [
+      2452027,
+      2477368,
+      2094495
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2452027,
+      "expected_checksum": 15720879676828501607,
+      "actual_checksum": 15720879676828501607
+    },
+    "status": "ok"
+  }
+}

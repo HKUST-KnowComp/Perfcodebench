@@ -1,0 +1,18 @@
+#include "interface.h"
+#include <cuda_runtime.h>
+#include <thrust/device_ptr.h>
+#include <thrust/sort.h>
+
+void sort_vec_i32(const int* input, int* output, int n, int iters) {
+    if (n <= 0 || iters <= 0) return;
+
+    // Use default stream for Thrust operations
+    for (int iter = 0; iter < iters; ++iter) {
+        if (output != input) {
+            cudaMemcpy(output, input, static_cast<size_t>(n) * sizeof(int), cudaMemcpyDeviceToDevice);
+        }
+        thrust::device_ptr<int> begin(output);
+        thrust::device_ptr<int> end(output + n);
+        thrust::sort(begin, end);
+    }
+}

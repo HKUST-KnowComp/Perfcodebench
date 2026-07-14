@@ -1,0 +1,72 @@
+{
+  "task_id": "fir_filter_energy_checksum_v2600_h",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/fir_filter_energy_checksum_v2600_h/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#endif\n\nuint64_t fir_energy_checksum(\n    const std::vector<int16_t>& signal,\n    const std::vector<int16_t>& taps,\n    int iters) {\n  const std::size_t sig_size = signal.size();\n  const std::size_t tap_size = taps.size();\n  \n  if (sig_size == 0 || tap_size == 0 || iters <= 0) {\n    uint64_t total = 1469598103934665603ULL;\n    for (int iter = 0; iter < iters; ++iter) {\n      // empty output, total stays the same\n    }\n    return 1469598103934665603ULL;\n  }\n  \n  std::vector<int64_t> output(sig_size);\n  const int16_t* __restrict sig_ptr = signal.data();\n  const int16_t* __restrict tap_ptr = taps.data();\n  int64_t* __restrict out_ptr = output.data();\n  \n  uint64_t total = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    // Phase 1: partial overlap (i < tap_size - 1)\n    std::size_t phase1_end = (tap_size - 1 < sig_size) ? (tap_size - 1) : sig_size;\n    for (std::size_t i = 0; i < phase1_end; ++i) {\n      int64_t acc = 0;\n      for (std::size_t j = 0; j <= i; ++j) {\n        acc += static_cast<int64_t>(sig_ptr[i - j]) * static_cast<int64_t>(tap_ptr[j]);\n      }\n      out_ptr[i] = acc;\n    }\n    \n    // Phase 2: full overlap (i >= tap_size - 1)\n#if defined(__AVX2__)\n    for (std::size_t i = phase1_end; i < sig_size; ++i) {\n      const int16_t* sig_start = sig_ptr + i - tap_size + 1;\n      __m256i acc_vec = _mm256_setzero_si256();\n      \n      std::size_t j = 0;\n      // Process 16 elements at a time\n      for (; j + 15 < tap_size; j += 16) {\n        // Load 16 signal values (in reverse order relative to taps)\n        __m256i s = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(sig_start + (tap_size - 1 - j - 15)));\n        // Reverse the signal vector\n        s = _mm256_permute2x128_si256(s, s, 0x01);\n        s = _mm256_shufflelo_epi16(s, _MM_SHUFFLE(0,1,2,3));\n        s = _mm256_shufflehi_epi16(s, _MM_SHUFFLE(0,1,2,3));\n        __m256i s_lo = _mm256_unpacklo_epi64(s, s);\n        __m256i s_hi = _mm256_unpackhi_epi64(s, s);\n        s = _mm256_blend_epi32(_mm256_slli_si256(s_hi, 8), _mm256_srli_si256(s_lo, 8), 0xCC);\n        s = _mm256_shuffle_epi32(s, _MM_SHUFFLE(1,0,3,2));\n        \n        // Load 16 tap values\n        __m256i t = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(tap_ptr + j));\n        \n        // Multiply and accumulate using madd (pairs of 16-bit -> 32-bit)\n        __m256i prod = _mm256_madd_epi16(s, t);\n        acc_vec = _mm256_add_epi64(acc_vec, _mm256_add_epi64(\n            _mm256_cvtepi32_epi64(_mm256_extracti128_si256(prod, 0)),\n            _mm256_cvtepi32_epi64(_mm256_extracti128_si256(prod, 1))));\n      }\n      \n      // Horizontal sum\n      int64_t acc_arr[4];\n      _mm256_storeu_si256(reinterpret_cast<__m256i*>(acc_arr), acc_vec);\n      int64_t acc = acc_arr[0] + acc_arr[1] + acc_arr[2] + acc_arr[3];\n      \n      // Scalar cleanup\n      for (; j < tap_size; ++j) {\n        acc += static_cast<int64_t>(sig_ptr[i - j]) * static_cast<int64_t>(tap_ptr[j]);\n      }\n      out_ptr[i] = acc;\n    }\n#else\n    for (std::size_t i = phase1_end; i < sig_size; ++i) {\n      int64_t acc = 0;\n      for (std::size_t j = 0; j < tap_size; ++j) {\n        acc += static_cast<int64_t>(sig_ptr[i - j]) * static_cast<int64_t>(tap_ptr[j]);\n      }\n      out_ptr[i] = acc;\n    }\n#endif\n    \n    // Compute checksum\n    total = 1469598103934665603ULL;\n    for (std::size_t i = 0; i < sig_size; ++i) {\n      int64_t acc = out_ptr[i];\n      total ^= static_cast<uint64_t>(acc * acc + 3 * acc);\n      total *= 1099511628211ULL;\n    }\n  }\n  \n  return total;\n}",
+  "baseline": {
+    "task_id": "fir_filter_energy_checksum_v2600_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 19248334,
+    "min_elapsed_ns": 18951633,
+    "max_elapsed_ns": 19643421,
+    "all_elapsed_ns": [
+      19643421,
+      18951633,
+      19248334
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 19643421,
+      "expected_checksum": 18227025995888194209,
+      "actual_checksum": 18227025995888194209
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "fir_filter_energy_checksum_v2600_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 15520892,
+    "min_elapsed_ns": 15517076,
+    "max_elapsed_ns": 15798973,
+    "all_elapsed_ns": [
+      15798973,
+      15517076,
+      15520892
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15798973,
+      "expected_checksum": 18227025995888194209,
+      "actual_checksum": 18227025995888194209
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "fir_filter_energy_checksum_v2600_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 11202339,
+    "min_elapsed_ns": 11121098,
+    "max_elapsed_ns": 11588039,
+    "all_elapsed_ns": [
+      11588039,
+      11202339,
+      11121098
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11588039,
+      "expected_checksum": 18227025995888194209,
+      "actual_checksum": 18227025995888194209
+    },
+    "status": "ok"
+  }
+}

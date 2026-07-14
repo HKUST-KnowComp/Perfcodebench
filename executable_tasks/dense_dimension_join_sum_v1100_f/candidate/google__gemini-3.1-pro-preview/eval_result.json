@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_dimension_join_sum_v1100_f",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_dimension_join_sum_v1100_f/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 15,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <algorithm>\n\nuint64_t join_sum(\n    const std::vector<uint32_t>& dim_keys,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n    \n    if (dim_keys.empty() || probe_keys.empty()) {\n        return 0;\n    }\n\n    const size_t num_probes = probe_keys.size();\n    const uint32_t* __restrict__ pk = probe_keys.data();\n    const uint32_t* __restrict__ pw = probe_weights.data();\n    const uint32_t* __restrict__ dv = dim_values.data();\n    const uint32_t* __restrict__ dk = dim_keys.data();\n\n    uint64_t final_sum = 0;\n    const uint32_t first_key = dk[0];\n    const bool is_contiguous = (dk[dim_keys.size() - 1] == first_key + (uint32_t)dim_keys.size() - 1);\n\n    if (is_contiguous) {\n        for (int iter = 0; iter < iters; ++iter) {\n            uint64_t current_sum = 0;\n            // The compiler can auto-vectorize this loop effectively\n            #pragma omp simd reduction(+:current_sum)\n            for (size_t i = 0; i < num_probes; ++i) {\n                const uint32_t idx = pk[i] - first_key;\n                current_sum += static_cast<uint64_t>(dv[idx]) * static_cast<uint64_t>(pw[i]);\n            }\n            final_sum = current_sum;\n        }\n    } else {\n        // Fallback for non-contiguous dense keys using binary search\n        for (int iter = 0; iter < iters; ++iter) {\n            uint64_t current_sum = 0;\n            for (size_t i = 0; i < num_probes; ++i) {\n                const auto it = std::lower_bound(dim_keys.begin(), dim_keys.end(), pk[i]);\n                const size_t idx = static_cast<size_t>(it - dim_keys.begin());\n                current_sum += static_cast<uint64_t>(dv[idx]) * static_cast<uint64_t>(pw[i]);\n            }\n            final_sum = current_sum;\n        }\n    }\n\n    return final_sum;\n}",
+  "baseline": {
+    "task_id": "dense_dimension_join_sum_v1100_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 9400044103,
+    "min_elapsed_ns": 9370373927,
+    "max_elapsed_ns": 10310045014,
+    "all_elapsed_ns": [
+      9370373927,
+      9400044103,
+      10310045014
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9370373927,
+      "expected_sum": 73207382016,
+      "actual_sum": 73207382016
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_dimension_join_sum_v1100_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 121895705,
+    "min_elapsed_ns": 120852931,
+    "max_elapsed_ns": 160509320,
+    "all_elapsed_ns": [
+      121895705,
+      120852931,
+      160509320
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 121895705,
+      "expected_sum": 73207382016,
+      "actual_sum": 73207382016
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_dimension_join_sum_v1100_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 92410506,
+    "min_elapsed_ns": 91640349,
+    "max_elapsed_ns": 94584613,
+    "all_elapsed_ns": [
+      92410506,
+      94584613,
+      91640349
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 92410506,
+      "expected_sum": 73207382016,
+      "actual_sum": 73207382016
+    },
+    "status": "ok"
+  }
+}

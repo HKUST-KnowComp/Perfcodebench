@@ -1,0 +1,59 @@
+{
+  "task_id": "asof_join_weighted_sum_v500_b",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/asof_join_weighted_sum_v500_b/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\nuint64_t asof_join_sum(\n    const std::vector<uint32_t>& dim_ts,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_ts,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n  const size_t dim_size = dim_ts.size();\n  const size_t probe_size = probe_ts.size();\n  const uint32_t* d_ts = dim_ts.data();\n  const uint32_t* d_val = dim_values.data();\n  const uint32_t* p_ts = probe_ts.data();\n  const uint32_t* p_w = probe_weights.data();\n\n  uint64_t total_sum = 0;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t current_sum = 0;\n    size_t dim_idx = 0;\n    \n    for (size_t i = 0; i < probe_size; ++i) {\n      uint32_t target = p_ts[i];\n      \n      // Advance dim_idx to the last element <= target\n      // Since probe_ts is sorted, we don't reset dim_idx\n      while (dim_idx < dim_size && d_ts[dim_idx] <= target) {\n        dim_idx++;\n      }\n      \n      // The as-of join value is at dim_idx - 1\n      // Note: The baseline assumes dim_ts[0] <= probe_ts[0] or handles underflow via size_t\n      // based on the logic `it - dim_ts.begin() - 1`. \n      // If dim_idx is 0, it wraps to max size_t. We follow baseline behavior.\n      current_sum += static_cast<uint64_t>(d_val[dim_idx - 1]) * static_cast<uint64_t>(p_w[i]);\n    }\n    total_sum = current_sum;\n  }\n  \n  return total_sum;\n}",
+  "baseline": {
+    "task_id": "asof_join_weighted_sum_v500_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1664467283,
+    "min_elapsed_ns": 1664404902,
+    "max_elapsed_ns": 1797321111,
+    "all_elapsed_ns": [
+      1664404902,
+      1664467283,
+      1797321111
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1664404902,
+      "expected_sum": 294475019609,
+      "actual_sum": 294475019609
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "asof_join_weighted_sum_v500_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 149719405,
+    "min_elapsed_ns": 145827293,
+    "max_elapsed_ns": 258125193,
+    "all_elapsed_ns": [
+      258125193,
+      149719405,
+      145827293
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 258125193,
+      "expected_sum": 294475019609,
+      "actual_sum": 294475019609
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "asof_join_weighted_sum_v500_b",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/asof_join_weighted_sum_v500_b/harness', 'executable_tasks/asof_join_weighted_sum_v500_b/harness/benchmark_main.cpp', 'executable_tasks/asof_join_weighted_sum_v500_b/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/asof_join_weighted_sum_v500_b/candidate/bench']' returned non-zero exit status 1."
+  }
+}

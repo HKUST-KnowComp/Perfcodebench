@@ -1,0 +1,72 @@
+{
+  "task_id": "sharded_counter_reduce_v2200_f",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v2200_f/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 6,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <atomic>\n#include <thread>\n#include <vector>\n#include <numeric>\n\nnamespace {\n\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int num_threads,\n    int iters) {\n  \n  const size_t n_keys = keys.size();\n  const size_t k_space = static_cast<size_t>(key_space);\n  uint64_t final_hash = 0;\n\n  // To avoid thread creation overhead inside the loop, we can't easily\n  // reuse threads without a complex barrier. However, the primary bottleneck\n  // is the mutex. We use per-thread local buffers to eliminate contention.\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    std::vector<std::vector<uint64_t>> local_counts(num_threads, std::vector<uint64_t>(k_space, 0));\n    std::vector<std::thread> threads;\n    \n    const size_t chunk = n_keys / num_threads;\n    for (int t = 0; t < num_threads; ++t) {\n      const size_t begin = static_cast<size_t>(t) * chunk;\n      const size_t end = (t == num_threads - 1) ? n_keys : begin + chunk;\n      \n      threads.emplace_back([&, t, begin, end]() {\n        uint64_t* __restrict__ my_counts = local_counts[t].data();\n        const uint32_t* __restrict__ k_ptr = keys.data();\n        const uint32_t* __restrict__ v_ptr = values.data();\n        for (size_t i = begin; i < end; ++i) {\n          my_counts[k_ptr[i]] += v_ptr[i];\n        }\n      });\n    }\n\n    for (auto& th : threads) {\n      th.join();\n    }\n\n    // Reduction phase\n    std::vector<uint64_t> global_counts(k_space, 0);\n    for (int t = 0; t < num_threads; ++t) {\n      const uint64_t* __restrict__ src = local_counts[t].data();\n      uint64_t* __restrict__ dst = global_counts.data();\n      for (size_t i = 0; i < k_space; ++i) {\n        dst[i] += src[i];\n      }\n    }\n    \n    final_hash = checksum_u64(global_counts);\n  }\n\n  return final_hash;\n}",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v2200_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4625702687,
+    "min_elapsed_ns": 3597961603,
+    "max_elapsed_ns": 5219934401,
+    "all_elapsed_ns": [
+      3597961603,
+      5219934401,
+      4625702687
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3597961603,
+      "expected_checksum": 9756277127520650115,
+      "actual_checksum": 9756277127520650115
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v2200_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 28601977,
+    "min_elapsed_ns": 24133747,
+    "max_elapsed_ns": 39890680,
+    "all_elapsed_ns": [
+      39890680,
+      28601977,
+      24133747
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 39890680,
+      "expected_checksum": 9756277127520650115,
+      "actual_checksum": 9756277127520650115
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v2200_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 30268619,
+    "min_elapsed_ns": 30225390,
+    "max_elapsed_ns": 36969056,
+    "all_elapsed_ns": [
+      30225390,
+      30268619,
+      36969056
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 30225390,
+      "expected_checksum": 9756277127520650115,
+      "actual_checksum": 9756277127520650115
+    },
+    "status": "ok"
+  }
+}

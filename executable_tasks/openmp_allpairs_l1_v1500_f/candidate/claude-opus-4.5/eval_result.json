@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_allpairs_l1_v1500_f",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_allpairs_l1_v1500_f/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 7,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstdlib>\n#include <vector>\n#include <algorithm>\n#include <omp.h>\n\nint64_t allpairs_l1_sum(const std::vector<int32_t>& xs, const std::vector<int32_t>& ys, int iters) {\n    const int n = static_cast<int>(xs.size());\n    if (n <= 1) return 0;\n    \n    int64_t total = 0;\n    \n    // For sum of |a_i - a_j| over all i < j:\n    // Sort the array. Then for sorted value v[k], it contributes:\n    // v[k] * (2*k - n + 1) to the total sum\n    // This is because v[k] is subtracted by k elements before it\n    // and added by (n-1-k) elements after it.\n    // Net contribution: v[k] * ((n-1-k) - k) = v[k] * (n - 1 - 2k)\n    // But we want sum of |v[i] - v[j]| for i < j, which equals:\n    // sum over k of v[k] * (2*k - (n-1))\n    \n    std::vector<int32_t> sorted_x(n);\n    std::vector<int32_t> sorted_y(n);\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        // Copy and sort both arrays\n        #pragma omp parallel sections\n        {\n            #pragma omp section\n            {\n                std::copy(xs.begin(), xs.end(), sorted_x.begin());\n                std::sort(sorted_x.begin(), sorted_x.end());\n            }\n            #pragma omp section\n            {\n                std::copy(ys.begin(), ys.end(), sorted_y.begin());\n                std::sort(sorted_y.begin(), sorted_y.end());\n            }\n        }\n        \n        int64_t sum_x = 0;\n        int64_t sum_y = 0;\n        \n        // Compute sum using the formula:\n        // For sorted array, sum of |a[i] - a[j]| for i < j equals\n        // sum over k of a[k] * (2*k - (n-1))\n        #pragma omp parallel reduction(+:sum_x, sum_y)\n        {\n            #pragma omp for nowait\n            for (int k = 0; k < n; ++k) {\n                int64_t coeff = 2LL * k - (n - 1);\n                sum_x += static_cast<int64_t>(sorted_x[k]) * coeff;\n            }\n            \n            #pragma omp for\n            for (int k = 0; k < n; ++k) {\n                int64_t coeff = 2LL * k - (n - 1);\n                sum_y += static_cast<int64_t>(sorted_y[k]) * coeff;\n            }\n        }\n        \n        total = sum_x + sum_y;\n    }\n    \n    return total;\n}",
+  "baseline": {
+    "task_id": "openmp_allpairs_l1_v1500_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4485935844,
+    "min_elapsed_ns": 3923867922,
+    "max_elapsed_ns": 4641905758,
+    "all_elapsed_ns": [
+      3923867922,
+      4485935844,
+      4641905758
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3923867922,
+      "expected_sum": 35075532800,
+      "actual_sum": 35075532800
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_allpairs_l1_v1500_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 705386381,
+    "min_elapsed_ns": 700479058,
+    "max_elapsed_ns": 783754309,
+    "all_elapsed_ns": [
+      705386381,
+      700479058,
+      783754309
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 705386381,
+      "expected_sum": 35075532800,
+      "actual_sum": 35075532800
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_allpairs_l1_v1500_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/openmp_allpairs_l1_v1500_f/candidate/bench']' timed out after 7 seconds"
+  }
+}

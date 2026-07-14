@@ -1,0 +1,59 @@
+{
+  "task_id": "highway_dot_product_xxlarge",
+  "model": "qwen/qwen3.6-plus",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_dot_product_xxlarge/candidate/qwen__qwen3.6-plus/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <hwy/highway.h>\n\nHWY_BEFORE_NAMESPACE();\nnamespace hwy_dot {\nnamespace HWY_NAMESPACE {\n\nfloat ComputeDot(const float* a, const float* b, std::size_t n) {\n    const hwy::ScalableTag<float> d;\n    auto sum = hwy::Zero(d);\n    std::size_t i = 0;\n    const std::size_t lanes = hwy::Lanes(d);\n    for (; i + lanes <= n; i += lanes) {\n        auto va = hwy::LoadU(d, a + i);\n        auto vb = hwy::LoadU(d, b + i);\n        sum = hwy::MulAdd(va, vb, sum);\n    }\n    float res = hwy::ReduceSum(d, sum);\n    for (; i < n; ++i) {\n        res += a[i] * b[i];\n    }\n    return res;\n}\n\n} // namespace HWY_NAMESPACE\n} // namespace hwy_dot\nHWY_AFTER_NAMESPACE();\n\n#if HWY_ONCE\nnamespace hwy_dot {\nHWY_EXPORT(ComputeDot);\nfloat dot_product(const float* a, const float* b, std::size_t n) {\n    return HWY_DYNAMIC_DISPATCH(ComputeDot)(a, b, n);\n}\n} // namespace hwy_dot\n#endif",
+  "baseline": {
+    "task_id": "highway_dot_product_xxlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6499402,
+    "min_elapsed_ns": 6440938,
+    "max_elapsed_ns": 6507922,
+    "all_elapsed_ns": [
+      6440938,
+      6507922,
+      6499402
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6440938,
+      "expected_dot": 2631150.0,
+      "actual_dot": 2631600.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_dot_product_xxlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5361025,
+    "min_elapsed_ns": 5229245,
+    "max_elapsed_ns": 5536127,
+    "all_elapsed_ns": [
+      5536127,
+      5361025,
+      5229245
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5536127,
+      "expected_dot": 2631150.0,
+      "actual_dot": 2631140.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_dot_product_xxlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/highway_dot_product_xxlarge/harness', '-Iexternal/highway', 'executable_tasks/highway_dot_product_xxlarge/harness/benchmark_main.cpp', 'executable_tasks/highway_dot_product_xxlarge/candidate/qwen__qwen3.6-plus/solution.cpp', 'external/highway/hwy/abort.cc', 'external/highway/hwy/targets.cc', 'external/highway/hwy/aligned_allocator.cc', 'external/highway/hwy/per_target.cc', '-o', 'build/highway_dot_product_xxlarge/candidate/bench']' returned non-zero exit status 1."
+  }
+}

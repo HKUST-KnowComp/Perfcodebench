@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_csr_spmv_v900_d",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_csr_spmv_v900_d/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nuint64_t checksum_i64(const std::vector<int64_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (int64_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t csr_spmv_checksum(\n    const std::vector<int>& row_ptr,\n    const std::vector<int>& col_idx,\n    const std::vector<int32_t>& values,\n    const std::vector<int32_t>& dense,\n    int rows,\n    int iters) {\n  std::vector<int64_t> out(static_cast<std::size_t>(rows), 0);\n  \n  const int* row_ptr_data = row_ptr.data();\n  const int* col_idx_data = col_idx.data();\n  const int32_t* values_data = values.data();\n  const int32_t* dense_data = dense.data();\n  int64_t* out_data = out.data();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    #pragma omp parallel for schedule(static)\n    for (int row = 0; row < rows; ++row) {\n      int start = row_ptr_data[row];\n      int end = row_ptr_data[row + 1];\n      int64_t sum = 0;\n      \n      int idx = start;\n      int remaining = end - start;\n      \n      // Unroll by 4\n      for (; remaining >= 4; idx += 4, remaining -= 4) {\n        int64_t s0 = static_cast<int64_t>(values_data[idx]) * \n                     static_cast<int64_t>(dense_data[col_idx_data[idx]]);\n        int64_t s1 = static_cast<int64_t>(values_data[idx + 1]) * \n                     static_cast<int64_t>(dense_data[col_idx_data[idx + 1]]);\n        int64_t s2 = static_cast<int64_t>(values_data[idx + 2]) * \n                     static_cast<int64_t>(dense_data[col_idx_data[idx + 2]]);\n        int64_t s3 = static_cast<int64_t>(values_data[idx + 3]) * \n                     static_cast<int64_t>(dense_data[col_idx_data[idx + 3]]);\n        sum += s0 + s1 + s2 + s3;\n      }\n      \n      // Handle remainder\n      for (; idx < end; ++idx) {\n        sum += static_cast<int64_t>(values_data[idx]) *\n               static_cast<int64_t>(dense_data[col_idx_data[idx]]);\n      }\n      \n      out_data[row] = sum;\n    }\n  }\n  \n  return checksum_i64(out);\n}\n",
+  "baseline": {
+    "task_id": "openmp_csr_spmv_v900_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 50983202,
+    "min_elapsed_ns": 27334035,
+    "max_elapsed_ns": 66339689,
+    "all_elapsed_ns": [
+      50983202,
+      27334035,
+      66339689
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 50983202,
+      "expected_checksum": 4881773614452686187,
+      "actual_checksum": 4881773614452686187
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_csr_spmv_v900_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 150126154,
+    "min_elapsed_ns": 13582432,
+    "max_elapsed_ns": 585130452,
+    "all_elapsed_ns": [
+      150126154,
+      585130452,
+      13582432
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 150126154,
+      "expected_checksum": 4881773614452686187,
+      "actual_checksum": 4881773614452686187
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_csr_spmv_v900_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 2950522937,
+    "min_elapsed_ns": 2541768386,
+    "max_elapsed_ns": 3102108089,
+    "all_elapsed_ns": [
+      2541768386,
+      2950522937,
+      3102108089
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2541768386,
+      "expected_checksum": 4881773614452686187,
+      "actual_checksum": 4881773614452686187
+    },
+    "status": "ok"
+  }
+}

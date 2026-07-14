@@ -1,0 +1,72 @@
+{
+  "task_id": "zstd_block_decompress_v1000_a",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/zstd_block_decompress_v1000_a/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include \"zstd.h\"\n\n#include <string>\n#include <cstdint>\n#include <cstddef>\n\nnamespace {\n\n// Unrolled FNV-1a checksum for better throughput on small buffers.\ninline uint64_t fnv1a_unrolled(const char* data, std::size_t len) {\n  const unsigned char* p = reinterpret_cast<const unsigned char*>(data);\n  uint64_t h = 1469598103934665603ULL; // FNV offset basis\n  const uint64_t prime = 1099511628211ULL;\n\n  // Process 32 bytes per iteration when possible\n  while (len >= 32) {\n    h ^= p[0];  h *= prime;\n    h ^= p[1];  h *= prime;\n    h ^= p[2];  h *= prime;\n    h ^= p[3];  h *= prime;\n    h ^= p[4];  h *= prime;\n    h ^= p[5];  h *= prime;\n    h ^= p[6];  h *= prime;\n    h ^= p[7];  h *= prime;\n    h ^= p[8];  h *= prime;\n    h ^= p[9];  h *= prime;\n    h ^= p[10]; h *= prime;\n    h ^= p[11]; h *= prime;\n    h ^= p[12]; h *= prime;\n    h ^= p[13]; h *= prime;\n    h ^= p[14]; h *= prime;\n    h ^= p[15]; h *= prime;\n    h ^= p[16]; h *= prime;\n    h ^= p[17]; h *= prime;\n    h ^= p[18]; h *= prime;\n    h ^= p[19]; h *= prime;\n    h ^= p[20]; h *= prime;\n    h ^= p[21]; h *= prime;\n    h ^= p[22]; h *= prime;\n    h ^= p[23]; h *= prime;\n    h ^= p[24]; h *= prime;\n    h ^= p[25]; h *= prime;\n    h ^= p[26]; h *= prime;\n    h ^= p[27]; h *= prime;\n    h ^= p[28]; h *= prime;\n    h ^= p[29]; h *= prime;\n    h ^= p[30]; h *= prime;\n    h ^= p[31]; h *= prime;\n    p += 32;\n    len -= 32;\n  }\n\n  // Process remaining in chunks of 8\n  while (len >= 8) {\n    h ^= p[0]; h *= prime;\n    h ^= p[1]; h *= prime;\n    h ^= p[2]; h *= prime;\n    h ^= p[3]; h *= prime;\n    h ^= p[4]; h *= prime;\n    h ^= p[5]; h *= prime;\n    h ^= p[6]; h *= prime;\n    h ^= p[7]; h *= prime;\n    p += 8;\n    len -= 8;\n  }\n\n  // Tail\n  while (len--) {\n    h ^= *p++;\n    h *= prime;\n  }\n\n  return h;\n}\n\n} // namespace\n\nuint64_t decompress_checksum(const std::string& compressed, std::size_t decompressed_size) {\n  // Reuse a thread-local decompression context to avoid per-call allocations.\n  thread_local ZSTD_DCtx* dctx = ZSTD_createDCtx();\n\n  // Reuse a thread-local buffer to avoid repeated allocations.\n  thread_local std::string buffer;\n  buffer.resize(decompressed_size);\n\n  size_t outSize = 0;\n  if (dctx) {\n    outSize = ZSTD_decompressDCtx(dctx, buffer.data(), buffer.size(), compressed.data(), compressed.size());\n  } else {\n    // Fallback if context creation failed (unlikely)\n    outSize = ZSTD_decompress(buffer.data(), buffer.size(), compressed.data(), compressed.size());\n  }\n\n  if (ZSTD_isError(outSize) || outSize != decompressed_size) {\n    return 0;\n  }\n\n  return fnv1a_unrolled(buffer.data(), decompressed_size);\n}\n",
+  "baseline": {
+    "task_id": "zstd_block_decompress_v1000_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 851471,
+    "min_elapsed_ns": 816209,
+    "max_elapsed_ns": 931467,
+    "all_elapsed_ns": [
+      931467,
+      851471,
+      816209
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 931467,
+      "expected_checksum": 5830449159394229294,
+      "actual_checksum": 5830449159394229294
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "zstd_block_decompress_v1000_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 832340,
+    "min_elapsed_ns": 825970,
+    "max_elapsed_ns": 867848,
+    "all_elapsed_ns": [
+      867848,
+      832340,
+      825970
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 867848,
+      "expected_checksum": 5830449159394229294,
+      "actual_checksum": 5830449159394229294
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "zstd_block_decompress_v1000_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 812487,
+    "min_elapsed_ns": 801463,
+    "max_elapsed_ns": 812798,
+    "all_elapsed_ns": [
+      812798,
+      812487,
+      801463
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 812798,
+      "expected_checksum": 5830449159394229294,
+      "actual_checksum": 5830449159394229294
+    },
+    "status": "ok"
+  }
+}

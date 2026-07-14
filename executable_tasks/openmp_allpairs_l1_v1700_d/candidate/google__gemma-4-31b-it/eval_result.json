@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_allpairs_l1_v1700_d",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_allpairs_l1_v1700_d/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n#include <cstdint>\n#include <omp.h>\n\nint64_t compute_dim_sum(std::vector<int32_t> coords) {\n    int64_t n = coords.size();\n    if (n < 2) return 0;\n    \n    std::sort(coords.begin(), coords.end());\n    \n    int64_t dim_sum = 0;\n    // The sum of |a_i - a_j| for i < j is sum_{i=0}^{n-1} (i * a_i - (n-1-i) * a_i)\n    // which simplifies to sum_{i=0}^{n-1} (2*i - n + 1) * a_i\n    #pragma omp simd reduction(+:dim_sum)\n    for (int64_t i = 0; i < n; ++i) {\n        dim_sum += (2 * i - n + 1) * coords[i];\n    }\n    return dim_sum;\n}\n\nint64_t allpairs_l1_sum(const std::vector<int32_t>& xs, const std::vector<int32_t>& ys, int iters) {\n    if (xs.empty()) return 0;\n    \n    // The problem asks for the sum over 'iters' iterations. \n    // Since the input vectors don't change, we compute once and multiply.\n    // However, the baseline resets 'total = 0' inside the loop, meaning it only returns the result of the last iteration.\n    // Let's follow the baseline's logic: total = 0; for(iters) { total = 0; ... }\n    // This means the result is just the sum for a single iteration.\n    \n    std::vector<int32_t> xs_copy = xs;\n    std::vector<int32_t> ys_copy = ys;\n    \n    int64_t x_sum = 0;\n    int64_t y_sum = 0;\n\n    #pragma omp parallel sections\n    {\n        #pragma omp section\n        {\n            x_sum = compute_dim_sum(std::move(xs_copy));\n        }\n        #pragma omp section\n        {\n            y_sum = compute_dim_sum(std::move(ys_copy));\n        }\n    }\n\n    return x_sum + y_sum;\n}",
+  "baseline": {
+    "task_id": "openmp_allpairs_l1_v1700_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 29423335,
+    "min_elapsed_ns": 29104950,
+    "max_elapsed_ns": 29469200,
+    "all_elapsed_ns": [
+      29469200,
+      29423335,
+      29104950
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 29469200,
+      "expected_sum": 25769779200,
+      "actual_sum": 25769779200
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_allpairs_l1_v1700_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 7175650,
+    "min_elapsed_ns": 7145309,
+    "max_elapsed_ns": 7312515,
+    "all_elapsed_ns": [
+      7145309,
+      7312515,
+      7175650
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7145309,
+      "expected_sum": 25769779200,
+      "actual_sum": 25769779200
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_allpairs_l1_v1700_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 112835131,
+    "min_elapsed_ns": 96951666,
+    "max_elapsed_ns": 135679421,
+    "all_elapsed_ns": [
+      135679421,
+      112835131,
+      96951666
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 135679421,
+      "expected_sum": 25769779200,
+      "actual_sum": 25769779200
+    },
+    "status": "ok"
+  }
+}

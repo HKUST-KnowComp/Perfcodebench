@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_allpairs_l1_v1400_f",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_allpairs_l1_v1400_f/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nstatic inline int64_t sum_abs_pairs_sorted(std::vector<int32_t> v) {\n  const std::size_t n = v.size();\n  if (n < 2) return 0;\n\n  // In-place heapsort to avoid extra dependencies.\n  auto sift_down = [&](std::size_t start, std::size_t end) {\n    std::size_t root = start;\n    while (true) {\n      std::size_t child = root * 2 + 1;\n      if (child >= end) break;\n      std::size_t swap_idx = root;\n      if (v[swap_idx] < v[child]) swap_idx = child;\n      if (child + 1 < end && v[swap_idx] < v[child + 1]) swap_idx = child + 1;\n      if (swap_idx == root) break;\n      int32_t tmp = v[root];\n      v[root] = v[swap_idx];\n      v[swap_idx] = tmp;\n      root = swap_idx;\n    }\n  };\n\n  for (std::size_t start = n / 2; start > 0; --start) {\n    sift_down(start - 1, n);\n  }\n  for (std::size_t end = n; end > 1; --end) {\n    int32_t tmp = v[0];\n    v[0] = v[end - 1];\n    v[end - 1] = tmp;\n    sift_down(0, end - 1);\n  }\n\n  int64_t total = 0;\n  int64_t prefix = 0;\n  for (std::size_t i = 0; i < n; ++i) {\n    const int64_t x = static_cast<int64_t>(v[i]);\n    total += x * static_cast<int64_t>(i) - prefix;\n    prefix += x;\n  }\n  return total;\n}\n\n}  // namespace\n\nint64_t allpairs_l1_sum(const std::vector<int32_t>& xs, const std::vector<int32_t>& ys, int iters) {\n  if (iters <= 0) return 0;\n  if (xs.size() != ys.size()) return 0;\n  if (xs.size() < 2) return 0;\n\n  int64_t result = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    int64_t sx = 0;\n    int64_t sy = 0;\n\n#pragma omp parallel sections\n    {\n#pragma omp section\n      { sx = sum_abs_pairs_sorted(xs); }\n#pragma omp section\n      { sy = sum_abs_pairs_sorted(ys); }\n    }\n\n    result = sx + sy;\n  }\n  return result;\n}\n",
+  "baseline": {
+    "task_id": "openmp_allpairs_l1_v1400_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 19994572,
+    "min_elapsed_ns": 19870368,
+    "max_elapsed_ns": 20143574,
+    "all_elapsed_ns": [
+      19870368,
+      19994572,
+      20143574
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 19870368,
+      "expected_sum": 35075532800,
+      "actual_sum": 35075532800
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_allpairs_l1_v1400_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5013880,
+    "min_elapsed_ns": 5009542,
+    "max_elapsed_ns": 5075144,
+    "all_elapsed_ns": [
+      5075144,
+      5009542,
+      5013880
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5075144,
+      "expected_sum": 35075532800,
+      "actual_sum": 35075532800
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_allpairs_l1_v1400_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 31406660,
+    "min_elapsed_ns": 27154341,
+    "max_elapsed_ns": 45436928,
+    "all_elapsed_ns": [
+      27154341,
+      31406660,
+      45436928
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 27154341,
+      "expected_sum": 35075532800,
+      "actual_sum": 35075532800
+    },
+    "status": "ok"
+  }
+}

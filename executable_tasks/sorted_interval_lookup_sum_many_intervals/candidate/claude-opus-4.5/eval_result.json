@@ -1,0 +1,72 @@
+{
+  "task_id": "sorted_interval_lookup_sum_many_intervals",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sorted_interval_lookup_sum_many_intervals/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#endif\n\nuint64_t interval_lookup_sum(\n    const std::vector<uint32_t>& starts,\n    const std::vector<uint32_t>& ends,\n    const std::vector<uint32_t>& payloads,\n    const std::vector<uint32_t>& probes,\n    const std::vector<uint32_t>& weights,\n    int iters) {\n  (void)ends;\n  \n  const uint32_t* starts_ptr = starts.data();\n  const uint32_t* payloads_ptr = payloads.data();\n  const uint32_t* probes_ptr = probes.data();\n  const uint32_t* weights_ptr = weights.data();\n  const std::size_t n_intervals = starts.size();\n  const std::size_t n_probes = probes.size();\n  \n  uint64_t sum = 0;\n  \n#if defined(__AVX2__)\n  const __m256i ones = _mm256_set1_epi32(1);\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    __m256i sum_lo = _mm256_setzero_si256();\n    __m256i sum_hi = _mm256_setzero_si256();\n    \n    std::size_t i = 0;\n    \n    // Process 8 probes at a time\n    for (; i + 8 <= n_probes; i += 8) {\n      __m256i probe_vec = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(probes_ptr + i));\n      __m256i weight_vec = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(weights_ptr + i));\n      \n      // Vectorized binary search (upper_bound - 1)\n      __m256i lo = _mm256_setzero_si256();\n      __m256i hi = _mm256_set1_epi32(static_cast<int>(n_intervals));\n      \n      while (true) {\n        __m256i diff = _mm256_sub_epi32(hi, lo);\n        __m256i max_diff = _mm256_set1_epi32(1);\n        int done = _mm256_movemask_epi8(_mm256_cmpgt_epi32(max_diff, _mm256_sub_epi32(hi, lo)));\n        if (done == -1) break;\n        \n        __m256i mid = _mm256_add_epi32(lo, _mm256_srli_epi32(diff, 1));\n        __m256i mid_vals = _mm256_i32gather_epi32(reinterpret_cast<const int*>(starts_ptr), mid, 4);\n        \n        // Compare: starts[mid] <= probe (unsigned comparison via signed trick)\n        // For unsigned: a <= b iff (a ^ 0x80000000) <= (b ^ 0x80000000) as signed\n        __m256i bias = _mm256_set1_epi32(static_cast<int>(0x80000000u));\n        __m256i mid_biased = _mm256_xor_si256(mid_vals, bias);\n        __m256i probe_biased = _mm256_xor_si256(probe_vec, bias);\n        \n        // cmp_gt: mid_vals > probe (as unsigned)\n        __m256i cmp_gt = _mm256_cmpgt_epi32(mid_biased, probe_biased);\n        \n        // If mid_vals > probe: hi = mid, else lo = mid + 1\n        hi = _mm256_blendv_epi8(hi, mid, cmp_gt);\n        lo = _mm256_blendv_epi8(_mm256_add_epi32(mid, ones), lo, cmp_gt);\n      }\n      \n      // idx = lo - 1 (upper_bound result - 1)\n      __m256i idx = _mm256_sub_epi32(lo, ones);\n      \n      // Gather payloads\n      __m256i payload_vec = _mm256_i32gather_epi32(reinterpret_cast<const int*>(payloads_ptr), idx, 4);\n      \n      // Multiply and accumulate as 64-bit\n      // payload_vec and weight_vec are 32-bit, we need 64-bit products\n      __m256i prod_lo = _mm256_mul_epu32(payload_vec, weight_vec);\n      __m256i prod_hi = _mm256_mul_epu32(_mm256_srli_epi64(payload_vec, 32), _mm256_srli_epi64(weight_vec, 32));\n      \n      sum_lo = _mm256_add_epi64(sum_lo, prod_lo);\n      sum_hi = _mm256_add_epi64(sum_hi, prod_hi);\n    }\n    \n    // Horizontal sum of accumulators\n    __m256i total = _mm256_add_epi64(sum_lo, sum_hi);\n    __m128i lo128 = _mm256_castsi256_si128(total);\n    __m128i hi128 = _mm256_extracti128_si256(total, 1);\n    __m128i sum128 = _mm_add_epi64(lo128, hi128);\n    sum = static_cast<uint64_t>(_mm_extract_epi64(sum128, 0)) + static_cast<uint64_t>(_mm_extract_epi64(sum128, 1));\n    \n    // Handle remaining probes\n    for (; i < n_probes; ++i) {\n      const auto it = std::upper_bound(starts.begin(), starts.end(), probes_ptr[i]);\n      const std::size_t idx = static_cast<std::size_t>(it - starts.begin() - 1);\n      sum += static_cast<uint64_t>(payloads_ptr[idx]) * static_cast<uint64_t>(weights_ptr[i]);\n    }\n  }\n#else\n  // Scalar fallback\n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    for (std::size_t i = 0; i < n_probes; ++i) {\n      const auto it = std::upper_bound(starts.begin(), starts.end(), probes_ptr[i]);\n      const std::size_t idx = static_cast<std::size_t>(it - starts.begin() - 1);\n      sum += static_cast<uint64_t>(payloads_ptr[idx]) * static_cast<uint64_t>(weights_ptr[i]);\n    }\n  }\n#endif\n  \n  return sum;\n}\n",
+  "baseline": {
+    "task_id": "sorted_interval_lookup_sum_many_intervals",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1271107832,
+    "min_elapsed_ns": 1270540705,
+    "max_elapsed_ns": 1289559351,
+    "all_elapsed_ns": [
+      1289559351,
+      1271107832,
+      1270540705
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1289559351,
+      "expected_sum": 171648388144,
+      "actual_sum": 171648388144
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sorted_interval_lookup_sum_many_intervals",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 161996915,
+    "min_elapsed_ns": 160917795,
+    "max_elapsed_ns": 162211838,
+    "all_elapsed_ns": [
+      160917795,
+      161996915,
+      162211838
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 160917795,
+      "expected_sum": 171648388144,
+      "actual_sum": 171648388144
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sorted_interval_lookup_sum_many_intervals",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1261551256,
+    "min_elapsed_ns": 1261352857,
+    "max_elapsed_ns": 1268634107,
+    "all_elapsed_ns": [
+      1261551256,
+      1268634107,
+      1261352857
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1261551256,
+      "expected_sum": 171648388144,
+      "actual_sum": 171648388144
+    },
+    "status": "ok"
+  }
+}

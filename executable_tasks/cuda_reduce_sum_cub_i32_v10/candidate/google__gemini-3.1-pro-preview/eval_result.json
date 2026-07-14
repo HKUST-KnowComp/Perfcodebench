@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_reduce_sum_cub_i32_v10",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_reduce_sum_cub_i32_v10/candidate/google__gemini-3.1-pro-preview/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cub/cub.cuh>\n\n/**\n * Optimized CUDA int32 reduction using CUB.\n * CUB's DeviceReduce::Sum is highly optimized for various GPU architectures,\n * utilizing efficient tree-based reductions and vectorized memory access.\n */\nvoid reduce_sum_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0) {\n        for (int iter = 0; iter < iters; ++iter) {\n            cudaMemset(output, 0, sizeof(int));\n        }\n        return;\n    }\n\n    // Determine temporary device storage requirements for CUB\n    void* d_temp_storage = nullptr;\n    size_t temp_storage_bytes = 0;\n    cub::DeviceReduce::Sum(nullptr, temp_storage_bytes, input, output, n);\n\n    // Allocate temporary storage once to avoid overhead inside the loop\n    cudaMalloc(&d_temp_storage, temp_storage_bytes);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        // CUB's DeviceReduce::Sum writes the result directly to the output pointer.\n        // It does not require the output to be zeroed beforehand as it performs an assignment.\n        cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, input, output, n);\n    }\n\n    // Clean up temporary storage\n    cudaFree(d_temp_storage);\n}",
+  "baseline": {
+    "task_id": "cuda_reduce_sum_cub_i32_v10",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 10070176,
+    "min_elapsed_ns": 10064191,
+    "max_elapsed_ns": 10090623,
+    "all_elapsed_ns": [
+      10070176,
+      10064191,
+      10090623
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10070176,
+      "expected_sum": 31457280,
+      "actual_sum": 31457280
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_reduce_sum_cub_i32_v10",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1234048,
+    "min_elapsed_ns": 786207,
+    "max_elapsed_ns": 1420511,
+    "all_elapsed_ns": [
+      786207,
+      1420511,
+      1234048
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 786207,
+      "expected_sum": 31457280,
+      "actual_sum": 31457280
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_reduce_sum_cub_i32_v10",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_reduce_sum_cub_i32_v10/candidate/bench']' timed out after 5 seconds"
+  }
+}

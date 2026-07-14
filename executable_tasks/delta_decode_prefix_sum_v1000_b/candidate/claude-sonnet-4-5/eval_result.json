@@ -1,0 +1,72 @@
+{
+  "task_id": "delta_decode_prefix_sum_v1000_b",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/delta_decode_prefix_sum_v1000_b/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstdint>\n\n#ifdef __AVX2__\n#include <immintrin.h>\n#endif\n\nuint64_t delta_prefix_sum(const std::vector<uint32_t>& deltas, uint32_t base, int iters) {\n  const std::size_t n = deltas.size();\n  if (n == 0) return 0;\n  \n  uint64_t sum = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t local_sum = 0;\n    uint64_t prefix = base;\n    \n#ifdef __AVX2__\n    const std::size_t simd_end = (n / 4) * 4;\n    \n    if (simd_end >= 4) {\n      __m256i prefix_vec = _mm256_set_epi64x(0, 0, 0, prefix);\n      __m256i sum_vec = _mm256_setzero_si256();\n      \n      for (std::size_t i = 0; i < simd_end; i += 4) {\n        __m128i deltas_32 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&deltas[i]));\n        __m256i deltas_64 = _mm256_cvtepu32_epi64(deltas_32);\n        \n        prefix_vec = _mm256_add_epi64(prefix_vec, deltas_64);\n        \n        __m256i shifted1 = _mm256_bslli_epi128(prefix_vec, 8);\n        prefix_vec = _mm256_add_epi64(prefix_vec, shifted1);\n        \n        __m256i permuted = _mm256_permute4x64_epi64(prefix_vec, 0b10010011);\n        __m256i shifted2 = _mm256_blend_epi32(permuted, _mm256_setzero_si256(), 0b00000011);\n        prefix_vec = _mm256_add_epi64(prefix_vec, shifted2);\n        \n        sum_vec = _mm256_add_epi64(sum_vec, prefix_vec);\n        \n        prefix = _mm256_extract_epi64(prefix_vec, 3);\n        prefix_vec = _mm256_set1_epi64x(prefix);\n      }\n      \n      alignas(32) uint64_t sum_arr[4];\n      _mm256_store_si256(reinterpret_cast<__m256i*>(sum_arr), sum_vec);\n      local_sum = sum_arr[0] + sum_arr[1] + sum_arr[2] + sum_arr[3];\n    }\n    \n    for (std::size_t i = simd_end; i < n; ++i) {\n      prefix += deltas[i];\n      local_sum += prefix;\n    }\n#else\n    const std::size_t unroll_end = (n / 4) * 4;\n    \n    for (std::size_t i = 0; i < unroll_end; i += 4) {\n      prefix += deltas[i];\n      local_sum += prefix;\n      prefix += deltas[i + 1];\n      local_sum += prefix;\n      prefix += deltas[i + 2];\n      local_sum += prefix;\n      prefix += deltas[i + 3];\n      local_sum += prefix;\n    }\n    \n    for (std::size_t i = unroll_end; i < n; ++i) {\n      prefix += deltas[i];\n      local_sum += prefix;\n    }\n#endif\n    \n    sum = local_sum;\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "delta_decode_prefix_sum_v1000_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 149625909,
+    "min_elapsed_ns": 142935947,
+    "max_elapsed_ns": 149676313,
+    "all_elapsed_ns": [
+      149676313,
+      142935947,
+      149625909
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 149676313,
+      "expected_sum": 299067280195584,
+      "actual_sum": 299067280195584
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "delta_decode_prefix_sum_v1000_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 32346149,
+    "min_elapsed_ns": 32001426,
+    "max_elapsed_ns": 33945049,
+    "all_elapsed_ns": [
+      32346149,
+      32001426,
+      33945049
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 32346149,
+      "expected_sum": 299067280195584,
+      "actual_sum": 299067280195584
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "delta_decode_prefix_sum_v1000_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 26078078,
+    "min_elapsed_ns": 25311535,
+    "max_elapsed_ns": 32659985,
+    "all_elapsed_ns": [
+      26078078,
+      25311535,
+      32659985
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 26078078,
+      "expected_sum": 299067280195584,
+      "actual_sum": 299067280195584
+    },
+    "status": "ok"
+  }
+}

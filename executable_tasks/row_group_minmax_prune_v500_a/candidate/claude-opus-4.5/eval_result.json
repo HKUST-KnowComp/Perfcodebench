@@ -1,0 +1,59 @@
+{
+  "task_id": "row_group_minmax_prune_v500_a",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/row_group_minmax_prune_v500_a/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\nuint64_t row_group_range_sum(\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& mins,\n    const std::vector<uint32_t>& maxs,\n    uint32_t low,\n    uint32_t high,\n    uint32_t block_size,\n    int iters) {\n  \n  const size_t n = values.size();\n  const size_t num_blocks = mins.size();\n  const uint32_t* __restrict vptr = values.data();\n  const uint32_t* __restrict minsptr = mins.data();\n  const uint32_t* __restrict maxsptr = maxs.data();\n  \n  uint64_t sum = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    \n    for (size_t b = 0; b < num_blocks; ++b) {\n      const uint32_t block_min = minsptr[b];\n      const uint32_t block_max = maxsptr[b];\n      \n      // Prune: block entirely outside range\n      if (block_max < low || block_min > high) {\n        continue;\n      }\n      \n      const size_t start = b * block_size;\n      const size_t end = (start + block_size < n) ? (start + block_size) : n;\n      \n      // Include entire block: all values in range\n      if (block_min >= low && block_max <= high) {\n        uint64_t block_sum = 0;\n        const uint32_t* __restrict p = vptr + start;\n        const size_t count = end - start;\n        size_t i = 0;\n        \n        // Unrolled loop for full block sum\n        for (; i + 8 <= count; i += 8) {\n          block_sum += p[i] + p[i+1] + p[i+2] + p[i+3] +\n                       p[i+4] + p[i+5] + p[i+6] + p[i+7];\n        }\n        for (; i < count; ++i) {\n          block_sum += p[i];\n        }\n        sum += block_sum;\n      } else {\n        // Partial overlap: must check each value\n        uint64_t block_sum = 0;\n        const uint32_t* __restrict p = vptr + start;\n        const size_t count = end - start;\n        size_t i = 0;\n        \n        // Unrolled loop with branchless accumulation\n        for (; i + 4 <= count; i += 4) {\n          uint32_t v0 = p[i];\n          uint32_t v1 = p[i+1];\n          uint32_t v2 = p[i+2];\n          uint32_t v3 = p[i+3];\n          block_sum += (v0 >= low && v0 <= high) ? v0 : 0;\n          block_sum += (v1 >= low && v1 <= high) ? v1 : 0;\n          block_sum += (v2 >= low && v2 <= high) ? v2 : 0;\n          block_sum += (v3 >= low && v3 <= high) ? v3 : 0;\n        }\n        for (; i < count; ++i) {\n          uint32_t v = p[i];\n          if (v >= low && v <= high) {\n            block_sum += v;\n          }\n        }\n        sum += block_sum;\n      }\n    }\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "row_group_minmax_prune_v500_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 25209799,
+    "min_elapsed_ns": 24566827,
+    "max_elapsed_ns": 27827498,
+    "all_elapsed_ns": [
+      27827498,
+      25209799,
+      24566827
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 27827498,
+      "expected_sum": 27615140,
+      "actual_sum": 27615140
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "row_group_minmax_prune_v500_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 489433,
+    "min_elapsed_ns": 443988,
+    "max_elapsed_ns": 673010,
+    "all_elapsed_ns": [
+      443988,
+      489433,
+      673010
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 443988,
+      "expected_sum": 27615140,
+      "actual_sum": 27615140
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "row_group_minmax_prune_v500_a",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/row_group_minmax_prune_v500_a/harness', 'executable_tasks/row_group_minmax_prune_v500_a/harness/benchmark_main.cpp', 'executable_tasks/row_group_minmax_prune_v500_a/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/row_group_minmax_prune_v500_a/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "selection_vector_gather_sum_v500_e",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/selection_vector_gather_sum_v500_e/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <cstddef>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#endif\n\nuint64_t selection_gather_sum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint8_t>& flags,\n    const std::vector<uint32_t>& payloads,\n    uint32_t threshold,\n    int iters) {\n\n    const std::size_t n = keys.size();\n    const uint32_t* __restrict k_ptr = keys.data();\n    const uint8_t*  __restrict f_ptr = flags.data();\n    const uint32_t* __restrict p_ptr = payloads.data();\n\n    uint64_t sum = 0;\n\n#if defined(__AVX2__)\n    const __m256i v_threshold = _mm256_set1_epi32(static_cast<int>(threshold));\n    const __m256i v_seven = _mm256_set1_epi32(7);\n    const __m256i v_zero = _mm256_setzero_si256();\n\n    for (int iter = 0; iter < iters; ++iter) {\n        __m256i v_sum_lo = _mm256_setzero_si256();\n        __m256i v_sum_hi = _mm256_setzero_si256();\n\n        std::size_t i = 0;\n        const std::size_t vec_end = n & ~std::size_t(7);\n\n        for (; i < vec_end; i += 8) {\n            // Load 8 keys\n            __m256i v_keys = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(k_ptr + i));\n\n            // Load 8 flags (bytes) and expand to 32-bit\n            __m128i v_flags_8 = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(f_ptr + i));\n            __m256i v_flags = _mm256_cvtepu8_epi32(v_flags_8);\n\n            // flags != 0\n            __m256i cmp_flags = _mm256_cmpgt_epi32(v_flags, v_zero);\n\n            // keys < threshold (unsigned compare via signed trick: subtract and check sign)\n            // For unsigned compare a < b: use _mm256_cmpgt_epi32(b, a) when both < 2^31\n            // But threshold could be large. Use: a < b <=> (a ^ 0x80000000) < (b ^ 0x80000000) signed\n            __m256i bias = _mm256_set1_epi32(static_cast<int>(0x80000000u));\n            __m256i v_keys_biased = _mm256_xor_si256(v_keys, bias);\n            __m256i v_thresh_biased = _mm256_xor_si256(v_threshold, bias);\n            __m256i cmp_thresh = _mm256_cmpgt_epi32(v_thresh_biased, v_keys_biased);\n\n            // (keys & 7) == 0\n            __m256i v_and7 = _mm256_and_si256(v_keys, v_seven);\n            __m256i cmp_and7 = _mm256_cmpeq_epi32(v_and7, v_zero);\n\n            // Combined mask\n            __m256i mask = _mm256_and_si256(cmp_flags, _mm256_and_si256(cmp_thresh, cmp_and7));\n\n            // Load payloads\n            __m256i v_payloads = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(p_ptr + i));\n\n            // Mask payloads (zero out non-selected)\n            __m256i v_selected = _mm256_and_si256(v_payloads, mask);\n\n            // Accumulate as 64-bit: split into low and high 4 elements\n            __m256i lo = _mm256_cvtepu32_epi64(_mm256_castsi256_si128(v_selected));\n            __m256i hi = _mm256_cvtepu32_epi64(_mm256_extracti128_si256(v_selected, 1));\n\n            v_sum_lo = _mm256_add_epi64(v_sum_lo, lo);\n            v_sum_hi = _mm256_add_epi64(v_sum_hi, hi);\n        }\n\n        // Horizontal sum of v_sum_lo and v_sum_hi\n        __m256i v_total = _mm256_add_epi64(v_sum_lo, v_sum_hi);\n        __m128i lo128 = _mm256_castsi256_si128(v_total);\n        __m128i hi128 = _mm256_extracti128_si256(v_total, 1);\n        __m128i sum128 = _mm_add_epi64(lo128, hi128);\n        sum = static_cast<uint64_t>(_mm_extract_epi64(sum128, 0)) +\n              static_cast<uint64_t>(_mm_extract_epi64(sum128, 1));\n\n        // Scalar tail\n        for (; i < n; ++i) {\n            uint32_t key = k_ptr[i];\n            if (f_ptr[i] && key < threshold && ((key & 7u) == 0u)) {\n                sum += static_cast<uint64_t>(p_ptr[i]);\n            }\n        }\n    }\n#else\n    // Scalar fallback\n    for (int iter = 0; iter < iters; ++iter) {\n        sum = 0;\n        for (std::size_t i = 0; i < n; ++i) {\n            uint32_t key = k_ptr[i];\n            if (f_ptr[i] && key < threshold && ((key & 7u) == 0u)) {\n                sum += static_cast<uint64_t>(p_ptr[i]);\n            }\n        }\n    }\n#endif\n\n    return sum;\n}\n",
+  "baseline": {
+    "task_id": "selection_vector_gather_sum_v500_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2232458252,
+    "min_elapsed_ns": 2164324471,
+    "max_elapsed_ns": 3215497944,
+    "all_elapsed_ns": [
+      2164324471,
+      3215497944,
+      2232458252
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2164324471,
+      "expected_sum": 8595751801,
+      "actual_sum": 8595751801
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "selection_vector_gather_sum_v500_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2254973744,
+    "min_elapsed_ns": 1951064673,
+    "max_elapsed_ns": 2514682684,
+    "all_elapsed_ns": [
+      2514682684,
+      2254973744,
+      1951064673
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2514682684,
+      "expected_sum": 8595751801,
+      "actual_sum": 8595751801
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "selection_vector_gather_sum_v500_e",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1760753826,
+    "min_elapsed_ns": 1717080356,
+    "max_elapsed_ns": 2672008356,
+    "all_elapsed_ns": [
+      2672008356,
+      1760753826,
+      1717080356
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2672008356,
+      "expected_sum": 8595751801,
+      "actual_sum": 8595751801
+    },
+    "status": "ok"
+  }
+}

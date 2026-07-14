@@ -1,0 +1,72 @@
+{
+  "task_id": "is_utf8_batch_validate_large",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/is_utf8_batch_validate_large/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\nstd::size_t count_valid_strings(const std::vector<std::string>& inputs) {\n  // Lookup table for number of continuation bytes based on first byte\n  // 0xFF means invalid start byte\n  static constexpr unsigned char continuation_bytes[256] = {\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x00-0x0F\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x10-0x1F\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x20-0x2F\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x30-0x3F\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x40-0x4F\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x50-0x5F\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x60-0x6F\n    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x70-0x7F\n    0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF, // 0x80-0x8F (invalid)\n    0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF, // 0x90-0x9F (invalid)\n    0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF, // 0xA0-0xAF (invalid)\n    0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF, // 0xB0-0xBF (invalid)\n    0xFF,0xFF,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 0xC0-0xCF (C0-C1 invalid, C2-CF = 1 cont)\n    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 0xD0-0xDF (1 continuation)\n    2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, // 0xE0-0xEF (2 continuations)\n    3,3,3,3,3,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF  // 0xF0-0xFF (F0-F4 = 3 cont, rest invalid)\n  };\n\n  auto valid_optimized = [&continuation_bytes](const std::string& s) -> bool {\n    const unsigned char* p = reinterpret_cast<const unsigned char*>(s.data());\n    const unsigned char* end = p + s.size();\n    \n    while (p < end) {\n      unsigned char c = *p++;\n      \n      // Fast path for ASCII\n      if (c <= 0x7F) continue;\n      \n      unsigned char cont_count = continuation_bytes[c];\n      if (cont_count == 0xFF) return false;\n      \n      // Check we have enough bytes\n      if (end - p < cont_count) return false;\n      \n      // Validate based on first byte and continuation bytes\n      if (cont_count == 1) {\n        // 2-byte sequence (C2-DF)\n        if ((p[0] & 0xC0U) != 0x80U) return false;\n        p += 1;\n      } else if (cont_count == 2) {\n        // 3-byte sequence (E0-EF)\n        unsigned char b1 = p[0];\n        unsigned char b2 = p[1];\n        \n        if ((b1 & 0xC0U) != 0x80U || (b2 & 0xC0U) != 0x80U) return false;\n        \n        // Special validation for overlong encodings and surrogates\n        if (c == 0xE0 && b1 < 0xA0) return false;  // overlong\n        if (c == 0xED && b1 > 0x9F) return false;  // surrogate\n        \n        p += 2;\n      } else { // cont_count == 3\n        // 4-byte sequence (F0-F4)\n        unsigned char b1 = p[0];\n        unsigned char b2 = p[1];\n        unsigned char b3 = p[2];\n        \n        if ((b1 & 0xC0U) != 0x80U || (b2 & 0xC0U) != 0x80U || (b3 & 0xC0U) != 0x80U) return false;\n        \n        // Special validation for overlong and out-of-range\n        if (c == 0xF0 && b1 < 0x90) return false;  // overlong\n        if (c == 0xF4 && b1 > 0x8F) return false;  // > U+10FFFF\n        \n        p += 3;\n      }\n    }\n    return true;\n  };\n\n  std::size_t count = 0;\n  for (const auto& s : inputs) {\n    count += valid_optimized(s) ? 1U : 0U;\n  }\n  return count;\n}\n",
+  "baseline": {
+    "task_id": "is_utf8_batch_validate_large",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 11448104,
+    "min_elapsed_ns": 11420555,
+    "max_elapsed_ns": 11515035,
+    "all_elapsed_ns": [
+      11515035,
+      11448104,
+      11420555
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11515035,
+      "expected_count": 62222,
+      "actual_count": 62222
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "is_utf8_batch_validate_large",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 913173,
+    "min_elapsed_ns": 908513,
+    "max_elapsed_ns": 953171,
+    "all_elapsed_ns": [
+      953171,
+      913173,
+      908513
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 953171,
+      "expected_count": 62222,
+      "actual_count": 62222
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "is_utf8_batch_validate_large",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 12387422,
+    "min_elapsed_ns": 11856052,
+    "max_elapsed_ns": 14275490,
+    "all_elapsed_ns": [
+      11856052,
+      12387422,
+      14275490
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11856052,
+      "expected_count": 62222,
+      "actual_count": 62222
+    },
+    "status": "ok"
+  }
+}

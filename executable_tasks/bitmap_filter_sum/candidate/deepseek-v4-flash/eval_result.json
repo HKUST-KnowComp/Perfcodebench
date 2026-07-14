@@ -1,0 +1,59 @@
+{
+  "task_id": "bitmap_filter_sum",
+  "model": "deepseek-v4-flash",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/bitmap_filter_sum/candidate/deepseek-v4-flash/solution.cpp",
+  "benchmark_timeout_sec": 15,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n\nuint64_t bitmap_filter_sum(\n    const std::vector<uint32_t>& enabled_keys,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& values,\n    uint32_t key_space,\n    int iters) {\n    // Edge cases: no keys or empty probe -> sum is always 0\n    if (key_space == 0 || probe_keys.empty()) {\n        uint64_t sum = 0;\n        for (int iter = 0; iter < iters; ++iter) {\n            sum = 0;\n        }\n        return 0;\n    }\n\n    // Build the bitmap once\n    size_t bitset_size = (key_space + 63) / 64;\n    std::vector<uint64_t> bitmap(bitset_size, 0);\n    for (uint32_t key : enabled_keys) {\n        bitmap[key >> 6] |= (1ULL << (key & 63));\n    }\n\n    uint64_t sum = 0;\n    const size_t n = probe_keys.size();\n    const uint32_t* pk = probe_keys.data();\n    const uint32_t* vals = values.data();\n    const uint64_t* map = bitmap.data();\n\n    // Repeat the filter iters times (deterministic data -> same sum each time)\n    for (int iter = 0; iter < iters; ++iter) {\n        sum = 0;\n        for (size_t i = 0; i < n; ++i) {\n            uint32_t k = pk[i];\n            if (map[k >> 6] & (1ULL << (k & 63))) {\n                sum += vals[i];\n            }\n        }\n    }\n    return sum;\n}\n",
+  "baseline": {
+    "task_id": "bitmap_filter_sum",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 8773583940,
+    "min_elapsed_ns": 8110047779,
+    "max_elapsed_ns": 8994226637,
+    "all_elapsed_ns": [
+      8994226637,
+      8110047779,
+      8773583940
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8994226637,
+      "expected_sum": 4303355904,
+      "actual_sum": 4303355904
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "bitmap_filter_sum",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1479314516,
+    "min_elapsed_ns": 1438754140,
+    "max_elapsed_ns": 1630483732,
+    "all_elapsed_ns": [
+      1479314516,
+      1438754140,
+      1630483732
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1479314516,
+      "expected_sum": 4303355904,
+      "actual_sum": 4303355904
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "bitmap_filter_sum",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/bitmap_filter_sum/harness', 'executable_tasks/bitmap_filter_sum/harness/benchmark_main.cpp', 'executable_tasks/bitmap_filter_sum/candidate/deepseek-v4-flash/solution.cpp', '-o', 'build/bitmap_filter_sum/candidate/bench']' returned non-zero exit status 1."
+  }
+}

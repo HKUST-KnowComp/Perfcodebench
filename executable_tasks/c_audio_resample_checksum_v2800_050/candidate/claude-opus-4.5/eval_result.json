@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_050",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_050/candidate/claude-opus-4.5/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\nstatic uint64_t checksum_i16(const int16_t* data, size_t n) {\n  uint64_t hash = 1469598103934665603ULL;\n  const uint64_t prime = 1099511628211ULL;\n  size_t i = 0;\n  size_t n4 = n & ~(size_t)3;\n  for (; i < n4; i += 4) {\n    hash ^= (uint16_t)data[i];\n    hash *= prime;\n    hash ^= (uint16_t)data[i + 1];\n    hash *= prime;\n    hash ^= (uint16_t)data[i + 2];\n    hash *= prime;\n    hash ^= (uint16_t)data[i + 3];\n    hash *= prime;\n  }\n  for (; i < n; ++i) {\n    hash ^= (uint16_t)data[i];\n    hash *= prime;\n  }\n  return hash;\n}\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n  if (output_len <= 0 || input_len <= 0) return 0;\n  \n  int16_t* out = (int16_t*)malloc((size_t)output_len * sizeof(int16_t));\n  if (!out) return 0;\n  \n  uint64_t hash = 0;\n  \n  /* Fixed-point arithmetic: 32 bits for fractional part */\n  const int64_t FRAC_BITS = 32;\n  const int64_t FRAC_ONE = (int64_t)1 << FRAC_BITS;\n  const int64_t FRAC_HALF = FRAC_ONE >> 1;\n  \n  /* step = (input_len - 1) / (output_len - 1) in fixed-point */\n  int64_t step = 0;\n  if (output_len > 1) {\n    step = ((int64_t)(input_len - 1) << FRAC_BITS) / (output_len - 1);\n  }\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    int64_t pos_fixed = 0;\n    \n    for (int i = 0; i < output_len; ++i) {\n      int left = (int)(pos_fixed >> FRAC_BITS);\n      int right = left + 1;\n      if (right >= input_len) right = input_len - 1;\n      \n      int64_t frac = pos_fixed & (FRAC_ONE - 1);\n      int64_t one_minus_frac = FRAC_ONE - frac;\n      \n      /* Linear interpolation in fixed-point */\n      int64_t sample_fixed = (int64_t)src[left] * one_minus_frac + (int64_t)src[right] * frac;\n      \n      /* Round to nearest: add 0.5 (FRAC_HALF) before shifting for positive,\n         subtract 0.5 for negative */\n      int16_t sample;\n      if (sample_fixed >= 0) {\n        sample = (int16_t)((sample_fixed + FRAC_HALF) >> FRAC_BITS);\n      } else {\n        sample = (int16_t)((sample_fixed - FRAC_HALF) >> FRAC_BITS);\n      }\n      out[i] = sample;\n      \n      pos_fixed += step;\n    }\n    \n    hash = checksum_i16(out, (size_t)output_len);\n  }\n  \n  free(out);\n  return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_050",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 8962000,
+    "min_elapsed_ns": 8275000,
+    "max_elapsed_ns": 9050000,
+    "all_elapsed_ns": [
+      8962000,
+      8275000,
+      9050000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8962000,
+      "expected_checksum": 2053847235684014717,
+      "actual_checksum": 2053847235684014717
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_050",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8181000,
+    "min_elapsed_ns": 7871000,
+    "max_elapsed_ns": 8407000,
+    "all_elapsed_ns": [
+      7871000,
+      8181000,
+      8407000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7871000,
+      "expected_checksum": 2053847235684014717,
+      "actual_checksum": 2053847235684014717
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_050",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 6725000,
+    "min_elapsed_ns": 6572000,
+    "max_elapsed_ns": 7140000,
+    "all_elapsed_ns": [
+      7140000,
+      6572000,
+      6725000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7140000,
+      "expected_checksum": 2053847235684014717,
+      "actual_checksum": 2053847235684014717
+    },
+    "status": "ok"
+  }
+}

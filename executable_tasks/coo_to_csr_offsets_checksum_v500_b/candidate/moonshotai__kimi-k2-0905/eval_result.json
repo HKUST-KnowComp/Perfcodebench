@@ -1,0 +1,59 @@
+{
+  "task_id": "coo_to_csr_offsets_checksum_v500_b",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/coo_to_csr_offsets_checksum_v500_b/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include <cstdint>\n#include <vector>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 0x100000001b3ULL;  // 1099511628211ULL\n  return hash;\n}\n\n}  // namespace\n\nuint64_t csr_offsets_hash(const std::vector<uint32_t>& row_ids, uint32_t rows, int iters) {\n  const uint64_t fnv_offset_basis = 0xcbf29ce484222325ULL;  // 14695981039346656037ULL\n  const uint64_t fnv_prime        = 0x100000001b3ULL;      // 1099511628211ULL\n\n  const std::size_t rows_plus1 = static_cast<std::size_t>(rows) + 1u;\n  std::vector<uint32_t> offsets;\n  offsets.reserve(rows_plus1);\n  std::vector<uint32_t> counts(rows, 0u);\n\n  for (int iter = 0; iter < iters; ++iter) {\n    const std::size_t nnz = row_ids.size();\n    if (rows > 0) {\n      ::std::size_t first_row = row_ids[0];\n      ::std::size_t last_row  = row_ids[static_cast<std::size_t>(nnz - 1u)];\n      std::fill(counts.begin() + first_row, counts.begin() + (last_row + 1u), 0u);\n    }\n    // fast histogram from sorted data\n    for (std::size_t i = 0; i < nnz; ++i) {\n      ++counts[row_ids[i]];\n    }\n    // build offsets\n    offsets.resize(rows_plus1, 0u);\n    std::size_t sum = 0;\n    for (std::size_t r = 0; r < rows; ++r) {\n      std::size_t tmp = sum;\n      sum += counts[r];\n      offsets[r + 1] = static_cast<uint32_t>(sum);\n    }\n    // rolling hash over the offsets array\n    uint64_t hash = fnv_offset_basis;\n    const uint32_t* ptr = offsets.data();\n    const uint32_t* end = ptr + (rows_plus1);\n    while (ptr != end) {\n      hash = mix(hash, *ptr++);\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "coo_to_csr_offsets_checksum_v500_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 915841091,
+    "min_elapsed_ns": 756743014,
+    "max_elapsed_ns": 916811756,
+    "all_elapsed_ns": [
+      756743014,
+      915841091,
+      916811756
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 756743014,
+      "expected_checksum": 16589140619240994713,
+      "actual_checksum": 16589140619240994713
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "coo_to_csr_offsets_checksum_v500_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 135589797,
+    "min_elapsed_ns": 133807673,
+    "max_elapsed_ns": 148695836,
+    "all_elapsed_ns": [
+      148695836,
+      135589797,
+      133807673
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 148695836,
+      "expected_checksum": 16589140619240994713,
+      "actual_checksum": 16589140619240994713
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "coo_to_csr_offsets_checksum_v500_b",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/coo_to_csr_offsets_checksum_v500_b/harness', 'executable_tasks/coo_to_csr_offsets_checksum_v500_b/harness/benchmark_main.cpp', 'executable_tasks/coo_to_csr_offsets_checksum_v500_b/candidate/moonshotai__kimi-k2-0905/solution.cpp', '-o', 'build/coo_to_csr_offsets_checksum_v500_b/candidate/bench']' returned non-zero exit status 1."
+  }
+}

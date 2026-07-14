@@ -1,0 +1,72 @@
+{
+  "task_id": "sorted_interval_lookup_sum_v500_e",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sorted_interval_lookup_sum_v500_e/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\n// Branch-free 32-bit integer upper-bound predecessor index.\n// Returns the largest index such that arr[idx] <= key.\n// If key < arr[0] returns 0 (same behaviour as baseline).\nstatic inline std::size_t fast_upper_bound_pred(const uint32_t* __restrict arr,\n                                                std::size_t n,\n                                                uint32_t key) {\n    std::size_t lo = 0, hi = n;\n    while (hi - lo > 4) {\n        std::size_t mid = (lo + hi) >> 1;\n        if (arr[mid] <= key) lo = mid;\n        else                   hi = mid;\n    }\n    // Linear finish to avoid mis-predicted branches\n    for (; lo < hi; ++lo)\n        if (arr[lo] > key) break;\n    return lo - 1;\n}\n\nuint64_t interval_lookup_sum(\n    const std::vector<uint32_t>& starts,\n    const std::vector<uint32_t>& ends,\n    const std::vector<uint32_t>& payloads,\n    const std::vector<uint32_t>& probes,\n    const std::vector<uint32_t>& weights,\n    int iters) {\n    (void)ends;\n    const std::size_t n = starts.size();\n    const std::size_t m = probes.size();\n    const uint32_t*  __restrict s = starts.data();\n    const uint32_t*  __restrict p = payloads.data();\n    const uint32_t*  __restrict pr = probes.data();\n    const uint32_t*  __restrict w = weights.data();\n\n    uint64_t sum = 0;\n    // Peel first iteration to avoid \u2018sum = 0\u2019 inside the loop\n    for (std::size_t j = 0; j < m; ++j) {\n        std::size_t idx = fast_upper_bound_pred(s, n, pr[j]);\n        sum += static_cast<uint64_t>(p[idx]) * static_cast<uint64_t>(w[j]);\n    }\n    for (int iter = 1; iter < iters; ++iter) {\n        uint64_t local = 0;\n        std::size_t j = 0;\n        // Unroll 4\u00d7 to increase ILP\n        for (; j + 3 < m; j += 4) {\n            std::size_t i0 = fast_upper_bound_pred(s, n, pr[j+0]);\n            std::size_t i1 = fast_upper_bound_pred(s, n, pr[j+1]);\n            std::size_t i2 = fast_upper_bound_pred(s, n, pr[j+2]);\n            std::size_t i3 = fast_upper_bound_pred(s, n, pr[j+3]);\n            local += static_cast<uint64_t>(p[i0]) * static_cast<uint64_t>(w[j+0]);\n            local += static_cast<uint64_t>(p[i1]) * static_cast<uint64_t>(w[j+1]);\n            local += static_cast<uint64_t>(p[i2]) * static_cast<uint64_t>(w[j+2]);\n            local += static_cast<uint64_t>(p[i3]) * static_cast<uint64_t>(w[j+3]);\n        }\n        for (; j < m; ++j) {\n            std::size_t idx = fast_upper_bound_pred(s, n, pr[j]);\n            local += static_cast<uint64_t>(p[idx]) * static_cast<uint64_t>(w[j]);\n        }\n        sum = local;\n    }\n    return sum;\n}",
+  "baseline": {
+    "task_id": "sorted_interval_lookup_sum_v500_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1848888752,
+    "min_elapsed_ns": 1845992078,
+    "max_elapsed_ns": 1878214321,
+    "all_elapsed_ns": [
+      1845992078,
+      1848888752,
+      1878214321
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1845992078,
+      "expected_sum": 171651232440,
+      "actual_sum": 171651232440
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sorted_interval_lookup_sum_v500_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 195654639,
+    "min_elapsed_ns": 192699185,
+    "max_elapsed_ns": 201399032,
+    "all_elapsed_ns": [
+      201399032,
+      195654639,
+      192699185
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 201399032,
+      "expected_sum": 171651232440,
+      "actual_sum": 171651232440
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sorted_interval_lookup_sum_v500_e",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 2798115001,
+    "min_elapsed_ns": 2679174915,
+    "max_elapsed_ns": 2931304634,
+    "all_elapsed_ns": [
+      2679174915,
+      2931304634,
+      2798115001
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2679174915,
+      "expected_sum": 171651232440,
+      "actual_sum": 171651232440
+    },
+    "status": "ok"
+  }
+}

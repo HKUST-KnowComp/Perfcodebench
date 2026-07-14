@@ -1,0 +1,72 @@
+{
+  "task_id": "rapidjson_stringify_v2500_d",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/rapidjson_stringify_v2500_d/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <rapidjson/writer.h>\n\n#include <cstdint>\n#include <string>\n#include <vector>\n\nnamespace {\n\nclass StringBufferStream {\n public:\n  using Ch = char;\n\n  explicit StringBufferStream(std::string& out) : out_(out) {}\n\n  void Put(char c) { out_.push_back(c); }\n  void Flush() {}\n\n  // RapidJSON may call these in some configurations; provide minimal support.\n  char* PutBegin() { return nullptr; }\n  std::size_t PutEnd(char*) { return 0; }\n\n private:\n  std::string& out_;\n};\n\nstatic inline std::size_t count_escaped_json_string_size(const std::string& s) {\n  std::size_t extra = 0;\n  for (unsigned char c : s) {\n    if (c == '\"' || c == '\\\\') {\n      extra += 1;\n    } else if (c < 0x20) {\n      extra += 5;  // \"\\u00XX\" replaces one byte.\n    }\n  }\n  return s.size() + extra;\n}\n\nstatic inline unsigned decimal_digits_u32(uint32_t v) {\n  if (v >= 1000000000u) return 10;\n  if (v >= 100000000u) return 9;\n  if (v >= 10000000u) return 8;\n  if (v >= 1000000u) return 7;\n  if (v >= 100000u) return 6;\n  if (v >= 10000u) return 5;\n  if (v >= 1000u) return 4;\n  if (v >= 100u) return 3;\n  if (v >= 10u) return 2;\n  return 1;\n}\n\n}  // namespace\n\nstd::string build_json(\n    const std::vector<uint32_t>& ids,\n    const std::vector<uint32_t>& values,\n    const std::vector<std::string>& names) {\n  const std::size_t n = ids.size();\n\n  std::string out;\n\n  // Reserve a close estimate to reduce reallocations.\n  // Per object fixed syntax:\n  // {\"id\":,\"flag\":,\"value\":,\"name\":\"\"}\n  // plus commas between objects.\n  std::size_t reserve_size = 2;  // [ ]\n  if (n > 0) reserve_size += (n - 1);\n  for (std::size_t i = 0; i < n; ++i) {\n    reserve_size += 33;  // fixed punctuation + keys + true/false baseline room\n    reserve_size += decimal_digits_u32(ids[i]);\n    reserve_size += ((ids[i] % 3U) == 0U) ? 4 : 5;\n    reserve_size += decimal_digits_u32(values[i]);\n    reserve_size += count_escaped_json_string_size(names[i]);\n  }\n  out.reserve(reserve_size);\n\n  StringBufferStream os(out);\n  rapidjson::Writer<StringBufferStream> writer(os);\n\n  writer.StartArray();\n  for (std::size_t i = 0; i < n; ++i) {\n    writer.StartObject();\n\n    writer.Key(\"id\", 2);\n    writer.Uint(ids[i]);\n\n    writer.Key(\"flag\", 4);\n    writer.Bool((ids[i] % 3U) == 0U);\n\n    writer.Key(\"value\", 5);\n    writer.Uint(values[i]);\n\n    writer.Key(\"name\", 4);\n    writer.String(names[i].data(), static_cast<rapidjson::SizeType>(names[i].size()));\n\n    writer.EndObject();\n  }\n  writer.EndArray();\n\n  return out;\n}\n",
+  "baseline": {
+    "task_id": "rapidjson_stringify_v2500_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 495540453,
+    "min_elapsed_ns": 493909668,
+    "max_elapsed_ns": 498403277,
+    "all_elapsed_ns": [
+      495540453,
+      498403277,
+      493909668
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 495540453,
+      "expected_size": 32890999,
+      "actual_size": 32890999
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "rapidjson_stringify_v2500_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 60003814,
+    "min_elapsed_ns": 57397407,
+    "max_elapsed_ns": 67384822,
+    "all_elapsed_ns": [
+      57397407,
+      60003814,
+      67384822
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 57397407,
+      "expected_size": 32890999,
+      "actual_size": 32890999
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "rapidjson_stringify_v2500_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 50215763,
+    "min_elapsed_ns": 49136044,
+    "max_elapsed_ns": 53818505,
+    "all_elapsed_ns": [
+      53818505,
+      49136044,
+      50215763
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 53818505,
+      "expected_size": 32890999,
+      "actual_size": 32890999
+    },
+    "status": "ok"
+  }
+}

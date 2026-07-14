@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_jacobi_2d_v1600_e",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v1600_e/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 8,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n    uint64_t hash = 1469598103934665603ULL;\n    const uint32_t* ptr = data.data();\n    size_t n = data.size();\n    for (size_t i = 0; i < n; ++i) {\n        hash ^= static_cast<uint64_t>(ptr[i]);\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\n} // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n    if (input.empty()) return 0;\n\n    std::vector<uint32_t> a = input;\n    std::vector<uint32_t> b = input; // Initialize b with input to handle boundaries correctly\n    \n    uint32_t* p_a = a.data();\n    uint32_t* p_b = b.data();\n    const size_t c_size = static_cast<size_t>(cols);\n    const size_t r_size = static_cast<size_t>(rows);\n\n    for (int step = 0; step < steps; ++step) {\n        #pragma omp parallel for schedule(static)\n        for (int r = 1; r < rows - 1; ++r) {\n            const size_t row_offset = static_cast<size_t>(r) * c_size;\n            const size_t prev_row = row_offset - c_size;\n            const size_t next_row = row_offset + c_size;\n\n            // Process inner columns (1 to cols-2)\n            for (size_t c = 1; c < (size_t)cols - 1; ++c) {\n                const size_t idx = row_offset + c;\n                p_b[idx] = (p_a[idx] * 4u + \n                            p_a[idx - 1] + \n                            p_a[idx + 1] + \n                            p_a[prev_row + c] + \n                            p_a[next_row + c]) / 8u;\n            }\n        }\n\n        // Boundary conditions are preserved because p_b was initialized with p_a values\n        // and we only update the interior. However, since we swap, we must ensure \n        // the boundaries of the 'new' a are correct. \n        // The simplest way is to ensure the boundary of b matches a at the start of each step.\n        // But since we only write to the interior of b, and b starts as a copy of a, \n        // the boundaries of b remain identical to a's boundaries.\n        \n        // To handle the swap correctly for the next iteration's boundary check:\n        // We need to ensure the boundaries of the 'new' a (which was b) are correct.\n        // Since we only update interior of b, b's boundaries are already correct.\n        \n        // We must ensure that the boundaries of the 'new' a are updated if they were to change.\n        // In this specific Jacobi, boundaries are constant: b[boundary] = a[boundary].\n        // So we just swap.\n        \n        // Optimization: Instead of full copy, we only need to ensure boundaries are consistent.\n        // Since boundaries never change, we can just swap pointers.\n        std::swap(p_a, p_b);\n        // Note: std::swap on raw pointers doesn't work for the vector contents, \n        // but we are swapping the local pointers p_a and p_b which point to the vector data.\n        // However, we need to swap the actual underlying data or the pointers themselves.\n        // Let's use the vector swap to be safe and simple.\n        a.swap(b);\n        p_a = a.data();\n        p_b = b.data();\n    }\n\n    return checksum_u32(a);\n}\n",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v1600_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3869792906,
+    "min_elapsed_ns": 3512621399,
+    "max_elapsed_ns": 3975563744,
+    "all_elapsed_ns": [
+      3512621399,
+      3975563744,
+      3869792906
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3512621399,
+      "expected_checksum": 1842857931776151235,
+      "actual_checksum": 1842857931776151235
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v1600_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1395382247,
+    "min_elapsed_ns": 1264192633,
+    "max_elapsed_ns": 1685936962,
+    "all_elapsed_ns": [
+      1685936962,
+      1395382247,
+      1264192633
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1685936962,
+      "expected_checksum": 1842857931776151235,
+      "actual_checksum": 1842857931776151235
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v1600_e",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-fopenmp', '-Iexecutable_tasks/openmp_jacobi_2d_v1600_e/harness', 'executable_tasks/openmp_jacobi_2d_v1600_e/harness/benchmark_main.cpp', 'executable_tasks/openmp_jacobi_2d_v1600_e/candidate/google__gemma-4-26b-a4b-it/solution.cpp', '-o', 'build/openmp_jacobi_2d_v1600_e/candidate/bench']' returned non-zero exit status 1."
+  }
+}

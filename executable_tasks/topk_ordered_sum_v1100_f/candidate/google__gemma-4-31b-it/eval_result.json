@@ -1,0 +1,72 @@
+{
+  "task_id": "topk_ordered_sum_v1100_f",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/topk_ordered_sum_v1100_f/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 10,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <vector>\n\nuint64_t topk_sum(const std::vector<uint32_t>& scores, int k, int iters) {\n    if (k <= 0) return 0;\n    if (k >= (int)scores.size()) {\n        uint64_t total_sum = 0;\n        for (uint32_t s : scores) total_sum += s;\n        return total_sum * iters;\n    }\n\n    std::vector<uint32_t> tmp;\n    tmp.reserve(scores.size());\n    uint64_t final_sum = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        tmp.assign(scores.begin(), scores.end());\n        \n        // Use nth_element to put the k-th largest element at position k-1\n        // and all larger elements before it.\n        std::nth_element(tmp.begin(), tmp.begin() + k - 1, tmp.end(), std::greater<uint32_t>());\n        \n        uint64_t current_sum = 0;\n        for (int i = 0; i < k; ++i) {\n            current_sum += tmp[i];\n        }\n        final_sum = current_sum; // The prompt says \"Return the exact uint64 sum\", and the baseline resets sum = 0 inside the loop. \n        // Wait, the baseline does: sum = 0; for(i < k) sum += tmp[i]; then returns sum. \n        // This means it only returns the sum of the LAST iteration. \n        // Let's re-read the baseline: \"sum = 0; for (int i = 0; i < k; ++i) { sum += ... }\" is inside the loop.\n        // The baseline returns the sum of the k largest elements of the last iteration.\n    }\n    \n    // To match baseline behavior exactly: the baseline resets sum to 0 every iteration.\n    // Therefore, it returns the sum of the k largest elements of the final iteration.\n    // However, the baseline's loop structure is: \n    // for (iter < iters) { tmp = scores; sort; sum = 0; for (i < k) sum += tmp[i]; }\n    // return sum;\n    // This means the result is just the top-k sum of the scores array, calculated 'iters' times.\n    \n    // Let's optimize for that specific behavior.\n    std::vector<uint32_t> final_tmp = scores;\n    std::nth_element(final_tmp.begin(), final_tmp.begin() + k - 1, final_tmp.end(), std::greater<uint32_t>());\n    uint64_t result = 0;\n    for (int i = 0; i < k; ++i) result += final_tmp[i];\n    \n    // If iters is 0, the baseline returns 0. If iters > 0, it returns the sum of the last run.\n    return (iters > 0) ? result : 0;\n}",
+  "baseline": {
+    "task_id": "topk_ordered_sum_v1100_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5298920910,
+    "min_elapsed_ns": 5265695360,
+    "max_elapsed_ns": 5632261047,
+    "all_elapsed_ns": [
+      5298920910,
+      5265695360,
+      5632261047
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5298920910,
+      "expected_sum": 16777080,
+      "actual_sum": 16777080
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "topk_ordered_sum_v1100_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 355070755,
+    "min_elapsed_ns": 353707550,
+    "max_elapsed_ns": 356630827,
+    "all_elapsed_ns": [
+      355070755,
+      353707550,
+      356630827
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 355070755,
+      "expected_sum": 16777080,
+      "actual_sum": 16777080
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "topk_ordered_sum_v1100_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 449085184,
+    "min_elapsed_ns": 377093960,
+    "max_elapsed_ns": 452588424,
+    "all_elapsed_ns": [
+      377093960,
+      449085184,
+      452588424
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 377093960,
+      "expected_sum": 16777080,
+      "actual_sum": 16777080
+    },
+    "status": "ok"
+  }
+}

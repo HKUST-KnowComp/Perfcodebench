@@ -1,0 +1,59 @@
+{
+  "task_id": "highway_dot_product_xlarge",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_dot_product_xlarge/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"hwy/highway.h\"\n\nfloat dot_product(const float* a, const float* b, std::size_t n) {\n  namespace hn = hwy::HWY_NAMESPACE;\n  const hn::ScalableTag<float> d;\n  auto vsum = hn::Zero(d);\n\n  std::size_t i = 0;\n  const std::size_t L = hn::Lanes(d);\n\n  // Unroll by 2 for better throughput\n  for (; i + 2 * L <= n; i += 2 * L) {\n    const auto va0 = hn::LoadU(d, a + i);\n    const auto vb0 = hn::LoadU(d, b + i);\n    const auto va1 = hn::LoadU(d, a + i + L);\n    const auto vb1 = hn::LoadU(d, b + i + L);\n    vsum = hn::MulAdd(va0, vb0, vsum);\n    vsum = hn::MulAdd(va1, vb1, vsum);\n  }\n\n  for (; i + L <= n; i += L) {\n    const auto va = hn::LoadU(d, a + i);\n    const auto vb = hn::LoadU(d, b + i);\n    vsum = hn::MulAdd(va, vb, vsum);\n  }\n\n  float total = hn::GetLane(hn::SumOfLanes(vsum));\n\n  // Remainder\n  for (; i < n; ++i) {\n    total += a[i] * b[i];\n  }\n\n  return total;\n}\n",
+  "baseline": {
+    "task_id": "highway_dot_product_xlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3168156,
+    "min_elapsed_ns": 3055580,
+    "max_elapsed_ns": 3657801,
+    "all_elapsed_ns": [
+      3657801,
+      3168156,
+      3055580
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3657801,
+      "expected_dot": 1884630.0,
+      "actual_dot": 1884700.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_dot_product_xlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2401109,
+    "min_elapsed_ns": 2336993,
+    "max_elapsed_ns": 2468568,
+    "all_elapsed_ns": [
+      2401109,
+      2468568,
+      2336993
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2401109,
+      "expected_dot": 1884630.0,
+      "actual_dot": 1884660.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_dot_product_xlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/highway_dot_product_xlarge/harness', '-Iexternal/highway', 'executable_tasks/highway_dot_product_xlarge/harness/benchmark_main.cpp', 'executable_tasks/highway_dot_product_xlarge/candidate/gpt-5/solution.cpp', 'external/highway/hwy/abort.cc', 'external/highway/hwy/targets.cc', 'external/highway/hwy/aligned_allocator.cc', 'external/highway/hwy/per_target.cc', '-o', 'build/highway_dot_product_xlarge/candidate/bench']' returned non-zero exit status 1."
+  }
+}

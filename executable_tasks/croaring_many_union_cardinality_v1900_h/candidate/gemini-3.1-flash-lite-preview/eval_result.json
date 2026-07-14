@@ -1,0 +1,59 @@
+{
+  "task_id": "croaring_many_union_cardinality_v1900_h",
+  "model": "gemini-3.1-flash-lite-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/croaring_many_union_cardinality_v1900_h/candidate/gemini-3.1-flash-lite-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"roaring.h\"\n#include <vector>\n\nuint64_t many_union_cardinality(\n    const std::vector<uint32_t>& offsets,\n    const std::vector<uint32_t>& values) {\n  if (offsets.size() <= 1) return 0;\n\n  size_t num_shards = offsets.size() - 1;\n  std::vector<roaring_bitmap_t*> bitmaps(num_shards);\n\n  for (size_t i = 0; i < num_shards; ++i) {\n    uint32_t start = offsets[i];\n    uint32_t end = offsets[i + 1];\n    if (start < end) {\n      bitmaps[i] = roaring_bitmap_from_range(start, end, 1);\n      // Since the input is sorted, we can use roaring_bitmap_add_many for efficiency\n      // However, roaring_bitmap_from_range is not applicable here as values are not necessarily contiguous.\n      // We use roaring_bitmap_add_many on the slice.\n      roaring_bitmap_t* bm = roaring_bitmap_create();\n      roaring_bitmap_add_many(bm, end - start, &values[start]);\n      bitmaps[i] = bm;\n    } else {\n      bitmaps[i] = roaring_bitmap_create();\n    }\n  }\n\n  roaring_bitmap_t* result = roaring_bitmap_or_many(num_shards, bitmaps.data());\n  uint64_t cardinality = roaring_bitmap_get_cardinality(result);\n\n  roaring_bitmap_free(result);\n  for (size_t i = 0; i < num_shards; ++i) {\n    roaring_bitmap_free(bitmaps[i]);\n  }\n\n  return cardinality;\n}",
+  "baseline": {
+    "task_id": "croaring_many_union_cardinality_v1900_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 110683619,
+    "min_elapsed_ns": 103199457,
+    "max_elapsed_ns": 154522503,
+    "all_elapsed_ns": [
+      103199457,
+      110683619,
+      154522503
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 103199457,
+      "expected_cardinality": 404763,
+      "actual_cardinality": 404763
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "croaring_many_union_cardinality_v1900_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5157017,
+    "min_elapsed_ns": 4956973,
+    "max_elapsed_ns": 5857015,
+    "all_elapsed_ns": [
+      5857015,
+      4956973,
+      5157017
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5857015,
+      "expected_cardinality": 404763,
+      "actual_cardinality": 404763
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "croaring_many_union_cardinality_v1900_h",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/croaring_many_union_cardinality_v1900_h/harness', '-Iexternal/croaring_amalg', 'executable_tasks/croaring_many_union_cardinality_v1900_h/harness/benchmark_main.cpp', 'executable_tasks/croaring_many_union_cardinality_v1900_h/candidate/gemini-3.1-flash-lite-preview/solution.cpp', 'external/croaring_amalg/roaring.c', '-o', 'build/croaring_many_union_cardinality_v1900_h/candidate/bench']' returned non-zero exit status 1."
+  }
+}

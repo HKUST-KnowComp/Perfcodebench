@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v08",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v08/candidate/gpt-5.4/solution.cu",
+  "benchmark_timeout_sec": 6,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int kBins = 256;\nconstexpr int kBlock = 256;\nconstexpr int kWarpsPerBlock = kBlock / 32;\n\n__global__ void histogram256_shared_warp_kernel(const unsigned char* __restrict__ input,\n                                                unsigned int* __restrict__ output,\n                                                int n) {\n  __shared__ unsigned int smem[kWarpsPerBlock * kBins];\n\n  const int tid = threadIdx.x;\n  const int lane = tid & 31;\n  const int warp = tid >> 5;\n  const int global_stride = blockDim.x * gridDim.x;\n  int idx = blockIdx.x * blockDim.x + tid;\n\n  for (int i = tid; i < kWarpsPerBlock * kBins; i += blockDim.x) {\n    smem[i] = 0;\n  }\n  __syncthreads();\n\n  const unsigned char* ptr = input + idx;\n  const int stride4 = global_stride * 4;\n\n  for (; idx + 3 * global_stride < n; idx += stride4, ptr += stride4) {\n    unsigned char v0 = ptr[0 * global_stride];\n    unsigned char v1 = ptr[1 * global_stride];\n    unsigned char v2 = ptr[2 * global_stride];\n    unsigned char v3 = ptr[3 * global_stride];\n\n    atomicAdd(&smem[warp * kBins + v0], 1U);\n    atomicAdd(&smem[warp * kBins + v1], 1U);\n    atomicAdd(&smem[warp * kBins + v2], 1U);\n    atomicAdd(&smem[warp * kBins + v3], 1U);\n  }\n\n  for (; idx < n; idx += global_stride) {\n    atomicAdd(&smem[warp * kBins + input[idx]], 1U);\n  }\n  __syncthreads();\n\n  for (int bin = tid; bin < kBins; bin += blockDim.x) {\n    unsigned int sum = 0;\n#pragma unroll\n    for (int w = 0; w < kWarpsPerBlock; ++w) {\n      sum += smem[w * kBins + bin];\n    }\n    if (sum) atomicAdd(output + bin, sum);\n  }\n}\n\n}  // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters) {\n  if (iters <= 0) return;\n\n  int device = 0;\n  cudaGetDevice(&device);\n  cudaDeviceProp prop;\n  cudaGetDeviceProperties(&prop, device);\n\n  int sm_count = prop.multiProcessorCount > 0 ? prop.multiProcessorCount : 1;\n  int grid = sm_count * 8;\n  if (grid < 1) grid = 1;\n  if (grid > 65535) grid = 65535;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    cudaMemset(output, 0, kBins * sizeof(unsigned int));\n    if (n > 0) {\n      histogram256_shared_warp_kernel<<<grid, kBlock>>>(input, output, n);\n    }\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v08",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1033982421,
+    "min_elapsed_ns": 1033971557,
+    "max_elapsed_ns": 1034044311,
+    "all_elapsed_ns": [
+      1033971557,
+      1033982421,
+      1034044311
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1033971557,
+      "checksum": 8623489024
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v08",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 9977408,
+    "min_elapsed_ns": 9960384,
+    "max_elapsed_ns": 9978688,
+    "all_elapsed_ns": [
+      9978688,
+      9960384,
+      9977408
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9978688,
+      "checksum": 8623489024
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v08",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_histogram256_shared_u8_v08/candidate/bench']' timed out after 6 seconds"
+  }
+}

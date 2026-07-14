@@ -1,0 +1,57 @@
+{
+  "task_id": "lz4_chunked_compress",
+  "model": "deepseek-v4-pro",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/lz4_chunked_compress/candidate/deepseek-v4-pro/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include \"lz4.h\"\n\n#include <algorithm>\n#include <string>\n#include <vector>\n\nnamespace {\nconstexpr std::size_t kChunkSize = 1 << 16;\n}\n\nint compress_chunks(const std::string& input, std::vector<std::string>& chunks) {\n    chunks.clear();\n    if (input.empty()) return 0;\n    \n    const std::size_t num_chunks = (input.size() + kChunkSize - 1) / kChunkSize;\n    chunks.reserve(num_chunks);\n    \n    const int full_chunk_bound = LZ4_compressBound(static_cast<int>(kChunkSize));\n    \n    int total = 0;\n    const char* src = input.data();\n    const std::size_t input_size = input.size();\n    \n    for (std::size_t offset = 0; offset < input_size; offset += kChunkSize) {\n        const std::size_t take = std::min(kChunkSize, input_size - offset);\n        const int dstCapacity = (take == kChunkSize) ? full_chunk_bound : LZ4_compressBound(static_cast<int>(take));\n        \n        std::string compressed;\n        compressed.resize(static_cast<std::size_t>(dstCapacity));\n        \n        const int n = LZ4_compress_fast(\n            src + offset,\n            compressed.data(),\n            static_cast<int>(take),\n            dstCapacity,\n            LZ4_ACCELERATION_MAX);\n        \n        if (n <= 0) {\n            return -1;\n        }\n        compressed.resize(static_cast<std::size_t>(n));\n        total += n;\n        chunks.push_back(std::move(compressed));\n    }\n    return total;\n}\n",
+  "baseline": {
+    "task_id": "lz4_chunked_compress",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 65427501,
+    "min_elapsed_ns": 55425408,
+    "max_elapsed_ns": 65631763,
+    "all_elapsed_ns": [
+      65631763,
+      65427501,
+      55425408
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 65631763,
+      "compressed_size": 867798
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "lz4_chunked_compress",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4440573,
+    "min_elapsed_ns": 3972969,
+    "max_elapsed_ns": 4693884,
+    "all_elapsed_ns": [
+      4693884,
+      3972969,
+      4440573
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4693884,
+      "compressed_size": 978021
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "lz4_chunked_compress",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/lz4_chunked_compress/harness', '-Iexternal/lz4/lib', 'executable_tasks/lz4_chunked_compress/harness/benchmark_main.cpp', 'executable_tasks/lz4_chunked_compress/candidate/deepseek-v4-pro/solution.cpp', 'external/lz4/lib/lz4.c', 'external/lz4/lib/lz4hc.c', 'external/lz4/lib/xxhash.c', '-o', 'build/lz4_chunked_compress/candidate/bench']' returned non-zero exit status 1."
+  }
+}

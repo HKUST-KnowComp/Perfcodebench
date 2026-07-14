@@ -1,0 +1,72 @@
+{
+  "task_id": "croaring_many_union_cardinality_v1000_d",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/croaring_many_union_cardinality_v1000_d/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <roaring.h>\n\n#include <algorithm>\n#include <cstdint>\n#include <vector>\n\nuint64_t many_union_cardinality(\n    const std::vector<uint32_t>& offsets,\n    const std::vector<uint32_t>& values) {\n  const std::size_t shard_count = offsets.size() > 0 ? offsets.size() - 1 : 0;\n  if (shard_count == 0) return 0;\n\n  // Fast path for a single shard: input shards are sorted, so cardinality is\n  // just the number of unique adjacent values in that shard.\n  if (shard_count == 1) {\n    const uint32_t begin = offsets[0];\n    const uint32_t end = offsets[1];\n    if (begin >= end) return 0;\n    uint64_t count = 1;\n    uint32_t prev = values[begin];\n    for (uint32_t i = begin + 1; i < end; ++i) {\n      const uint32_t v = values[i];\n      if (v != prev) {\n        ++count;\n        prev = v;\n      }\n    }\n    return count;\n  }\n\n  // For a few huge sorted shards, a k-way merge over the shard heads avoids\n  // materializing large intermediate bitmaps and is typically faster than\n  // hash-based deduplication. Duplicates within and across shards are skipped\n  // as we advance.\n  std::vector<uint32_t> pos(shard_count);\n  std::vector<uint32_t> end(shard_count);\n  std::vector<uint32_t> active;\n  active.reserve(shard_count);\n\n  for (std::size_t s = 0; s < shard_count; ++s) {\n    uint32_t b = offsets[s];\n    uint32_t e = offsets[s + 1];\n    pos[s] = b;\n    end[s] = e;\n    if (b < e) active.push_back(static_cast<uint32_t>(s));\n  }\n\n  if (active.empty()) return 0;\n\n  uint64_t cardinality = 0;\n  bool have_last = false;\n  uint32_t last = 0;\n\n  while (!active.empty()) {\n    uint32_t min_value = values[pos[active[0]]];\n    for (std::size_t i = 1; i < active.size(); ++i) {\n      const uint32_t v = values[pos[active[i]]];\n      if (v < min_value) min_value = v;\n    }\n\n    if (!have_last || min_value != last) {\n      ++cardinality;\n      last = min_value;\n      have_last = true;\n    }\n\n    std::size_t write = 0;\n    for (std::size_t i = 0; i < active.size(); ++i) {\n      const uint32_t s = active[i];\n      uint32_t p = pos[s];\n      const uint32_t e = end[s];\n      if (values[p] == min_value) {\n        do {\n          ++p;\n        } while (p < e && values[p] == min_value);\n        pos[s] = p;\n      }\n      if (pos[s] < e) {\n        active[write++] = s;\n      }\n    }\n    active.resize(write);\n  }\n\n  return cardinality;\n}\n",
+  "baseline": {
+    "task_id": "croaring_many_union_cardinality_v1000_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 238112508,
+    "min_elapsed_ns": 236399249,
+    "max_elapsed_ns": 279118602,
+    "all_elapsed_ns": [
+      236399249,
+      279118602,
+      238112508
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 236399249,
+      "expected_cardinality": 881369,
+      "actual_cardinality": 881369
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "croaring_many_union_cardinality_v1000_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 13200570,
+    "min_elapsed_ns": 12657928,
+    "max_elapsed_ns": 13630683,
+    "all_elapsed_ns": [
+      13200570,
+      12657928,
+      13630683
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 13200570,
+      "expected_cardinality": 881369,
+      "actual_cardinality": 881369
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "croaring_many_union_cardinality_v1000_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 63878918,
+    "min_elapsed_ns": 63544233,
+    "max_elapsed_ns": 64109684,
+    "all_elapsed_ns": [
+      63878918,
+      64109684,
+      63544233
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 63878918,
+      "expected_cardinality": 881369,
+      "actual_cardinality": 881369
+    },
+    "status": "ok"
+  }
+}

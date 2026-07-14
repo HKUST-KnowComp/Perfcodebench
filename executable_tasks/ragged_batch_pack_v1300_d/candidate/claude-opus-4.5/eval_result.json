@@ -1,0 +1,72 @@
+{
+  "task_id": "ragged_batch_pack_v1300_d",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/ragged_batch_pack_v1300_d/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstring>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t ragged_pack_checksum(const std::vector<uint32_t>& padded_tokens, const std::vector<int>& lengths, int batch, int max_len, int iters) {\n  // Compute total packed length\n  size_t total_len = 0;\n  for (int b = 0; b < batch; ++b) {\n    total_len += static_cast<size_t>(lengths[static_cast<size_t>(b)]);\n  }\n  \n  // Pre-allocate packed_tokens once\n  std::vector<uint32_t> packed_tokens(total_len);\n  \n  // Compute prefix sums for batch offsets\n  std::vector<size_t> offsets(static_cast<size_t>(batch) + 1);\n  offsets[0] = 0;\n  for (int b = 0; b < batch; ++b) {\n    offsets[static_cast<size_t>(b) + 1] = offsets[static_cast<size_t>(b)] + static_cast<size_t>(lengths[static_cast<size_t>(b)]);\n  }\n  \n  uint64_t hash = 0;\n  const size_t ml = static_cast<size_t>(max_len);\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    // Pack tokens using memcpy for each batch row\n    for (int b = 0; b < batch; ++b) {\n      const int len = lengths[static_cast<size_t>(b)];\n      if (len > 0) {\n        std::memcpy(&packed_tokens[offsets[static_cast<size_t>(b)]],\n                    &padded_tokens[static_cast<size_t>(b) * ml],\n                    static_cast<size_t>(len) * sizeof(uint32_t));\n      }\n    }\n    \n    // Compute hash - generate positions on the fly\n    hash = 1469598103934665603ULL;\n    for (int b = 0; b < batch; ++b) {\n      const int len = lengths[static_cast<size_t>(b)];\n      const size_t base = offsets[static_cast<size_t>(b)];\n      for (int i = 0; i < len; ++i) {\n        hash = mix(hash, packed_tokens[base + static_cast<size_t>(i)]);\n        hash = mix(hash, static_cast<uint32_t>(i));\n      }\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "ragged_batch_pack_v1300_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 119263174,
+    "min_elapsed_ns": 110583781,
+    "max_elapsed_ns": 139984227,
+    "all_elapsed_ns": [
+      110583781,
+      139984227,
+      119263174
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 110583781,
+      "expected_checksum": 16943184242179619055,
+      "actual_checksum": 16943184242179619055
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "ragged_batch_pack_v1300_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 51145258,
+    "min_elapsed_ns": 50667978,
+    "max_elapsed_ns": 53220237,
+    "all_elapsed_ns": [
+      51145258,
+      53220237,
+      50667978
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 51145258,
+      "expected_checksum": 16943184242179619055,
+      "actual_checksum": 16943184242179619055
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "ragged_batch_pack_v1300_d",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 64777604,
+    "min_elapsed_ns": 64408189,
+    "max_elapsed_ns": 65132983,
+    "all_elapsed_ns": [
+      64408189,
+      64777604,
+      65132983
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 64408189,
+      "expected_checksum": 16943184242179619055,
+      "actual_checksum": 16943184242179619055
+    },
+    "status": "ok"
+  }
+}

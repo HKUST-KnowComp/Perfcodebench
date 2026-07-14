@@ -1,0 +1,59 @@
+{
+  "task_id": "go_groupby_histogram_checksum_v3300_064",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/go_groupby_histogram_checksum_v3300_064/candidate/moonshotai__kimi-k2-0905/solution.go",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "package main\n\nimport (\n\t\"math/bits\"\n\t\"unsafe\"\n)\n\n//go:noescape\nfunc memclrNoHeapPointers(ptr unsafe.Pointer, n uintptr)\n\nconst maxBuckets = 2000\n\nvar hist [maxBuckets]uint64\n\nfunc run(keys, vals []uint32, buckets uint32, iters int) uint64 {\n\tif buckets == 0 || buckets > maxBuckets {\n\t\tpanic(\"bucket count out of allowed range\")\n\t}\n\tbitsPerHash := bits.Len64(uint64(buckets))\n\tif 1<<bitsPerHash < int(buckets) {\n\t\tbitsPerHash++\n\t}\n\tmask := uint32((1 << bitsPerHash) - 1)\n\tif int(buckets) > (1<<bitsPerHash) {\n\t\tmask = buckets - 1\n\t}\n\n\thbuf := hist[:buckets]\n\tvar h uint64\n\tfor iter := 0; iter < iters; iter++ {\n\t\t// fast bulk zero\n\t\tmemclrNoHeapPointers(unsafe.Pointer(&hbuf[0]), uintptr(buckets)*unsafe.Sizeof(hbuf[0]))\n\n\t\tn := len(keys)\n\t\ti := 0\n\t\t// unroll 64-wide\n\t\tfor n >= 64 {\n\t\t\tfor j := 0; j < 64; j++ {\n\t\t\t\tidx := keys[i] & mask\n\t\t\t\thist[idx] += uint64(vals[i])\n\t\t\t\ti++\n\t\t\t}\n\t\t\tn -= 64\n\t\t}\n\t\tfor j := 0; j < n; j++ {\n\t\t\tidx := keys[i] & mask\n\t\t\thist[idx] += uint64(vals[i])\n\t\t\ti++\n\t\t}\n\n\t\t// FNV-1a hash over histogram buffer\n\t\th = 1469598103934665603\n\t\tfor k := 0; k < len(hbuf); k += 4 {\n\t\t\tv0 := hbuf[k]\n\t\t\th ^= v0 + 1\n\t\t\th *= 1099511628211\n\t\t\tif k+1 < len(hbuf) {\n\t\t\t\tv1 := hbuf[k+1]\n\t\t\t\th ^= v1 + 1\n\t\t\t\th *= 1099511628211\n\t\t\t}\n\t\t\tif k+2 < len(hbuf) {\n\t\t\t\tv2 := hbuf[k+2]\n\t\t\t\th ^= v2 + 1\n\t\t\t\th *= 1099511628211\n\t\t\t}\n\t\t\tif k+3 < len(hbuf) {\n\t\t\t\tv3 := hbuf[k+3]\n\t\t\t\th ^= v3 + 1\n\t\t\t\th *= 1099511628211\n\t\t\t}\n\t\t}\n\t}\n\treturn h\n}",
+  "baseline": {
+    "task_id": "go_groupby_histogram_checksum_v3300_064",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1848719,
+    "min_elapsed_ns": 1848367,
+    "max_elapsed_ns": 2520716,
+    "all_elapsed_ns": [
+      1848719,
+      1848367,
+      2520716
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1848719,
+      "expected_checksum": 2571772934777364850,
+      "actual_checksum": 2571772934777364850
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "go_groupby_histogram_checksum_v3300_064",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2338091,
+    "min_elapsed_ns": 2313693,
+    "max_elapsed_ns": 2341905,
+    "all_elapsed_ns": [
+      2338091,
+      2313693,
+      2341905
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2338091,
+      "expected_checksum": 2571772934777364850,
+      "actual_checksum": 2571772934777364850
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "go_groupby_histogram_checksum_v3300_064",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['env', 'GOCACHE=build/go_groupby_histogram_checksum_v3300_064/candidate/.gocache', 'go', 'build', '-o', 'build/go_groupby_histogram_checksum_v3300_064/candidate/bench', 'build/go_groupby_histogram_checksum_v3300_064/candidate/benchmark_main.go', 'build/go_groupby_histogram_checksum_v3300_064/candidate/solution.go']' returned non-zero exit status 2."
+  }
+}

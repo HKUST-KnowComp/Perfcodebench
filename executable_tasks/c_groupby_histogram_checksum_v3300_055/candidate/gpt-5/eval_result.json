@@ -1,0 +1,59 @@
+{
+  "task_id": "c_groupby_histogram_checksum_v3300_055",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_groupby_histogram_checksum_v3300_055/candidate/gpt-5/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n\nuint64_t run(const uint32_t* keys, const uint32_t* vals, size_t n, uint32_t buckets, int iters) {\n  // Allocate once and reuse across iterations\n  uint64_t* hist = (uint64_t*)malloc((size_t)buckets * sizeof(uint64_t));\n  uint32_t* tags = (uint32_t*)calloc((size_t)buckets, sizeof(uint32_t));\n  if ((buckets && (!hist || !tags)) || (!buckets && (!hist && !tags))) {\n    // Allocation failed (handle buckets==0 gracefully)\n    free(hist);\n    free(tags);\n    return 0;\n  }\n\n  const uint32_t* restrict kptr = keys;\n  const uint32_t* restrict vptr = vals;\n\n  const uint64_t FNV_OFFSET = 1469598103934665603ULL;\n  const uint64_t FNV_PRIME  = 1099511628211ULL;\n\n  uint64_t hash = 0;\n  uint32_t epoch = 1u;\n\n  for (int iter = 0; iter < iters; ++iter) {\n    if (epoch == 0u) {\n      // Rare wrap-around protection\n      if (buckets) memset(tags, 0, (size_t)buckets * sizeof(uint32_t));\n      epoch = 1u;\n    }\n\n    // Accumulate into histogram using epoch-based lazy clearing\n    size_t i = 0;\n    size_t n4 = n & ~(size_t)3;\n    for (; i < n4; i += 4) {\n      uint32_t k0 = kptr[i + 0];\n      uint32_t k1 = kptr[i + 1];\n      uint32_t k2 = kptr[i + 2];\n      uint32_t k3 = kptr[i + 3];\n\n      uint32_t v0 = vptr[i + 0];\n      uint32_t v1 = vptr[i + 1];\n      uint32_t v2 = vptr[i + 2];\n      uint32_t v3 = vptr[i + 3];\n\n      if (tags[k0] != epoch) { tags[k0] = epoch; hist[k0] = (uint64_t)v0; } else { hist[k0] += (uint64_t)v0; }\n      if (tags[k1] != epoch) { tags[k1] = epoch; hist[k1] = (uint64_t)v1; } else { hist[k1] += (uint64_t)v1; }\n      if (tags[k2] != epoch) { tags[k2] = epoch; hist[k2] = (uint64_t)v2; } else { hist[k2] += (uint64_t)v2; }\n      if (tags[k3] != epoch) { tags[k3] = epoch; hist[k3] = (uint64_t)v3; } else { hist[k3] += (uint64_t)v3; }\n    }\n    for (; i < n; ++i) {\n      uint32_t k = kptr[i];\n      uint64_t addv = (uint64_t)vptr[i];\n      if (tags[k] != epoch) { tags[k] = epoch; hist[k] = addv; }\n      else { hist[k] += addv; }\n    }\n\n    // Compute FNV-1a hash over all buckets, treating unseen buckets as zero\n    hash = FNV_OFFSET;\n    uint32_t b = 0;\n    uint32_t b4 = buckets & ~3u;\n    for (; b < b4; b += 4) {\n      uint64_t x0 = ((tags[b + 0] == epoch) ? hist[b + 0] : 0ULL) + 1ULL;\n      hash ^= x0; hash *= FNV_PRIME;\n      uint64_t x1 = ((tags[b + 1] == epoch) ? hist[b + 1] : 0ULL) + 1ULL;\n      hash ^= x1; hash *= FNV_PRIME;\n      uint64_t x2 = ((tags[b + 2] == epoch) ? hist[b + 2] : 0ULL) + 1ULL;\n      hash ^= x2; hash *= FNV_PRIME;\n      uint64_t x3 = ((tags[b + 3] == epoch) ? hist[b + 3] : 0ULL) + 1ULL;\n      hash ^= x3; hash *= FNV_PRIME;\n    }\n    for (; b < buckets; ++b) {\n      uint64_t x = ((tags[b] == epoch) ? hist[b] : 0ULL) + 1ULL;\n      hash ^= x;\n      hash *= FNV_PRIME;\n    }\n\n    ++epoch;\n  }\n\n  free(hist);\n  free(tags);\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "c_groupby_histogram_checksum_v3300_055",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1416000,
+    "min_elapsed_ns": 1379000,
+    "max_elapsed_ns": 1445000,
+    "all_elapsed_ns": [
+      1445000,
+      1416000,
+      1379000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1445000,
+      "expected_checksum": 3558421849563473826,
+      "actual_checksum": 3558421849563473826
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_groupby_histogram_checksum_v3300_055",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1392000,
+    "min_elapsed_ns": 1365000,
+    "max_elapsed_ns": 1432000,
+    "all_elapsed_ns": [
+      1365000,
+      1392000,
+      1432000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1365000,
+      "expected_checksum": 3558421849563473826,
+      "actual_checksum": 3558421849563473826
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_groupby_histogram_checksum_v3300_055",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/c_groupby_histogram_checksum_v3300_055/candidate/bench']' died with <Signals.SIGABRT: 6>."
+  }
+}

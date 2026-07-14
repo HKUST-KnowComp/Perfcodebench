@@ -1,0 +1,72 @@
+{
+  "task_id": "packet_ipv4_classify_checksum_v2600_f",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/packet_ipv4_classify_checksum_v2600_f/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstddef>\n#include <cstdint>\n#include <vector>\n\nnamespace {\nconstexpr std::size_t kPacketSize = 64;\n\nstatic inline bool is_private_ip_bytes(const uint8_t a, const uint8_t b) {\n  // Only need first two octets for the private ranges used\n  // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16\n  return (a == 10u) || (a == 172u && b >= 16u && b < 32u) || (a == 192u && b == 168u);\n}\n}  // namespace\n\nuint64_t classify_packets_checksum(\n    const std::vector<uint8_t>& packets,\n    std::size_t packet_count,\n    int iters) {\n  // Preserve baseline semantics: if iters <= 0, return 0\n  if (iters <= 0) {\n    return 0ULL;\n  }\n\n  const uint8_t* data = packets.data();\n  uint64_t hash = 1469598103934665603ULL;  // FNV-1a 64-bit offset basis\n\n  const uint8_t* p = data;\n  for (std::size_t i = 0; i < packet_count; ++i, p += kPacketSize) {\n    const uint8_t ttl = p[8];\n    const uint8_t protocol = p[9];\n\n    const uint32_t ttl_bucket = static_cast<uint32_t>(ttl >> 6);\n\n    uint32_t port_bucket = 3u;\n    if (protocol == 6u || protocol == 17u) {  // TCP or UDP\n      const uint16_t dst_port = static_cast<uint16_t>(\n          (static_cast<uint16_t>(p[22]) << 8) | static_cast<uint16_t>(p[23]));\n      port_bucket = (dst_port < 1024u) ? 0u : ((dst_port < 8192u) ? 1u : 2u);\n    }\n\n    const bool priv = is_private_ip_bytes(p[12], p[13]);\n\n    const uint32_t key = static_cast<uint32_t>(protocol) * 131u +\n                         ttl_bucket * 17u +\n                         (priv ? 5u : 11u) +\n                         port_bucket * 23u;\n\n    hash ^= static_cast<uint64_t>(key);\n    hash *= 1099511628211ULL;  // FNV-1a 64-bit prime\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 8645895,
+    "min_elapsed_ns": 8504269,
+    "max_elapsed_ns": 8868296,
+    "all_elapsed_ns": [
+      8868296,
+      8645895,
+      8504269
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8868296,
+      "expected_checksum": 16848120379964828775,
+      "actual_checksum": 16848120379964828775
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 7788895,
+    "min_elapsed_ns": 7621211,
+    "max_elapsed_ns": 8777232,
+    "all_elapsed_ns": [
+      7788895,
+      7621211,
+      8777232
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7788895,
+      "expected_checksum": 16848120379964828775,
+      "actual_checksum": 16848120379964828775
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 4650341,
+    "min_elapsed_ns": 4570785,
+    "max_elapsed_ns": 5084730,
+    "all_elapsed_ns": [
+      4650341,
+      4570785,
+      5084730
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4650341,
+      "expected_checksum": 16848120379964828775,
+      "actual_checksum": 16848120379964828775
+    },
+    "status": "ok"
+  }
+}

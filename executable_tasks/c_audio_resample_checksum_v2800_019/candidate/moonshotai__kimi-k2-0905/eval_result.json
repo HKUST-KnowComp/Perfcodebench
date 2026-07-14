@@ -1,0 +1,72 @@
+{
+  "task_id": "c_audio_resample_checksum_v2800_019",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_audio_resample_checksum_v2800_019/candidate/moonshotai__kimi-k2-0905/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n\nstatic inline uint64_t checksum_i16(const int16_t* data, size_t n) {\n    uint64_t hash = 1469598103934665603ULL;\n    const size_t n4 = n & ~(size_t)3;\n    const uint16_t* u = (const uint16_t*)data;\n    for (size_t i = 0; i < n4; i += 4) {\n        hash ^= u[i];   hash *= 1099511628211ULL;\n        hash ^= u[i+1]; hash *= 1099511628211ULL;\n        hash ^= u[i+2]; hash *= 1099511628211ULL;\n        hash ^= u[i+3]; hash *= 1099511628211ULL;\n    }\n    for (size_t i = n4; i < n; ++i) {\n        hash ^= u[i];\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\nuint64_t run(const int16_t* src, int input_len, int output_len, int iters) {\n    if (output_len <= 1 || input_len <= 1) return 0;\n\n    const size_t len = (size_t)output_len;\n    int16_t* out = (int16_t*)aligned_alloc(16, len * sizeof(int16_t));\n    if (!out) return 0;\n\n    const int ilm1 = input_len - 1;\n    const int olm1 = output_len - 1;\n    const int64_t ratio = ((int64_t)ilm1 << 20) / olm1;  /* Q20 */\n\n    uint64_t hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        for (int i = 0; i < output_len; ++i) {\n            const int64_t pos = i * ratio;\n            const int left  = (int)(pos >> 20);\n            const int right = (left >= ilm1) ? ilm1 : left + 1;\n            const int frac = (int)(pos & ((1<<20)-1));\n            const int32_t a = src[left];\n            const int32_t b = src[right];\n            const int32_t v = (a * ((1<<20) - frac) + b * frac + (1<<19)) >> 20;\n            out[i] = (int16_t)v;\n        }\n        hash = checksum_i16(out, len);\n    }\n    free(out);\n    return hash;\n}",
+  "baseline": {
+    "task_id": "c_audio_resample_checksum_v2800_019",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 5018000,
+    "min_elapsed_ns": 4256000,
+    "max_elapsed_ns": 5046000,
+    "all_elapsed_ns": [
+      5018000,
+      5046000,
+      4256000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5018000,
+      "expected_checksum": 4303663497125953472,
+      "actual_checksum": 4303663497125953472
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_audio_resample_checksum_v2800_019",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4279000,
+    "min_elapsed_ns": 4156000,
+    "max_elapsed_ns": 4778000,
+    "all_elapsed_ns": [
+      4156000,
+      4279000,
+      4778000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4156000,
+      "expected_checksum": 4303663497125953472,
+      "actual_checksum": 4303663497125953472
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_audio_resample_checksum_v2800_019",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 3928000,
+    "min_elapsed_ns": 3461000,
+    "max_elapsed_ns": 4070000,
+    "all_elapsed_ns": [
+      4070000,
+      3928000,
+      3461000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4070000,
+      "expected_checksum": 4303663497125953472,
+      "actual_checksum": 4303663497125953472
+    },
+    "status": "ok"
+  }
+}

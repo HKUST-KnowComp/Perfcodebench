@@ -1,0 +1,59 @@
+{
+  "task_id": "sharded_counter_reduce_v2000_b",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sharded_counter_reduce_v2000_b/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <thread>\n#include <vector>\n\nnamespace {\n\n// Exactly the same FNV-1a hash\nuint64_t checksum_u64(const std::vector<uint64_t>& counts) {\n  uint64_t hash = 14695981039346656037ULL;\n  for (uint64_t v : counts) {\n    hash ^= v;\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t sharded_counter_checksum(const std::vector<uint32_t>& keys,\n                                  const std::vector<uint32_t>& values,\n                                  uint32_t key_space,\n                                  int num_threads,\n                                  int iters) {\n  const size_t n = keys.size();\n  const size_t shards = static_cast<size_t>(num_threads);\n  \n  const size_t chunk = (n + shards - 1) / shards;\n  \n  // pre-build per-thread partitions, so a thread is never on the same cache line as another\n  std::vector<std::vector<size_t>> global_partitions;\n  global_partitions.reserve(shards);\n  for (size_t t = 0; t < shards; ++t) {\n    size_t first = t * chunk;\n    size_t last  = std::min(first + chunk, n);\n    std::vector<size_t> part;\n    part.reserve(last - first);\n    for (size_t i = first; i < last; ++i) part.push_back(i);\n    global_partitions.emplace_back(std::move(part));\n  }\n\n  // one master array, never touched concurrently\n  std::vector<uint64_t> master(static_cast<size_t>(key_space));\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    // reset master\n    std::fill(master.begin(), master.end(), 0);\n    \n    // give each thread its own local counter bank \u2013 completely private memory\n    alignas(64) std::vector<std::vector<uint64_t>> per_thread(shards);\n    for (auto& buf : per_thread) buf.assign(key_space, 0);\n\n    // the workers only touch their own buffer\n    auto worker = [&](size_t tid) {\n      auto& cnt = per_thread[tid];\n      const auto& idx = global_partitions[tid];\n      for (size_t off = idx.size(); off--;) {\n        const size_t i  = idx[off];\n        cnt[keys[i]]   += values[i];\n      }\n    };\n\n    std::vector<std::thread> workers;\n    workers.reserve(shards);\n    for (size_t t = 0; t < shards; ++t) workers.emplace_back(worker, t);\n    for (auto& w : workers) w.join();\n\n    // reduce thread-local buffers back into master \u2013 again in parallel, each thread a slice of keys\n    auto reducer = [&](size_t tid) {\n      // pick a stripe to avoid write sharing\n      for (size_t key = tid; key < key_space; key += shards) {\n        uint64_t x = 0;\n        for (const auto& buf : per_thread) x += buf[key];\n        master[key] = x;\n      }\n    };\n    workers.clear();\n    for (size_t t = 0; t < shards; ++t) workers.emplace_back(reducer, t);\n    for (auto& w : workers) w.join();\n  }\n  \n  return checksum_u64(master);\n}",
+  "baseline": {
+    "task_id": "sharded_counter_reduce_v2000_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2766182373,
+    "min_elapsed_ns": 2672061734,
+    "max_elapsed_ns": 2819884262,
+    "all_elapsed_ns": [
+      2766182373,
+      2672061734,
+      2819884262
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2766182373,
+      "expected_checksum": 12324317024754664323,
+      "actual_checksum": 12324317024754664323
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sharded_counter_reduce_v2000_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 45908829,
+    "min_elapsed_ns": 45847121,
+    "max_elapsed_ns": 61901936,
+    "all_elapsed_ns": [
+      45847121,
+      61901936,
+      45908829
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 45847121,
+      "expected_checksum": 12324317024754664323,
+      "actual_checksum": 12324317024754664323
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sharded_counter_reduce_v2000_b",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/sharded_counter_reduce_v2000_b/candidate/bench']' returned non-zero exit status 1."
+  }
+}

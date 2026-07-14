@@ -1,0 +1,59 @@
+{
+  "task_id": "row_group_minmax_prune_v1000_c",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/row_group_minmax_prune_v1000_c/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n\nuint64_t row_group_range_sum(\n    const std::vector<uint32_t>& values,\n    const std::vector<uint32_t>& mins,\n    const std::vector<uint32_t>& maxs,\n    uint32_t low,\n    uint32_t high,\n    uint32_t block_size,\n    int iters)\n{\n    const uint32_t* v = values.data();\n    const uint32_t* mn = mins.data();\n    const uint32_t* mx = maxs.data();\n    const size_t num_blocks = mins.size();\n    const size_t total = values.size();\n\n    uint64_t sum = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        sum = 0;\n        size_t base = 0;\n        for (size_t b = 0; b < num_blocks; ++b) {\n            const uint32_t block_min = mn[b];\n            const uint32_t block_max = mx[b];\n            // unsigned overlap test: [block_min,block_max] intersects [low,high]\n            if (block_min <= high && block_max >= low) {\n                const size_t end = (base + block_size < total) ? base + block_size : total;\n                // fully contained fast path\n                if (block_min >= low && block_max <= high) {\n                    for (size_t i = base; i < end; ++i) {\n                        sum += static_cast<uint64_t>(v[i]);\n                    }\n                } else {\n                    // partial overlap: check each element\n                    const uint32_t l = low;\n                    const uint32_t h = high;\n                    size_t i = base;\n                    // unroll 8x\n                    for (; i + 8 <= end; i += 8) {\n                        uint64_t s0 = (v[i+0] >= l && v[i+0] <= h) ? v[i+0] : 0;\n                        uint64_t s1 = (v[i+1] >= l && v[i+1] <= h) ? v[i+1] : 0;\n                        uint64_t s2 = (v[i+2] >= l && v[i+2] <= h) ? v[i+2] : 0;\n                        uint64_t s3 = (v[i+3] >= l && v[i+3] <= h) ? v[i+3] : 0;\n                        uint64_t s4 = (v[i+4] >= l && v[i+4] <= h) ? v[i+4] : 0;\n                        uint64_t s5 = (v[i+5] >= l && v[i+5] <= h) ? v[i+5] : 0;\n                        uint64_t s6 = (v[i+6] >= l && v[i+6] <= h) ? v[i+6] : 0;\n                        uint64_t s7 = (v[i+7] >= l && v[i+7] <= h) ? v[i+7] : 0;\n                        sum += s0 + s1 + s2 + s3 + s4 + s5 + s6 + s7;\n                    }\n                    for (; i < end; ++i) {\n                        uint32_t val = v[i];\n                        if (val >= l && val <= h) sum += val;\n                    }\n                }\n            }\n            base += block_size;\n            if (base >= total) break;\n        }\n    }\n    return sum;\n}",
+  "baseline": {
+    "task_id": "row_group_minmax_prune_v1000_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 31438022,
+    "min_elapsed_ns": 31330332,
+    "max_elapsed_ns": 31787124,
+    "all_elapsed_ns": [
+      31438022,
+      31330332,
+      31787124
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 31438022,
+      "expected_sum": 21732156,
+      "actual_sum": 21732156
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "row_group_minmax_prune_v1000_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1529677,
+    "min_elapsed_ns": 1469077,
+    "max_elapsed_ns": 1550507,
+    "all_elapsed_ns": [
+      1529677,
+      1550507,
+      1469077
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1529677,
+      "expected_sum": 21732156,
+      "actual_sum": 21732156
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "row_group_minmax_prune_v1000_c",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/row_group_minmax_prune_v1000_c/harness', 'executable_tasks/row_group_minmax_prune_v1000_c/harness/benchmark_main.cpp', 'executable_tasks/row_group_minmax_prune_v1000_c/candidate/moonshotai__kimi-k2-0905/solution.cpp', '-o', 'build/row_group_minmax_prune_v1000_c/candidate/bench']' returned non-zero exit status 1."
+  }
+}

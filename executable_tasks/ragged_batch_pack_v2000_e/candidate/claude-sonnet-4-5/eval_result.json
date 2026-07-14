@@ -1,0 +1,59 @@
+{
+  "task_id": "ragged_batch_pack_v2000_e",
+  "model": "claude-sonnet-4-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/ragged_batch_pack_v2000_e/candidate/claude-sonnet-4-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t ragged_pack_checksum(const std::vector<uint32_t>& padded_tokens, const std::vector<int>& lengths, int batch, int max_len, int iters) {\n  // Pre-compute total size\n  size_t total_size = 0;\n  for (int b = 0; b < batch; ++b) {\n    total_size += lengths[b];\n  }\n  \n  std::vector<uint32_t> packed_tokens;\n  std::vector<uint32_t> positions;\n  packed_tokens.reserve(total_size);\n  positions.reserve(total_size);\n  \n  uint64_t hash = 0;\n  const uint32_t* padded_ptr = padded_tokens.data();\n  const int* lengths_ptr = lengths.data();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    packed_tokens.clear();\n    positions.clear();\n    \n    for (int b = 0; b < batch; ++b) {\n      int len = lengths_ptr[b];\n      const uint32_t* row_ptr = padded_ptr + b * max_len;\n      \n      for (int i = 0; i < len; ++i) {\n        packed_tokens.push_back(row_ptr[i]);\n        positions.push_back(static_cast<uint32_t>(i));\n      }\n    }\n    \n    // Unrolled hash computation with independent chains\n    hash = 1469598103934665603ULL;\n    uint64_t hash1 = hash, hash2 = hash, hash3 = hash, hash4 = hash;\n    \n    const uint32_t* tok_ptr = packed_tokens.data();\n    const uint32_t* pos_ptr = positions.data();\n    size_t size = packed_tokens.size();\n    size_t i = 0;\n    \n    // Process 4 elements at a time\n    for (; i + 3 < size; i += 4) {\n      hash1 = mix(hash1, tok_ptr[i]);\n      hash1 = mix(hash1, pos_ptr[i]);\n      \n      hash2 = mix(hash2, tok_ptr[i+1]);\n      hash2 = mix(hash2, pos_ptr[i+1]);\n      \n      hash3 = mix(hash3, tok_ptr[i+2]);\n      hash3 = mix(hash3, pos_ptr[i+2]);\n      \n      hash4 = mix(hash4, tok_ptr[i+3]);\n      hash4 = mix(hash4, pos_ptr[i+3]);\n    }\n    \n    // Combine independent chains\n    hash = mix(mix(hash1, hash2), mix(hash3, hash4));\n    \n    // Handle remaining elements\n    for (; i < size; ++i) {\n      hash = mix(hash, tok_ptr[i]);\n      hash = mix(hash, pos_ptr[i]);\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "ragged_batch_pack_v2000_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 48659791,
+    "min_elapsed_ns": 48541517,
+    "max_elapsed_ns": 51980980,
+    "all_elapsed_ns": [
+      48541517,
+      48659791,
+      51980980
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 48541517,
+      "expected_checksum": 7396497426372923368,
+      "actual_checksum": 7396497426372923368
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "ragged_batch_pack_v2000_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 29568567,
+    "min_elapsed_ns": 29117060,
+    "max_elapsed_ns": 36092373,
+    "all_elapsed_ns": [
+      29568567,
+      29117060,
+      36092373
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 29568567,
+      "expected_checksum": 7396497426372923368,
+      "actual_checksum": 7396497426372923368
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "ragged_batch_pack_v2000_e",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/ragged_batch_pack_v2000_e/harness', 'executable_tasks/ragged_batch_pack_v2000_e/harness/benchmark_main.cpp', 'executable_tasks/ragged_batch_pack_v2000_e/candidate/claude-sonnet-4-5/solution.cpp', '-o', 'build/ragged_batch_pack_v2000_e/candidate/bench']' returned non-zero exit status 1."
+  }
+}

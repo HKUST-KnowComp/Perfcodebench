@@ -1,0 +1,72 @@
+{
+  "task_id": "xxhash_line_hash_mixed_xlarge",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/xxhash_line_hash_mixed_xlarge/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"xxhash.h\"\n#include <cstdint>\n#include <cstring>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#endif\n\nuint64_t hash_lines(const std::string& input) {\n    uint64_t acc = 1469598103934665603ULL;\n    const char* p = input.data();\n    const char* const end = p + input.size();\n    \n#if defined(__AVX2__)\n    const __m256i newline_vec = _mm256_set1_epi8('\\n');\n    \n    while (p < end) {\n        const char* line_end = p;\n        \n        // AVX2 scan: 32 bytes at a time\n        while (line_end + 32 <= end) {\n            __m256i chunk = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(line_end));\n            __m256i cmp = _mm256_cmpeq_epi8(chunk, newline_vec);\n            int mask = _mm256_movemask_epi8(cmp);\n            if (mask != 0) {\n                line_end += __builtin_ctz(mask);\n                goto found_newline;\n            }\n            line_end += 32;\n        }\n        \n        // Scalar fallback for remainder\n        while (line_end < end && *line_end != '\\n') {\n            ++line_end;\n        }\n        \n    found_newline:\n        acc ^= XXH64(p, static_cast<size_t>(line_end - p), 0);\n        acc *= 1099511628211ULL;\n        p = (line_end < end) ? (line_end + 1) : line_end;\n    }\n#else\n    // Non-AVX2 path: use word-at-a-time scanning\n    while (p < end) {\n        const char* line_end = p;\n        \n        // Word-at-a-time scan for newlines\n        while (line_end + 8 <= end) {\n            uint64_t word;\n            memcpy(&word, line_end, 8);\n            // Check if any byte is newline (0x0a)\n            // XOR with 0x0a0a0a0a0a0a0a0a to make newlines into zeros\n            uint64_t xored = word ^ 0x0a0a0a0a0a0a0a0aULL;\n            // Use the standard zero-byte detection trick\n            uint64_t has_zero = (xored - 0x0101010101010101ULL) & ~xored & 0x8080808080808080ULL;\n            if (has_zero) {\n                // Found a newline in this word, scan byte by byte\n                while (line_end < end && *line_end != '\\n') {\n                    ++line_end;\n                }\n                goto found_nl;\n            }\n            line_end += 8;\n        }\n        \n        // Scalar fallback\n        while (line_end < end && *line_end != '\\n') {\n            ++line_end;\n        }\n        \n    found_nl:\n        acc ^= XXH64(p, static_cast<size_t>(line_end - p), 0);\n        acc *= 1099511628211ULL;\n        p = (line_end < end) ? (line_end + 1) : line_end;\n    }\n#endif\n    \n    return acc;\n}\n",
+  "baseline": {
+    "task_id": "xxhash_line_hash_mixed_xlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 16040945,
+    "min_elapsed_ns": 16019310,
+    "max_elapsed_ns": 16239509,
+    "all_elapsed_ns": [
+      16040945,
+      16239509,
+      16019310
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 16040945,
+      "expected_hash": 11043115061801353868,
+      "actual_hash": 11043115061801353868
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "xxhash_line_hash_mixed_xlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 10524164,
+    "min_elapsed_ns": 10476673,
+    "max_elapsed_ns": 11701922,
+    "all_elapsed_ns": [
+      10524164,
+      10476673,
+      11701922
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10524164,
+      "expected_hash": 11043115061801353868,
+      "actual_hash": 11043115061801353868
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "xxhash_line_hash_mixed_xlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 11058382,
+    "min_elapsed_ns": 10972273,
+    "max_elapsed_ns": 11193416,
+    "all_elapsed_ns": [
+      11193416,
+      10972273,
+      11058382
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11193416,
+      "expected_hash": 11043115061801353868,
+      "actual_hash": 11043115061801353868
+    },
+    "status": "ok"
+  }
+}

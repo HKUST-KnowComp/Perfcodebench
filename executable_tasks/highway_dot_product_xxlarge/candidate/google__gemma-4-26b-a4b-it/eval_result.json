@@ -1,0 +1,59 @@
+{
+  "task_id": "highway_dot_product_xxlarge",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_dot_product_xxlarge/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <hwy/highway.h>\n\nnamespace {\nnamespace HWY =\n    hwy::HWY_NAMESPACE;\n}\n\nfloat dot_product(const float* a, const float* b, std::size_t n) {\n  if (n == 0) return 0.0f;\n\n  const HWY::ScalableTag<float> d; // Use scalable tags for portability\n  const size_t lanes = HWY::Lanes(d);\n  \n  // We use a loop that processes 'lanes' elements at a time.\n  // To avoid precision issues with extremely large sums, we accumulate in SIMD registers.\n  HWY::Simd<float> sum_vec = HWY::Zero(d);\n\n  size_t i = 0;\n  // Main SIMD loop\n  for (; i + lanes <= n; i += lanes) {\n    HWY::Simd<float> va = HWY::Load(d, a + i);\n    HWY::Simd<float> vb = HWY::Load(d, b + i);\n    sum_vec = HWY::Add(sum_vec, HWY::Mul(va, vb));\n  }\n\n  // Horizontal sum of the SIMD register\n  float total_sum = HWY::ReduceSum(d, sum_vec);\n\n  // Tail loop for remaining elements\n  for (; i < n; ++i) {\n    total_sum += a[i] * b[i];\n  }\n\n  return total_sum;\n}",
+  "baseline": {
+    "task_id": "highway_dot_product_xxlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6499402,
+    "min_elapsed_ns": 6440938,
+    "max_elapsed_ns": 6507922,
+    "all_elapsed_ns": [
+      6440938,
+      6507922,
+      6499402
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6440938,
+      "expected_dot": 2631150.0,
+      "actual_dot": 2631600.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_dot_product_xxlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5361025,
+    "min_elapsed_ns": 5229245,
+    "max_elapsed_ns": 5536127,
+    "all_elapsed_ns": [
+      5536127,
+      5361025,
+      5229245
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5536127,
+      "expected_dot": 2631150.0,
+      "actual_dot": 2631140.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_dot_product_xxlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/highway_dot_product_xxlarge/harness', '-Iexternal/highway', 'executable_tasks/highway_dot_product_xxlarge/harness/benchmark_main.cpp', 'executable_tasks/highway_dot_product_xxlarge/candidate/google__gemma-4-26b-a4b-it/solution.cpp', 'external/highway/hwy/abort.cc', 'external/highway/hwy/targets.cc', 'external/highway/hwy/aligned_allocator.cc', 'external/highway/hwy/per_target.cc', '-o', 'build/highway_dot_product_xxlarge/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v27",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v27/candidate/gpt-5/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n#ifndef BLOCK_DIM\n#define BLOCK_DIM 256\n#endif\n#ifndef UNROLL\n#define UNROLL 4\n#endif\n\n__forceinline__ __device__ int warp_reduce_sum(int v) {\n  unsigned mask = 0xffffffffu;\n  v += __shfl_down_sync(mask, v, 16);\n  v += __shfl_down_sync(mask, v, 8);\n  v += __shfl_down_sync(mask, v, 4);\n  v += __shfl_down_sync(mask, v, 2);\n  v += __shfl_down_sync(mask, v, 1);\n  return v;\n}\n\n__global__ void reduce_kernel(const int* __restrict__ input, int* __restrict__ output, int n) {\n  int tid = threadIdx.x;\n  int lane = tid & 31;\n  int warp_id = tid >> 5; // warp index within block\n\n  int idx = blockIdx.x * blockDim.x + tid;\n  int grid_stride = blockDim.x * gridDim.x;\n\n  int local_sum = 0;\n\n  // Unrolled grid-stride loop\n  for (int i = idx; i < n; i += grid_stride * UNROLL) {\n    int s = 0;\n    int j = i;\n    if (j < n) s += __ldg(input + j);\n    j += grid_stride;\n    if (j < n) s += __ldg(input + j);\n    j += grid_stride;\n    if (j < n) s += __ldg(input + j);\n    j += grid_stride;\n    if (j < n) s += __ldg(input + j);\n    local_sum += s;\n  }\n\n  // In-warp reduction\n  local_sum = warp_reduce_sum(local_sum);\n\n  __shared__ int warp_sums[32]; // supports up to 1024 threads per block\n  if (lane == 0) warp_sums[warp_id] = local_sum;\n  __syncthreads();\n\n  // First warp reduces warp sums\n  if (warp_id == 0) {\n    int block_sum = (lane < (blockDim.x >> 5)) ? warp_sums[lane] : 0;\n    block_sum = warp_reduce_sum(block_sum);\n    if (lane == 0) {\n      atomicAdd(output, block_sum);\n    }\n  }\n}\n\ninline int compute_grid_size(int n) {\n  if (n <= 0) return 1;\n  int dev = 0;\n  cudaGetDevice(&dev);\n  cudaDeviceProp prop;\n  cudaGetDeviceProperties(&prop, dev);\n  long long blocks = (static_cast<long long>(n) + (BLOCK_DIM * UNROLL - 1)) / (BLOCK_DIM * UNROLL);\n  int min_blocks = prop.multiProcessorCount * 8; // keep GPU busy\n  if (blocks < min_blocks) blocks = min_blocks;\n  if (blocks > 65535) blocks = 65535;\n  if (blocks < 1) blocks = 1;\n  return static_cast<int>(blocks);\n}\n\n} // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n  const dim3 block(BLOCK_DIM);\n  const dim3 grid(compute_grid_size(n));\n  for (int iter = 0; iter < iters; ++iter) {\n    cudaMemsetAsync(output, 0, sizeof(int));\n    reduce_kernel<<<grid, block>>>(input, output, n);\n  }\n}\n",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v27",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 22496320,
+    "min_elapsed_ns": 20701503,
+    "max_elapsed_ns": 22953599,
+    "all_elapsed_ns": [
+      22496320,
+      22953599,
+      20701503
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 22496320,
+      "expected_sum": 31457280,
+      "actual_sum": 31457280
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v27",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3235712,
+    "min_elapsed_ns": 1139263,
+    "max_elapsed_ns": 3304255,
+    "all_elapsed_ns": [
+      1139263,
+      3235712,
+      3304255
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1139263,
+      "expected_sum": 31457280,
+      "actual_sum": 31457280
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v27",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v27/candidate/bench']' timed out after 5 seconds"
+  }
+}

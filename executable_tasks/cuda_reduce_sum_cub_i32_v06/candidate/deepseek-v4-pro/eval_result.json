@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_reduce_sum_cub_i32_v06",
+  "model": "deepseek-v4-pro",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_reduce_sum_cub_i32_v06/candidate/deepseek-v4-pro/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n#include <cub/cub.cuh>\n\nvoid reduce_sum_i32(const int* input, int* output, int n, int iters) {\n    // Static persistent temporary storage for CUB reductions,\n    // grown as needed but never freed for performance.\n    static void* d_temp_storage = nullptr;\n    static size_t temp_storage_bytes = 0;\n\n    // Query required temporary storage bytes\n    size_t tmp_bytes = 0;\n    cub::DeviceReduce::Sum(nullptr, tmp_bytes, input, output, n);\n\n    // Allocate or reallocate if more space is needed\n    if (tmp_bytes > temp_storage_bytes) {\n        if (d_temp_storage) {\n            cudaFree(d_temp_storage);\n        }\n        cudaMalloc(&d_temp_storage, tmp_bytes);\n        temp_storage_bytes = tmp_bytes;\n    }\n\n    // Run the reduction the requested number of iterations\n    for (int iter = 0; iter < iters; ++iter) {\n        cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, input, output, n);\n    }\n\n    // No explicit synchronisation required; the harness will call cudaDeviceSynchronize\n}",
+  "baseline": {
+    "task_id": "cuda_reduce_sum_cub_i32_v06",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 24212640,
+    "min_elapsed_ns": 24205919,
+    "max_elapsed_ns": 24214464,
+    "all_elapsed_ns": [
+      24214464,
+      24212640,
+      24205919
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 24214464,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_reduce_sum_cub_i32_v06",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1627583,
+    "min_elapsed_ns": 1617856,
+    "max_elapsed_ns": 1639487,
+    "all_elapsed_ns": [
+      1627583,
+      1639487,
+      1617856
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1627583,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_reduce_sum_cub_i32_v06",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_reduce_sum_cub_i32_v06/candidate/bench']' timed out after 5 seconds"
+  }
+}

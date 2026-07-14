@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v02",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v02/candidate/google__gemma-4-26b-a4b-it/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n__global__ void histogram256_shared_kernel(const unsigned char* __restrict__ input, unsigned int* output, int n) {\n    // Local histogram in shared memory\n    __shared__ unsigned int local_hist[256];\n\n    // Initialize shared memory\n    int tid = threadIdx.x;\n    if (tid < 256) {\n        local_hist[tid] = 0;\n    }\n    __syncthreads();\n\n    // Each thread processes elements using a grid-stride loop\n    // To maximize throughput, we use the thread index to map to the input\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    int stride = blockDim.x * gridDim.x;\n\n    for (int i = idx; i < n; i += stride) {\n        unsigned char val = input[i];\n        atomicAdd(&local_hist[val], 1U);\n    }\n\n    __syncthreads();\n\n    // Reduce local histogram to global memory\n    // We use a simple approach where each thread handles one bin\n    // or we can have threads cooperate to reduce the 256 bins.\n    // For 256 bins and 256 threads, it's a 1:1 mapping.\n    if (tid < 256) {\n        atomicAdd(&output[tid], local_hist[tid]);\n    }\n}\n\n// Alternative approach for higher performance: \n// Use a larger block size or multiple passes if N is massive, \n// but for standard histogram tasks, shared memory atomics are the bottleneck breaker.\n\n__global__ void histogram256_optimized_kernel(const unsigned char* __restrict__ input, unsigned int* output, int n) {\n    __shared__ unsigned int s_hist[256];\n    \n    // Initialize shared memory\n    for (int i = threadIdx.x; i < 256; i += blockDim.x) {\n        s_hist[i] = 0;\n    }\n    __syncthreads();\n\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    int stride = blockDim.x * gridDim.x;\n\n    // Process input\n    for (int i = idx; i < n; i += stride) {\n        atomicAdd(&s_hist[input[i]], 1U);\n    }\n    __syncthreads();\n\n    // Write back to global memory\n    // To avoid massive contention on global memory, we use the thread to distribute the 256 bins\n    for (int i = threadIdx.x; i < 256; i += blockDim.x) {\n        atomicAdd(&output[i], s_hist[i]);\n    }\n}\n\n} // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters) {\n    // Using a block size of 256 is optimal for the shared memory size of 256 * 4 bytes = 1KB\n    // This allows high occupancy.\n    const int kBlock = 256;\n    // Calculate grid size to ensure we cover the data but don't oversubscribe too much\n    // A grid size of 256-512 is usually a sweet spot for modern GPUs\n    const int kGrid = 256;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, 256 * sizeof(unsigned int));\n        histogram256_optimized_kernel<<<kGrid, kBlock>>>(input, output, n);\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v02",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 25898239,
+    "min_elapsed_ns": 25896480,
+    "max_elapsed_ns": 25900512,
+    "all_elapsed_ns": [
+      25900512,
+      25898239,
+      25896480
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 25900512,
+      "checksum": 538968064
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v02",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 270527,
+    "min_elapsed_ns": 270208,
+    "max_elapsed_ns": 271360,
+    "all_elapsed_ns": [
+      270208,
+      271360,
+      270527
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 270208,
+      "checksum": 538968064
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v02",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_histogram256_shared_u8_v02/candidate/bench']' timed out after 5 seconds"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "prefix_cache_block_lookup_v2200_a",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup_v2200_a/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <vector>\n\nnamespace {\n\ninline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n// Custom binary search to avoid iterator overhead and potentially improve inlining\ninline bool fast_binary_search(const uint32_t* begin, const uint32_t* end, uint32_t val) {\n  uint32_t* low = begin;\n  uint32_t* high = end - 1;\n  while (low <= high) {\n    uint32_t* mid = low + (high - low) / 2;\n    if (*mid == val) return true;\n    if (*mid < val) low = mid + 1;\n    else high = mid - 1;\n  }\n  return false;\n}\n\n}  // namespace\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t hash_space,\n    int iters) {\n  (void)hash_space;\n  \n  const uint32_t* cache_ptr = sorted_cache_keys.data();\n  const uint32_t* blocks_ptr = request_blocks.data();\n  const int* offsets_ptr = request_offsets.data();\n  const uint32_t* cache_end = cache_ptr + sorted_cache_keys.size();\n  \n  uint64_t final_hash = 0;\n  \n  // The problem asks for the checksum of the per-request lengths.\n  // The baseline resets the hash inside the iters loop, but the return is the final hash.\n  // Actually, the baseline returns the hash of the LAST iteration.\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t current_hash = 1469598103934665603ULL;\n    size_t num_requests = offsets_ptr[0] == 0 ? (request_offsets.size() - 1) : (request_offsets.size() - 1);\n    // The baseline loop: for (std::size_t r = 0; r + 1 < request_offsets.size(); ++r)\n    for (size_t r = 0; r + 1 < request_offsets.size(); ++r) {\n      int start = offsets_ptr[r];\n      int end = offsets_ptr[r + 1];\n      uint64_t prefix = 0;\n      for (int i = start; i < end; ++i) {\n        if (!fast_binary_search(cache_ptr, cache_end, blocks_ptr[i])) {\n          break;\n        }\n        ++prefix;\n      }\n      current_hash = mix(current_hash, prefix);\n    }\n    final_hash = current_hash;\n  }\n  \n  return final_hash;\n}\n",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup_v2200_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 94644324,
+    "min_elapsed_ns": 93279201,
+    "max_elapsed_ns": 96758232,
+    "all_elapsed_ns": [
+      94644324,
+      96758232,
+      93279201
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 94644324,
+      "expected_checksum": 15006416457433544021,
+      "actual_checksum": 15006416457433544021
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup_v2200_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1459752,
+    "min_elapsed_ns": 1415108,
+    "max_elapsed_ns": 2525832,
+    "all_elapsed_ns": [
+      1415108,
+      2525832,
+      1459752
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1415108,
+      "expected_checksum": 15006416457433544021,
+      "actual_checksum": 15006416457433544021
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup_v2200_a",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/prefix_cache_block_lookup_v2200_a/harness', 'executable_tasks/prefix_cache_block_lookup_v2200_a/harness/benchmark_main.cpp', 'executable_tasks/prefix_cache_block_lookup_v2200_a/candidate/google__gemma-4-31b-it/solution.cpp', '-o', 'build/prefix_cache_block_lookup_v2200_a/candidate/bench']' returned non-zero exit status 1."
+  }
+}

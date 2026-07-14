@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_jacobi_2d_v1400_h",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v1400_h/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  if (rows <= 0 || cols <= 0) return 0;\n\n  std::vector<uint32_t> a = input;\n  std::vector<uint32_t> b(a.size(), 0);\n  \n  const std::size_t c_size = static_cast<std::size_t>(cols);\n  const std::size_t total_size = static_cast<std::size_t>(rows) * c_size;\n\n  for (int step = 0; step < steps; ++step) {\n    // Handle boundaries first (they remain constant in value from 'a' to 'b')\n    // Top and Bottom rows\n    #pragma omp parallel for\n    for (std::size_t col = 0; col < c_size; ++col) {\n      b[col] = a[col]; // Top row\n      b[static_cast<std::size_t>(rows - 1) * c_size + col] = a[static_cast<std::size_t>(rows - 1) * c_size + col]; // Bottom row\n    }\n\n    // Left and Right columns (excluding corners already handled)\n    #pragma omp parallel for\n    for (int row = 1; row < rows - 1; ++row) {\n      std::size_t r_idx = static_cast<std::size_t>(row) * c_size;\n      b[r_idx] = a[r_idx]; // Left col\n      b[r_idx + c_size - 1] = a[r_idx + c_size - 1]; // Right col\n    }\n\n    // Core computation: avoid branches inside the loop\n    #pragma omp parallel for schedule(static)\n    for (int row = 1; row < rows - 1; ++row) {\n      const std::size_t r_idx = static_cast<std::size_t>(row) * c_size;\n      for (std::size_t col = 1; col < c_size - 1; ++col) {\n        const std::size_t idx = r_idx + col;\n        b[idx] = (a[idx] * 4u + a[idx - 1] + a[idx + 1] + \n                  a[idx - c_size] + a[idx + c_size]) / 8u;\n      }\n    }\n    a.swap(b);\n  }\n\n  return checksum_u32(a);\n}",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v1400_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 219299912,
+    "min_elapsed_ns": 196426741,
+    "max_elapsed_ns": 249903747,
+    "all_elapsed_ns": [
+      196426741,
+      219299912,
+      249903747
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 196426741,
+      "expected_checksum": 2435364411289784612,
+      "actual_checksum": 2435364411289784612
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v1400_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 297868403,
+    "min_elapsed_ns": 226984073,
+    "max_elapsed_ns": 475092364,
+    "all_elapsed_ns": [
+      475092364,
+      226984073,
+      297868403
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 475092364,
+      "expected_checksum": 2435364411289784612,
+      "actual_checksum": 2435364411289784612
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v1400_h",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/openmp_jacobi_2d_v1400_h/candidate/bench']' timed out after 5 seconds"
+  }
+}

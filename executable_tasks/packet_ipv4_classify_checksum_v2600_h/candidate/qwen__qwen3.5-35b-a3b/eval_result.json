@@ -1,0 +1,72 @@
+{
+  "task_id": "packet_ipv4_classify_checksum_v2600_h",
+  "model": "qwen/qwen3.5-35b-a3b",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/packet_ipv4_classify_checksum_v2600_h/candidate/qwen__qwen3.5-35b-a3b/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstddef>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nconstexpr std::size_t kPacketSize = 64;\n\n// Branchless private IP check for 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16\ninline bool is_private_ip(const uint8_t* ip) {\n  const uint8_t b0 = ip[0];\n  const uint8_t b1 = ip[1];\n  const uint32_t is_10 = (b0 == 10u) ? 1u : 0u;\n  const uint32_t is_172 = (b0 == 172u) ? 1u : 0u;\n  const uint32_t is_192 = (b0 == 192u) ? 1u : 0u;\n  const uint32_t is_172_16_31 = (is_172 && b1 >= 16u && b1 < 32u) ? 1u : 0u;\n  const uint32_t is_192_168 = (is_192 && b1 == 168u) ? 1u : 0u;\n  return (is_10 || is_172_16_31 || is_192_168) != 0;\n}\n\n}  // namespace\n\nuint64_t classify_packets_checksum(\n    const std::vector<uint8_t>& packets,\n    std::size_t packet_count,\n    int iters) {\n  uint64_t hash = 0;\n  const uint8_t* data = packets.data();\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    for (std::size_t i = 0; i < packet_count; ++i) {\n      const std::size_t offset = i * kPacketSize;\n      \n      // Read fields directly without memcpy\n      const uint8_t ttl = data[offset + 8];\n      const uint8_t protocol = data[offset + 9];\n      const uint8_t src0 = data[offset + 12];\n      const uint8_t src1 = data[offset + 13];\n      const uint8_t src2 = data[offset + 14];\n      const uint8_t src3 = data[offset + 15];\n      const uint8_t dst_port_high = data[offset + 22];\n      const uint8_t dst_port_low = data[offset + 23];\n      const uint16_t dst_port = static_cast<uint16_t>((dst_port_high << 8) | dst_port_low);\n      \n      // TTL bucket: ttl >> 6\n      const uint32_t ttl_bucket = static_cast<uint32_t>(ttl >> 6);\n      \n      // Port bucket\n      const uint32_t port_bucket =\n          (protocol == 6u || protocol == 17u) ? \n              ((dst_port < 1024u) ? 0u : ((dst_port < 8192u) ? 1u : 2u)) : 3u;\n      \n      // Private IP check\n      const uint32_t is_private = is_private_ip(&data[offset + 12]) ? 5u : 11u;\n      \n      // Compute key\n      const uint32_t key =\n          static_cast<uint32_t>(protocol) * 131u + ttl_bucket * 17u +\n          is_private + port_bucket * 23u;\n      \n      // FNV-1a hash\n      hash ^= static_cast<uint64_t>(key);\n      hash *= 1099511628211ULL;\n    }\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 2126626,
+    "min_elapsed_ns": 1865783,
+    "max_elapsed_ns": 2234157,
+    "all_elapsed_ns": [
+      1865783,
+      2126626,
+      2234157
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1865783,
+      "expected_checksum": 15720879676828501607,
+      "actual_checksum": 15720879676828501607
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2043440,
+    "min_elapsed_ns": 1783887,
+    "max_elapsed_ns": 2112174,
+    "all_elapsed_ns": [
+      2043440,
+      2112174,
+      1783887
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2043440,
+      "expected_checksum": 15720879676828501607,
+      "actual_checksum": 15720879676828501607
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "packet_ipv4_classify_checksum_v2600_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 2691231,
+    "min_elapsed_ns": 2666833,
+    "max_elapsed_ns": 2851464,
+    "all_elapsed_ns": [
+      2666833,
+      2691231,
+      2851464
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2666833,
+      "expected_checksum": 15720879676828501607,
+      "actual_checksum": 15720879676828501607
+    },
+    "status": "ok"
+  }
+}

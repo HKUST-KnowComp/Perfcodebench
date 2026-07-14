@@ -1,0 +1,59 @@
+{
+  "task_id": "merge_dedup_keep_last_checksum_v1300_i",
+  "model": "qwen/qwen3.5-35b-a3b",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/merge_dedup_keep_last_checksum_v1300_i/candidate/qwen__qwen3.5-35b-a3b/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#pragma once\n\n#include <cstdint>\n#include <vector>\n\nuint64_t merge_keep_last_hash(\n    const std::vector<uint32_t>& left_keys,\n    const std::vector<uint32_t>& left_values,\n    const std::vector<uint32_t>& right_keys,\n    const std::vector<uint32_t>& right_values,\n    int iters) {\n  \n  uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n  }\n\n  std::vector<std::pair<uint32_t, uint32_t>> merged;\n  merged.reserve(left_keys.size() + right_keys.size());\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    merged.clear();\n    \n    size_t i = 0, j = 0;\n    while (i < left_keys.size() && j < right_keys.size()) {\n      if (left_keys[i] < right_keys[j]) {\n        merged.push_back({left_keys[i], left_values[i]});\n        ++i;\n      } else if (left_keys[i] > right_keys[j]) {\n        merged.push_back({right_keys[j], right_values[j]});\n        ++j;\n      } else {\n        // Equal keys: add left first, then right (preserves order for stable dedup)\n        merged.push_back({left_keys[i], left_values[i]});\n        ++i;\n        // Don't increment j yet - will be handled in next iteration\n      }\n    }\n    \n    // Add remaining elements\n    while (i < left_keys.size()) {\n      merged.push_back({left_keys[i], left_values[i]});\n      ++i;\n    }\n    while (j < right_keys.size()) {\n      merged.push_back({right_keys[j], right_values[j]});\n      ++j;\n    }\n    \n    // Deduplicate in-place, keeping last occurrence\n    size_t write_idx = 0;\n    for (size_t read_idx = 0; read_idx < merged.size(); ++read_idx) {\n      if (read_idx == 0 || merged[read_idx].first != merged[read_idx - 1].first) {\n        merged[write_idx++] = merged[read_idx];\n      } else {\n        // Update value for duplicate key (keep right-side value)\n        merged[write_idx - 1].second = merged[read_idx].second;\n      }\n    }\n    merged.resize(write_idx);\n    \n    // Compute hash\n    uint64_t hash = 1469598103934665603ULL;\n    for (const auto& kv : merged) {\n      hash = mix(hash, kv.first);\n      hash = mix(hash, kv.second);\n    }\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "merge_dedup_keep_last_checksum_v1300_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 517874421,
+    "min_elapsed_ns": 514589723,
+    "max_elapsed_ns": 518671939,
+    "all_elapsed_ns": [
+      514589723,
+      518671939,
+      517874421
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 514589723,
+      "expected_checksum": 7878742810290270209,
+      "actual_checksum": 7878742810290270209
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "merge_dedup_keep_last_checksum_v1300_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 126806627,
+    "min_elapsed_ns": 126412508,
+    "max_elapsed_ns": 127437463,
+    "all_elapsed_ns": [
+      126806627,
+      127437463,
+      126412508
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 126806627,
+      "expected_checksum": 7878742810290270209,
+      "actual_checksum": 7878742810290270209
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "merge_dedup_keep_last_checksum_v1300_i",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/merge_dedup_keep_last_checksum_v1300_i/harness', 'executable_tasks/merge_dedup_keep_last_checksum_v1300_i/harness/benchmark_main.cpp', 'executable_tasks/merge_dedup_keep_last_checksum_v1300_i/candidate/qwen__qwen3.5-35b-a3b/solution.cpp', '-o', 'build/merge_dedup_keep_last_checksum_v1300_i/candidate/bench']' returned non-zero exit status 1."
+  }
+}

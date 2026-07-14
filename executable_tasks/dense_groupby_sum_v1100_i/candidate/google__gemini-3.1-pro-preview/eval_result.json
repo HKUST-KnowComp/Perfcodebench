@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_groupby_sum_v1100_i",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_groupby_sum_v1100_i/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstdint>\n#include <algorithm>\n\nnamespace {\n\n/**\n * Computes the FNV-1a style checksum over the aggregated sums.\n * The checksum is calculated for every group index from 0 to groups-1.\n */\ninline uint64_t compute_checksum(const std::vector<uint64_t>& agg, int groups) {\n    uint64_t hash = 1469598103934665603ULL;\n    const uint64_t prime = 1099511628211ULL;\n    for (int g = 0; g < groups; ++g) {\n        hash ^= agg[g];\n        hash *= prime;\n    }\n    return hash;\n}\n\n} // namespace\n\nuint64_t groupby_checksum(const std::vector<uint32_t>& keys, const std::vector<uint32_t>& values, int groups, int iters) {\n    if (groups <= 0) return 0;\n\n    // Use a contiguous vector for dense aggregation to ensure O(1) access and cache efficiency.\n    std::vector<uint64_t> agg(groups, 0);\n    uint64_t last_checksum = 0;\n    \n    const size_t n = keys.size();\n    const uint32_t* k_ptr = keys.data();\n    const uint32_t* v_ptr = values.data();\n\n    for (int iter = 0; iter < iters; ++iter) {\n        // Reset the aggregation buffer for each iteration.\n        std::fill(agg.begin(), agg.end(), 0);\n\n        // Perform the aggregation. \n        // Manual unrolling can help the compiler optimize the pipeline, \n        // though the bottleneck is typically the random-access write to 'agg'.\n        size_t i = 0;\n        for (; i + 3 < n; i += 4) {\n            agg[k_ptr[i]]   += v_ptr[i];\n            agg[k_ptr[i+1]] += v_ptr[i+1];\n            agg[k_ptr[i+2]] += v_ptr[i+2];\n            agg[k_ptr[i+3]] += v_ptr[i+3];\n        }\n        for (; i < n; ++i) {\n            agg[k_ptr[i]] += v_ptr[i];\n        }\n\n        // Compute the checksum for the current iteration's results.\n        last_checksum = compute_checksum(agg, groups);\n    }\n\n    return last_checksum;\n}\n",
+  "baseline": {
+    "task_id": "dense_groupby_sum_v1100_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 974547497,
+    "min_elapsed_ns": 969778430,
+    "max_elapsed_ns": 1038809427,
+    "all_elapsed_ns": [
+      974547497,
+      969778430,
+      1038809427
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 974547497,
+      "expected_checksum": 15876855194849887107,
+      "actual_checksum": 15876855194849887107
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_groupby_sum_v1100_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 206868808,
+    "min_elapsed_ns": 205302874,
+    "max_elapsed_ns": 210068625,
+    "all_elapsed_ns": [
+      205302874,
+      210068625,
+      206868808
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 205302874,
+      "expected_checksum": 15876855194849887107,
+      "actual_checksum": 15876855194849887107
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_groupby_sum_v1100_i",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 243628941,
+    "min_elapsed_ns": 237131488,
+    "max_elapsed_ns": 311823730,
+    "all_elapsed_ns": [
+      311823730,
+      243628941,
+      237131488
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 311823730,
+      "expected_checksum": 15876855194849887107,
+      "actual_checksum": 15876855194849887107
+    },
+    "status": "ok"
+  }
+}

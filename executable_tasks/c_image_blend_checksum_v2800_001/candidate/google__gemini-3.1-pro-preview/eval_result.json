@@ -1,0 +1,72 @@
+{
+  "task_id": "c_image_blend_checksum_v2800_001",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_image_blend_checksum_v2800_001/candidate/google__gemini-3.1-pro-preview/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n\n/**\n * Optimized blend function using fixed-point arithmetic to replace division by 255.\n * (s * a + d * (255 - a) + 127) / 255 is exactly equal to:\n * temp = s * a + d * (255 - a) + 128\n * result = (temp + (temp >> 8)) >> 8\n */\nstatic inline uint8_t blend_fast(uint32_t s, uint32_t d, uint32_t a) {\n    uint32_t t = s * a + d * (255u - a) + 0x80u;\n    return (uint8_t)((t + (t >> 8)) >> 8);\n}\n\n/**\n * FNV-1a constants\n */\n#define FNV_OFFSET_BASIS 1469598103934665603ULL\n#define FNV_PRIME 1099511628211ULL\n\nuint64_t run(const uint8_t* src, const uint8_t* dst, int width, int height, int iters) {\n    size_t pixels = (size_t)width * (size_t)height;\n    size_t total_bytes = pixels * 4;\n    uint64_t hash = 0;\n\n    // Allocate buffer once outside the iteration loop to avoid malloc/free overhead\n    uint8_t* out = (uint8_t*)malloc(total_bytes);\n    if (!out) return 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        // Process pixels in a single pass to maximize cache locality\n        // We blend and then checksum. \n        // Note: Compilers can often vectorize this loop if written cleanly.\n        for (size_t i = 0; i < pixels; ++i) {\n            size_t idx = i << 2;\n            uint32_t a = src[idx + 3];\n            \n            // Blend RGB channels\n            out[idx]     = blend_fast(src[idx],     dst[idx],     a);\n            out[idx + 1] = blend_fast(src[idx + 1], dst[idx + 1], a);\n            out[idx + 2] = blend_fast(src[idx + 2], dst[idx + 2], a);\n            // Alpha is always 255\n            out[idx + 3] = 255u;\n        }\n\n        // Compute FNV-1a checksum\n        uint64_t h = FNV_OFFSET_BASIS;\n        const uint8_t* p = out;\n        size_t n = total_bytes;\n        \n        // Unroll checksum loop slightly for performance\n        while (n >= 4) {\n            h ^= (uint64_t)p[0]; h *= FNV_PRIME;\n            h ^= (uint64_t)p[1]; h *= FNV_PRIME;\n            h ^= (uint64_t)p[2]; h *= FNV_PRIME;\n            h ^= (uint64_t)p[3]; h *= FNV_PRIME;\n            p += 4;\n            n -= 4;\n        }\n        while (n > 0) {\n            h ^= (uint64_t)*p++;\n            h *= FNV_PRIME;\n            n--;\n        }\n        hash = h;\n    }\n\n    free(out);\n    return hash;\n}",
+  "baseline": {
+    "task_id": "c_image_blend_checksum_v2800_001",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1207000,
+    "min_elapsed_ns": 1195000,
+    "max_elapsed_ns": 1216000,
+    "all_elapsed_ns": [
+      1207000,
+      1195000,
+      1216000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1207000,
+      "expected_checksum": 120814221177348444,
+      "actual_checksum": 120814221177348444
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_image_blend_checksum_v2800_001",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1199000,
+    "min_elapsed_ns": 1196000,
+    "max_elapsed_ns": 1268000,
+    "all_elapsed_ns": [
+      1268000,
+      1196000,
+      1199000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1268000,
+      "expected_checksum": 120814221177348444,
+      "actual_checksum": 120814221177348444
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_image_blend_checksum_v2800_001",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 1215000,
+    "min_elapsed_ns": 1205000,
+    "max_elapsed_ns": 1273000,
+    "all_elapsed_ns": [
+      1273000,
+      1205000,
+      1215000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1273000,
+      "expected_checksum": 120814221177348444,
+      "actual_checksum": 120814221177348444
+    },
+    "status": "ok"
+  }
+}

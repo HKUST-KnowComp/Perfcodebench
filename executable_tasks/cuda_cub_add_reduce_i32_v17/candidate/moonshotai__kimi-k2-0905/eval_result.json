@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v17",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v17/candidate/moonshotai__kimi-k2-0905/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cub/cub.cuh>\n\nnamespace {\nconstexpr int BLOCK_THREADS = 256;\nconstexpr int ITEMS_PER_THREAD = 4;\nconstexpr int TILE_SIZE = BLOCK_THREADS * ITEMS_PER_THREAD;\n\n__global__ void tile_reduce_kernel(const int* input, int* block_sums, int n) {\n    int tile_idx = blockIdx.x;\n    int tile_offset = tile_idx * TILE_SIZE;\n    int* tile_ptr = const_cast<int*>(input) + tile_offset;\n    int valid_items = (tile_offset + TILE_SIZE <= n) ? TILE_SIZE : (n - tile_offset);\n\n    int thread_data[ITEMS_PER_THREAD];\n    cub::LoadDirectStriped<BLOCK_THREADS>(threadIdx.x, tile_ptr, thread_data, valid_items, 0);\n\n    int thread_sum = 0;\n    #pragma unroll\n    for (int i = 0; i < ITEMS_PER_THREAD; ++i) thread_sum += thread_data[i];\n\n    typedef cub::BlockReduce<int, BLOCK_THREADS> BlockReduce;\n    __shared__ typename BlockReduce::TempStorage temp_storage;\n    int block_sum = BlockReduce(temp_storage).Sum(thread_sum);\n\n    if (threadIdx.x == 0) atomicAdd(block_sums + tile_idx, block_sum);\n}\n\n__global__ void final_reduce_kernel(const int* block_sums, int* output, int num_blocks) {\n    typedef cub::BlockReduce<int, BLOCK_THREADS> BlockReduce;\n    __shared__ typename BlockReduce::TempStorage temp_storage;\n    int thread_sum = 0;\n    for (int i = threadIdx.x; i < num_blocks; i += blockDim.x) thread_sum += block_sums[i];\n    int block_sum = BlockReduce(temp_storage).Sum(thread_sum);\n    if (threadIdx.x == 0) atomicAdd(output, block_sum);\n}\n} // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    int* d_out;\n    cudaMalloc(&d_out, sizeof(int));\n    int num_blocks = (n + TILE_SIZE - 1) / TILE_SIZE;\n    int* d_block_sums;\n    cudaMalloc(&d_block_sums, num_blocks * sizeof(int));\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemsetAsync(d_out, 0, sizeof(int));\n        cudaMemsetAsync(d_block_sums, 0, num_blocks * sizeof(int));\n        tile_reduce_kernel<<<num_blocks, BLOCK_THREADS>>>(input, d_block_sums, n);\n        final_reduce_kernel<<<1, BLOCK_THREADS>>>(d_block_sums, d_out, num_blocks);\n    }\n    cudaMemcpyAsync(output, d_out, sizeof(int), cudaMemcpyDeviceToHost);\n    cudaFree(d_block_sums);\n    cudaFree(d_out);\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v17",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 941856,
+    "min_elapsed_ns": 941024,
+    "max_elapsed_ns": 948032,
+    "all_elapsed_ns": [
+      941024,
+      941856,
+      948032
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 941024,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v17",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 400671,
+    "min_elapsed_ns": 350560,
+    "max_elapsed_ns": 466271,
+    "all_elapsed_ns": [
+      466271,
+      350560,
+      400671
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 466271,
+      "expected_sum": 3932160,
+      "actual_sum": 3932160
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v17",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v17/candidate/bench']' timed out after 5 seconds"
+  }
+}

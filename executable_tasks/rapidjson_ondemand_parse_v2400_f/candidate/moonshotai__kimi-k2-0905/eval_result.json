@@ -1,0 +1,59 @@
+{
+  "task_id": "rapidjson_ondemand_parse_v2400_f",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/rapidjson_ondemand_parse_v2400_f/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <rapidjson/reader.h>\n#include <rapidjson/error/en.h>\n#include <cstdint>\n#include <string>\n\nstruct Checker : public rapidjson::BaseReaderHandler<rapidjson::UTF8<>, Checker> {\n    uint64_t sum = 0;\n    enum State {\n        kExpectTopArray,\n        kInObject,\n        kExpectIdKey,\n        kReadIdValue,\n        kExpectNestedKey,\n        kInNested,\n        kExpectAKey,\n        kReadAValue,\n        kExpectBKey,\n        kReadBValue\n    } state = kExpectTopArray;\n\n    bool Uint64(uint64_t u) {\n        switch (state) {\n            case kReadIdValue:   sum += u; state = kExpectNestedKey; return true;\n            case kReadAValue:    sum += u; state = kExpectBKey;     return true;\n            case kReadBValue:    sum += u; state = kInObject;       return true;\n            default: return true;\n        }\n    }\n    bool Key(const char* str, rapidjson::SizeType len, bool) {\n        switch (state) {\n            case kExpectIdKey:\n                if (len == 2 && str[0] == 'i' && str[1] == 'd') state = kReadIdValue;\n                return true;\n            case kExpectNestedKey:\n                if (len == 6 && str[0] == 'n' && str[1] == 'e' && str[2] == 's' &&\n                    str[3] == 't' && str[4] == 'e' && str[5] == 'd') state = kInNested;\n                return true;\n            case kExpectAKey:\n                if (len == 1 && str[0] == 'a') state = kReadAValue;\n                return true;\n            case kExpectBKey:\n                if (len == 1 && str[0] == 'b') state = kReadBValue;\n                return true;\n            default: return true;\n        }\n    }\n    bool StartObject() {\n        if (state == kExpectTopArray) state = kInObject;\n        else if (state == kExpectNestedKey) state = kExpectAKey;\n        return true;\n    }\n    bool EndObject(rapidjson::SizeType) {\n        if (state == kInObject) state = kExpectTopArray;\n        else if (state == kInNested || state == kExpectAKey || state == kExpectBKey) state = kInObject;\n        return true;\n    }\n    bool StartArray() { return true; }\n    bool EndArray(rapidjson::SizeType) { return true; }\n};\n\nuint64_t compute_checksum(const std::string& json_input) {\n    Checker handler;\n    rapidjson::Reader reader;\n    rapidjson::StringStream ss(json_input.c_str());\n    reader.Parse(ss, handler);\n    return handler.sum;\n}",
+  "baseline": {
+    "task_id": "rapidjson_ondemand_parse_v2400_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 8946042,
+    "min_elapsed_ns": 8750745,
+    "max_elapsed_ns": 9156998,
+    "all_elapsed_ns": [
+      9156998,
+      8750745,
+      8946042
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9156998,
+      "expected_checksum": 126021000,
+      "actual_checksum": 126021000
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "rapidjson_ondemand_parse_v2400_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1407388,
+    "min_elapsed_ns": 1394922,
+    "max_elapsed_ns": 1586608,
+    "all_elapsed_ns": [
+      1586608,
+      1394922,
+      1407388
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1586608,
+      "expected_checksum": 126021000,
+      "actual_checksum": 126021000
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "rapidjson_ondemand_parse_v2400_f",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/rapidjson_ondemand_parse_v2400_f/candidate/bench']' returned non-zero exit status 1."
+  }
+}

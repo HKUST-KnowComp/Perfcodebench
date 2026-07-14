@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v06",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v06/candidate/gpt-5.4/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\n\n// Warp-level reduction using shuffle instructions.\n__device__ __forceinline__ int warp_reduce_sum(int v) {\n  unsigned mask = 0xffffffffu;\n  v += __shfl_down_sync(mask, v, 16);\n  v += __shfl_down_sync(mask, v, 8);\n  v += __shfl_down_sync(mask, v, 4);\n  v += __shfl_down_sync(mask, v, 2);\n  v += __shfl_down_sync(mask, v, 1);\n  return v;\n}\n\n// First stage: each block reduces a grid-stride chunk into one partial sum.\n__global__ void reduce_stage1_kernel(const int* __restrict__ input,\n                                     int* __restrict__ partials,\n                                     int n) {\n  int sum = 0;\n  int idx = static_cast<int>(blockIdx.x) * blockDim.x + threadIdx.x;\n  int stride = static_cast<int>(gridDim.x) * blockDim.x;\n\n  // Grid-stride loop with 4x unrolling to improve memory throughput.\n  int i = idx;\n  int limit4 = n - stride * 3;\n  for (; i < limit4; i += stride * 4) {\n    sum += input[i];\n    sum += input[i + stride];\n    sum += input[i + stride * 2];\n    sum += input[i + stride * 3];\n  }\n  for (; i < n; i += stride) {\n    sum += input[i];\n  }\n\n  // Block reduction via warp reductions + shared memory for warp leaders.\n  __shared__ int warp_sums[32];\n  int lane = threadIdx.x & 31;\n  int warp = threadIdx.x >> 5;\n\n  sum = warp_reduce_sum(sum);\n  if (lane == 0) warp_sums[warp] = sum;\n  __syncthreads();\n\n  int block_sum = 0;\n  if (warp == 0) {\n    int num_warps = blockDim.x >> 5;\n    block_sum = (lane < num_warps) ? warp_sums[lane] : 0;\n    block_sum = warp_reduce_sum(block_sum);\n    if (lane == 0) partials[blockIdx.x] = block_sum;\n  }\n}\n\n// Final stage: one block reduces the partial sums to a single output.\n__global__ void reduce_stage2_kernel(const int* __restrict__ partials,\n                                     int* __restrict__ output,\n                                     int n) {\n  int sum = 0;\n  for (int i = threadIdx.x; i < n; i += blockDim.x) {\n    sum += partials[i];\n  }\n\n  __shared__ int warp_sums[32];\n  int lane = threadIdx.x & 31;\n  int warp = threadIdx.x >> 5;\n\n  sum = warp_reduce_sum(sum);\n  if (lane == 0) warp_sums[warp] = sum;\n  __syncthreads();\n\n  if (warp == 0) {\n    int num_warps = blockDim.x >> 5;\n    int block_sum = (lane < num_warps) ? warp_sums[lane] : 0;\n    block_sum = warp_reduce_sum(block_sum);\n    if (lane == 0) *output = block_sum;\n  }\n}\n\n}  // namespace\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n  if (iters <= 0) return;\n\n  if (n <= 0) {\n    for (int iter = 0; iter < iters; ++iter) {\n      cudaMemset(output, 0, sizeof(int));\n    }\n    return;\n  }\n\n  int device = 0;\n  cudaGetDevice(&device);\n  cudaDeviceProp prop;\n  cudaGetDeviceProperties(&prop, device);\n\n  constexpr int block_size = 256;\n  int sm_count = prop.multiProcessorCount > 0 ? prop.multiProcessorCount : 1;\n\n  // Enough blocks to saturate the GPU without creating excessive partials.\n  int grid_size = sm_count * 8;\n  int max_blocks_for_n = (n + block_size - 1) / block_size;\n  if (grid_size > max_blocks_for_n) grid_size = max_blocks_for_n;\n  if (grid_size < 1) grid_size = 1;\n\n  int* partials = nullptr;\n  cudaMalloc(&partials, static_cast<size_t>(grid_size) * sizeof(int));\n\n  for (int iter = 0; iter < iters; ++iter) {\n    reduce_stage1_kernel<<<grid_size, block_size>>>(input, partials, n);\n    reduce_stage2_kernel<<<1, block_size>>>(partials, output, grid_size);\n  }\n\n  cudaFree(partials);\n}\n",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v06",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 8059967,
+    "min_elapsed_ns": 8051615,
+    "max_elapsed_ns": 8061440,
+    "all_elapsed_ns": [
+      8061440,
+      8059967,
+      8051615
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8061440,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v06",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 555136,
+    "min_elapsed_ns": 551648,
+    "max_elapsed_ns": 555935,
+    "all_elapsed_ns": [
+      555935,
+      555136,
+      551648
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 555935,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v06",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_cub_add_reduce_i32_v06/candidate/bench']' timed out after 5 seconds"
+  }
+}

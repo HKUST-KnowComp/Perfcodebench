@@ -1,0 +1,72 @@
+{
+  "task_id": "prefix_cache_block_lookup_v2200_f",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup_v2200_f/candidate/gpt-5.4/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nstatic inline uint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n}  // namespace\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t hash_space,\n    int iters) {\n  const std::size_t num_keys = sorted_cache_keys.size();\n  const std::size_t num_blocks = request_blocks.size();\n  const std::size_t num_offsets = request_offsets.size();\n\n  if (iters <= 0) {\n    return 0;\n  }\n\n  // Build a compact membership structure once and reuse across iterations.\n  // For dense/small hash spaces, a direct bitmap is fastest.\n  // Otherwise, use a sorted unique copy and perform galloping-aware lower_bound\n  // over the monotone request prefix scans.\n  const bool use_bitmap =\n      hash_space != 0 && static_cast<uint64_t>(hash_space) <= (static_cast<uint64_t>(num_keys) << 6);\n\n  std::vector<uint8_t> bitmap;\n  std::vector<uint32_t> keys;\n\n  if (use_bitmap) {\n    bitmap.assign(static_cast<std::size_t>(hash_space), static_cast<uint8_t>(0));\n    for (std::size_t i = 0; i < num_keys; ++i) {\n      const uint32_t k = sorted_cache_keys[i];\n      if (k < hash_space) bitmap[k] = 1;\n    }\n  } else {\n    keys = sorted_cache_keys;\n  }\n\n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n\n    for (std::size_t r = 0; r + 1 < num_offsets; ++r) {\n      int begin_i = request_offsets[r];\n      int end_i = request_offsets[r + 1];\n      if (begin_i >= end_i) {\n        hash = mix(hash, 0);\n        continue;\n      }\n\n      uint64_t prefix = 0;\n\n      if (use_bitmap) {\n        for (int i = begin_i; i < end_i; ++i) {\n          const uint32_t v = request_blocks[static_cast<std::size_t>(i)];\n          if (v >= hash_space || bitmap[v] == 0) break;\n          ++prefix;\n        }\n      } else {\n        const uint32_t* key_data = keys.data();\n        std::size_t lo = 0;\n        std::size_t hi = keys.size();\n\n        for (int i = begin_i; i < end_i; ++i) {\n          const uint32_t v = request_blocks[static_cast<std::size_t>(i)];\n\n          std::size_t pos = lo;\n          if (pos < hi && key_data[pos] < v) {\n            std::size_t step = 1;\n            std::size_t new_pos = pos + step;\n            while (new_pos < hi && key_data[new_pos] < v) {\n              pos = new_pos;\n              step <<= 1;\n              new_pos = pos + step;\n            }\n            std::size_t left = pos + 1;\n            std::size_t right = (new_pos < hi) ? new_pos : hi;\n            pos = static_cast<std::size_t>(std::lower_bound(key_data + left, key_data + right, v) - key_data);\n          } else {\n            pos = static_cast<std::size_t>(std::lower_bound(key_data + lo, key_data + hi, v) - key_data);\n          }\n\n          if (pos >= hi || key_data[pos] != v) break;\n          lo = pos;\n          ++prefix;\n        }\n      }\n\n      hash = mix(hash, prefix);\n    }\n  }\n\n  (void)num_blocks;\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup_v2200_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 319098450,
+    "min_elapsed_ns": 303485205,
+    "max_elapsed_ns": 322069854,
+    "all_elapsed_ns": [
+      319098450,
+      303485205,
+      322069854
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 319098450,
+      "expected_checksum": 11548637948046092892,
+      "actual_checksum": 11548637948046092892
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup_v2200_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 6670434,
+    "min_elapsed_ns": 6572324,
+    "max_elapsed_ns": 9203035,
+    "all_elapsed_ns": [
+      9203035,
+      6572324,
+      6670434
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9203035,
+      "expected_checksum": 11548637948046092892,
+      "actual_checksum": 11548637948046092892
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup_v2200_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 7570826,
+    "min_elapsed_ns": 7496126,
+    "max_elapsed_ns": 7975429,
+    "all_elapsed_ns": [
+      7496126,
+      7975429,
+      7570826
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7496126,
+      "expected_checksum": 11548637948046092892,
+      "actual_checksum": 11548637948046092892
+    },
+    "status": "ok"
+  }
+}

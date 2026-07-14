@@ -1,0 +1,72 @@
+{
+  "task_id": "simdutf_utf8_to_utf16_v1800_j",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdutf_utf8_to_utf16_v1800_j/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"simdutf.h\"\n#include <vector>\n#include <cstdint>\n\nnamespace {\n\n// Optimized FNV-1a style checksum for char16_t\ninline uint64_t checksum_utf16(const char16_t* data, size_t len) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (size_t i = 0; i < len; ++i) {\n        hash ^= static_cast<uint64_t>(data[i]);\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\n} // namespace\n\nuint64_t transcode_checksum(const std::string& input) {\n    if (input.empty()) {\n        return checksum_utf16(nullptr, 0);\n    }\n\n    // Pre-allocate buffer. UTF-16 size is at most input.size() * 2 (for surrogates) \n    // but usually input.size() for ASCII. simdutf handles the sizing/allocation logic \n    // efficiently if we provide a buffer or use its internal allocation.\n    // To minimize overhead, we use a vector and resize it.\n    \n    // We use simdutf's conversion which is significantly faster than scalar loops.\n    // Since we need to return a checksum over the exact sequence, we must ensure \n    // the conversion is correct. simdutf::convert_utf8_to_utf16 is highly optimized.\n    \n    size_t max_utf16_len = input.size(); // Heuristic, but we need to handle surrogates.\n    // A safe upper bound for UTF-16 code units is input.size() * 2 (worst case for 1-byte UTF8 to 2-byte UTF16)\n    // However, for valid UTF-8, the number of UTF-16 units is at most input.size().\n    // Actually, 1-byte UTF8 -> 1 UTF16, 2-byte UTF8 -> 1 UTF16, 3-byte UTF8 -> 1 UTF16, 4-byte UTF8 -> 2 UTF16.\n    // The maximum number of 16-bit units is indeed input.size() (e.g., all 1-byte chars).\n    // Wait, if input is 4-byte UTF8 (1 char), it produces 2 UTF16 units. \n    // So max units = input.size() * 2 is a safe upper bound.\n    \n    std::vector<char16_t> out(input.size() * 2);\n    size_t utf16_len = simdutf::convert_utf8_to_utf16(input.data(), input.size(), out.data());\n    \n    return checksum_utf16(out.data(), utf16_len);\n}",
+  "baseline": {
+    "task_id": "simdutf_utf8_to_utf16_v1800_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 7340887,
+    "min_elapsed_ns": 7222697,
+    "max_elapsed_ns": 7747784,
+    "all_elapsed_ns": [
+      7340887,
+      7222697,
+      7747784
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7340887,
+      "expected_checksum": 12561146795485615290,
+      "actual_checksum": 12561146795485615290
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdutf_utf8_to_utf16_v1800_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2859153,
+    "min_elapsed_ns": 2858998,
+    "max_elapsed_ns": 3224115,
+    "all_elapsed_ns": [
+      3224115,
+      2858998,
+      2859153
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3224115,
+      "expected_checksum": 12561146795485615290,
+      "actual_checksum": 12561146795485615290
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdutf_utf8_to_utf16_v1800_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 6032103,
+    "min_elapsed_ns": 5694250,
+    "max_elapsed_ns": 7822546,
+    "all_elapsed_ns": [
+      5694250,
+      6032103,
+      7822546
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5694250,
+      "expected_checksum": 12561146795485615290,
+      "actual_checksum": 12561146795485615290
+    },
+    "status": "ok"
+  }
+}

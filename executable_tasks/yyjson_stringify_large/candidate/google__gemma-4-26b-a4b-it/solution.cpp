@@ -1,0 +1,1 @@
+The solution uses yyjson's direct manipulation API to construct the JSON structure, which is much faster for large datasets than nlohmann::json. It iterates through the input vectors once, creating a yyjson_obj for each record and appending it to a yyjson_arr, then uses yyjson_doc_get_string to retrieve the minified result.

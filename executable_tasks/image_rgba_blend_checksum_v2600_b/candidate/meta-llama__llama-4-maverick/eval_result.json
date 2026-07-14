@@ -1,0 +1,59 @@
+{
+  "task_id": "image_rgba_blend_checksum_v2600_b",
+  "model": "meta-llama/llama-4-maverick",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/image_rgba_blend_checksum_v2600_b/candidate/meta-llama__llama-4-maverick/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <immintrin.h>\n\nnamespace {\n\nuint64_t checksum_bytes(const std::vector<uint8_t>& bytes) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint8_t b : bytes) {\n    hash ^= static_cast<uint64_t>(b);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\nvoid blend_pixels(uint8_t* out, const uint8_t* src, const uint8_t* dst, std::size_t pixels) {\n  const __m128i zero = _mm_setzero_si128();\n  const __m128i k255 = _mm_set1_epi16(255);\n  const __m128i k127 = _mm_set1_epi16(127);\n  const __m128i k1 = _mm_set1_epi16(1);\n  for (std::size_t i = 0; i < pixels; i += 4) {\n    __m128i s = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src + i * 4));\n    __m128i d = _mm_loadu_si128(reinterpret_cast<const __m128i*>(dst + i * 4));\n    __m128i alpha = _mm_shuffle_epi8(s, _mm_set_epi8(15, 15, 15, 15, 11, 11, 11, 11, 7, 7, 7, 7, 3, 3, 3, 3));\n    __m128i alpha_expanded = _mm_unpacklo_epi8(alpha, zero);\n    __m128i inv_alpha_expanded = _mm_sub_epi16(k255, alpha_expanded);\n    __m128i s_expanded = _mm_unpacklo_epi8(s, zero);\n    __m128i d_expanded = _mm_unpacklo_epi8(d, zero);\n    __m128i prod_s = _mm_mullo_epi16(s_expanded, alpha_expanded);\n    __m128i prod_d = _mm_mullo_epi16(d_expanded, inv_alpha_expanded);\n    __m128i sum = _mm_add_epi16(_mm_add_epi16(prod_s, prod_d), k127);\n    __m128i quotient = _mm_srli_epi16(_mm_add_epi16(sum, k1), 8);\n    __m128i result_lo = _mm_packus_epi16(quotient, zero);\n    \n    alpha_expanded = _mm_unpackhi_epi8(alpha, zero);\n    inv_alpha_expanded = _mm_sub_epi16(k255, alpha_expanded);\n    s_expanded = _mm_unpackhi_epi8(s, zero);\n    d_expanded = _mm_unpackhi_epi8(d, zero);\n    prod_s = _mm_mullo_epi16(s_expanded, alpha_expanded);\n    prod_d = _mm_mullo_epi16(d_expanded, inv_alpha_expanded);\n    sum = _mm_add_epi16(_mm_add_epi16(prod_s, prod_d), k127);\n    quotient = _mm_srli_epi16(_mm_add_epi16(sum, k1), 8);\n    __m128i result_hi = _mm_packus_epi16(quotient, zero);\n    __m128i result = _mm_or_si128(_mm_slli_si128(result_hi, 8), result_lo);\n    _mm_storeu_si128(reinterpret_cast<__m128i*>(out + i * 4), result);\n    out[i * 4 + 3] = 255;\n    out[i * 4 + 7] = 255;\n    out[i * 4 + 11] = 255;\n    out[i * 4 + 15] = 255;\n  }\n}\n\n}  // namespace\n\nuint64_t blend_checksum(\n    const std::vector<uint8_t>& src,\n    const std::vector<uint8_t>& dst,\n    int width,\n    int height,\n    int iters) {\n  (void)width;\n  (void)height;\n  const std::size_t pixels = src.size() / 4u;\n  std::vector<uint8_t> out(src.size());\n  uint64_t hash = 0;\n  for (int iter = 0; iter < iters; ++iter) {\n    blend_pixels(out.data(), src.data(), dst.data(), pixels);\n    hash = checksum_bytes(out);\n  }\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "image_rgba_blend_checksum_v2600_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 13355900,
+    "min_elapsed_ns": 12144257,
+    "max_elapsed_ns": 14006015,
+    "all_elapsed_ns": [
+      14006015,
+      12144257,
+      13355900
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 14006015,
+      "expected_checksum": 8961227291574611277,
+      "actual_checksum": 8961227291574611277
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "image_rgba_blend_checksum_v2600_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 11150311,
+    "min_elapsed_ns": 11027362,
+    "max_elapsed_ns": 11867048,
+    "all_elapsed_ns": [
+      11027362,
+      11867048,
+      11150311
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 11027362,
+      "expected_checksum": 8961227291574611277,
+      "actual_checksum": 8961227291574611277
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "image_rgba_blend_checksum_v2600_b",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/image_rgba_blend_checksum_v2600_b/harness', 'executable_tasks/image_rgba_blend_checksum_v2600_b/harness/benchmark_main.cpp', 'executable_tasks/image_rgba_blend_checksum_v2600_b/candidate/meta-llama__llama-4-maverick/solution.cpp', '-o', 'build/image_rgba_blend_checksum_v2600_b/candidate/bench']' returned non-zero exit status 1."
+  }
+}

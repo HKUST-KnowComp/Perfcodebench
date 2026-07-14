@@ -1,0 +1,59 @@
+{
+  "task_id": "c_topk_selection_checksum_v3400_018",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_topk_selection_checksum_v3400_018/candidate/moonshotai__kimi-k2-0905/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n\ntypedef struct {\n    uint32_t score;\n    uint32_t index;\n} Pair;\n\nstatic inline int cmp_pair_desc_indexed(const void *lhs, const void *rhs) {\n    const Pair *a = (const Pair *)lhs;\n    const Pair *b = (const Pair *)rhs;\n    if (a->score < b->score) return 1;\n    if (a->score > b->score) return -1;\n    if (a->index < b->index) return -1;\n    if (a->index > b->index) return 1;\n    return 0;\n}\n\n/* Lomuto-style partitioning: returns final pivot index */\nstatic size_t partition(Pair *arr, size_t left, size_t right, size_t pivot_idx) {\n    Pair pivot = arr[pivot_idx];\n    Pair tmp;\n    tmp = arr[pivot_idx];\n    arr[pivot_idx] = arr[right];\n    arr[right] = tmp;\n\n    size_t i = left;\n    for (size_t j = left; j < right; ++j) {\n        /* score dominates; indices break ties; want bigger at left */\n        if (arr[j].score > pivot.score ||\n            (arr[j].score == pivot.score && arr[j].index < pivot.index)) {\n            tmp = arr[i];\n            arr[i] = arr[j];\n            arr[j] = tmp;\n            i++;\n        }\n    }\n    tmp = arr[i];\n    arr[i] = arr[right];\n    arr[right] = tmp;\n    return i;\n}\n\n/* Iterative quickselect: brings the k-th largest into arr[k], every item >= k left of k */\nstatic void quickselect(Pair *arr, size_t l, size_t r, size_t k) {\n    while (l < r) {\n        size_t pivot = l + ((r - l) >> 1);\n        size_t p = partition(arr, l, r, pivot);\n        if (p == k) return;\n        if (p > k) r = p - 1;\n        else l = p + 1;\n    }\n}\n\nuint64_t run(const uint32_t *scores, size_t n, int k, int iters) {\n    Pair *pairs = (Pair *)malloc(n * sizeof(Pair));\n    if (!pairs) return 0;\n\n    uint64_t h = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        /* build the data */\n        for (size_t i = 0; i < n; ++i) {\n            pairs[i].score = scores[i];\n            pairs[i].index = (uint32_t)i;\n        }\n\n        /* select the k best into first k positions */\n        quickselect(pairs, 0, n - 1, k - 1);\n        /* sort those first k (k is tiny) */\n        qsort(pairs, k, sizeof(Pair), cmp_pair_desc_indexed);\n\n        /* hash in order */\n        h = 14695981039346656037ULL;\n        for (int i = 0; i < k; ++i) {\n            h ^= ((uint64_t)pairs[i].score << 32) | pairs[i].index;\n            h *= 1099511628211ULL;\n        }\n    }\n    free(pairs);\n    return h;\n}",
+  "baseline": {
+    "task_id": "c_topk_selection_checksum_v3400_018",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 370075000,
+    "min_elapsed_ns": 369103000,
+    "max_elapsed_ns": 372128000,
+    "all_elapsed_ns": [
+      370075000,
+      372128000,
+      369103000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 370075000,
+      "expected_checksum": 17415883983537559954,
+      "actual_checksum": 17415883983537559954
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_topk_selection_checksum_v3400_018",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2253000,
+    "min_elapsed_ns": 2249000,
+    "max_elapsed_ns": 2259000,
+    "all_elapsed_ns": [
+      2253000,
+      2249000,
+      2259000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2253000,
+      "expected_checksum": 17415883983537559954,
+      "actual_checksum": 17415883983537559954
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_topk_selection_checksum_v3400_018",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/c_topk_selection_checksum_v3400_018/candidate/bench']' returned non-zero exit status 1."
+  }
+}

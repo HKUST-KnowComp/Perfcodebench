@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_csr_spmv_v1600_b",
+  "model": "deepseek-v4-pro",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_csr_spmv_v1600_b/candidate/deepseek-v4-pro/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nnamespace {\n\nuint64_t checksum_i64(const std::vector<int64_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (int64_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t csr_spmv_checksum(\n    const std::vector<int>& row_ptr,\n    const std::vector<int>& col_idx,\n    const std::vector<int32_t>& values,\n    const std::vector<int32_t>& dense,\n    int rows,\n    int iters) {\n  std::vector<int64_t> out(static_cast<std::size_t>(rows), 0);\n  const int* const ptr_row_ptr = row_ptr.data();\n  const int* const ptr_col_idx = col_idx.data();\n  const int32_t* const ptr_values = values.data();\n  const int32_t* const ptr_dense = dense.data();\n  int64_t* const ptr_out = out.data();\n\n  #pragma omp parallel\n  {\n    for (int iter = 0; iter < iters; ++iter) {\n      #pragma omp for schedule(static)\n      for (int row = 0; row < rows; ++row) {\n        int64_t sum = 0;\n        const int start = ptr_row_ptr[row];\n        const int end = ptr_row_ptr[row + 1];\n        for (int idx = start; idx < end; ++idx) {\n          sum += static_cast<int64_t>(ptr_values[idx]) *\n                 static_cast<int64_t>(ptr_dense[ptr_col_idx[idx]]);\n        }\n        ptr_out[row] = sum;\n      }\n      // implicit barrier synchronizes threads before next iteration\n    }\n  }\n\n  return checksum_i64(out);\n}\n",
+  "baseline": {
+    "task_id": "openmp_csr_spmv_v1600_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1109513,
+    "min_elapsed_ns": 1107190,
+    "max_elapsed_ns": 1147138,
+    "all_elapsed_ns": [
+      1109513,
+      1147138,
+      1107190
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1109513,
+      "expected_checksum": 14092959161689800236,
+      "actual_checksum": 14092959161689800236
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_csr_spmv_v1600_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2052960,
+    "min_elapsed_ns": 910252,
+    "max_elapsed_ns": 4257020,
+    "all_elapsed_ns": [
+      910252,
+      2052960,
+      4257020
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 910252,
+      "expected_checksum": 14092959161689800236,
+      "actual_checksum": 14092959161689800236
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_csr_spmv_v1600_b",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 117792193,
+    "min_elapsed_ns": 79468891,
+    "max_elapsed_ns": 152323596,
+    "all_elapsed_ns": [
+      79468891,
+      152323596,
+      117792193
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 79468891,
+      "expected_checksum": 14092959161689800236,
+      "actual_checksum": 14092959161689800236
+    },
+    "status": "ok"
+  }
+}

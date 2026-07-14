@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_jacobi_2d_v1400_a",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v1400_a/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  const size_t total = static_cast<size_t>(rows) * static_cast<size_t>(cols);\n  const size_t cols_sz = static_cast<size_t>(cols);\n  \n  std::vector<uint32_t> a = input;\n  std::vector<uint32_t> b(total);\n  \n  uint32_t* __restrict src = a.data();\n  uint32_t* __restrict dst = b.data();\n  \n  for (int step = 0; step < steps; ++step) {\n    // Copy boundary rows (top and bottom)\n    #pragma omp parallel for schedule(static)\n    for (size_t col = 0; col < cols_sz; ++col) {\n      dst[col] = src[col];\n      dst[(rows - 1) * cols_sz + col] = src[(rows - 1) * cols_sz + col];\n    }\n    \n    // Process interior rows with boundary columns\n    #pragma omp parallel for schedule(static)\n    for (int row = 1; row < rows - 1; ++row) {\n      const size_t row_off = static_cast<size_t>(row) * cols_sz;\n      const size_t row_above = row_off - cols_sz;\n      const size_t row_below = row_off + cols_sz;\n      \n      // Left boundary\n      dst[row_off] = src[row_off];\n      // Right boundary\n      dst[row_off + cols_sz - 1] = src[row_off + cols_sz - 1];\n      \n      // Interior columns - main computation\n      for (size_t col = 1; col < cols_sz - 1; ++col) {\n        const size_t idx = row_off + col;\n        dst[idx] = (src[idx] * 4u + src[idx - 1] + src[idx + 1] +\n                    src[row_above + col] + src[row_below + col]) / 8u;\n      }\n    }\n    \n    // Swap pointers\n    uint32_t* tmp = src;\n    src = dst;\n    dst = tmp;\n  }\n  \n  // Compute checksum - parallelized with reduction\n  // Use thread-local hashing then combine\n  const int max_threads = omp_get_max_threads();\n  std::vector<uint64_t> partial_hashes(max_threads, 1469598103934665603ULL);\n  \n  #pragma omp parallel\n  {\n    const int tid = omp_get_thread_num();\n    const int nthreads = omp_get_num_threads();\n    \n    const size_t chunk = (total + nthreads - 1) / nthreads;\n    const size_t start = static_cast<size_t>(tid) * chunk;\n    const size_t end = (start + chunk < total) ? start + chunk : total;\n    \n    uint64_t hash = 1469598103934665603ULL;\n    for (size_t i = start; i < end; ++i) {\n      hash ^= static_cast<uint64_t>(src[i]);\n      hash *= 1099511628211ULL;\n    }\n    partial_hashes[tid] = hash;\n  }\n  \n  // Sequential combination - must preserve order for correctness\n  // Actually, we need to compute the hash in exact sequential order\n  // So we compute sequentially but can still benefit from cache prefetch\n  uint64_t hash = 1469598103934665603ULL;\n  for (size_t i = 0; i < total; ++i) {\n    hash ^= static_cast<uint64_t>(src[i]);\n    hash *= 1099511628211ULL;\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v1400_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 147214021,
+    "min_elapsed_ns": 138779616,
+    "max_elapsed_ns": 246616605,
+    "all_elapsed_ns": [
+      147214021,
+      246616605,
+      138779616
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 147214021,
+      "expected_checksum": 10724555928738317727,
+      "actual_checksum": 10724555928738317727
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v1400_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 41134218,
+    "min_elapsed_ns": 33363315,
+    "max_elapsed_ns": 132252912,
+    "all_elapsed_ns": [
+      132252912,
+      41134218,
+      33363315
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 132252912,
+      "expected_checksum": 10724555928738317727,
+      "actual_checksum": 10724555928738317727
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v1400_a",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-fopenmp', '-Iexecutable_tasks/openmp_jacobi_2d_v1400_a/harness', 'executable_tasks/openmp_jacobi_2d_v1400_a/harness/benchmark_main.cpp', 'executable_tasks/openmp_jacobi_2d_v1400_a/candidate/claude-opus-4.5/solution.cpp', '-o', 'build/openmp_jacobi_2d_v1400_a/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "c_image_blend_checksum_v2800_110",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_image_blend_checksum_v2800_110/candidate/google__gemma-4-26b-a4b-it/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <stdlib.h>\n\n// Optimized blend using the fast integer approximation for division by 255:\n// (x + 1 + (x >> 8)) >> 8 is a common trick, but for the specific formula\n// (s*a + d*(255-a) + 127) / 255, we can use the property that \n// x/255 \u2248 (x + 1 + (x >> 8)) >> 8. \n// However, to ensure exact correctness with the original (x + 127) / 255,\n// we use the identity: (val + 127) / 255 \u2248 (val + 127 + (val + 127) >> 8) >> 8.\n// Actually, the most robust way to match the exact integer division is to use \n// the bitwise approximation: (x + 1 + (x >> 8)) >> 8 for x/255.\n// Let's use the direct math to ensure the checksum matches exactly.\n\nstatic inline uint8_t blend_byte_fast(uint8_t s, uint8_t d, uint8_t a) {\n    uint32_t val = (uint32_t)s * a + (uint32_t)d * (255u - a) + 127u;\n    return (uint8_t)(val / 255u);\n}\n\nstatic uint64_t checksum_bytes(const uint8_t* data, size_t n) {\n    uint64_t hash = 1469598103934665603ULL;\n    for (size_t i = 0; i < n; ++i) {\n        hash ^= (uint64_t)data[i];\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\nuint64_t run(const uint8_t* src, const uint8_t* dst, int width, int height, int iters) {\n    (void)width;\n    (void)height;\n    size_t num_bytes = (size_t)width * (size_t)height * 4u;\n    uint64_t hash = 0;\n    \n    uint8_t* out = (uint8_t*)malloc(num_bytes);\n    if (!out) return 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        for (size_t i = 0; i < num_bytes; i += 4) {\n            uint32_t a = src[i + 3];\n            uint32_t inv_a = 255u - a;\n            \n            // Unrolling and using local variables to help compiler vectorize\n            uint32_t s0 = src[i];\n            uint32_t d0 = dst[i];\n            out[i] = (uint8_t)((s0 * a + d0 * inv_a + 127u) / 255u);\n\n            uint32_t s1 = src[i + 1];\n            uint32_t d1 = dst[i + 1];\n            out[i + 1] = (uint8_t)((s1 * a + d1 * inv_a + 127u) / 255u);\n\n            uint32_t s2 = src[i + 2];\n            uint32_t d2 = dst[i + 2];\n            out[i + 2] = (uint8_t)((s2 * a + d2 * inv_a + 127u) / 255u);\n\n            out[i + 3] = 255u;\n        }\n        hash = checksum_bytes(out, num_bytes);\n    }\n\n    free(out);\n    return hash;\n}",
+  "baseline": {
+    "task_id": "c_image_blend_checksum_v2800_110",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 9046000,
+    "min_elapsed_ns": 8912000,
+    "max_elapsed_ns": 9063000,
+    "all_elapsed_ns": [
+      9046000,
+      9063000,
+      8912000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9046000,
+      "expected_checksum": 2387562452152287338,
+      "actual_checksum": 2387562452152287338
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_image_blend_checksum_v2800_110",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8845000,
+    "min_elapsed_ns": 8797000,
+    "max_elapsed_ns": 8965000,
+    "all_elapsed_ns": [
+      8965000,
+      8797000,
+      8845000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8965000,
+      "expected_checksum": 2387562452152287338,
+      "actual_checksum": 2387562452152287338
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_image_blend_checksum_v2800_110",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 9053000,
+    "min_elapsed_ns": 9003000,
+    "max_elapsed_ns": 9189000,
+    "all_elapsed_ns": [
+      9003000,
+      9053000,
+      9189000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9003000,
+      "expected_checksum": 2387562452152287338,
+      "actual_checksum": 2387562452152287338
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "simdutf_base64_decode_v2500_b",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdutf_base64_decode_v2500_b/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <simdutf.h>\n#include <cstdint>\n\nextern \"C\" uint64_t decode_checksum(const std::string& input) {\n    // Fast length check without the need to decode the entire body\n    const size_t inputLen = input.size();\n    size_t outLen = 0;\n    bool success = simdutf::base64_to_binary(\n                       input.data(),\n                       inputLen,\n                       nullptr, // NULL destination triggers fast path\n                       simdutf::decode_base64_options_input_is_binary,\n                       simdutf::base64_default,\n                       &outLen);\n    (void)(success);\n\n    // Pre-allocate exact destination size\n    uint8_t* dst = new uint8_t[outLen];\n\n    // Actual SIMD\u2010accelerated base64 decode\n    size_t written = simdutf::base64_to_binary(\n                         reinterpret_cast<const char*>(input.data()),\n                         inputLen,\n                         reinterpret_cast<char*>(dst),\n                         simdutf::decode_base64_options_input_is_binary,\n                         simdutf::base64_default);\n\n    // Rolling 64-bit FNV-1a checksum\n    uint64_t hash = 14695981039346656037ULL;\n    const uint8_t* end = dst + written;\n    for (uint8_t* p = dst; p != end; ++p) {\n        hash ^= *p;\n        hash *= 1099511628211ULL;\n    }\n\n    delete[] dst;\n    return hash;\n}",
+  "baseline": {
+    "task_id": "simdutf_base64_decode_v2500_b",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 111598368,
+    "min_elapsed_ns": 111017616,
+    "max_elapsed_ns": 113530347,
+    "all_elapsed_ns": [
+      111598368,
+      113530347,
+      111017616
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 111598368,
+      "expected_checksum": 10535267254338843388,
+      "actual_checksum": 10535267254338843388
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdutf_base64_decode_v2500_b",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 23381152,
+    "min_elapsed_ns": 22751897,
+    "max_elapsed_ns": 23707540,
+    "all_elapsed_ns": [
+      23381152,
+      22751897,
+      23707540
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 23381152,
+      "expected_checksum": 10535267254338843388,
+      "actual_checksum": 10535267254338843388
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdutf_base64_decode_v2500_b",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/simdutf_base64_decode_v2500_b/harness', '-Iexternal/simdutf/singleheader', 'executable_tasks/simdutf_base64_decode_v2500_b/harness/benchmark_main.cpp', 'executable_tasks/simdutf_base64_decode_v2500_b/candidate/moonshotai__kimi-k2-0905/solution.cpp', 'external/simdutf/singleheader/simdutf.cpp', '-o', 'build/simdutf_base64_decode_v2500_b/candidate/bench']' returned non-zero exit status 1."
+  }
+}

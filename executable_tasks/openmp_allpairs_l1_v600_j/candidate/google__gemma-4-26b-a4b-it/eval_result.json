@@ -1,0 +1,72 @@
+{
+  "task_id": "openmp_allpairs_l1_v600_j",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_allpairs_l1_v600_j/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n#include <vector>\n#include <algorithm>\n#include <omp.h>\n\n/**\n * Computes the sum of all pairwise absolute differences for a single dimension.\n * The sum of |x_i - x_j| for all i < j is equivalent to sorting the array\n * and using the prefix sum property.\n */\nstatic int64_t compute_dim_sum(std::vector<int32_t> coords) {\n    size_t n = coords.size();\n    if (n < 2) return 0;\n\n    std::sort(coords.begin(), coords.end());\n\n    int64_t dim_sum = 0;\n    for (size_t i = 0; i < n; ++i) {\n        // Each element coords[i] is added i times and subtracted (n - 1 - i) times\n        dim_sum += static_cast<int64_t>(coords[i]) * (static_cast<int64_t>(i) - static_cast<int64_t>(n - 1 - i));\n    }\n    return dim_sum;\n}\n\nint64_t allpairs_l1_sum(const std::vector<int32_t>& xs, const std::vector<int32_t>& ys, int iters) {\n    if (xs.empty()) return 0;\n\n    // Pre-calculate the sum for X and Y once, as they are constant across iterations.\n    // We use copies because compute_dim_sum sorts the vector.\n    int64_t x_sum = 0;\n    int64_t y_sum = 0;\n\n    #pragma omp parallel sections\n    {\n        #pragma omp section\n        {\n            std::vector<int32_t> x_copy = xs;\n            x_sum = compute_dim_sum(x_copy);\n        }\n        #pragma omp section\n        {\n            std::vector<int32_t> y_copy = ys;\n            y_sum = compute_dim_sum(y_copy);\n        }\n    }\n\n    int64_t single_iter_sum = x_sum + y_sum;\n    \n    // The original code accumulates the sum over 'iters' iterations.\n    // Note: The baseline code resets 'total = 0' inside the loop but returns the final 'total'.\n    // However, looking closely at the baseline: \n    // 'total = 0;' is inside the 'iter' loop, so it actually only returns the result of the LAST iteration.\n    // Wait, let's re-read the baseline carefully:\n    /*\n    for (int iter = 0; iter < iters; ++iter) {\n      total = 0;\n      for (std::size_t i = 0; i < xs.size(); ++i) {\n        for (std::size_t j = i + 1; j < xs.size(); ++j) {\n          total += ...\n        }\n      }\n    }\n    return total;\n    */\n    // The baseline code resets 'total' to 0 at the start of EVERY iteration. \n    // Therefore, the return value is simply the result of the very last iteration.\n    // To preserve correctness (matching the baseline's behavior), we return single_iter_sum.\n    // If the baseline intended to accumulate, it would not have 'total = 0' inside the loop.\n    \n    return single_iter_sum;\n}",
+  "baseline": {
+    "task_id": "openmp_allpairs_l1_v600_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 33358369,
+    "min_elapsed_ns": 31902445,
+    "max_elapsed_ns": 34607063,
+    "all_elapsed_ns": [
+      31902445,
+      33358369,
+      34607063
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 31902445,
+      "expected_sum": 11453235200,
+      "actual_sum": 11453235200
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_allpairs_l1_v600_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8495930,
+    "min_elapsed_ns": 7445710,
+    "max_elapsed_ns": 11607234,
+    "all_elapsed_ns": [
+      7445710,
+      11607234,
+      8495930
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 7445710,
+      "expected_sum": 11453235200,
+      "actual_sum": 11453235200
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_allpairs_l1_v600_j",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 41501258,
+    "min_elapsed_ns": 33717710,
+    "max_elapsed_ns": 62531649,
+    "all_elapsed_ns": [
+      62531649,
+      41501258,
+      33717710
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 62531649,
+      "expected_sum": 11453235200,
+      "actual_sum": 11453235200
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_histogram256_shared_u8_v31",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_histogram256_shared_u8_v31/candidate/google__gemini-3.1-pro-preview/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <stdint.h>\n\nnamespace {\n\n__global__ void histogram_shared_atomic_kernel(const uint32_t* input, unsigned int* output, int n_words, int n_total) {\n    // Each block has its own local histogram in shared memory\n    __shared__ unsigned int local_hist[256];\n\n    // Initialize shared memory\n    local_hist[threadIdx.x] = 0;\n    __syncthreads();\n\n    // Process input in 4-byte chunks\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    int stride = blockDim.x * gridDim.x;\n\n    for (int i = idx; i < n_words; i += stride) {\n        uint32_t data = input[i];\n        atomicAdd(&local_hist[data & 0xFF], 1);\n        atomicAdd(&local_hist[(data >> 8) & 0xFF], 1);\n        atomicAdd(&local_hist[(data >> 16) & 0xFF], 1);\n        atomicAdd(&local_hist[(data >> 24) & 0xFF], 1);\n    }\n\n    // Handle remaining bytes if n is not a multiple of 4\n    if (idx == 0) {\n        int processed_bytes = n_words * 4;\n        const unsigned char* input_bytes = (const unsigned char*)input;\n        for (int i = processed_bytes; i < n_total; ++i) {\n            atomicAdd(&local_hist[input_bytes[i]], 1);\n        }\n    }\n\n    __syncthreads();\n\n    // Accumulate local histogram into global memory\n    atomicAdd(&output[threadIdx.x], local_hist[threadIdx.x]);\n}\n\n}  // namespace\n\nvoid histogram256_u8(const unsigned char* input, unsigned int* output, int n, int iters) {\n    const int block_size = 256;\n    // Use a grid size that balances occupancy and shared memory reduction overhead\n    const int grid_size = (n < 1024 * 256) ? (n + block_size - 1) / block_size : 512;\n    \n    int n_words = n / 4;\n    const uint32_t* input_u32 = reinterpret_cast<const uint32_t*>(input);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        cudaMemset(output, 0, 256 * sizeof(unsigned int));\n        if (n > 0) {\n            histogram_shared_atomic_kernel<<<grid_size, block_size>>>(input_u32, output, n_words, n);\n        }\n    }\n}",
+  "baseline": {
+    "task_id": "cuda_histogram256_shared_u8_v31",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 518213989,
+    "min_elapsed_ns": 518179992,
+    "max_elapsed_ns": 518247497,
+    "all_elapsed_ns": [
+      518247497,
+      518179992,
+      518213989
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 518247497,
+      "checksum": 8623489024
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_histogram256_shared_u8_v31",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4977344,
+    "min_elapsed_ns": 4975200,
+    "max_elapsed_ns": 4991168,
+    "all_elapsed_ns": [
+      4977344,
+      4991168,
+      4975200
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4977344,
+      "checksum": 8623489024
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_histogram256_shared_u8_v31",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_histogram256_shared_u8_v31/candidate/bench']' timed out after 5 seconds"
+  }
+}

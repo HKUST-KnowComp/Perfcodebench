@@ -1,0 +1,57 @@
+{
+  "task_id": "cuda_exclusive_scan_cub_i32_v27",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_exclusive_scan_cub_i32_v27/candidate/gpt-5.4/solution.cu",
+  "benchmark_timeout_sec": 39,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\n#ifndef WARP_SIZE\n#define WARP_SIZE 32\n#endif\n\n__device__ __forceinline__ int warp_exclusive_scan(int v, unsigned mask = 0xffffffffu) {\n  int x = v;\n  #pragma unroll\n  for (int offset = 1; offset < WARP_SIZE; offset <<= 1) {\n    int y = __shfl_up_sync(mask, x, offset);\n    if ((threadIdx.x & (WARP_SIZE - 1)) >= offset) x += y;\n  }\n  return x - v;\n}\n\n__global__ void block_scan_kernel(const int* __restrict__ input,\n                                  int* __restrict__ output,\n                                  int* __restrict__ block_sums,\n                                  int n) {\n  __shared__ int warp_totals[32];\n\n  const int gid = blockIdx.x * blockDim.x + threadIdx.x;\n  const int lane = threadIdx.x & (WARP_SIZE - 1);\n  const int warp = threadIdx.x >> 5;\n  const int warps_per_block = blockDim.x >> 5;\n\n  int v = (gid < n) ? input[gid] : 0;\n  int excl = warp_exclusive_scan(v);\n  int incl = excl + v;\n\n  if (lane == WARP_SIZE - 1) warp_totals[warp] = incl;\n  __syncthreads();\n\n  int warp_prefix = 0;\n  if (warp == 0) {\n    int t = (lane < warps_per_block) ? warp_totals[lane] : 0;\n    int e = warp_exclusive_scan(t);\n    if (lane < warps_per_block) warp_totals[lane] = e;\n  }\n  __syncthreads();\n\n  warp_prefix = warp_totals[warp];\n  if (gid < n) output[gid] = excl + warp_prefix;\n\n  if (threadIdx.x == blockDim.x - 1) {\n    block_sums[blockIdx.x] = warp_prefix + incl;\n  }\n}\n\n__global__ void add_offsets_kernel(int* __restrict__ output,\n                                   const int* __restrict__ block_offsets,\n                                   int n) {\n  const int gid = blockIdx.x * blockDim.x + threadIdx.x;\n  if (gid < n) {\n    output[gid] += block_offsets[blockIdx.x];\n  }\n}\n\n__global__ void single_block_exclusive_scan_kernel(const int* __restrict__ input,\n                                                   int* __restrict__ output,\n                                                   int n) {\n  __shared__ int warp_totals[32];\n  const int tid = threadIdx.x;\n  const int lane = tid & (WARP_SIZE - 1);\n  const int warp = tid >> 5;\n  const int warps_per_block = blockDim.x >> 5;\n\n  int v = (tid < n) ? input[tid] : 0;\n  int excl = warp_exclusive_scan(v);\n  int incl = excl + v;\n\n  if (lane == WARP_SIZE - 1) warp_totals[warp] = incl;\n  __syncthreads();\n\n  if (warp == 0) {\n    int t = (lane < warps_per_block) ? warp_totals[lane] : 0;\n    int e = warp_exclusive_scan(t);\n    if (lane < warps_per_block) warp_totals[lane] = e;\n  }\n  __syncthreads();\n\n  if (tid < n) output[tid] = excl + warp_totals[warp];\n}\n\n}  // namespace\n\nvoid exclusive_scan_i32(const int* input, int* output, int n, int iters) {\n  if (iters <= 0 || n <= 0) return;\n\n  constexpr int BLOCK = 256;\n\n  if (n <= BLOCK) {\n    for (int iter = 0; iter < iters; ++iter) {\n      single_block_exclusive_scan_kernel<<<1, BLOCK>>>(input, output, n);\n    }\n    return;\n  }\n\n  const int num_blocks = (n + BLOCK - 1) / BLOCK;\n\n  int* d_block_sums = nullptr;\n  int* d_block_offsets = nullptr;\n  cudaMalloc(&d_block_sums, static_cast<size_t>(num_blocks) * sizeof(int));\n  cudaMalloc(&d_block_offsets, static_cast<size_t>(num_blocks) * sizeof(int));\n\n  if (num_blocks <= BLOCK) {\n    for (int iter = 0; iter < iters; ++iter) {\n      block_scan_kernel<<<num_blocks, BLOCK>>>(input, output, d_block_sums, n);\n      single_block_exclusive_scan_kernel<<<1, BLOCK>>>(d_block_sums, d_block_offsets, num_blocks);\n      add_offsets_kernel<<<num_blocks, BLOCK>>>(output, d_block_offsets, n);\n    }\n  } else {\n    int* h_block_sums = new int[num_blocks];\n    int* h_block_offsets = new int[num_blocks];\n\n    for (int iter = 0; iter < iters; ++iter) {\n      block_scan_kernel<<<num_blocks, BLOCK>>>(input, output, d_block_sums, n);\n      cudaMemcpy(h_block_sums, d_block_sums, static_cast<size_t>(num_blocks) * sizeof(int), cudaMemcpyDeviceToHost);\n      int running = 0;\n      for (int i = 0; i < num_blocks; ++i) {\n        h_block_offsets[i] = running;\n        running += h_block_sums[i];\n      }\n      cudaMemcpy(d_block_offsets, h_block_offsets, static_cast<size_t>(num_blocks) * sizeof(int), cudaMemcpyHostToDevice);\n      add_offsets_kernel<<<num_blocks, BLOCK>>>(output, d_block_offsets, n);\n    }\n\n    delete[] h_block_sums;\n    delete[] h_block_offsets;\n  }\n\n  cudaFree(d_block_sums);\n  cudaFree(d_block_offsets);\n}\n",
+  "baseline": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v27",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 20915644531,
+    "min_elapsed_ns": 20912220703,
+    "max_elapsed_ns": 21034119140,
+    "all_elapsed_ns": [
+      20915644531,
+      21034119140,
+      20912220703
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 20915644531,
+      "checksum": 115448375935531
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v27",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3552736,
+    "min_elapsed_ns": 3532831,
+    "max_elapsed_ns": 10546303,
+    "all_elapsed_ns": [
+      3532831,
+      3552736,
+      10546303
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3532831,
+      "checksum": 115448375935531
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v27",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_exclusive_scan_cub_i32_v27/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "dense_dimension_join_sum_v1100_a",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_dimension_join_sum_v1100_a/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 27,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <unordered_map>\n#include <algorithm>\n\nuint64_t join_sum(\n    const std::vector<uint32_t>& dim_keys,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_keys,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n    \n    if (dim_keys.empty() || probe_keys.empty()) return 0;\n\n    // The problem states \"dense dimension\". \n    // We pre-calculate the mapping from key to value to avoid O(log N) search in the loop.\n    // Since we don't know the exact range of keys, we check if they are contiguous/small.\n    // For a general high-performance approach, we use a flat array if the max key is reasonable,\n    // otherwise a hash map. However, for \"dense\" dimensions in performance tasks, \n    // usually a direct index or a sorted array with a fast lookup is intended.\n    \n    // Optimization: Pre-calculate the lookup table once outside the 'iters' loop.\n    // We use a vector as a lookup table if the range is small, or a sorted array with \n    // a more efficient search. Given the \"dense\" hint, we'll use a simple mapping.\n    \n    size_t dim_size = dim_keys.size();\n    uint32_t max_key = 0;\n    for (uint32_t k : dim_keys) if (k > max_key) max_key = k;\n\n    // If the keys are dense enough to fit in memory (e.g., < 100M elements),\n    // a direct mapping array is the fastest possible lookup (O(1)).\n    // 100M uint32_t is ~400MB, which is typically acceptable in these environments.\n    bool use_direct_map = (max_key < 100000000);\n    std::vector<uint32_t> lookup_table;\n    if (use_direct_map) {\n        lookup_table.assign(max_key + 1, 0);\n        for (size_t i = 0; i < dim_size; ++i) {\n            lookup_table[dim_keys[i]] = dim_values[i];\n        }\n    }\n\n    uint64_t total_sum = 0;\n    const uint32_t* p_keys = probe_keys.data();\n    const uint32_t* p_weights = probe_weights.data();\n    size_t probe_size = probe_keys.size();\n\n    if (use_direct_map) {\n        const uint32_t* l_table = lookup_table.data();\n        for (int iter = 0; iter < iters; ++iter) {\n            uint64_t iter_sum = 0;\n            for (size_t i = 0; i < probe_size; ++i) {\n                iter_sum += static_cast<uint64_t>(l_table[p_keys[i]]) * p_weights[i];\n            }\n            total_sum = iter_sum;\n        }\n    } else {\n        // Fallback to binary search if keys are too sparse for a direct map,\n        // but we can still optimize the loop.\n        for (int iter = 0; iter < iters; ++iter) {\n            uint64_t iter_sum = 0;\n            for (size_t i = 0; i < probe_size; ++i) {\n                auto it = std::lower_bound(dim_keys.begin(), dim_keys.end(), p_keys[i]);\n                size_t idx = std::distance(dim_keys.begin(), it);\n                iter_sum += static_cast<uint64_t>(dim_values[idx]) * p_weights[i];\n            }\n            total_sum = iter_sum;\n        }\n    }\n\n    return total_sum;\n}",
+  "baseline": {
+    "task_id": "dense_dimension_join_sum_v1100_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 17453259299,
+    "min_elapsed_ns": 17340801692,
+    "max_elapsed_ns": 18303457749,
+    "all_elapsed_ns": [
+      17340801692,
+      18303457749,
+      17453259299
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 17340801692,
+      "expected_sum": 146414764032,
+      "actual_sum": 146414764032
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_dimension_join_sum_v1100_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 151293617,
+    "min_elapsed_ns": 146519211,
+    "max_elapsed_ns": 182908505,
+    "all_elapsed_ns": [
+      151293617,
+      146519211,
+      182908505
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 151293617,
+      "expected_sum": 146414764032,
+      "actual_sum": 146414764032
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_dimension_join_sum_v1100_a",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 164844969,
+    "min_elapsed_ns": 158608572,
+    "max_elapsed_ns": 276261324,
+    "all_elapsed_ns": [
+      158608572,
+      164844969,
+      276261324
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 158608572,
+      "expected_sum": 146414764032,
+      "actual_sum": 146414764032
+    },
+    "status": "ok"
+  }
+}

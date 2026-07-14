@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_jacobi_2d_v1500_d",
+  "model": "deepseek-v4-pro",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v1500_d/candidate/deepseek-v4-pro/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <omp.h>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nuint64_t checksum_u32(const std::vector<uint32_t>& data) {\n  uint64_t hash = 1469598103934665603ULL;\n  for (uint32_t v : data) {\n    hash ^= static_cast<uint64_t>(v);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n}  // namespace\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  std::vector<uint32_t> a = input;\n  std::vector<uint32_t> b(a.size(), 0);\n  const size_t stride = static_cast<size_t>(cols);\n\n  for (int step = 0; step < steps; ++step) {\n    #pragma omp parallel for schedule(static)\n    for (int row = 0; row < rows; ++row) {\n      size_t base = static_cast<size_t>(row) * stride;\n      if (row == 0 || row == rows - 1) {\n        // entire row is boundary: copy\n        for (int col = 0; col < cols; ++col) {\n          b[base + col] = a[base + col];\n        }\n      } else {\n        // first column\n        b[base] = a[base];\n        // interior cells\n        #pragma omp simd\n        for (int col = 1; col < cols - 1; ++col) {\n          size_t idx = base + col;\n          b[idx] = (a[idx] * 4u + a[idx - 1] + a[idx + 1] +\n                    a[idx - stride] + a[idx + stride]) / 8u;\n        }\n        // last column\n        b[base + cols - 1] = a[base + cols - 1];\n      }\n    }\n    a.swap(b);\n  }\n\n  return checksum_u32(a);\n}",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v1500_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4978647,
+    "min_elapsed_ns": 3791601,
+    "max_elapsed_ns": 10642084,
+    "all_elapsed_ns": [
+      10642084,
+      4978647,
+      3791601
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10642084,
+      "expected_checksum": 5311671338593182502,
+      "actual_checksum": 5311671338593182502
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v1500_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 38293917,
+    "min_elapsed_ns": 23177464,
+    "max_elapsed_ns": 124592178,
+    "all_elapsed_ns": [
+      38293917,
+      23177464,
+      124592178
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 38293917,
+      "expected_checksum": 5311671338593182502,
+      "actual_checksum": 5311671338593182502
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v1500_d",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-fopenmp', '-Iexecutable_tasks/openmp_jacobi_2d_v1500_d/harness', 'executable_tasks/openmp_jacobi_2d_v1500_d/harness/benchmark_main.cpp', 'executable_tasks/openmp_jacobi_2d_v1500_d/candidate/deepseek-v4-pro/solution.cpp', '-o', 'build/openmp_jacobi_2d_v1500_d/candidate/bench']' returned non-zero exit status 1."
+  }
+}

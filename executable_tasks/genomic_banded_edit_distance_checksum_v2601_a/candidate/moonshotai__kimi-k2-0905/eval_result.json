@@ -1,0 +1,59 @@
+{
+  "task_id": "genomic_banded_edit_distance_checksum_v2601_a",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/genomic_banded_edit_distance_checksum_v2601_a/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <string>\n#include <vector>\n#include <algorithm>\n#include <immintrin.h>\n\nnamespace {\n\nstatic inline int banded_distance(const std::string& a,\n                                  const std::string& b,\n                                  int k) noexcept {\n    const int n = static_cast<int>(a.size());\n    const int m = static_cast<int>(b.size());\n    if (std::abs(n - m) > k) return -1;           // impossible within band\n    if (a == b) return 0;\n\n    // Ensure b is the shorter string to minimise memory.\n    if (n < m) return banded_distance(b, a, k);\n\n    constexpr int ALIGN = 32;\n    alignas(ALIGN) int buf[2][2 * 1024 + 64];     // safe for k<=1024\n    int* prev = buf[0];\n    int* cur  = buf[1];\n\n    const int width = 2 * k + 1;\n    const int diag0 = k;             // logical diagonal 0 maps here\n\n    // Initialise first row.\n    for (int j = 0; j <= k && j <= m; ++j) prev[diag0 + j] = j;\n\n    for (int i = 1; i <= n; ++i) {\n        const int left_diag  = std::max(-k, -i);\n        const int right_diag = std::min(k, m - i);\n\n        const int left  = diag0 + left_diag;\n        const int right = diag0 + right_diag;\n\n        const char ca = a[i - 1];\n\n        // SIMD load 4 chars of b once per outer iteration.\n        const __m128i ca16 = _mm_set1_epi8(ca);\n\n        // Handle leftmost cell explicitly.\n        if (i - 1 >= 0 && left_diag <= -i) {\n            cur[left] = i;\n        } else {\n            cur[left] = prev[left + 1] + 1;\n        }\n\n        // Vectorised inner loop: process four diagonals at a time.\n        int j = left_diag + 1;\n        for (; j + 3 <= right_diag; j += 4) {\n            const int idx[4] = { i + j - 1, i + j, i + j + 1, i + j + 2 };\n            const __m128i bvec = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&b[idx[0]]));\n            const __m128i eq   = _mm_cmpeq_epi8(ca16, bvec);\n            const int mask     = _mm_movemask_epi8(eq);\n\n            const int d0 = prev[diag0 + j - 1] + ((mask & 1) ? 0 : 1);\n            const int d1 = prev[diag0 + j]     + ((mask & 2) ? 0 : 1);\n            const int d2 = prev[diag0 + j + 1] + ((mask & 4) ? 0 : 1);\n            const int d3 = prev[diag0 + j + 2] + ((mask & 8) ? 0 : 1);\n\n            const int ins0 = cur[diag0 + j - 1] + 1;\n            const int ins1 = cur[diag0 + j]     + 1;\n            const int ins2 = cur[diag0 + j + 1] + 1;\n            const int ins3 = cur[diag0 + j + 2] + 1;\n\n            const int del0 = prev[diag0 + j]     + 1;\n            const int del1 = prev[diag0 + j + 1] + 1;\n            const int del2 = prev[diag0 + j + 2] + 1;\n            const int del3 = prev[diag0 + j + 3] + 1;\n\n            cur[diag0 + j]     = std::min({d0, ins0, del0});\n            cur[diag0 + j + 1] = std::min({d1, ins1, del1});\n            cur[diag0 + j + 2] = std::min({d2, ins2, del2});\n            cur[diag0 + j + 3] = std::min({d3, ins3, del3});\n        }\n\n        // Tail scalar loop.\n        for (; j <= right_diag; ++j) {\n            const int cost = (ca == b[i + j - 1]) ? 0 : 1;\n            const int sub  = prev[diag0 + j - 1] + cost;\n            const int ins  = cur[diag0 + j - 1] + 1;\n            const int del  = prev[diag0 + j]   + 1;\n            cur[diag0 + j] = std::min({sub, ins, del});\n        }\n\n        // Early exit if the band cannot reach zero.\n        if (cur[diag0] > k && i + k < n) return -1;\n\n        std::swap(prev, cur);\n    }\n\n    const int result = prev[diag0 + (m - n)];\n    return (result <= k) ? result : -1;\n}\n\n} // namespace\n\nuint64_t batch_edit_distance_checksum(\n    const std::vector<std::string>& lhs,\n    const std::vector<std::string>& rhs,\n    int max_band,\n    int iters) {\n    const std::size_t n = lhs.size();\n    uint64_t hash = 0;\n    for (int iter = 0; iter < iters; ++iter) {\n        hash = 1469598103934665603ULL;\n        for (std::size_t i = 0; i < n; ++i) {\n            int d = banded_distance(lhs[i], rhs[i], max_band);\n            if (d < 0) d = max_band + 1; // fallback when band insufficient\n            hash ^= static_cast<uint64_t>(d + 1);\n            hash *= 1099511628211ULL;\n        }\n    }\n    return hash;\n}",
+  "baseline": {
+    "task_id": "genomic_banded_edit_distance_checksum_v2601_a",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 507109031,
+    "min_elapsed_ns": 506822895,
+    "max_elapsed_ns": 507512712,
+    "all_elapsed_ns": [
+      507512712,
+      506822895,
+      507109031
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 507512712,
+      "expected_checksum": 12850131920921510531,
+      "actual_checksum": 12850131920921510531
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "genomic_banded_edit_distance_checksum_v2601_a",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 135993825,
+    "min_elapsed_ns": 135526526,
+    "max_elapsed_ns": 201361014,
+    "all_elapsed_ns": [
+      201361014,
+      135526526,
+      135993825
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 201361014,
+      "expected_checksum": 12850131920921510531,
+      "actual_checksum": 12850131920921510531
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "genomic_banded_edit_distance_checksum_v2601_a",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/genomic_banded_edit_distance_checksum_v2601_a/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "highway_dot_product_xlarge",
+  "model": "gemini-3.1-flash-lite-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_dot_product_xlarge/candidate/gemini-3.1-flash-lite-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"hwy/highway.h\"\n\nHWY_BEFORE_NAMESPACE();\nnamespace hwy {\nnamespace HWY_NAMESPACE {\n\nfloat dot_product(const float* a, const float* b, std::size_t n) {\n  using D = ScalableTag<float>;\n  const D d;\n  const size_t lanes = Lanes(d);\n  Vec<D> sum_vec = Zero(d);\n\n  size_t i = 0;\n  for (; i + lanes <= n; i += lanes) {\n    const auto va = Load(d, a + i);\n    const auto vb = Load(d, b + i);\n    sum_vec = MulAdd(va, vb, sum_vec);\n  }\n\n  float sum = ReduceSum(d, sum_vec);\n\n  if (i < n) {\n    const auto mask = FirstN(d, n - i);\n    const auto va = MaskedLoad(Zero(d), mask, a + i);\n    const auto vb = MaskedLoad(Zero(d), mask, b + i);\n    sum += ReduceSum(d, Mul(va, vb));\n  }\n\n  return sum;\n}\n\n} // namespace HWY_NAMESPACE\n} // namespace hwy\nHWY_AFTER_NAMESPACE();\n\nfloat dot_product(const float* a, const float* b, std::size_t n) {\n  return hwy::HWY_NAMESPACE::dot_product(a, b, n);\n}",
+  "baseline": {
+    "task_id": "highway_dot_product_xlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3168156,
+    "min_elapsed_ns": 3055580,
+    "max_elapsed_ns": 3657801,
+    "all_elapsed_ns": [
+      3657801,
+      3168156,
+      3055580
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3657801,
+      "expected_dot": 1884630.0,
+      "actual_dot": 1884700.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_dot_product_xlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2401109,
+    "min_elapsed_ns": 2336993,
+    "max_elapsed_ns": 2468568,
+    "all_elapsed_ns": [
+      2401109,
+      2468568,
+      2336993
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2401109,
+      "expected_dot": 1884630.0,
+      "actual_dot": 1884660.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_dot_product_xlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/highway_dot_product_xlarge/harness', '-Iexternal/highway', 'executable_tasks/highway_dot_product_xlarge/harness/benchmark_main.cpp', 'executable_tasks/highway_dot_product_xlarge/candidate/gemini-3.1-flash-lite-preview/solution.cpp', 'external/highway/hwy/abort.cc', 'external/highway/hwy/targets.cc', 'external/highway/hwy/aligned_allocator.cc', 'external/highway/hwy/per_target.cc', '-o', 'build/highway_dot_product_xlarge/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "image_rgba_blend_checksum_v2600_h",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/image_rgba_blend_checksum_v2600_h/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nnamespace {\n\nalignas(64) uint8_t g_blend_table[256][256];\nbool g_table_initialized = false;\n\nvoid init_blend_table() {\n    if (g_table_initialized) return;\n    for (int a = 0; a < 256; ++a) {\n        for (int diff = 0; diff < 256; ++diff) {\n            g_blend_table[a][diff] = static_cast<uint8_t>((a * diff + 127u) / 255u);\n        }\n    }\n    g_table_initialized = true;\n}\n\ninline uint8_t blend_fast(uint8_t s, uint8_t d, uint8_t a) {\n    // s*a + d*(255-a) = d*255 + a*(s-d) = d*255 + a*diff (with sign handling)\n    // Rewritten: result = d + (s-d)*a/255\n    int diff = static_cast<int>(s) - static_cast<int>(d);\n    if (diff >= 0) {\n        return static_cast<uint8_t>(d + g_blend_table[a][diff]);\n    } else {\n        return static_cast<uint8_t>(d - g_blend_table[a][-diff]);\n    }\n}\n\n}  // namespace\n\nuint64_t blend_checksum(\n    const std::vector<uint8_t>& src,\n    const std::vector<uint8_t>& dst,\n    int width,\n    int height,\n    int iters) {\n    (void)width;\n    (void)height;\n    \n    init_blend_table();\n    \n    const std::size_t pixels = src.size() / 4u;\n    const std::size_t total_bytes = pixels * 4u;\n    \n    std::vector<uint8_t> out(total_bytes);\n    \n    const uint8_t* __restrict src_ptr = src.data();\n    const uint8_t* __restrict dst_ptr = dst.data();\n    uint8_t* __restrict out_ptr = out.data();\n    \n    constexpr uint64_t FNV_OFFSET = 1469598103934665603ULL;\n    constexpr uint64_t FNV_PRIME = 1099511628211ULL;\n    \n    uint64_t hash = 0;\n    \n    for (int iter = 0; iter < iters; ++iter) {\n        hash = FNV_OFFSET;\n        \n        std::size_t i = 0;\n        const std::size_t pixels_4 = (pixels / 4) * 4;\n        \n        // Process 4 pixels at a time\n        for (; i < pixels_4; i += 4) {\n            const std::size_t idx0 = i * 4u;\n            const std::size_t idx1 = idx0 + 4u;\n            const std::size_t idx2 = idx0 + 8u;\n            const std::size_t idx3 = idx0 + 12u;\n            \n            const uint8_t a0 = src_ptr[idx0 + 3u];\n            const uint8_t a1 = src_ptr[idx1 + 3u];\n            const uint8_t a2 = src_ptr[idx2 + 3u];\n            const uint8_t a3 = src_ptr[idx3 + 3u];\n            \n            uint8_t r0 = blend_fast(src_ptr[idx0], dst_ptr[idx0], a0);\n            uint8_t g0 = blend_fast(src_ptr[idx0 + 1u], dst_ptr[idx0 + 1u], a0);\n            uint8_t b0 = blend_fast(src_ptr[idx0 + 2u], dst_ptr[idx0 + 2u], a0);\n            \n            uint8_t r1 = blend_fast(src_ptr[idx1], dst_ptr[idx1], a1);\n            uint8_t g1 = blend_fast(src_ptr[idx1 + 1u], dst_ptr[idx1 + 1u], a1);\n            uint8_t b1 = blend_fast(src_ptr[idx1 + 2u], dst_ptr[idx1 + 2u], a1);\n            \n            uint8_t r2 = blend_fast(src_ptr[idx2], dst_ptr[idx2], a2);\n            uint8_t g2 = blend_fast(src_ptr[idx2 + 1u], dst_ptr[idx2 + 1u], a2);\n            uint8_t b2 = blend_fast(src_ptr[idx2 + 2u], dst_ptr[idx2 + 2u], a2);\n            \n            uint8_t r3 = blend_fast(src_ptr[idx3], dst_ptr[idx3], a3);\n            uint8_t g3 = blend_fast(src_ptr[idx3 + 1u], dst_ptr[idx3 + 1u], a3);\n            uint8_t b3 = blend_fast(src_ptr[idx3 + 2u], dst_ptr[idx3 + 2u], a3);\n            \n            out_ptr[idx0] = r0; out_ptr[idx0 + 1u] = g0; out_ptr[idx0 + 2u] = b0; out_ptr[idx0 + 3u] = 255u;\n            out_ptr[idx1] = r1; out_ptr[idx1 + 1u] = g1; out_ptr[idx1 + 2u] = b1; out_ptr[idx1 + 3u] = 255u;\n            out_ptr[idx2] = r2; out_ptr[idx2 + 1u] = g2; out_ptr[idx2 + 2u] = b2; out_ptr[idx2 + 3u] = 255u;\n            out_ptr[idx3] = r3; out_ptr[idx3 + 1u] = g3; out_ptr[idx3 + 2u] = b3; out_ptr[idx3 + 3u] = 255u;\n            \n            hash ^= r0; hash *= FNV_PRIME;\n            hash ^= g0; hash *= FNV_PRIME;\n            hash ^= b0; hash *= FNV_PRIME;\n            hash ^= 255u; hash *= FNV_PRIME;\n            \n            hash ^= r1; hash *= FNV_PRIME;\n            hash ^= g1; hash *= FNV_PRIME;\n            hash ^= b1; hash *= FNV_PRIME;\n            hash ^= 255u; hash *= FNV_PRIME;\n            \n            hash ^= r2; hash *= FNV_PRIME;\n            hash ^= g2; hash *= FNV_PRIME;\n            hash ^= b2; hash *= FNV_PRIME;\n            hash ^= 255u; hash *= FNV_PRIME;\n            \n            hash ^= r3; hash *= FNV_PRIME;\n            hash ^= g3; hash *= FNV_PRIME;\n            hash ^= b3; hash *= FNV_PRIME;\n            hash ^= 255u; hash *= FNV_PRIME;\n        }\n        \n        // Handle remaining pixels\n        for (; i < pixels; ++i) {\n            const std::size_t idx = i * 4u;\n            const uint8_t a = src_ptr[idx + 3u];\n            \n            uint8_t r = blend_fast(src_ptr[idx], dst_ptr[idx], a);\n            uint8_t g = blend_fast(src_ptr[idx + 1u], dst_ptr[idx + 1u], a);\n            uint8_t b = blend_fast(src_ptr[idx + 2u], dst_ptr[idx + 2u], a);\n            \n            out_ptr[idx] = r;\n            out_ptr[idx + 1u] = g;\n            out_ptr[idx + 2u] = b;\n            out_ptr[idx + 3u] = 255u;\n            \n            hash ^= r; hash *= FNV_PRIME;\n            hash ^= g; hash *= FNV_PRIME;\n            hash ^= b; hash *= FNV_PRIME;\n            hash ^= 255u; hash *= FNV_PRIME;\n        }\n    }\n    \n    return hash;\n}",
+  "baseline": {
+    "task_id": "image_rgba_blend_checksum_v2600_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 59618736,
+    "min_elapsed_ns": 51476469,
+    "max_elapsed_ns": 61992779,
+    "all_elapsed_ns": [
+      59618736,
+      51476469,
+      61992779
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 59618736,
+      "expected_checksum": 17294436932568278809,
+      "actual_checksum": 17294436932568278809
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "image_rgba_blend_checksum_v2600_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 41784182,
+    "min_elapsed_ns": 41500376,
+    "max_elapsed_ns": 43370823,
+    "all_elapsed_ns": [
+      43370823,
+      41500376,
+      41784182
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 43370823,
+      "expected_checksum": 17294436932568278809,
+      "actual_checksum": 17294436932568278809
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "image_rgba_blend_checksum_v2600_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 74333725,
+    "min_elapsed_ns": 72965388,
+    "max_elapsed_ns": 88889307,
+    "all_elapsed_ns": [
+      74333725,
+      88889307,
+      72965388
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 74333725,
+      "expected_checksum": 17294436932568278809,
+      "actual_checksum": 17294436932568278809
+    },
+    "status": "ok"
+  }
+}

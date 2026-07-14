@@ -1,0 +1,59 @@
+{
+  "task_id": "dense_histogram_checksum_large",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/dense_histogram_checksum_large/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n\nuint64_t histogram_checksum(const std::vector<uint32_t>& values, uint32_t bins, int iters) {\n  // Use dense arrays with generation-based lazy clearing to avoid per-iteration memset/fill\n  std::vector<uint32_t> counts(bins);\n  std::vector<uint32_t> stamps(bins, 0u);\n\n  constexpr uint64_t FNV_OFFSET = 1469598103934665603ULL;\n  constexpr uint64_t FNV_PRIME  = 1099511628211ULL;\n\n  uint64_t hash = 0;\n  uint32_t gen = 1u;\n\n  const size_t n = values.size();\n\n  for (int iter = 0; iter < iters; ++iter) {\n    // Handle extremely rare wrap-around of generation counter\n    if (gen == 0u) {\n      // Reset stamps to ensure correctness after 2^32 iterations\n      std::fill(stamps.begin(), stamps.end(), 0u);\n      gen = 1u;\n    }\n    const uint32_t current_gen = gen++;\n\n    // Accumulate counts for in-range values using generation stamping\n    for (size_t i = 0; i < n; ++i) {\n      uint32_t v = values[i];\n      if (v < bins) {\n        if (stamps[v] != current_gen) {\n          stamps[v] = current_gen;\n          counts[v] = 1u;\n        } else {\n          counts[v] += 1u;\n        }\n      }\n    }\n\n    // Compute FNV-1a-like checksum over all bins [0, bins)\n    uint64_t h = FNV_OFFSET;\n    for (uint32_t b = 0; b < bins; ++b) {\n      uint64_t val = (stamps[b] == current_gen) ? static_cast<uint64_t>(counts[b]) : 0ull;\n      h ^= val;\n      h *= FNV_PRIME;\n    }\n    hash = h;\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "dense_histogram_checksum_large",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1240147944,
+    "min_elapsed_ns": 1207467429,
+    "max_elapsed_ns": 1292551358,
+    "all_elapsed_ns": [
+      1292551358,
+      1207467429,
+      1240147944
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1292551358,
+      "expected_checksum": 4570596451875144579,
+      "actual_checksum": 4570596451875144579
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "dense_histogram_checksum_large",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 204099315,
+    "min_elapsed_ns": 203057527,
+    "max_elapsed_ns": 204279461,
+    "all_elapsed_ns": [
+      203057527,
+      204099315,
+      204279461
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 203057527,
+      "expected_checksum": 4570596451875144579,
+      "actual_checksum": 4570596451875144579
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "dense_histogram_checksum_large",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/dense_histogram_checksum_large/harness', 'executable_tasks/dense_histogram_checksum_large/harness/benchmark_main.cpp', 'executable_tasks/dense_histogram_checksum_large/candidate/gpt-5/solution.cpp', '-o', 'build/dense_histogram_checksum_large/candidate/bench']' returned non-zero exit status 1."
+  }
+}

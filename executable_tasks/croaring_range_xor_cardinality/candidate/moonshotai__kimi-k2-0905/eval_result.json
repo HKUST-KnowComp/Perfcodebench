@@ -1,0 +1,72 @@
+{
+  "task_id": "croaring_range_xor_cardinality",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/croaring_range_xor_cardinality/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <algorithm>\n#include <cstdint>\n#include <vector>\n\nuint64_t xor_cardinality(\n    const std::vector<uint32_t>& lhs_starts,\n    const std::vector<uint32_t>& lhs_lengths,\n    const std::vector<uint32_t>& rhs_starts,\n    const std::vector<uint32_t>& rhs_lengths) {\n\n  const std::size_t n = lhs_starts.size();\n  const std::size_t m = rhs_starts.size();\n\n  // Build and sort interval lists (start, end) by start position\n  std::vector<std::pair<uint32_t, uint32_t>> lhs(n), rhs(m);\n  for (std::size_t i = 0; i < n; ++i) {\n    uint32_t s = lhs_starts[i];\n    lhs[i] = {s, s + lhs_lengths[i]};\n  }\n  for (std::size_t i = 0; i < m; ++i) {\n    uint32_t s = rhs_starts[i];\n    rhs[i] = {s, s + rhs_lengths[i]};\n  }\n  auto cmp = [](const auto& a, const auto& b) { return a.first < b.first; };\n  std::sort(lhs.begin(), lhs.end(), cmp);\n  std::sort(rhs.begin(), rhs.end(), cmp);\n\n  // Merge overlapping/adjacent intervals in each side to simplify scan\n  auto coalesce = [](std::vector<std::pair<uint32_t, uint32_t>>& v) {\n    if (v.empty()) return;\n    std::size_t w = 0;\n    for (std::size_t r = 1; r < v.size(); ++r) {\n      if (v[r].first <= v[w].second) {\n        v[w].second = std::max(v[w].second, v[r].second);\n      } else {\n        ++w;\n        v[w] = v[r];\n      }\n    }\n    v.resize(w + 1);\n  };\n  coalesce(lhs);\n  coalesce(rhs);\n\n  // Two-finger sweep to compute symmetric difference cardinality\n  uint64_t count = 0;\n  std::size_t i = 0, j = 0;\n  while (i < lhs.size() && j < rhs.size()) {\n    auto& L = lhs[i];\n    auto& R = rhs[j];\n    if (L.second <= R.first) {\n      count += L.second - L.first; // L entirely before R\n      ++i;\n    } else if (R.second <= L.first) {\n      count += R.second - R.first; // R entirely before L\n      ++j;\n    } else {\n      // Intersection or overlap\n      if (L.first < R.first) {\n        count += R.first - L.first; // left stub of L\n        L.first = R.first;\n      } else if (R.first < L.first) {\n        count += L.first - R.first; // left stub of R\n        R.first = L.first;\n      }\n      // Now L.first == R.first\n      uint32_t common_end = std::min(L.second, R.second);\n      // symmetric difference inside [L.first, common_end)\n      // nothing added here; values are in both sets\n      if (L.second == common_end) {\n        ++i;\n      } else {\n        L.first = common_end;\n      }\n      if (R.second == common_end) {\n        ++j;\n      } else {\n        R.first = common_end;\n      }\n    }\n  }\n  // Tails\n  while (i < lhs.size()) {\n    count += lhs[i].second - lhs[i].first;\n    ++i;\n  }\n  while (j < rhs.size()) {\n    count += rhs[j].second - rhs[j].first;\n    ++j;\n  }\n  return count;\n}",
+  "baseline": {
+    "task_id": "croaring_range_xor_cardinality",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 183252975,
+    "min_elapsed_ns": 182128529,
+    "max_elapsed_ns": 183694737,
+    "all_elapsed_ns": [
+      182128529,
+      183252975,
+      183694737
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 182128529,
+      "expected_cardinality": 57733,
+      "actual_cardinality": 57733
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "croaring_range_xor_cardinality",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5036446,
+    "min_elapsed_ns": 5029462,
+    "max_elapsed_ns": 5194175,
+    "all_elapsed_ns": [
+      5036446,
+      5029462,
+      5194175
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5036446,
+      "expected_cardinality": 57733,
+      "actual_cardinality": 57733
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "croaring_range_xor_cardinality",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 3092673,
+    "min_elapsed_ns": 2983845,
+    "max_elapsed_ns": 3093528,
+    "all_elapsed_ns": [
+      3093528,
+      3092673,
+      2983845
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3093528,
+      "expected_cardinality": 57733,
+      "actual_cardinality": 57733
+    },
+    "status": "ok"
+  }
+}

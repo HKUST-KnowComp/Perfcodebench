@@ -1,0 +1,72 @@
+{
+  "task_id": "simdutf_base64_encode_v2300_f",
+  "model": "gpt-5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdutf_base64_encode_v2300_f/candidate/gpt-5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <string>\n\nnamespace {\n\nconstexpr char kTable[] =\n    \"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/\";\n\nconstexpr uint64_t kFNVOffset = 1469598103934665603ULL;\nconstexpr uint64_t kFNVPrime  = 1099511628211ULL;\n\ninline void fnv1a_byte(uint64_t &h, unsigned char c) {\n  h ^= static_cast<uint64_t>(c);\n  h *= kFNVPrime;\n}\n\n// Process exactly 3 input bytes into 4 base64 bytes and update FNV-1a hash.\ninline void encode3_hash(const unsigned char* p, uint64_t &h) {\n  const uint32_t b0 = p[0];\n  const uint32_t b1 = p[1];\n  const uint32_t b2 = p[2];\n  const uint32_t triple = (b0 << 16) | (b1 << 8) | b2;\n  const char* T = kTable;\n  fnv1a_byte(h, static_cast<unsigned char>(T[(triple >> 18) & 0x3FU]));\n  fnv1a_byte(h, static_cast<unsigned char>(T[(triple >> 12) & 0x3FU]));\n  fnv1a_byte(h, static_cast<unsigned char>(T[(triple >> 6) & 0x3FU]));\n  fnv1a_byte(h, static_cast<unsigned char>(T[triple & 0x3FU]));\n}\n\n}  // namespace\n\nuint64_t encode_checksum(const std::string& input) {\n  const unsigned char* p = reinterpret_cast<const unsigned char*>(input.data());\n  size_t n = input.size();\n\n  uint64_t hash = kFNVOffset;\n\n  // Unrolled main loop: process 12 bytes (4 triples) per iteration when possible.\n  size_t n_full = n / 3; // number of full triples\n  size_t blocks4 = n_full / 4; // number of 4-triple blocks\n  for (size_t i = 0; i < blocks4; ++i) {\n    encode3_hash(p + 0, hash);\n    encode3_hash(p + 3, hash);\n    encode3_hash(p + 6, hash);\n    encode3_hash(p + 9, hash);\n    p += 12;\n  }\n\n  // Remaining full triples (0..3)\n  size_t rem_triples = n_full - blocks4 * 4;\n  for (size_t i = 0; i < rem_triples; ++i) {\n    encode3_hash(p, hash);\n    p += 3;\n  }\n\n  // Tail: handle 1 or 2 leftover bytes\n  size_t rem = n - (n_full * 3);\n  if (rem) {\n    const char* T = kTable;\n    if (rem == 1) {\n      const uint32_t b0 = p[0];\n      const unsigned char c0 = static_cast<unsigned char>(T[b0 >> 2]);\n      const unsigned char c1 = static_cast<unsigned char>(T[(b0 & 0x3U) << 4]);\n      fnv1a_byte(hash, c0);\n      fnv1a_byte(hash, c1);\n      fnv1a_byte(hash, static_cast<unsigned char>('='));\n      fnv1a_byte(hash, static_cast<unsigned char>('='));\n    } else { // rem == 2\n      const uint32_t b0 = p[0];\n      const uint32_t b1 = p[1];\n      const unsigned char c0 = static_cast<unsigned char>(T[b0 >> 2]);\n      const unsigned char c1 = static_cast<unsigned char>(T[((b0 & 0x3U) << 4) | (b1 >> 4)]);\n      const unsigned char c2 = static_cast<unsigned char>(T[(b1 & 0xFU) << 2]);\n      fnv1a_byte(hash, c0);\n      fnv1a_byte(hash, c1);\n      fnv1a_byte(hash, c2);\n      fnv1a_byte(hash, static_cast<unsigned char>('='));\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "simdutf_base64_encode_v2300_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1500357,
+    "min_elapsed_ns": 1446388,
+    "max_elapsed_ns": 1508399,
+    "all_elapsed_ns": [
+      1500357,
+      1446388,
+      1508399
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1500357,
+      "expected_checksum": 2144270278071841722,
+      "actual_checksum": 2144270278071841722
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdutf_base64_encode_v2300_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 751990,
+    "min_elapsed_ns": 720797,
+    "max_elapsed_ns": 755046,
+    "all_elapsed_ns": [
+      755046,
+      720797,
+      751990
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 755046,
+      "expected_checksum": 2144270278071841722,
+      "actual_checksum": 2144270278071841722
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdutf_base64_encode_v2300_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 572688,
+    "min_elapsed_ns": 572332,
+    "max_elapsed_ns": 584453,
+    "all_elapsed_ns": [
+      572332,
+      572688,
+      584453
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 572332,
+      "expected_checksum": 2144270278071841722,
+      "actual_checksum": 2144270278071841722
+    },
+    "status": "ok"
+  }
+}

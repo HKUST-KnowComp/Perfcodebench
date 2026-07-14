@@ -1,0 +1,22 @@
+def run(rows: list[str]) -> int:
+    h = 1469598103934665603
+    for row in rows:
+        # Pattern: ^[A-Z]{2}[0-9]{4}-[0-9A-F]{8}$
+        # Length must be 15
+        if len(row) == 15:
+            # Check indices 0,1 (A-Z), 2-5 (0-9), 6 (-), 7-14 (0-9A-F)
+            if ('A' <= row[0] <= 'Z' and 'A' <= row[1] <= 'Z' and
+                '0' <= row[2] <= '9' and '0' <= row[3] <= '9' and
+                '0' <= row[4] <= '9' and '0' <= row[5] <= '9' and
+                row[6] == '-' and
+                all(('0' <= c <= '9' or 'A' <= c <= 'F') for c in row[7:])):
+                v = ord(row[2]) + ord(row[7])
+            else:
+                v = 0
+        else:
+            v = 0
+        
+        h ^= v + 1
+        h *= 1099511628211
+        h &= 0xFFFFFFFFFFFFFFFF
+    return h

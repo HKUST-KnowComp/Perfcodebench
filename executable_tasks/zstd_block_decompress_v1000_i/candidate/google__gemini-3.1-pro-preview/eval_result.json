@@ -1,0 +1,72 @@
+{
+  "task_id": "zstd_block_decompress_v1000_i",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/zstd_block_decompress_v1000_i/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"zstd.h\"\n#include <cstdint>\n#include <string>\n#include <vector>\n\nnamespace {\n\n// Reuse ZSTD context and buffer to avoid allocation overhead across repeated calls.\nstruct ThreadLocalState {\n    ZSTD_DCtx* dctx;\n    std::vector<uint8_t> buffer;\n\n    ThreadLocalState() : dctx(ZSTD_createDCtx()) {\n        buffer.reserve(2 * 1024 * 1024); // Pre-reserve 2MB based on task title\n    }\n\n    ~ThreadLocalState() {\n        ZSTD_freeDCtx(dctx);\n    }\n};\n\nstatic thread_local ThreadLocalState state;\n\n// Optimized FNV-1a checksum implementation.\n// FNV-1a is inherently serial, but we can reduce loop overhead via unrolling.\ninline uint64_t checksum_bytes(const uint8_t* data, size_t len) {\n    uint64_t hash = 1469598103934665603ULL;\n    const uint64_t prime = 1099511628211ULL;\n    \n    const uint8_t* end = data + len;\n    const uint8_t* unrolled_end = data + (len & ~7ULL);\n\n    while (data < unrolled_end) {\n        hash = (hash ^ static_cast<uint64_t>(data[0])) * prime;\n        hash = (hash ^ static_cast<uint64_t>(data[1])) * prime;\n        hash = (hash ^ static_cast<uint64_t>(data[2])) * prime;\n        hash = (hash ^ static_cast<uint64_t>(data[3])) * prime;\n        hash = (hash ^ static_cast<uint64_t>(data[4])) * prime;\n        hash = (hash ^ static_cast<uint64_t>(data[5])) * prime;\n        hash = (hash ^ static_cast<uint64_t>(data[6])) * prime;\n        hash = (hash ^ static_cast<uint64_t>(data[7])) * prime;\n        data += 8;\n    }\n\n    while (data < end) {\n        hash = (hash ^ static_cast<uint64_t>(*data++)) * prime;\n    }\n\n    return hash;\n}\n\n} // namespace\n\nuint64_t decompress_checksum(const std::string& compressed, std::size_t decompressed_size) {\n    // Ensure buffer is large enough without zero-initializing (resize would zero-init).\n    if (state.buffer.size() < decompressed_size) {\n        state.buffer.resize(decompressed_size);\n    }\n\n    // Use ZSTD_decompressDCtx to reuse the context state.\n    const size_t n = ZSTD_decompressDCtx(\n        state.dctx,\n        state.buffer.data(),\n        decompressed_size,\n        compressed.data(),\n        compressed.size()\n    );\n\n    if (ZSTD_isError(n) || n != decompressed_size) {\n        return 0;\n    }\n\n    return checksum_bytes(state.buffer.data(), decompressed_size);\n}\n",
+  "baseline": {
+    "task_id": "zstd_block_decompress_v1000_i",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 6364056,
+    "min_elapsed_ns": 6220550,
+    "max_elapsed_ns": 6466934,
+    "all_elapsed_ns": [
+      6466934,
+      6220550,
+      6364056
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6466934,
+      "expected_checksum": 13613506433683203979,
+      "actual_checksum": 13613506433683203979
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "zstd_block_decompress_v1000_i",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5822611,
+    "min_elapsed_ns": 5778917,
+    "max_elapsed_ns": 8122837,
+    "all_elapsed_ns": [
+      8122837,
+      5778917,
+      5822611
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8122837,
+      "expected_checksum": 13613506433683203979,
+      "actual_checksum": 13613506433683203979
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "zstd_block_decompress_v1000_i",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 5911579,
+    "min_elapsed_ns": 5886137,
+    "max_elapsed_ns": 11808181,
+    "all_elapsed_ns": [
+      5911579,
+      11808181,
+      5886137
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5911579,
+      "expected_checksum": 13613506433683203979,
+      "actual_checksum": 13613506433683203979
+    },
+    "status": "ok"
+  }
+}

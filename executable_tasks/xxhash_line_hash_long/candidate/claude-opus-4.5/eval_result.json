@@ -1,0 +1,72 @@
+{
+  "task_id": "xxhash_line_hash_long",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/xxhash_line_hash_long/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include \"xxhash.h\"\n#include <cstring>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#define USE_AVX2 1\n#else\n#define USE_AVX2 0\n#endif\n\nuint64_t hash_lines(const std::string& input) {\n  uint64_t acc = 1469598103934665603ULL;\n  const char* p = input.data();\n  const char* const end = p + input.size();\n  \n#if USE_AVX2\n  const __m256i newline_vec = _mm256_set1_epi8('\\n');\n#endif\n\n  while (p < end) {\n    const char* line_end = p;\n    \n#if USE_AVX2\n    // Use AVX2 to scan for newlines in 32-byte chunks\n    while (line_end + 32 <= end) {\n      __m256i chunk = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(line_end));\n      __m256i cmp = _mm256_cmpeq_epi8(chunk, newline_vec);\n      int mask = _mm256_movemask_epi8(cmp);\n      if (mask != 0) {\n        line_end += __builtin_ctz(mask);\n        goto found_newline;\n      }\n      line_end += 32;\n    }\n#endif\n    \n    // Scalar fallback for remaining bytes\n    while (line_end < end && *line_end != '\\n') {\n      ++line_end;\n    }\n    \n#if USE_AVX2\nfound_newline:\n#endif\n    {\n      size_t len = static_cast<size_t>(line_end - p);\n      // XXH3_64bits is faster for longer lines\n      uint64_t line_hash = (len >= 240) \n        ? XXH3_64bits(p, len)\n        : static_cast<uint64_t>(XXH64(p, len, 0));\n      acc ^= line_hash;\n      acc *= 1099511628211ULL;\n    }\n    \n    p = (line_end < end) ? (line_end + 1) : line_end;\n  }\n  \n  return acc;\n}",
+  "baseline": {
+    "task_id": "xxhash_line_hash_long",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 4828369,
+    "min_elapsed_ns": 4759704,
+    "max_elapsed_ns": 5379455,
+    "all_elapsed_ns": [
+      5379455,
+      4828369,
+      4759704
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5379455,
+      "expected_hash": 5423925435202019250,
+      "actual_hash": 5423925435202019250
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "xxhash_line_hash_long",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4753893,
+    "min_elapsed_ns": 4739822,
+    "max_elapsed_ns": 6108383,
+    "all_elapsed_ns": [
+      6108383,
+      4739822,
+      4753893
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6108383,
+      "expected_hash": 5423925435202019250,
+      "actual_hash": 5423925435202019250
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "xxhash_line_hash_long",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 4596005,
+    "min_elapsed_ns": 4548990,
+    "max_elapsed_ns": 4634059,
+    "all_elapsed_ns": [
+      4548990,
+      4634059,
+      4596005
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4548990,
+      "expected_hash": 5423925435202019250,
+      "actual_hash": 5423925435202019250
+    },
+    "status": "ok"
+  }
+}

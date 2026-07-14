@@ -1,0 +1,59 @@
+{
+  "task_id": "columnar_filter_sum_v1100_c",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/columnar_filter_sum_v1100_c/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <immintrin.h>\n#include <cstdint>\n#include <vector>\n\nuint64_t filter_sum(\n    const std::vector<uint32_t>& keys,\n    const std::vector<uint32_t>& values,\n    const std::vector<uint8_t>& flags,\n    uint32_t key_threshold,\n    int iters) {\n    \n    const size_t n = keys.size();\n    const uint32_t* k_ptr = keys.data();\n    const uint32_t* v_ptr = values.data();\n    const uint8_t* f_ptr = flags.data();\n    \n    uint64_t final_sum = 0;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        __m256i sum_v = _mm256_setzero_si256();\n        size_t i = 0;\n\n        // Process 8 elements at a time using AVX2\n        for (; i + 7 < n; i += 8) {\n            __m256i k = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(k_ptr + i));\n            __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(v_ptr + i));\n            \n            // Load 8 bytes of flags and expand to 8x32-bit integers\n            __m128i f_small = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(f_ptr + i));\n            __m256i f = _mm256_cvtepu8_epi32(f_small);\n\n            // Condition 1: flags[i] != 0\n            __m256i mask_f = _mm256_cmpgt_epi32(f, _mm256_setzero_si256());\n\n            // Condition 2: keys[i] < key_threshold\n            // Note: _mm256_cmplt_epu32 is not in AVX2, so we use signed comparison with offset\n            // or just use the fact that threshold is likely within signed range or use XOR trick.\n            // For uint32 comparison: (a < b) is (a - 0x80000000 < b - 0x80000000) signed.\n            __m256i offset = _mm256_set1_epi32(0x80000000);\n            __m256i k_off = _mm256_xor_si256(k, offset);\n            __m256i t_off = _mm256_xor_si256(_mm256_set1_epi32(key_threshold), offset);\n            __m256i mask_k = _mm256_cmpgt_epi32(t_off, k_off);\n\n            // Condition 3: (keys[i] & 3) == 0\n            __m256i k_and = _mm256_and_si256(k, _mm256_set1_epi32(3));\n            __m256i mask_mod = _mm256_cmpeq_epi32(k_and, _mm256_setzero_si256());\n\n            // Combine masks\n            __m256i mask = _mm256_and_si256(mask_f, _mm256_and_si256(mask_k, mask_mod));\n\n            // Apply mask to values\n            __m256i filtered_v = _mm256_and_si256(v, mask);\n\n            // Widen 8x32-bit to 2x(4x64-bit) and add to sum_v\n            __m256i v_lo = _mm256_cvtepu32_epi64(_mm256_extracti128_si256(filtered_v, 0));\n            __m256i v_hi = _mm256_cvtepu32_epi64(_mm256_extracti128_si256(filtered_v, 1));\n            \n            sum_v = _mm256_add_epi64(sum_v, v_lo);\n            sum_v = _mm256_add_epi64(sum_v, v_hi);\n        }\n\n        // Horizontal sum of the 4 uint64_t in sum_v\n        alignas(32) uint64_t res[4];\n        _mm256_store_si256(reinterpret_cast<__m256i*>(res), sum_v);\n        uint64_t current_sum = res[0] + res[1] + res[2] + res[3];\n\n        // Scalar tail\n        for (; i < n; ++i) {\n            if (f_ptr[i] && k_ptr[i] < key_threshold && ((k_ptr[i] & 3u) == 0u)) {\n                current_sum += static_cast<uint64_t>(v_ptr[i]);\n            }\n        }\n        final_sum = current_sum;\n    }\n\n    return final_sum;\n}",
+  "baseline": {
+    "task_id": "columnar_filter_sum_v1100_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3059406510,
+    "min_elapsed_ns": 3046298375,
+    "max_elapsed_ns": 3063751228,
+    "all_elapsed_ns": [
+      3046298375,
+      3059406510,
+      3063751228
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3046298375,
+      "expected_sum": 134328143,
+      "actual_sum": 134328143
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "columnar_filter_sum_v1100_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2745431119,
+    "min_elapsed_ns": 2639550752,
+    "max_elapsed_ns": 2920639147,
+    "all_elapsed_ns": [
+      2639550752,
+      2920639147,
+      2745431119
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2639550752,
+      "expected_sum": 134328143,
+      "actual_sum": 134328143
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "columnar_filter_sum_v1100_c",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/columnar_filter_sum_v1100_c/harness', 'executable_tasks/columnar_filter_sum_v1100_c/harness/benchmark_main.cpp', 'executable_tasks/columnar_filter_sum_v1100_c/candidate/google__gemini-3.1-pro-preview/solution.cpp', '-o', 'build/columnar_filter_sum_v1100_c/candidate/bench']' returned non-zero exit status 1."
+  }
+}

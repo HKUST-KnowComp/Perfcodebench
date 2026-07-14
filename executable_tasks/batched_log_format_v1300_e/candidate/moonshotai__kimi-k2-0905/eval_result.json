@@ -1,0 +1,59 @@
+{
+  "task_id": "batched_log_format_v1300_e",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/batched_log_format_v1300_e/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <string>\n#include <vector>\n#include <cstdint>\n#include <cstring>\n\nnamespace {\n\ninline uint64_t checksum_update(uint64_t hash, const void* data, std::size_t len) {\n  const unsigned char* p = static_cast<const unsigned char*>(data);\n  const unsigned char* end = p + len;\n  while (p != end) {\n    hash ^= static_cast<uint64_t>(*p++);\n    hash *= 1099511628211ULL;\n  }\n  return hash;\n}\n\n// write unsigned decimal into buf, return advanced pointer\ninline char* u32toa(char* buf, uint32_t v) {\n  if (v == 0) { *buf++ = '0'; return buf; }\n  char tmp[16];\n  char* p = tmp;\n  while (v) { *p++ = char('0' + (v % 10)); v /= 10; }\n  while (p != tmp) *buf++ = *--p;\n  return buf;\n}\n\ninline char* u16toa(char* buf, uint16_t v) {\n  return u32toa(buf, v);\n}\n\n}  // namespace\n\nuint64_t batched_log_checksum(\n    const std::vector<uint32_t>& timestamps,\n    const std::vector<uint32_t>& ids,\n    const std::vector<uint16_t>& levels,\n    const std::vector<std::string>& messages,\n    int iters) {\n  const std::size_t n = ids.size();\n  // rough upper-bound for one iteration\n  std::size_t cap = 0;\n  for (std::size_t i = 0; i < n; ++i) {\n    cap += 32 + messages[i].size();  // 32 chars enough for ints + pipes + newline\n  }\n  std::string buf;\n  buf.reserve(cap + 1);\n\n  uint64_t hash = 1469598103934665603ULL;\n  for (int iter = 0; iter < iters; ++iter) {\n    buf.clear();\n    char* base = buf.data();\n    std::size_t len = 0;\n    for (std::size_t i = 0; i < n; ++i) {\n      char tmp[64];\n      char* p = tmp;\n      p = u32toa(p, timestamps[i]); *p++ = '|';\n      p = u32toa(p, ids[i]);        *p++ = '|';\n      p = u16toa(p, levels[i]);     *p++ = '|';\n      std::size_t part = p - tmp;\n      std::size_t mlen = messages[i].size();\n      std::size_t need = len + part + mlen + 1;  // +1 for '\\n'\n      if (need > buf.capacity()) {\n        buf.resize(need * 2);\n        base = buf.data();\n      }\n      std::memcpy(base + len, tmp, part);\n      len += part;\n      std::memcpy(base + len, messages[i].data(), mlen);\n      len += mlen;\n      base[len++] = '\\n';\n    }\n    hash = checksum_update(hash, base, len);\n  }\n  return hash;\n}",
+  "baseline": {
+    "task_id": "batched_log_format_v1300_e",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1435867206,
+    "min_elapsed_ns": 1429403909,
+    "max_elapsed_ns": 1548123168,
+    "all_elapsed_ns": [
+      1429403909,
+      1548123168,
+      1435867206
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1429403909,
+      "expected_checksum": 17307924624845782903,
+      "actual_checksum": 17307924624845782903
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "batched_log_format_v1300_e",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 643397800,
+    "min_elapsed_ns": 642132974,
+    "max_elapsed_ns": 660038864,
+    "all_elapsed_ns": [
+      660038864,
+      642132974,
+      643397800
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 660038864,
+      "expected_checksum": 17307924624845782903,
+      "actual_checksum": 17307924624845782903
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "batched_log_format_v1300_e",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/batched_log_format_v1300_e/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "c_image_blend_checksum_v2800_049",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_image_blend_checksum_v2800_049/candidate/google__gemini-3.1-pro-preview/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n#include <immintrin.h>\n\n// Optimized FNV-1a constants\n#define FNV_OFFSET_BASIS 1469598103934665603ULL\n#define FNV_PRIME 1099511628211ULL\n\nstatic inline uint64_t fnv1a_update(uint64_t hash, const uint8_t* data, size_t n) {\n    for (size_t i = 0; i < n; ++i) {\n        hash ^= (uint64_t)data[i];\n        hash *= FNV_PRIME;\n    }\n    return hash;\n}\n\nuint64_t run(const uint8_t* src, const uint8_t* dst, int width, int height, int iters) {\n    size_t pixels = (size_t)width * (size_t)height;\n    size_t total_bytes = pixels * 4;\n    uint8_t* out = (uint8_t*)aligned_alloc(32, total_bytes);\n    if (!out) return 0;\n\n    uint64_t hash = 0;\n    const __m128i v255 = _mm_set1_epi16(255);\n    const __m128i v127 = _mm_set1_epi16(127);\n    const __m128i vAlphaMask = _mm_set1_epi32(0xFF000000);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        size_t i = 0;\n        // Process 4 pixels at a time using SSE\n        for (; i + 3 < pixels; i += 4) {\n            __m128i s = _mm_loadu_si128((const __m128i*)&src[i * 4]);\n            __m128i d = _mm_loadu_si128((const __m128i*)&dst[i * 4]);\n\n            // Unpack bytes to 16-bit words\n            __m128i s_lo = _mm_unpacklo_epi8(s, _mm_setzero_si128());\n            __m128i s_hi = _mm_unpackhi_epi8(s, _mm_setzero_si128());\n            __m128i d_lo = _mm_unpacklo_epi8(d, _mm_setzero_si128());\n            __m128i d_hi = _mm_unpackhi_epi8(d, _mm_setzero_si128());\n\n            // Extract alpha and broadcast for each pixel\n            // Alpha is at index 3, 7, 11, 15 in the original 16-byte vector\n            __m128i a_lo = _mm_shuffle_epi8(s_lo, _mm_set_epi8(-1, 7, -1, 7, -1, 7, -1, 7, -1, 1, -1, 1, -1, 1, -1, 1));\n            __m128i a_hi = _mm_shuffle_epi8(s_hi, _mm_set_epi8(-1, 7, -1, 7, -1, 7, -1, 7, -1, 1, -1, 1, -1, 1, -1, 1));\n\n            // Blend: (s * a + d * (255 - a) + 127) / 255\n            __m128i res_lo = _mm_add_epi16(_mm_mullo_epi16(s_lo, a_lo), _mm_mullo_epi16(d_lo, _mm_sub_epi16(v255, a_lo)));\n            res_lo = _mm_add_epi16(res_lo, v127);\n            // Fast division by 255: (x + 1 + (x >> 8)) >> 8\n            res_lo = _mm_srli_epi16(_mm_add_epi16(_mm_add_epi16(res_lo, _mm_set1_epi16(1)), _mm_srli_epi16(res_lo, 8)), 8);\n\n            __m128i res_hi = _mm_add_epi16(_mm_mullo_epi16(s_hi, a_hi), _mm_mullo_epi16(d_hi, _mm_sub_epi16(v255, a_hi)));\n            res_hi = _mm_add_epi16(res_hi, v127);\n            res_hi = _mm_srli_epi16(_mm_add_epi16(_mm_add_epi16(res_hi, _mm_set1_epi16(1)), _mm_srli_epi16(res_hi, 8)), 8);\n\n            // Pack back to bytes and force alpha to 255\n            __m128i res = _mm_packus_epi16(res_lo, res_hi);\n            res = _mm_or_si128(res, vAlphaMask);\n            _mm_storeu_si128((__m128i*)&out[i * 4], res);\n        }\n\n        // Scalar fallback for remaining pixels\n        for (; i < pixels; ++i) {\n            size_t idx = i * 4;\n            uint32_t a = src[idx + 3];\n            uint32_t inv_a = 255 - a;\n            out[idx]     = (uint8_t)(((uint32_t)src[idx] * a + (uint32_t)dst[idx] * inv_a + 127) / 255);\n            out[idx + 1] = (uint8_t)(((uint32_t)src[idx + 1] * a + (uint32_t)dst[idx + 1] * inv_a + 127) / 255);\n            out[idx + 2] = (uint8_t)(((uint32_t)src[idx + 2] * a + (uint32_t)dst[idx + 2] * inv_a + 127) / 255);\n            out[idx + 3] = 255;\n        }\n\n        hash = fnv1a_update(FNV_OFFSET_BASIS, out, total_bytes);\n    }\n\n    free(out);\n    return hash;\n}\n",
+  "baseline": {
+    "task_id": "c_image_blend_checksum_v2800_049",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 15887000,
+    "min_elapsed_ns": 15793000,
+    "max_elapsed_ns": 15971000,
+    "all_elapsed_ns": [
+      15793000,
+      15971000,
+      15887000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15793000,
+      "expected_checksum": 10685353658636860825,
+      "actual_checksum": 10685353658636860825
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_image_blend_checksum_v2800_049",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 15805000,
+    "min_elapsed_ns": 15521000,
+    "max_elapsed_ns": 18159000,
+    "all_elapsed_ns": [
+      15521000,
+      18159000,
+      15805000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 15521000,
+      "expected_checksum": 10685353658636860825,
+      "actual_checksum": 10685353658636860825
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_image_blend_checksum_v2800_049",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 16775000,
+    "min_elapsed_ns": 15683000,
+    "max_elapsed_ns": 16968000,
+    "all_elapsed_ns": [
+      16968000,
+      16775000,
+      15683000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 16968000,
+      "expected_checksum": 10685353658636860825,
+      "actual_checksum": 10685353658636860825
+    },
+    "status": "ok"
+  }
+}

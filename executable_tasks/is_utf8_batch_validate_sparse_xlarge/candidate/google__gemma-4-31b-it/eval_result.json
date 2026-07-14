@@ -1,0 +1,72 @@
+{
+  "task_id": "is_utf8_batch_validate_sparse_xlarge",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/is_utf8_batch_validate_sparse_xlarge/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cstdint>\n\nstd::size_t count_valid_strings(const std::vector<std::string>& inputs) {\n    auto valid_scalar = [](const std::string& s) -> bool {\n        const uint8_t* p = reinterpret_cast<const uint8_t*>(s.data());\n        const uint8_t* end = p + s.size();\n\n        while (p < end) {\n            // Fast path: process 8 bytes at a time to find non-ASCII characters\n            if (end - p >= 8) {\n                uint64_t chunk;\n                // Use a safe copy to avoid alignment issues on some architectures\n                __builtin_memcpy(&chunk, p, 8);\n                if ((chunk & 0x8080808080808080ULL) == 0) {\n                    p += 8;\n                    continue;\n                }\n            }\n\n            const uint8_t c = *p++;\n            if (c <= 0x7F) continue;\n\n            // 2-byte sequence\n            if (c >= 0xC2 && c <= 0xDF) {\n                if (p >= end || (*p++ & 0xC0) != 0x80) return false;\n                continue;\n            }\n\n            // 3-byte sequence\n            if (c >= 0xE0 && c <= 0xEF) {\n                if (end - p < 2) return false;\n                uint8_t c1 = p[0];\n                uint8_t c2 = p[1];\n                if ((c1 & 0xC0) != 0x80 || (c2 & 0xC0) != 0x80) return false;\n                if (c == 0xE0 && c1 < 0xA0) return false;\n                if (c == 0xED && c1 > 0x9F) return false;\n                p += 2;\n                continue;\n            }\n\n            // 4-byte sequence\n            if (c >= 0xF0 && c <= 0xF4) {\n                if (end - p < 3) return false;\n                uint8_t c1 = p[0];\n                uint8_t c2 = p[1];\n                uint8_t c3 = p[2];\n                if ((c1 & 0xC0) != 0x80 || (c2 & 0xC0) != 0x80 || (c3 & 0xC0) != 0x80) return false;\n                if (c == 0xF0 && c1 < 0x90) return false;\n                if (c == 0xF4 && c1 > 0x8F) return false;\n                p += 3;\n                continue;\n            }\n\n            return false;\n        }\n        return true;\n    };\n\n    std::size_t count = 0;\n    for (const auto& s : inputs) {\n        if (valid_scalar(s)) {\n            count++;\n        }\n    }\n    return count;\n}",
+  "baseline": {
+    "task_id": "is_utf8_batch_validate_sparse_xlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 14199417,
+    "min_elapsed_ns": 14176239,
+    "max_elapsed_ns": 14231640,
+    "all_elapsed_ns": [
+      14231640,
+      14176239,
+      14199417
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 14231640,
+      "expected_count": 89291,
+      "actual_count": 89291
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "is_utf8_batch_validate_sparse_xlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 3000850,
+    "min_elapsed_ns": 2944210,
+    "max_elapsed_ns": 3116853,
+    "all_elapsed_ns": [
+      2944210,
+      3000850,
+      3116853
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2944210,
+      "expected_count": 89291,
+      "actual_count": 89291
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "is_utf8_batch_validate_sparse_xlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 13114564,
+    "min_elapsed_ns": 12981864,
+    "max_elapsed_ns": 13132029,
+    "all_elapsed_ns": [
+      13114564,
+      12981864,
+      13132029
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 13114564,
+      "expected_count": 89291,
+      "actual_count": 89291
+    },
+    "status": "ok"
+  }
+}

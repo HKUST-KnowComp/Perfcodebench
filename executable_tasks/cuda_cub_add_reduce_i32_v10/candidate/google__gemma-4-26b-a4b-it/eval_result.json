@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_cub_add_reduce_i32_v10",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_cub_add_reduce_i32_v10/candidate/google__gemma-4-26b-a4b-it/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n#include <cub/cub.hpp>\n\nvoid add_reduce_i32(const int* input, int* output, int n, int iters) {\n    if (n <= 0) return;\n\n    // Determine temporary storage requirements\n    void* d_temp_storage = nullptr;\n    size_t temp_storage_bytes = 0;\n\n    // First call to determine the amount of temporary storage needed\n    cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, input, output, n);\n\n    // Allocate temporary storage\n    cudaMalloc(&d_temp_storage, temp_storage_bytes);\n\n    for (int iter = 0; iter < iters; ++iter) {\n        // CUB's DeviceReduce::Sum handles the reduction efficiently\n        // Note: The output must be initialized to 0 if the kernel doesn't overwrite it, \n        // but DeviceReduce::Sum writes the result directly to the output pointer.\n        // However, to ensure correctness across iterations if the harness expects a clean state,\n        // we rely on the fact that DeviceReduce::Sum performs a full reduction.\n        cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, input, output, n);\n    }\n\n    cudaFree(d_temp_storage);\n}",
+  "baseline": {
+    "task_id": "cuda_cub_add_reduce_i32_v10",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 40198974,
+    "min_elapsed_ns": 40193313,
+    "max_elapsed_ns": 40216129,
+    "all_elapsed_ns": [
+      40198974,
+      40193313,
+      40216129
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 40198974,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_cub_add_reduce_i32_v10",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2687328,
+    "min_elapsed_ns": 2681567,
+    "max_elapsed_ns": 2707007,
+    "all_elapsed_ns": [
+      2707007,
+      2681567,
+      2687328
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2707007,
+      "expected_sum": 125829120,
+      "actual_sum": 125829120
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_cub_add_reduce_i32_v10",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['nvcc', '-O3', '-std=c++17', '-Iexecutable_tasks/cuda_cub_add_reduce_i32_v10/harness', '-gencode=arch=compute_80,code=sm_80', '-gencode=arch=compute_80,code=compute_80', 'executable_tasks/cuda_cub_add_reduce_i32_v10/harness/benchmark_main.cu', 'executable_tasks/cuda_cub_add_reduce_i32_v10/candidate/google__gemma-4-26b-a4b-it/solution.cu', '-o', 'build/cuda_cub_add_reduce_i32_v10/candidate/bench']' returned non-zero exit status 1."
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "rapidjson_ondemand_parse_xlarge",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/rapidjson_ondemand_parse_xlarge/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <rapidjson/reader.h>\n#include <rapidjson/stringbuffer.h>\n#include <rapidjson/error/en.h>\n\nusing namespace rapidjson;\n\nstruct ChecksumHandler : public BaseReaderHandler<UTF8<>, ChecksumHandler> {\n    uint64_t sum = 0;\n    bool in_array = false;\n    bool in_nested = false;\n    std::string current_key;\n    int depth = 0;\n\n    bool StartArray() {\n        depth++;\n        if (depth == 1) in_array = true;\n        return true;\n    }\n\n    bool EndArray() {\n        if (depth == 1) in_array = false;\n        depth--;\n        return true;\n    }\n\n    bool StartObject() {\n        depth++;\n        return true;\n    }\n\n    bool EndObject() {\n        if (in_nested) in_nested = false;\n        depth--;\n        return true;\n    }\n\n    bool Key(const char* str, SizeType length, bool copy) {\n        current_key.assign(str, length);\n        return true;\n    }\n\n    bool Uint64(uint64_t i) {\n        if (in_array) {\n            if (current_key == \"id\") {\n                sum += i;\n            } else if (in_nested) {\n                if (current_key == \"a\" || current_key == \"b\") {\n                    sum += i;\n                }\n            }\n        }\n        return true;\n    }\n\n    bool Int64(int64_t i) {\n        return Uint64(static_cast<uint64_t>(i));\n    }\n\n    bool Double(double d) {\n        // The task implies uint64_t fields, but we handle numeric types generally\n        return true;\n    }\n\n    // Handle nested logic via key tracking\n    bool StartObject() {\n        depth++;\n        if (current_key == \"nested\") {\n            in_nested = true;\n        }\n        return true;\n    }\n\n    // Override to handle the specific structure logic\n    bool Key(const char* str, SizeType length, bool copy) {\n        current_key.assign(str, length);\n        return true;\n    }\n\n    // Re-implementing logic to be more robust for the specific schema\n    // We need to know if we are inside the 'nested' object\n    bool StartObject(SizeType elementCount = 0) {\n        depth++;\n        if (current_key == \"nested\") {\n            in_nested = true;\n        }\n        return true;\n    }\n\n    bool EndObject(SizeType elementCount = 0) {\n        if (in_nested && depth > 1) {\n            // Check if the parent was 'nested'\n            // In a real SAX parser, we'd use a stack, but for this specific schema:\n            // we can track if we just exited a 'nested' object.\n            // However, a simpler way is to track depth and key.\n        }\n        // Simplified for the specific schema: \n        // We'll use a small stack or state machine.\n        return true;\n    }\n};\n\n// Refined Handler for the specific schema: [ {\"id\":..., \"nested\": {\"a\":..., \"b\":...}}, ... ]\nstruct OptimizedHandler : public BaseReaderHandler<UTF8<>, OptimizedHandler> {\n    uint64_t sum = 0;\n    enum State { ROOT, ARRAY, OBJECT, NESTED_OBJECT };\n    State state = ROOT;\n    std::string last_key;\n\n    bool StartArray() { state = ARRAY; return true; }\n    bool EndArray() { state = ROOT; return true; }\n    bool StartObject() {\n        if (state == ARRAY) state = OBJECT;\n        else if (state == OBJECT && last_key == \"nested\") state = NESTED_OBJECT;\n        return true;\n    }\n    bool EndObject() {\n        if (state == NESTED_OBJECT) state = OBJECT;\n        else if (state == OBJECT) state = ARRAY;\n        return true;\n    }\n    bool Key(const char* str, SizeType length, bool copy) {\n        last_key.assign(str, length);\n        return true;\n    }\n    bool Uint64(uint64_t i) {\n        if (state == OBJECT && last_key == \"id\") sum += i;\n        else if (state == NESTED_OBJECT && (last_key == \"a\" || last_key == \"b\")) sum += i;\n        return true;\n    }\n    bool Int64(int64_t i) { return Uint64(static_cast<uint64_t>(i)); }\n};\n\nuint64_t compute_checksum(const std::string& json_input) {\n    Reader reader;\n    StringStream ss(json_input.c_str());\n    OptimizedHandler handler;\n    reader.Parse(ss, handler);\n    return handler.sum;\n}",
+  "baseline": {
+    "task_id": "rapidjson_ondemand_parse_xlarge",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 137441374,
+    "min_elapsed_ns": 135072429,
+    "max_elapsed_ns": 141063271,
+    "all_elapsed_ns": [
+      141063271,
+      135072429,
+      137441374
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 141063271,
+      "expected_checksum": 22400280000,
+      "actual_checksum": 22400280000
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "rapidjson_ondemand_parse_xlarge",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 19424721,
+    "min_elapsed_ns": 19143420,
+    "max_elapsed_ns": 19990355,
+    "all_elapsed_ns": [
+      19990355,
+      19143420,
+      19424721
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 19990355,
+      "expected_checksum": 22400280000,
+      "actual_checksum": 22400280000
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "rapidjson_ondemand_parse_xlarge",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/rapidjson_ondemand_parse_xlarge/harness', '-Iexternal/nlohmann_json/single_include', '-Iexternal/rapidjson_src/include', 'executable_tasks/rapidjson_ondemand_parse_xlarge/harness/benchmark_main.cpp', 'executable_tasks/rapidjson_ondemand_parse_xlarge/candidate/google__gemma-4-26b-a4b-it/solution.cpp', '-o', 'build/rapidjson_ondemand_parse_xlarge/candidate/bench']' returned non-zero exit status 1."
+  }
+}

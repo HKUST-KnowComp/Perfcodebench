@@ -1,0 +1,72 @@
+{
+  "task_id": "rapidjson_ondemand_parse_v2300_h",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/rapidjson_ondemand_parse_v2300_h/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <rapidjson/reader.h>\n#include <rapidjson/error/en.h>\n#include <cstdint>\n#include <cstring>\n\nstruct ChecksumHandler {\n    uint64_t sum = 0;\n    \n    // State tracking\n    int depth = 0;           // Current object nesting depth\n    bool in_array = false;   // Are we inside the top-level array?\n    bool in_item = false;    // Are we inside an array item object?\n    bool in_nested = false;  // Are we inside the \"nested\" object?\n    \n    // Which field are we expecting a value for?\n    enum Field { NONE, ID, NESTED_A, NESTED_B };\n    Field pending_field = NONE;\n    \n    bool Null() { pending_field = NONE; return true; }\n    bool Bool(bool) { pending_field = NONE; return true; }\n    \n    bool Int(int i) { return Uint64(static_cast<uint64_t>(i)); }\n    bool Uint(unsigned u) { return Uint64(static_cast<uint64_t>(u)); }\n    bool Int64(int64_t i) { return Uint64(static_cast<uint64_t>(i)); }\n    \n    bool Uint64(uint64_t u) {\n        if (pending_field != NONE) {\n            sum += u;\n            pending_field = NONE;\n        }\n        return true;\n    }\n    \n    bool Double(double) { pending_field = NONE; return true; }\n    bool RawNumber(const char*, size_t, bool) { pending_field = NONE; return true; }\n    bool String(const char*, size_t, bool) { pending_field = NONE; return true; }\n    \n    bool StartObject() {\n        if (in_array && !in_item) {\n            in_item = true;\n            depth = 1;\n        } else if (in_item) {\n            depth++;\n        }\n        return true;\n    }\n    \n    bool Key(const char* str, size_t len, bool) {\n        pending_field = NONE;\n        if (in_item && depth == 1) {\n            // Top-level keys in item\n            if (len == 2 && str[0] == 'i' && str[1] == 'd') {\n                pending_field = ID;\n            } else if (len == 6 && std::memcmp(str, \"nested\", 6) == 0) {\n                in_nested = true;\n            }\n        } else if (in_item && depth == 2 && in_nested) {\n            // Keys inside \"nested\" object\n            if (len == 1) {\n                if (str[0] == 'a') pending_field = NESTED_A;\n                else if (str[0] == 'b') pending_field = NESTED_B;\n            }\n        }\n        return true;\n    }\n    \n    bool EndObject(size_t) {\n        if (in_item) {\n            if (depth == 2 && in_nested) {\n                in_nested = false;\n            }\n            depth--;\n            if (depth == 0) {\n                in_item = false;\n                in_nested = false;\n            }\n        }\n        pending_field = NONE;\n        return true;\n    }\n    \n    bool StartArray() {\n        if (!in_array) {\n            in_array = true;\n        }\n        pending_field = NONE;\n        return true;\n    }\n    \n    bool EndArray(size_t) {\n        pending_field = NONE;\n        return true;\n    }\n};\n\nuint64_t compute_checksum(const std::string& json_input) {\n    ChecksumHandler handler;\n    rapidjson::Reader reader;\n    rapidjson::StringStream ss(json_input.c_str());\n    reader.Parse(ss, handler);\n    return handler.sum;\n}",
+  "baseline": {
+    "task_id": "rapidjson_ondemand_parse_v2300_h",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 950035,
+    "min_elapsed_ns": 888183,
+    "max_elapsed_ns": 1214213,
+    "all_elapsed_ns": [
+      950035,
+      1214213,
+      888183
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 950035,
+      "expected_checksum": 919296,
+      "actual_checksum": 919296
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "rapidjson_ondemand_parse_v2300_h",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 144362,
+    "min_elapsed_ns": 126967,
+    "max_elapsed_ns": 171308,
+    "all_elapsed_ns": [
+      144362,
+      126967,
+      171308
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 144362,
+      "expected_checksum": 919296,
+      "actual_checksum": 919296
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "rapidjson_ondemand_parse_v2300_h",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 49060,
+    "min_elapsed_ns": 48096,
+    "max_elapsed_ns": 49253,
+    "all_elapsed_ns": [
+      49253,
+      48096,
+      49060
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 49253,
+      "expected_checksum": 919296,
+      "actual_checksum": 919296
+    },
+    "status": "ok"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "task_id": "simdutf_base64_encode_v2300_j",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdutf_base64_encode_v2300_j/candidate/moonshotai__kimi-k2-0905/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <immintrin.h>\n#include <string>\n\nnamespace {\n\n/* 64-byte aligned base64 table; the low half is filled with the 64 characters,\n   the high half is used for clamping. */\nalignas(64) static const char kB64[128] = {\n    'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P',\n    'Q','R','S','T','U','V','W','X','Y','Z','a','b','c','d','e','f',\n    'g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v',\n    'w','x','y','z','0','1','2','3','4','5','6','7','8','9','+','/',\n    /* high half mirrors low for clamp-free gather */\n    'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P',\n    'Q','R','S','T','U','V','W','X','Y','Z','a','b','c','d','e','f',\n    'g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v',\n    'w','x','y','z','0','1','2','3','4','5','6','7','8','9','+','/'\n};\n\ninline uint64_t update_hash(uint64_t hash, const void* ptr, std::size_t len) {\n    const uint8_t* p = static_cast<const uint8_t*>(ptr);\n    for (std::size_t i = 0; i < len; ++i) {\n        hash ^= static_cast<uint64_t>(p[i]);\n        hash *= 1099511628211ULL;\n    }\n    return hash;\n}\n\n/* process 32 input bytes \u2192 44 bytes of output; the last 4 bytes of a block\n   are handled at block boundaries, keeping tail handling simple. */\ninline uint64_t encode_avx2(const char* in, char* out, uint64_t hash, std::size_t& inDone) {\n    const __m256i pack = _mm256_set_epi8(\n        10, 11, 12, 13, 14, 15, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15,\n         2,  3,  4,  5,  6,  7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7);\n    const __m256i lo_nib = _mm256_set1_epi8(0x0F);\n    const __m256i hi_mask = _mm256_set1_epi8(0x30);\n\n    __m256i chunk0 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(in));\n    __m256i chunk1 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(in + 16));\n\n    __m256i i0 = _mm256_shuffle_epi8(chunk0, pack);\n    __m256i bitsLow  = _mm256_and_si256(i0, lo_nib);\n    __m256i bitsHigh = _mm256_and_si256(_mm256_srli_epi32(i0, 4), hi_mask);\n    __m256i idx = _mm256_or_si256(bitsLow, bitsHigh);\n\n    __m128i low16 = _mm256_castsi256_si128(idx);\n    __m128i high16 = _mm256_extracti128_si256(idx, 1);\n\n    __m128i r0 = _mm_setzero_si128();\n    r0 = _mm_insert_epi64(r0, *reinterpret_cast<const int64_t*>(&kB64[0]), 0);\n    r0 = _mm_insert_epi64(r0, *reinterpret_cast<const int64_t*>(&kB64[8]), 1);\n\n    __m128i b0 = _mm_shuffle_epi8(r0, low16);\n    _mm_storeu_si128(reinterpret_cast<__m128i*>(out), b0);\n    hash = update_hash(hash, out, 16);\n\n    __m128i r1 = _mm_setzero_si128();\n    r1 = _mm_insert_epi64(r1, *reinterpret_cast<const int64_t*>(&kB64[0]), 0);\n    r1 = _mm_insert_epi64(r1, *reinterpret_cast<const int64_t*>(&kB64[8]), 1);\n\n    __m128i b1 = _mm_shuffle_epi8(r1, high16);\n    _mm_storeu_si128(reinterpret_cast<__m128i*>(out + 16), b1);\n    hash = update_hash(hash, out + 16, 16);\n\n    /* last 12 bytes from the second chunk yield 12 output bytes */\n    __m256i i1 = _mm256_shuffle_epi8(chunk1, _mm256_set_epi8(\n        6,7,8,9,10,11,12,13,14,15,0,1,2,3,4,5, 2,3,4,5,6,7,8,9,10,11,12,13,14,15,0,1));\n\n    bitsLow  = _mm256_and_si256(i1, lo_nib);\n    bitsHigh = _mm256_and_si256(_mm256_srli_epi32(i1, 4), hi_mask);\n    idx = _mm256_or_si256(bitsLow, bitsHigh);\n\n    low16 = _mm256_castsi256_si128(idx);\n    high16 = _mm256_extracti128_si256(idx, 1);\n\n    __m128i b2 = _mm_shuffle_epi8(r0, low16);\n    __m128i b3 = _mm_shuffle_epi8(r1, high16);\n\n    _mm_storeu_si128(reinterpret_cast<__m128i*>(out + 32), b2);\n    hash = update_hash(hash, out + 32, 16);\n    _mm_storeu_si128(reinterpret_cast<__m128i*>(out + 48), b3);\n    hash = update_hash(hash, out + 48, 4);   /* only 4 valid for this register part */\n\n    inDone = 32;\n    return hash;\n}\n\n} // anonymous\n\nuint64_t encode_checksum(const std::string& input) {\n    const char* src = input.data();\n    const std::size_t len = input.size();\n    std::string out;\n    out.reserve(((len + 2) / 3) * 4);\n    char* dst = out.data();\n\n    uint64_t hash = 1469598103934665603ULL;\n\n    /* SIMD loop handles 32 input bytes per iteration */\n    std::size_t off = 0;\n    for (; off + 32 <= len; off += 32) {\n        std::size_t consumed = 0;\n        hash = encode_avx2(src + off, dst, hash, consumed);\n        dst += 44; /* produced 44 bytes */\n    }\n\n    /* tail: scalar, no padding yet */\n    for (; off + 3 <= len; off += 3) {\n        const uint32_t b0 = static_cast<uint8_t>(src[off]);\n        const uint32_t b1 = static_cast<uint8_t>(src[off + 1]);\n        const uint32_t b2 = static_cast<uint8_t>(src[off + 2]);\n        const uint32_t triple = (b0 << 16) | (b1 << 8) | b2;\n        *dst++ = kB64[(triple >> 18) & 0x3F];\n        *dst++ = kB64[(triple >> 12) & 0x3F];\n        *dst++ = kB64[(triple >> 6) & 0x3F];\n        *dst++ = kB64[triple & 0x3F];\n    }\n\n    /* last 0-2 bytes followed by padding */\n    if (off < len) {\n        const uint32_t b0 = static_cast<uint8_t>(src[off]);\n        const uint32_t b1 = (off + 1 < len) ? static_cast<uint8_t>(src[off + 1]) : 0;\n        const uint32_t b2 = 0;\n        const uint32_t triple = (b0 << 16) | (b1 << 8) | b2;\n        *dst++ = kB64[(triple >> 18) & 0x3F];\n        *dst++ = kB64[(triple >> 12) & 0x3F];\n        *dst++ = (off + 1 < len) ? kB64[(triple >> 6) & 0x3F] : '=';\n        *dst++ = '=';\n    }\n\n    hash = update_hash(hash, out.data(), dst - out.data());\n    return hash;\n}\n",
+  "baseline": {
+    "task_id": "simdutf_base64_encode_v2300_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 59779711,
+    "min_elapsed_ns": 56699599,
+    "max_elapsed_ns": 67799941,
+    "all_elapsed_ns": [
+      56699599,
+      67799941,
+      59779711
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 56699599,
+      "expected_checksum": 5092140260736546375,
+      "actual_checksum": 5092140260736546375
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdutf_base64_encode_v2300_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 32829597,
+    "min_elapsed_ns": 32703085,
+    "max_elapsed_ns": 33118114,
+    "all_elapsed_ns": [
+      32829597,
+      33118114,
+      32703085
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 32829597,
+      "expected_checksum": 5092140260736546375,
+      "actual_checksum": 5092140260736546375
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdutf_base64_encode_v2300_j",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/simdutf_base64_encode_v2300_j/harness', '-Iexternal/simdutf/singleheader', 'executable_tasks/simdutf_base64_encode_v2300_j/harness/benchmark_main.cpp', 'executable_tasks/simdutf_base64_encode_v2300_j/candidate/moonshotai__kimi-k2-0905/solution.cpp', 'external/simdutf/singleheader/simdutf.cpp', '-o', 'build/simdutf_base64_encode_v2300_j/candidate/bench']' returned non-zero exit status 1."
+  }
+}

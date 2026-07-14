@@ -1,0 +1,59 @@
+{
+  "task_id": "rapidjson_ondemand_parse_v2500_d",
+  "model": "gemini-3.1-flash-lite-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/rapidjson_ondemand_parse_v2500_d/candidate/gemini-3.1-flash-lite-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"rapidjson/reader.h\"\n#include \"rapidjson/error/en.h\"\n\nstruct ChecksumHandler : public rapidjson::BaseReaderHandler<rapidjson::UTF8<>, ChecksumHandler> {\n    uint64_t sum = 0;\n    int depth = 0;\n    bool in_nested = false;\n    bool target_field = false;\n\n    bool Uint64(uint64_t u) {\n        if (target_field) {\n            sum += u;\n            target_field = false;\n        }\n        return true;\n    }\n\n    bool Key(const char* str, rapidjson::SizeType length, bool copy) {\n        if (depth == 1) {\n            target_field = (length == 2 && str[0] == 'i' && str[1] == 'd');\n        } else if (in_nested) {\n            target_field = (length == 1 && (str[0] == 'a' || str[0] == 'b'));\n        }\n        return true;\n    }\n\n    bool StartObject() {\n        depth++;\n        return true;\n    }\n\n    bool EndObject(rapidjson::SizeType memberCount) {\n        depth--;\n        in_nested = false;\n        return true;\n    }\n\n    bool StartObject(const char* name, rapidjson::SizeType length) {\n        if (length == 6 && strncmp(name, \"nested\", 6) == 0) {\n            in_nested = true;\n        }\n        return true;\n    }\n\n    bool StartObject() { return true; }\n    bool EndObject(rapidjson::SizeType) { depth--; in_nested = false; return true; }\n};\n\n// Simplified handler for the specific schema requirements\nstruct FastHandler : public rapidjson::BaseReaderHandler<rapidjson::UTF8<>, FastHandler> {\n    uint64_t sum = 0;\n    int depth = 0;\n    bool in_nested = false;\n    bool expect_val = false;\n\n    bool Key(const char* str, rapidjson::SizeType len, bool) {\n        if (depth == 1 && len == 2 && str[0] == 'i' && str[1] == 'd') expect_val = true;\n        else if (depth == 2 && in_nested && len == 1 && (str[0] == 'a' || str[0] == 'b')) expect_val = true;\n        else if (depth == 1 && len == 6 && str[0] == 'n') in_nested = true;\n        return true;\n    }\n    bool Uint64(uint64_t u) { if (expect_val) { sum += u; expect_val = false; } return true; }\n    bool StartObject() { depth++; return true; }\n    bool EndObject(rapidjson::SizeType) { depth--; in_nested = false; return true; }\n};\n\nuint64_t compute_checksum(const std::string& json_input) {\n    rapidjson::Reader reader;\n    rapidjson::StringStream ss(json_input.c_str());\n    FastHandler handler;\n    reader.Parse(ss, handler);\n    return handler.sum;\n}",
+  "baseline": {
+    "task_id": "rapidjson_ondemand_parse_v2500_d",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 77659114,
+    "min_elapsed_ns": 76562758,
+    "max_elapsed_ns": 86811099,
+    "all_elapsed_ns": [
+      86811099,
+      77659114,
+      76562758
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 86811099,
+      "expected_checksum": 5600140000,
+      "actual_checksum": 5600140000
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "rapidjson_ondemand_parse_v2500_d",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 10972219,
+    "min_elapsed_ns": 10857184,
+    "max_elapsed_ns": 11063519,
+    "all_elapsed_ns": [
+      10972219,
+      10857184,
+      11063519
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10972219,
+      "expected_checksum": 5600140000,
+      "actual_checksum": 5600140000
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "rapidjson_ondemand_parse_v2500_d",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/rapidjson_ondemand_parse_v2500_d/harness', '-Iexternal/nlohmann_json/single_include', '-Iexternal/rapidjson_src/include', 'executable_tasks/rapidjson_ondemand_parse_v2500_d/harness/benchmark_main.cpp', 'executable_tasks/rapidjson_ondemand_parse_v2500_d/candidate/gemini-3.1-flash-lite-preview/solution.cpp', '-o', 'build/rapidjson_ondemand_parse_v2500_d/candidate/bench']' returned non-zero exit status 1."
+  }
+}

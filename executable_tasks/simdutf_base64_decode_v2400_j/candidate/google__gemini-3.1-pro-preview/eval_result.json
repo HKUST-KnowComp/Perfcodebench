@@ -1,0 +1,59 @@
+{
+  "task_id": "simdutf_base64_decode_v2400_j",
+  "model": "google/gemini-3.1-pro-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/simdutf_base64_decode_v2400_j/candidate/google__gemini-3.1-pro-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"simdutf.h\"\n#include <vector>\n#include <cstdint>\n#include <string>\n\nnamespace {\n\n/**\n * FNV-1a 64-bit hash implementation.\n * This matches the baseline's checksum logic but operates on a raw buffer.\n */\ninline uint64_t calculate_fnv1a(const uint8_t* data, size_t length) {\n    uint64_t hash = 1469598103934665603ULL;\n    const uint64_t prime = 1099511628211ULL;\n    \n    for (size_t i = 0; i < length; ++i) {\n        hash ^= static_cast<uint64_t>(data[i]);\n        hash *= prime;\n    }\n    return hash;\n}\n\n} // namespace\n\nuint64_t decode_checksum(const std::string& input) {\n    if (input.empty()) {\n        return 1469598103934665603ULL;\n    }\n\n    // Calculate the maximum possible size for the decoded output.\n    // For Base64, 4 characters decode to at most 3 bytes.\n    size_t max_output_size = simdutf::maximal_binary_length_from_base64(input.data(), input.size());\n    \n    // Use a stack buffer for small inputs to avoid heap allocation overhead,\n    // otherwise use a vector for safety with large 'megabatch' inputs.\n    std::vector<uint8_t> buffer;\n    uint8_t stack_buf[4096];\n    uint8_t* target_ptr = stack_buf;\n\n    if (max_output_size > sizeof(stack_buf)) {\n        buffer.resize(max_output_size);\n        target_ptr = buffer.data();\n    }\n\n    // Use simdutf to decode the base64 string into the binary buffer.\n    // This function automatically detects the best SIMD implementation (AVX2, SSE4.1, etc.).\n    size_t actual_length = simdutf::base64_to_binary(\n        input.data(), \n        input.size(), \n        reinterpret_cast<char*>(target_ptr)\n    );\n\n    // Calculate the FNV-1a checksum over the decoded bytes.\n    return calculate_fnv1a(target_ptr, actual_length);\n}\n",
+  "baseline": {
+    "task_id": "simdutf_base64_decode_v2400_j",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 10098356,
+    "min_elapsed_ns": 10031956,
+    "max_elapsed_ns": 10111330,
+    "all_elapsed_ns": [
+      10098356,
+      10111330,
+      10031956
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 10098356,
+      "expected_checksum": 17871220434320680960,
+      "actual_checksum": 17871220434320680960
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "simdutf_base64_decode_v2400_j",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 1951519,
+    "min_elapsed_ns": 1945216,
+    "max_elapsed_ns": 2062933,
+    "all_elapsed_ns": [
+      2062933,
+      1951519,
+      1945216
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2062933,
+      "expected_checksum": 17871220434320680960,
+      "actual_checksum": 17871220434320680960
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "simdutf_base64_decode_v2400_j",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['g++', '-O3', '-std=c++17', '-Iexecutable_tasks/simdutf_base64_decode_v2400_j/harness', '-Iexternal/simdutf/singleheader', 'executable_tasks/simdutf_base64_decode_v2400_j/harness/benchmark_main.cpp', 'executable_tasks/simdutf_base64_decode_v2400_j/candidate/google__gemini-3.1-pro-preview/solution.cpp', 'external/simdutf/singleheader/simdutf.cpp', '-o', 'build/simdutf_base64_decode_v2400_j/candidate/bench']' returned non-zero exit status 1."
+  }
+}

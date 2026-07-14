@@ -1,0 +1,72 @@
+{
+  "task_id": "c_csv_filter_checksum_v2800_122",
+  "model": "moonshotai/kimi-k2-0905",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/c_csv_filter_checksum_v2800_122/candidate/moonshotai__kimi-k2-0905/solution.c",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <stdint.h>\n#include <string.h>\n\n/* portable unaligned load */\nstatic inline uint64_t load_u64(const void *p) {\n    uint64_t v;\n    memcpy(&v, p, sizeof v);\n    return v;\n}\n\nstatic inline uint64_t parse_dec_u32(const char *s, const char **end) {\n    uint64_t v = 0;\n    for (;;) {\n        uint64_t chunk = load_u64(s);\n        uint64_t t = chunk - 0x3030303030303030ULL;   /* subtract '0' */\n        uint64_t mask = ((t & 0x8080808080808080ULL) >> 7) ^ 0x0101010101010101ULL;\n        if (mask != 0) {                /* found non-digit */\n            uint32_t digit;\n            while ((digit = (uint8_t)*s - '0') <= 9) {\n                v = v * 10 + digit;\n                ++s;\n            }\n            break;\n        }\n        /* fast path: 8 decimal digits */\n        v = v * 100000000ULL +\n            ((chunk >>  0) & 0xFF) * 10000000ULL +\n            ((chunk >>  8) & 0xFF) * 1000000ULL  +\n            ((chunk >> 16) & 0xFF) * 100000ULL   +\n            ((chunk >> 24) & 0xFF) * 10000ULL    +\n            ((chunk >> 32) & 0xFF) * 1000ULL     +\n            ((chunk >> 40) & 0xFF) * 100ULL      +\n            ((chunk >> 48) & 0xFF) * 10ULL       +\n            ((chunk >> 56) & 0xFF) * 1ULL;\n        s += 8;\n    }\n    *end = s;\n    return v;\n}\n\nstatic inline int match_hot(const char *s) {\n    /* 'h'|'o'|'t'|0  = 0x00746f68 in little endian */\n    uint32_t packed;\n    memcpy(&packed, s, sizeof packed);\n    return (packed ^ 0x00746f68) == 0;\n}\n\nstatic inline uint64_t process_row(const char *row) {\n    uint64_t id, a, b, c;\n    const char *p = row + 1;           /* skip 'r' */\n    id = parse_dec_u32(p, &p);\n    ++p;                               /* skip comma */\n    a  = parse_dec_u32(p, &p);\n    ++p;\n    b  = parse_dec_u32(p, &p);\n    ++p;\n    c  = parse_dec_u32(p, &p);\n    ++p;\n    uint64_t v = b + c + 14;\n    if (match_hot(p)) v += 29;\n    return v;\n}\n\nuint64_t run(const char* const* rows, size_t row_count) {\n    const uint64_t prime = 1099511628211ULL;\n    uint64_t h0 = 1469598103934665603ULL;\n    uint64_t h1 = 1469598103934665603ULL + prime;\n    uint64_t h2 = 1469598103934665603ULL + 2*prime;\n    uint64_t h3 = 1469598103934665603ULL + 3*prime;\n    size_t i = 0;\n    for (; i + 4 <= row_count; i += 4) {\n        uint64_t v0 = process_row(rows[i+0]) + 1;\n        uint64_t v1 = process_row(rows[i+1]) + 1;\n        uint64_t v2 = process_row(rows[i+2]) + 1;\n        uint64_t v3 = process_row(rows[i+3]) + 1;\n        h0 ^= v0; h0 *= prime;\n        h1 ^= v1; h1 *= prime;\n        h2 ^= v2; h2 *= prime;\n        h3 ^= v3; h3 *= prime;\n    }\n    /* tail */\n    for (; i < row_count; ++i) {\n        uint64_t v = process_row(rows[i]) + 1;\n        h0 ^= v;\n        h0 *= prime;\n    }\n    /* combine partial hashes */\n    h0 ^= h1;\n    h0 *= prime;\n    h0 ^= h2;\n    h0 *= prime;\n    h0 ^= h3;\n    h0 *= prime;\n    return h0;\n}",
+  "baseline": {
+    "task_id": "c_csv_filter_checksum_v2800_122",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 132037000,
+    "min_elapsed_ns": 128953000,
+    "max_elapsed_ns": 180780000,
+    "all_elapsed_ns": [
+      132037000,
+      180780000,
+      128953000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 132037000,
+      "expected_checksum": 488924922035524200,
+      "actual_checksum": 488924922035524200
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "c_csv_filter_checksum_v2800_122",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 13265000,
+    "min_elapsed_ns": 13238000,
+    "max_elapsed_ns": 13275000,
+    "all_elapsed_ns": [
+      13238000,
+      13265000,
+      13275000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 13238000,
+      "expected_checksum": 488924922035524200,
+      "actual_checksum": 488924922035524200
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "c_csv_filter_checksum_v2800_122",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 95108000,
+    "min_elapsed_ns": 93795000,
+    "max_elapsed_ns": 108740000,
+    "all_elapsed_ns": [
+      95108000,
+      93795000,
+      108740000
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 95108000,
+      "expected_checksum": 488924922035524200,
+      "actual_checksum": 488924922035524200
+    },
+    "status": "ok"
+  }
+}

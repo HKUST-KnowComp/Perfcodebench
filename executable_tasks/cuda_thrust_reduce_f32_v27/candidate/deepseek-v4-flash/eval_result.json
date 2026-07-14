@@ -1,0 +1,59 @@
+{
+  "task_id": "cuda_thrust_reduce_f32_v27",
+  "model": "deepseek-v4-flash",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_thrust_reduce_f32_v27/candidate/deepseek-v4-flash/solution.cu",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <cuda_runtime.h>\n\nnamespace {\nconstexpr int BLOCK_SIZE = 256;\n\n/**\n * Parallel reduction kernel.\n * Reduces the n-element input array to a single value stored in output.\n * Uses shared memory and tree reduction within each block.\n */\n__global__ void reduce_kernel(const float* __restrict__ input,\n                              float* __restrict__ output,\n                              int n) {\n    __shared__ double sdata[BLOCK_SIZE];\n\n    // Thread index within block and global index\n    int tid = threadIdx.x;\n    int bid = blockIdx.x;\n    int blockDim_ = blockDim.x;\n    int gridDim_ = gridDim.x;\n\n    // Each thread accumulates a partial sum using grid-stride loop\n    double sum = 0.0;\n    for (int i = bid * blockDim_ + tid; i < n; i += gridDim_ * blockDim_) {\n        sum += static_cast<double>(input[i]);\n    }\n\n    // Store partial sum to shared memory\n    sdata[tid] = sum;\n    __syncthreads();\n\n    // In-warp reduction using shuffle (if blockDim is multiple of warpSize)\n    for (int offset = blockDim_ / 2; offset > 0; offset >>= 1) {\n        if (tid < offset) {\n            sdata[tid] += sdata[tid + offset];\n        }\n        __syncthreads();\n    }\n\n    // First thread writes result\n    if (tid == 0) {\n        output[bid] = static_cast<float>(sdata[0]);\n    }\n}\n} // anonymous namespace\n\nfloat reduce_f32(const float* input, int n, int iters) {\n    if (n == 0) return 0.0f;\n\n    float* d_output = nullptr;\n    float* d_block_sums = nullptr;\n\n    // Compute number of blocks (capped to avoid excessive launches)\n    int numBlocks = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;\n    if (numBlocks > 512) numBlocks = 512;  // typical GPU has ~80 SMs, 512 is safe\n\n    cudaMalloc(&d_output, sizeof(float));\n    cudaMalloc(&d_block_sums, numBlocks * sizeof(float));\n\n    // Repeatedly perform reduction (for benchmarking)\n    for (int iter = 0; iter < iters; ++iter) {\n        // Phase 1: reduce input to block sums\n        reduce_kernel<<<numBlocks, BLOCK_SIZE>>>(input, d_block_sums, n);\n        // Phase 2: reduce block sums to a single scalar\n        reduce_kernel<<<1, BLOCK_SIZE>>>(d_block_sums, d_output, numBlocks);\n        cudaDeviceSynchronize();  // ensure completion before next iteration\n    }\n\n    // Copy final result back to host\n    float result;\n    cudaMemcpy(&result, d_output, sizeof(float), cudaMemcpyDeviceToHost);\n\n    cudaFree(d_block_sums);\n    cudaFree(d_output);\n\n    return result;\n}\n",
+  "baseline": {
+    "task_id": "cuda_thrust_reduce_f32_v27",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 370177673,
+    "min_elapsed_ns": 369187774,
+    "max_elapsed_ns": 375510772,
+    "all_elapsed_ns": [
+      370177673,
+      375510772,
+      369187774
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 370177673,
+      "expected_sum": 12582800.0,
+      "actual_sum": 12496400.0
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "cuda_thrust_reduce_f32_v27",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 4923423,
+    "min_elapsed_ns": 966400,
+    "max_elapsed_ns": 7234496,
+    "all_elapsed_ns": [
+      4923423,
+      7234496,
+      966400
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 4923423,
+      "expected_sum": 12582800.0,
+      "actual_sum": 12582800.0
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "cuda_thrust_reduce_f32_v27",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_thrust_reduce_f32_v27/candidate/bench']' timed out after 5 seconds"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "task_id": "prefix_cache_block_lookup_v1800_c",
+  "model": "google/gemma-4-31b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/prefix_cache_block_lookup_v1800_c/candidate/google__gemma-4-31b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <vector>\n#include <algorithm>\n\nnamespace {\n\nuint64_t mix(uint64_t hash, uint64_t value) {\n  hash ^= value;\n  hash *= 1099511628211ULL;\n  return hash;\n}\n\n// Simple fast hash set for uint32_t\nstruct FastSet {\n    std::vector<uint32_t> table;\n    uint32_t mask;\n    static constexpr uint32_t EMPTY = 0xFFFFFFFF;\n\n    FastSet(const std::vector<uint32_t>& keys) {\n        uint32_t size = 1;\n        while (size < keys.size() * 2) size <<= 1;\n        table.assign(size, EMPTY);\n        mask = size - 1;\n        for (uint32_t k : keys) {\n            uint32_t pos = hash_fn(k) & mask;\n            while (table[pos] != EMPTY) {\n                pos = (pos + 1) & mask;\n            }\n            table[pos] = k;\n        }\n    }\n\n    bool contains(uint32_t k) const {\n        uint32_t pos = hash_fn(k) & mask;\n        while (table[pos] != EMPTY) {\n            if (table[pos] == k) return true;\n            pos = (pos + 1) & mask;\n        }\n        return false;\n    }\n\n    static uint32_t hash_fn(uint32_t x) {\n        x = ((x >> 16) ^ x) * 0x45d9f3b;\n        x = ((x >> 16) ^ x) * 0x45d9f3b;\n        x = (x >> 16) ^ x;\n        return x;\n    }\n};\n\n} // namespace\n\nuint64_t prefix_cache_checksum(\n    const std::vector<uint32_t>& sorted_cache_keys,\n    const std::vector<uint32_t>& request_blocks,\n    const std::vector<int>& request_offsets,\n    uint32_t hash_space,\n    int iters) {\n    (void)hash_space;\n\n    // Pre-build a fast lookup table for the cache keys\n    FastSet cache_set(sorted_cache_keys);\n\n    uint64_t final_hash = 0;\n    const size_t num_requests = request_offsets.size() - 1;\n\n    for (int iter = 0; iter < iters; ++iter) {\n        uint64_t current_hash = 1469598103934665603ULL;\n        for (size_t r = 0; r < num_requests; ++r) {\n            uint64_t prefix = 0;\n            const int start = request_offsets[r];\n            const int end = request_offsets[r + 1];\n            for (int i = start; i < end; ++i) {\n                if (!cache_set.contains(request_blocks[i])) {\n                    break;\n                }\n                ++prefix;\n            }\n            current_hash = mix(current_hash, prefix);\n        }\n        // The original code resets hash = 1469... inside the loop and returns the last iter's result\n        // but the baseline logic actually returns the hash of the LAST iteration.\n        final_hash = current_hash;\n    }\n    return final_hash;\n}",
+  "baseline": {
+    "task_id": "prefix_cache_block_lookup_v1800_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1052360788,
+    "min_elapsed_ns": 1051266302,
+    "max_elapsed_ns": 1102572145,
+    "all_elapsed_ns": [
+      1052360788,
+      1051266302,
+      1102572145
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1052360788,
+      "expected_checksum": 11113062817540119305,
+      "actual_checksum": 11113062817540119305
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "prefix_cache_block_lookup_v1800_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 8804401,
+    "min_elapsed_ns": 7540996,
+    "max_elapsed_ns": 10122560,
+    "all_elapsed_ns": [
+      8804401,
+      7540996,
+      10122560
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 8804401,
+      "expected_checksum": 11113062817540119305,
+      "actual_checksum": 11113062817540119305
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "prefix_cache_block_lookup_v1800_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 92168814,
+    "min_elapsed_ns": 85510400,
+    "max_elapsed_ns": 109403041,
+    "all_elapsed_ns": [
+      92168814,
+      109403041,
+      85510400
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 92168814,
+      "expected_checksum": 11113062817540119305,
+      "actual_checksum": 11113062817540119305
+    },
+    "status": "ok"
+  }
+}

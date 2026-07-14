@@ -1,0 +1,59 @@
+{
+  "task_id": "highway_dot_product_large",
+  "model": "qwen/qwen3.6-max-preview",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/highway_dot_product_large/candidate/qwen__qwen3.6-max-preview/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include \"hwy/highway.h\"\n\nnamespace hn = hwy::HWY_NAMESPACE;\n\nfloat dot_product(const float* a, const float* b, std::size_t n) {\n  const hn::ScalableTag<float> d;\n  const std::size_t N = hn::Lanes(d);\n  \n  auto sum0 = hn::Zero(d);\n  auto sum1 = hn::Zero(d);\n  auto sum2 = hn::Zero(d);\n  auto sum3 = hn::Zero(d);\n  \n  std::size_t i = 0;\n  for (; i + 4 * N <= n; i += 4 * N) {\n    sum0 = hn::MulAdd(hn::LoadU(d, a + i), hn::LoadU(d, b + i), sum0);\n    sum1 = hn::MulAdd(hn::LoadU(d, a + i + N), hn::LoadU(d, b + i + N), sum1);\n    sum2 = hn::MulAdd(hn::LoadU(d, a + i + 2*N), hn::LoadU(d, b + i + 2*N), sum2);\n    sum3 = hn::MulAdd(hn::LoadU(d, a + i + 3*N), hn::LoadU(d, b + i + 3*N), sum3);\n  }\n  \n  sum0 = hn::Add(sum0, sum1);\n  sum2 = hn::Add(sum2, sum3);\n  sum0 = hn::Add(sum0, sum2);\n  \n  for (; i + N <= n; i += N) {\n    sum0 = hn::MulAdd(hn::LoadU(d, a + i), hn::LoadU(d, b + i), sum0);\n  }\n  \n  float res = hn::ReduceSum(d, sum0);\n  \n  for (; i < n; ++i) {\n    res += a[i] * b[i];\n  }\n  return res;\n}",
+  "baseline": {
+    "task_id": "highway_dot_product_large",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 3183558,
+    "min_elapsed_ns": 3140221,
+    "max_elapsed_ns": 3491621,
+    "all_elapsed_ns": [
+      3491621,
+      3183558,
+      3140221
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 3491621,
+      "expected_dot": 567738,
+      "actual_dot": 567738
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "highway_dot_product_large",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 2053923,
+    "min_elapsed_ns": 1961017,
+    "max_elapsed_ns": 2279511,
+    "all_elapsed_ns": [
+      2279511,
+      2053923,
+      1961017
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 2279511,
+      "expected_dot": 567738,
+      "actual_dot": 567737
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "highway_dot_product_large",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/highway_dot_product_large/candidate/bench']' returned non-zero exit status 1."
+  }
+}

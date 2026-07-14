@@ -1,0 +1,33 @@
+{
+  "task_id": "cuda_exclusive_scan_cub_i32_v06",
+  "model": "gpt-5.4",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/cuda_exclusive_scan_cub_i32_v06/candidate/gpt-5.4/solution.cu",
+  "benchmark_timeout_sec": 8,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cuda_runtime.h>\n\nnamespace {\n\ninline int div_up(int a, int b) { return (a + b - 1) / b; }\n\n__global__ void block_exclusive_scan_kernel(const int* __restrict__ input,\n                                            int* __restrict__ output,\n                                            int* __restrict__ block_sums,\n                                            int n) {\n  extern __shared__ int s[];\n  const int tid = threadIdx.x;\n  const int gid = blockIdx.x * blockDim.x + tid;\n\n  int x = 0;\n  if (gid < n) x = input[gid];\n  s[tid] = x;\n  __syncthreads();\n\n  for (int offset = 1; offset < blockDim.x; offset <<= 1) {\n    int v = 0;\n    if (tid >= offset) v = s[tid - offset];\n    __syncthreads();\n    if (tid >= offset) s[tid] += v;\n    __syncthreads();\n  }\n\n  if (gid < n) output[gid] = s[tid] - x;\n\n  if (tid == blockDim.x - 1) {\n    block_sums[blockIdx.x] = s[tid];\n  }\n}\n\n__global__ void add_block_offsets_kernel(int* __restrict__ output,\n                                         const int* __restrict__ block_offsets,\n                                         int n) {\n  const int gid = blockIdx.x * blockDim.x + threadIdx.x;\n  if (gid < n) {\n    output[gid] += block_offsets[blockIdx.x];\n  }\n}\n\n__global__ void single_block_exclusive_scan_kernel(const int* __restrict__ input,\n                                                   int* __restrict__ output,\n                                                   int n) {\n  extern __shared__ int s[];\n  const int tid = threadIdx.x;\n  int x = 0;\n  if (tid < n) x = input[tid];\n  s[tid] = x;\n  __syncthreads();\n\n  for (int offset = 1; offset < blockDim.x; offset <<= 1) {\n    int v = 0;\n    if (tid >= offset) v = s[tid - offset];\n    __syncthreads();\n    if (tid >= offset) s[tid] += v;\n    __syncthreads();\n  }\n\n  if (tid < n) output[tid] = s[tid] - x;\n}\n\n}  // namespace\n\nvoid exclusive_scan_i32(const int* input, int* output, int n, int iters) {\n  if (n <= 0 || iters <= 0) return;\n\n  constexpr int BLOCK = 256;\n  const int num_blocks = div_up(n, BLOCK);\n\n  int* block_sums = nullptr;\n  int* block_offsets = nullptr;\n\n  if (num_blocks > 1) {\n    cudaMalloc(&block_sums, static_cast<size_t>(num_blocks) * sizeof(int));\n    cudaMalloc(&block_offsets, static_cast<size_t>(num_blocks) * sizeof(int));\n  }\n\n  for (int iter = 0; iter < iters; ++iter) {\n    if (num_blocks == 1) {\n      single_block_exclusive_scan_kernel<<<1, BLOCK, BLOCK * sizeof(int)>>>(input, output, n);\n    } else {\n      block_exclusive_scan_kernel<<<num_blocks, BLOCK, BLOCK * sizeof(int)>>>(input, output, block_sums, n);\n      single_block_exclusive_scan_kernel<<<1, BLOCK, BLOCK * sizeof(int)>>>(block_sums, block_offsets, num_blocks);\n      add_block_offsets_kernel<<<num_blocks, BLOCK>>>(output, block_offsets, n);\n    }\n  }\n\n  if (block_sums) cudaFree(block_sums);\n  if (block_offsets) cudaFree(block_offsets);\n}\n",
+  "baseline": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v06",
+    "variant": "baseline",
+    "runs": 3,
+    "status": "error",
+    "error_type": "CalledProcessError",
+    "error": "Command '['build/cuda_exclusive_scan_cub_i32_v06/baseline/bench']' returned non-zero exit status 1."
+  },
+  "reference": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v06",
+    "variant": "reference",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_exclusive_scan_cub_i32_v06/reference/bench']' timed out after 8 seconds"
+  },
+  "candidate": {
+    "task_id": "cuda_exclusive_scan_cub_i32_v06",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/cuda_exclusive_scan_cub_i32_v06/candidate/bench']' timed out after 8 seconds"
+  }
+}

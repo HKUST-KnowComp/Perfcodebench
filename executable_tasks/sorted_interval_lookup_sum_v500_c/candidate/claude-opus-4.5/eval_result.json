@@ -1,0 +1,72 @@
+{
+  "task_id": "sorted_interval_lookup_sum_v500_c",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/sorted_interval_lookup_sum_v500_c/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <algorithm>\n#include <cstdint>\n\n#if defined(__AVX2__)\n#include <immintrin.h>\n#endif\n\nuint64_t interval_lookup_sum(\n    const std::vector<uint32_t>& starts,\n    const std::vector<uint32_t>& ends,\n    const std::vector<uint32_t>& payloads,\n    const std::vector<uint32_t>& probes,\n    const std::vector<uint32_t>& weights,\n    int iters) {\n  (void)ends;\n  \n  const uint32_t* starts_data = starts.data();\n  const uint32_t* payloads_data = payloads.data();\n  const uint32_t* probes_data = probes.data();\n  const uint32_t* weights_data = weights.data();\n  const std::size_t n_probes = probes.size();\n  const std::size_t n_intervals = starts.size();\n  \n  uint64_t sum = 0;\n  \n  for (int iter = 0; iter < iters; ++iter) {\n    sum = 0;\n    \n#if defined(__AVX2__)\n    __m256i vsum0 = _mm256_setzero_si256();\n    __m256i vsum1 = _mm256_setzero_si256();\n    \n    std::size_t i = 0;\n    \n    // Process 8 probes at a time\n    for (; i + 8 <= n_probes; i += 8) {\n      // Binary search for each probe\n      uint32_t idx0, idx1, idx2, idx3, idx4, idx5, idx6, idx7;\n      \n      {\n        uint32_t probe = probes_data[i];\n        const uint32_t* it = std::upper_bound(starts_data, starts_data + n_intervals, probe);\n        idx0 = static_cast<uint32_t>(it - starts_data - 1);\n      }\n      {\n        uint32_t probe = probes_data[i + 1];\n        const uint32_t* it = std::upper_bound(starts_data, starts_data + n_intervals, probe);\n        idx1 = static_cast<uint32_t>(it - starts_data - 1);\n      }\n      {\n        uint32_t probe = probes_data[i + 2];\n        const uint32_t* it = std::upper_bound(starts_data, starts_data + n_intervals, probe);\n        idx2 = static_cast<uint32_t>(it - starts_data - 1);\n      }\n      {\n        uint32_t probe = probes_data[i + 3];\n        const uint32_t* it = std::upper_bound(starts_data, starts_data + n_intervals, probe);\n        idx3 = static_cast<uint32_t>(it - starts_data - 1);\n      }\n      {\n        uint32_t probe = probes_data[i + 4];\n        const uint32_t* it = std::upper_bound(starts_data, starts_data + n_intervals, probe);\n        idx4 = static_cast<uint32_t>(it - starts_data - 1);\n      }\n      {\n        uint32_t probe = probes_data[i + 5];\n        const uint32_t* it = std::upper_bound(starts_data, starts_data + n_intervals, probe);\n        idx5 = static_cast<uint32_t>(it - starts_data - 1);\n      }\n      {\n        uint32_t probe = probes_data[i + 6];\n        const uint32_t* it = std::upper_bound(starts_data, starts_data + n_intervals, probe);\n        idx6 = static_cast<uint32_t>(it - starts_data - 1);\n      }\n      {\n        uint32_t probe = probes_data[i + 7];\n        const uint32_t* it = std::upper_bound(starts_data, starts_data + n_intervals, probe);\n        idx7 = static_cast<uint32_t>(it - starts_data - 1);\n      }\n      \n      // Gather payloads and weights\n      __m256i vidx = _mm256_setr_epi32(idx0, idx1, idx2, idx3, idx4, idx5, idx6, idx7);\n      __m256i vpayloads = _mm256_i32gather_epi32(reinterpret_cast<const int*>(payloads_data), vidx, 4);\n      __m256i vweights = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(weights_data + i));\n      \n      // Multiply and accumulate with 64-bit precision\n      // Split into low and high 4 elements\n      __m256i vpay_lo = _mm256_cvtepu32_epi64(_mm256_castsi256_si128(vpayloads));\n      __m256i vpay_hi = _mm256_cvtepu32_epi64(_mm256_extracti128_si256(vpayloads, 1));\n      __m256i vwgt_lo = _mm256_cvtepu32_epi64(_mm256_castsi256_si128(vweights));\n      __m256i vwgt_hi = _mm256_cvtepu32_epi64(_mm256_extracti128_si256(vweights, 1));\n      \n      // 64-bit multiply\n      __m256i vmul_lo = _mm256_mul_epu32(vpay_lo, vwgt_lo);\n      __m256i vmul_hi = _mm256_mul_epu32(vpay_hi, vwgt_hi);\n      \n      vsum0 = _mm256_add_epi64(vsum0, vmul_lo);\n      vsum1 = _mm256_add_epi64(vsum1, vmul_hi);\n    }\n    \n    // Horizontal sum\n    __m256i vsum = _mm256_add_epi64(vsum0, vsum1);\n    __m128i vsum_lo = _mm256_castsi256_si128(vsum);\n    __m128i vsum_hi = _mm256_extracti128_si256(vsum, 1);\n    __m128i vsum128 = _mm_add_epi64(vsum_lo, vsum_hi);\n    vsum128 = _mm_add_epi64(vsum128, _mm_srli_si128(vsum128, 8));\n    sum = static_cast<uint64_t>(_mm_cvtsi128_si64(vsum128));\n    \n    // Handle remaining elements\n    for (; i < n_probes; ++i) {\n      const uint32_t* it = std::upper_bound(starts_data, starts_data + n_intervals, probes_data[i]);\n      const std::size_t idx = static_cast<std::size_t>(it - starts_data - 1);\n      sum += static_cast<uint64_t>(payloads_data[idx]) * static_cast<uint64_t>(weights_data[i]);\n    }\n#else\n    // Scalar fallback with unrolling\n    std::size_t i = 0;\n    for (; i + 4 <= n_probes; i += 4) {\n      const uint32_t* it0 = std::upper_bound(starts_data, starts_data + n_intervals, probes_data[i]);\n      const uint32_t* it1 = std::upper_bound(starts_data, starts_data + n_intervals, probes_data[i + 1]);\n      const uint32_t* it2 = std::upper_bound(starts_data, starts_data + n_intervals, probes_data[i + 2]);\n      const uint32_t* it3 = std::upper_bound(starts_data, starts_data + n_intervals, probes_data[i + 3]);\n      \n      std::size_t idx0 = static_cast<std::size_t>(it0 - starts_data - 1);\n      std::size_t idx1 = static_cast<std::size_t>(it1 - starts_data - 1);\n      std::size_t idx2 = static_cast<std::size_t>(it2 - starts_data - 1);\n      std::size_t idx3 = static_cast<std::size_t>(it3 - starts_data - 1);\n      \n      sum += static_cast<uint64_t>(payloads_data[idx0]) * static_cast<uint64_t>(weights_data[i]);\n      sum += static_cast<uint64_t>(payloads_data[idx1]) * static_cast<uint64_t>(weights_data[i + 1]);\n      sum += static_cast<uint64_t>(payloads_data[idx2]) * static_cast<uint64_t>(weights_data[i + 2]);\n      sum += static_cast<uint64_t>(payloads_data[idx3]) * static_cast<uint64_t>(weights_data[i + 3]);\n    }\n    \n    for (; i < n_probes; ++i) {\n      const uint32_t* it = std::upper_bound(starts_data, starts_data + n_intervals, probes_data[i]);\n      const std::size_t idx = static_cast<std::size_t>(it - starts_data - 1);\n      sum += static_cast<uint64_t>(payloads_data[idx]) * static_cast<uint64_t>(weights_data[i]);\n    }\n#endif\n  }\n  \n  return sum;\n}",
+  "baseline": {
+    "task_id": "sorted_interval_lookup_sum_v500_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 644070183,
+    "min_elapsed_ns": 643570422,
+    "max_elapsed_ns": 644620600,
+    "all_elapsed_ns": [
+      643570422,
+      644070183,
+      644620600
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 643570422,
+      "expected_sum": 171652150376,
+      "actual_sum": 171652150376
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "sorted_interval_lookup_sum_v500_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 76579940,
+    "min_elapsed_ns": 72956771,
+    "max_elapsed_ns": 78646604,
+    "all_elapsed_ns": [
+      76579940,
+      72956771,
+      78646604
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 76579940,
+      "expected_sum": 171652150376,
+      "actual_sum": 171652150376
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "sorted_interval_lookup_sum_v500_c",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 789502284,
+    "min_elapsed_ns": 778138382,
+    "max_elapsed_ns": 794626605,
+    "all_elapsed_ns": [
+      778138382,
+      794626605,
+      789502284
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 778138382,
+      "expected_sum": 171652150376,
+      "actual_sum": 171652150376
+    },
+    "status": "ok"
+  }
+}

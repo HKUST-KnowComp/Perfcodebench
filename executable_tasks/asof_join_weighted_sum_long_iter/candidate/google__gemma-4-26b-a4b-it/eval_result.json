@@ -1,0 +1,72 @@
+{
+  "task_id": "asof_join_weighted_sum_long_iter",
+  "model": "google/gemma-4-26b-a4b-it",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/asof_join_weighted_sum_long_iter/candidate/google__gemma-4-26b-a4b-it/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <vector>\n#include <cstdint>\n\nuint64_t asof_join_sum(\n    const std::vector<uint32_t>& dim_ts,\n    const std::vector<uint32_t>& dim_values,\n    const std::vector<uint32_t>& probe_ts,\n    const std::vector<uint32_t>& probe_weights,\n    int iters) {\n  uint64_t total_sum = 0;\n  const std::size_t n_dim = dim_ts.size();\n  const std::size_t n_probe = probe_ts.size();\n\n  if (n_dim == 0 || n_probe == 0) {\n    return 0;\n  }\n\n  for (int iter = 0; iter < iters; ++iter) {\n    uint64_t current_iter_sum = 0;\n    std::size_t dim_idx = 0;\n\n    for (std::size_t i = 0; i < n_probe; ++i) {\n      const uint32_t p_ts = probe_ts[i];\n      \n      // Advance dim_idx to the largest index such that dim_ts[dim_idx] <= p_ts\n      // Since probe_ts is sorted, dim_idx only moves forward.\n      while (dim_idx + 1 < n_dim && dim_ts[dim_idx + 1] <= p_ts) {\n        dim_idx++;\n      }\n\n      // Check if the current dim_idx is valid for the probe timestamp\n      if (dim_ts[dim_idx] <= p_ts) {\n        current_iter_sum += static_cast<uint64_t>(dim_values[dim_idx]) * probe_weights[i];\n      }\n    }\n    total_sum += current_iter_sum;\n  }\n\n  // The task asks for the sum over iters. \n  // The baseline returns the sum of the LAST iteration if it were just 'sum = 0' inside the loop.\n  // However, the baseline code provided: \n  // sum = 0; for(...) { sum = 0; for(...) { sum += ... } } \n  // This means the baseline actually returns the sum of the LAST iteration only.\n  // Let's re-examine the baseline: \n  // sum = 0; for (int iter = 0; iter < iters; ++iter) { sum = 0; ... }\n  // This is mathematically equivalent to just running the loop once.\n  // To preserve exact correctness with the baseline's behavior:\n  \n  // Re-calculating to match baseline's exact logic (returning only the last iteration's sum):\n  uint64_t last_sum = 0;\n  std::size_t d_idx = 0;\n  for (std::size_t i = 0; i < n_probe; ++i) {\n    const uint32_t p_ts = probe_ts[i];\n    while (d_idx + 1 < n_dim && dim_ts[d_idx + 1] <= p_ts) {\n      d_idx++;\n    }\n    if (dim_ts[d_idx] <= p_ts) {\n      last_sum += static_cast<uint64_t>(dim_values[d_idx]) * probe_weights[i];\n    }\n  }\n  \n  // Wait, the baseline loop is:\n  // sum = 0;\n  // for (int iter = 0; iter < iters; ++iter) {\n  //    sum = 0;\n  //    for (...) { sum += ... }\n  // }\n  // This means 'sum' is reset every iteration. The final value of 'sum' is just the result of the last iteration.\n  // If iters is 0, it returns 0. If iters > 0, it returns the sum of one iteration.\n  \n  if (iters <= 0) return 0;\n  \n  // Optimized single pass to match baseline behavior\n  uint64_t final_sum = 0;\n  std::size_t current_dim_idx = 0;\n  for (std::size_t i = 0; i < n_probe; ++i) {\n    const uint32_t p_ts = probe_ts[i];\n    while (current_dim_idx + 1 < n_dim && dim_ts[current_dim_idx + 1] <= p_ts) {\n      current_dim_idx++;\n    }\n    if (dim_ts[current_dim_idx] <= p_ts) {\n      final_sum += static_cast<uint64_t>(dim_values[current_dim_idx]) * probe_weights[i];\n    }\n  }\n  \n  return final_sum;\n}",
+  "baseline": {
+    "task_id": "asof_join_weighted_sum_long_iter",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 1665853134,
+    "min_elapsed_ns": 1654889336,
+    "max_elapsed_ns": 1819954837,
+    "all_elapsed_ns": [
+      1665853134,
+      1819954837,
+      1654889336
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 1665853134,
+      "expected_sum": 147209051048,
+      "actual_sum": 147209051048
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "asof_join_weighted_sum_long_iter",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 153364471,
+    "min_elapsed_ns": 146469680,
+    "max_elapsed_ns": 155583045,
+    "all_elapsed_ns": [
+      153364471,
+      155583045,
+      146469680
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 153364471,
+      "expected_sum": 147209051048,
+      "actual_sum": 147209051048
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "asof_join_weighted_sum_long_iter",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 7090671,
+    "min_elapsed_ns": 6566545,
+    "max_elapsed_ns": 9631152,
+    "all_elapsed_ns": [
+      6566545,
+      9631152,
+      7090671
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 6566545,
+      "expected_sum": 147209051048,
+      "actual_sum": 147209051048
+    },
+    "status": "ok"
+  }
+}

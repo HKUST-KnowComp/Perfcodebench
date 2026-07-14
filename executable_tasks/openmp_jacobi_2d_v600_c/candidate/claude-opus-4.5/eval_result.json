@@ -1,0 +1,59 @@
+{
+  "task_id": "openmp_jacobi_2d_v600_c",
+  "model": "claude-opus-4.5",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/openmp_jacobi_2d_v600_c/candidate/claude-opus-4.5/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n\n#include <cstdint>\n#include <vector>\n#include <omp.h>\n\nuint64_t jacobi_checksum(const std::vector<uint32_t>& input, int rows, int cols, int steps) {\n  const std::size_t total = static_cast<std::size_t>(rows) * static_cast<std::size_t>(cols);\n  const std::size_t cols_sz = static_cast<std::size_t>(cols);\n  \n  std::vector<uint32_t> a = input;\n  std::vector<uint32_t> b(total);\n  \n  uint32_t* __restrict pa = a.data();\n  uint32_t* __restrict pb = b.data();\n  \n  for (int step = 0; step < steps; ++step) {\n    // Copy boundary rows (top and bottom)\n    #pragma omp parallel for schedule(static)\n    for (std::size_t col = 0; col < cols_sz; ++col) {\n      pb[col] = pa[col];\n      pb[(rows - 1) * cols_sz + col] = pa[(rows - 1) * cols_sz + col];\n    }\n    \n    // Process interior rows in parallel\n    #pragma omp parallel for schedule(static)\n    for (int row = 1; row < rows - 1; ++row) {\n      const std::size_t row_offset = static_cast<std::size_t>(row) * cols_sz;\n      const std::size_t prev_row = row_offset - cols_sz;\n      const std::size_t next_row = row_offset + cols_sz;\n      \n      // Left boundary\n      pb[row_offset] = pa[row_offset];\n      // Right boundary\n      pb[row_offset + cols_sz - 1] = pa[row_offset + cols_sz - 1];\n      \n      // Interior columns with SIMD hint\n      #pragma omp simd\n      for (std::size_t col = 1; col < cols_sz - 1; ++col) {\n        const std::size_t idx = row_offset + col;\n        pb[idx] = (pa[idx] * 4u + pa[idx - 1] + pa[idx + 1] +\n                   pa[prev_row + col] + pa[next_row + col]) / 8u;\n      }\n    }\n    \n    // Swap pointers\n    uint32_t* tmp = pa;\n    pa = pb;\n    pb = tmp;\n  }\n  \n  // Compute checksum - use the correct final buffer\n  const uint32_t* final_data = pa;\n  \n  // Parallel checksum computation\n  const int num_threads = omp_get_max_threads();\n  std::vector<uint64_t> partial_hashes(num_threads, 1469598103934665603ULL);\n  \n  #pragma omp parallel\n  {\n    const int tid = omp_get_thread_num();\n    const int nthreads = omp_get_num_threads();\n    \n    const std::size_t chunk = (total + nthreads - 1) / nthreads;\n    const std::size_t start = static_cast<std::size_t>(tid) * chunk;\n    const std::size_t end = (start + chunk < total) ? start + chunk : total;\n    \n    uint64_t hash = 1469598103934665603ULL;\n    for (std::size_t i = start; i < end; ++i) {\n      hash ^= static_cast<uint64_t>(final_data[i]);\n      hash *= 1099511628211ULL;\n    }\n    partial_hashes[tid] = hash;\n  }\n  \n  // Sequential checksum to match original algorithm exactly\n  uint64_t hash = 1469598103934665603ULL;\n  for (std::size_t i = 0; i < total; ++i) {\n    hash ^= static_cast<uint64_t>(final_data[i]);\n    hash *= 1099511628211ULL;\n  }\n  \n  return hash;\n}",
+  "baseline": {
+    "task_id": "openmp_jacobi_2d_v600_c",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 110082856,
+    "min_elapsed_ns": 109946680,
+    "max_elapsed_ns": 234440592,
+    "all_elapsed_ns": [
+      110082856,
+      109946680,
+      234440592
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 110082856,
+      "expected_checksum": 6389366618467326091,
+      "actual_checksum": 6389366618467326091
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "openmp_jacobi_2d_v600_c",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 133127173,
+    "min_elapsed_ns": 78671381,
+    "max_elapsed_ns": 315987133,
+    "all_elapsed_ns": [
+      315987133,
+      78671381,
+      133127173
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 315987133,
+      "expected_checksum": 6389366618467326091,
+      "actual_checksum": 6389366618467326091
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "openmp_jacobi_2d_v600_c",
+    "variant": "candidate",
+    "runs": 3,
+    "status": "timeout",
+    "error_type": "TimeoutExpired",
+    "error": "Command '['build/openmp_jacobi_2d_v600_c/candidate/bench']' timed out after 5 seconds"
+  }
+}

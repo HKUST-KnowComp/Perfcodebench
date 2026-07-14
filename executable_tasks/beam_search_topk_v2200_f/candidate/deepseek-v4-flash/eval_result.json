@@ -1,0 +1,72 @@
+{
+  "task_id": "beam_search_topk_v2200_f",
+  "model": "deepseek-v4-flash",
+  "dry_run": false,
+  "candidate_path": "executable_tasks/beam_search_topk_v2200_f/candidate/deepseek-v4-flash/solution.cpp",
+  "benchmark_timeout_sec": 5,
+  "model_output_summary": "Reused existing candidate source.",
+  "model_output_solution_source": "#include \"interface.h\"\n#include <algorithm>\n#include <cstdint>\n#include <vector>\n\nnamespace {\n  // Comparator: descending logit, ascending index.\n  bool better(const std::pair<int32_t, int>& a, const std::pair<int32_t, int>& b) {\n    return a.first > b.first || (a.first == b.first && a.second < b.second);\n  }\n\n  // FNV-1a 64-bit mix.\n  uint64_t mix(uint64_t hash, uint64_t value) {\n    hash ^= value;\n    hash *= 1099511628211ULL;\n    return hash;\n  }\n}  // anonymous namespace\n\nuint64_t beam_topk_checksum(const std::vector<int32_t>& logits,\n                            int beams,\n                            int vocab,\n                            int topk,\n                            int iters) {\n  uint64_t hash;\n  // Pre-allocate the working vector for one beam.\n  std::vector<std::pair<int32_t, int>> row(static_cast<std::size_t>(vocab));\n\n  for (int iter = 0; iter < iters; ++iter) {\n    hash = 1469598103934665603ULL;\n    for (int b = 0; b < beams; ++b) {\n      const std::size_t base = static_cast<std::size_t>(b) * static_cast<std::size_t>(vocab);\n\n      // Fill row directly by assignment (avoids push_back overhead).\n      for (int v = 0; v < vocab; ++v) {\n        row[static_cast<std::size_t>(v)] = {logits[base + static_cast<std::size_t>(v)], v};\n      }\n\n      // Only the top-k elements need to be in sorted order.\n      std::partial_sort(row.begin(), row.begin() + topk, row.end(), better);\n\n      // Mix the top-k (logit, index) pairs into the hash.\n      for (int k = 0; k < topk; ++k) {\n        const auto& p = row[static_cast<std::size_t>(k)];\n        hash = mix(hash, static_cast<uint64_t>(static_cast<uint32_t>(p.first)));\n        hash = mix(hash, static_cast<uint64_t>(p.second));\n      }\n    }\n  }\n\n  return hash;\n}\n",
+  "baseline": {
+    "task_id": "beam_search_topk_v2200_f",
+    "variant": "baseline",
+    "runs": 3,
+    "median_elapsed_ns": 247776038,
+    "min_elapsed_ns": 244083699,
+    "max_elapsed_ns": 254034707,
+    "all_elapsed_ns": [
+      254034707,
+      244083699,
+      247776038
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 254034707,
+      "expected_checksum": 16565030028261021178,
+      "actual_checksum": 16565030028261021178
+    },
+    "status": "ok"
+  },
+  "reference": {
+    "task_id": "beam_search_topk_v2200_f",
+    "variant": "reference",
+    "runs": 3,
+    "median_elapsed_ns": 5263974,
+    "min_elapsed_ns": 4697459,
+    "max_elapsed_ns": 5267017,
+    "all_elapsed_ns": [
+      5263974,
+      4697459,
+      5267017
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 5263974,
+      "expected_checksum": 16565030028261021178,
+      "actual_checksum": 16565030028261021178
+    },
+    "status": "ok"
+  },
+  "candidate": {
+    "task_id": "beam_search_topk_v2200_f",
+    "variant": "candidate",
+    "runs": 3,
+    "median_elapsed_ns": 9848923,
+    "min_elapsed_ns": 9847586,
+    "max_elapsed_ns": 10335226,
+    "all_elapsed_ns": [
+      9848923,
+      9847586,
+      10335226
+    ],
+    "all_ok": true,
+    "sample_output": {
+      "ok": true,
+      "elapsed_ns": 9848923,
+      "expected_checksum": 16565030028261021178,
+      "actual_checksum": 16565030028261021178
+    },
+    "status": "ok"
+  }
+}
