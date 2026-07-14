@@ -8,6 +8,8 @@
 [![Languages](https://img.shields.io/badge/languages-C%20%7C%20C%2B%2B%20%7C%20CUDA%20%7C%20Go%20%7C%20Python-0969da?style=flat-square)](#-benchmark-tasks)
 [![Metric](https://img.shields.io/badge/metric-median%20elapsed__ns-2da44e?style=flat-square)](#-how-it-works)
 
+### [🏆 Explore the Live Leaderboard](https://perfcodebench-explorer.huihao.chatgpt.site/)
+
 </div>
 
 PerfCodeBench asks a model to optimize an existing implementation under a fixed interface and dependency set. Every generated candidate is compiled with the same benchmark harness, checked for correctness, and measured against both a baseline and a reference implementation.
@@ -23,6 +25,7 @@ PerfCodeBench asks a model to optimize an existing implementation under a fixed 
 - **Multi-language coverage** — tasks span C, C++, CUDA, Go, and Python.
 - **Reproducible artifacts** — generated source code, benchmark results, and build outputs are retained for inspection.
 - **Batch evaluation** — run a single task, a selected subset, or every model declared in the configuration.
+- **Interactive leaderboard** — explore and compare model results in the [PerfCodeBench Explorer](https://perfcodebench-explorer.huihao.chatgpt.site/).
 
 ## 🔄 How it works
 
